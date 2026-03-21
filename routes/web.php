@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WaybillController;
+use App\Http\Controllers\WaybillImportController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ScannerController;
@@ -37,6 +38,14 @@ Route::middleware(['auth'])->group(function () {
     // Waybills
     Route::prefix('waybills')->name('waybills.')->group(function () {
         Route::get('/', [WaybillController::class, 'index'])->name('index');
+
+        // Import routes (before {waybill} to avoid conflict)
+        Route::get('/import', [WaybillImportController::class, 'index'])->name('import');
+        Route::post('/import', [WaybillImportController::class, 'store'])->name('import.store');
+        Route::get('/import/template', [WaybillImportController::class, 'template'])->name('import.template');
+        Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
+        Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
+
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
     });

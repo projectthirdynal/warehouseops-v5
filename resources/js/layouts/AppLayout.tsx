@@ -15,6 +15,7 @@ import {
   Recycle,
   UserCog,
   Headphones,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Scanner', href: '/scanner', icon: Package, permission: 'scanner' },
   { name: 'Waybills', href: '/waybills', icon: Truck, permission: 'accounts' },
+  { name: 'Import', href: '/waybills/import', icon: Upload, permission: 'accounts' },
   { name: 'Leads', href: '/leads', icon: Users, permission: 'leads_view' },
   { name: 'QC Review', href: '/qc', icon: ClipboardCheck, permission: 'qc' },
   { name: 'Recycling', href: '/recycling/pool', icon: Recycle, permission: 'leads_manage' },
