@@ -47,7 +47,7 @@ return new class extends Migration
             $table->integer('item_qty')->default(1);
             $table->decimal('amount', 10, 2)->default(0);
             $table->string('courier_provider')->default('MANUAL');
-            $table->foreignId('lead_id')->nullable()->constrained('leads')->nullOnDelete();
+            $table->unsignedBigInteger('lead_id')->nullable(); // FK added after leads table created
             $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('dispatched_at')->nullable();
             $table->timestamp('delivered_at')->nullable();

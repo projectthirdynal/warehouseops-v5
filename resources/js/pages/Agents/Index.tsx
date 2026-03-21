@@ -1,0 +1,294 @@
+import { Head } from '@inertiajs/react';
+import { useState } from 'react';
+import {
+  Users,
+  UserPlus,
+  Search,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  UserX,
+  TrendingUp,
+  Clock,
+  Phone,
+  Mail,
+  Activity,
+} from 'lucide-react';
+import AppLayout from '@/layouts/AppLayout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { User, AgentProfile } from '@/types';
+
+interface Agent extends User {
+  phone?: string;
+  profile?: AgentProfile;
+  stats?: {
+    leads_today: number;
+    sales_today: number;
+    conversion_rate: number;
+    active_leads: number;
+  };
+}
+
+interface Props {
+  agents: Agent[];
+  stats: {
+    total: number;
+    active: number;
+    inactive: number;
+    avg_performance: number;
+  };
+}
+
+export default function AgentsIndex({ agents, stats }: Props) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const filteredAgents = agents?.filter(agent => {
+    const matchesSearch = agent.name.toLowerCase().includes(search.toLowerCase()) ||
+      agent.email.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'active' && agent.is_active) ||
+      (statusFilter === 'inactive' && !agent.is_active);
+    return matchesSearch && matchesStatus;
+  }) || [];
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  return (
+    <AppLayout>
+      <Head title="Agents" />
+
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Agent Management</h1>
+            <p className="text-muted-foreground">
+              Manage team members and monitor performance
+            </p>
+          </div>
+          <Button>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add Agent
+          </Button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Users className="h-4 w-4" /> Total Agents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.total || agents?.length || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Activity className="h-4 w-4 text-green-600" /> Active
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats?.active || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-gray-600" /> Inactive
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{stats?.inactive || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> Avg Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.avg_performance || 0}%</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 md:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search agents by name or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Agents Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredAgents.length > 0 ? (
+            filteredAgents.map((agent) => (
+              <Card key={agent.id} className="relative">
+                <CardContent className="pt-6">
+                  <div className="absolute right-4 top-4">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive">
+                          <UserX className="mr-2 h-4 w-4" />
+                          Deactivate
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src={agent.avatar_url} />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                        {getInitials(agent.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <h3 className="mt-3 font-semibold">{agent.name}</h3>
+                    <Badge variant={agent.is_active ? 'default' : 'secondary'} className="mt-1">
+                      {agent.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+
+                    <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4" />
+                        <span className="truncate max-w-[120px]">{agent.email}</span>
+                      </div>
+                    </div>
+
+                    {agent.phone && (
+                      <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        <span>{agent.phone}</span>
+                      </div>
+                    )}
+
+                    {/* Performance Stats */}
+                    <div className="mt-4 w-full grid grid-cols-3 gap-2 border-t pt-4">
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">{agent.stats?.leads_today || 0}</div>
+                        <div className="text-xs text-muted-foreground">Leads</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-green-600">{agent.stats?.sales_today || 0}</div>
+                        <div className="text-xs text-muted-foreground">Sales</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">{agent.stats?.conversion_rate || 0}%</div>
+                        <div className="text-xs text-muted-foreground">Rate</div>
+                      </div>
+                    </div>
+
+                    {/* Performance Bar */}
+                    <div className="mt-3 w-full">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Performance</span>
+                        <span className="font-medium">{agent.profile?.performance_score || 50}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full ${
+                            (agent.profile?.performance_score || 50) >= 70
+                              ? 'bg-green-600'
+                              : (agent.profile?.performance_score || 50) >= 40
+                              ? 'bg-yellow-600'
+                              : 'bg-red-600'
+                          }`}
+                          style={{ width: `${agent.profile?.performance_score || 50}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Skills */}
+                    {agent.profile?.product_skills && agent.profile.product_skills.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1 justify-center">
+                        {agent.profile.product_skills.slice(0, 3).map((skill, i) => (
+                          <Badge key={i} variant="outline" className="text-xs">
+                            {skill}
+                          </Badge>
+                        ))}
+                        {agent.profile.product_skills.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{agent.profile.product_skills.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card className="col-span-full">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">No agents found</h3>
+                <p className="text-muted-foreground">
+                  {search || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first agent to get started'}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </AppLayout>
+  );
+}

@@ -1,0 +1,174 @@
+name: Deploy WarehouseOps v5
+
+# Triggers on every push to main. PRs targeting main will NOT trigger a deployment.
+on:
+  push:
+    branches:
+      - main
+
+# Prevent concurrent deployments. If a new push arrives while one is running,
+# cancel the in-progress run rather than queue behind it.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1 — Build frontend assets
+  # Runs on GitHub-hosted runner; produces a dist
+  # artifact that the deploy job downloads.
+  # ─────────────────────────────────────────────
+  build:
+    name: Build Frontend Assets
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Cache node_modules keyed on the lockfile.
+      # A lockfile change busts the cache automatically.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            node-${{ runner.os }}-
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        # ci is stricter than install: it uses the lockfile exactly
+        # and will error if package-lock.json is out of sync.
+        run: npm ci
+
+      - name: Build frontend assets (TypeScript + Vite)
+        # Runs `tsc && vite build` as defined in package.json.
+        # Output lands in public/build/ (Laravel Vite plugin default).
+        run: npm run build
+
+      # Upload the compiled assets so the deploy job can rsync them
+      # to the server without re-running the build step.
+      - name: Upload built assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-assets
+          # The Laravel Vite plugin writes into public/build/
+          path: public/build/
+          # Assets are only needed for the current deployment run.
+          retention-days: 1
+
+  # ─────────────────────────────────────────────
+  # JOB 2 — Deploy to production server
+  # Downloads the artifact from job 1, rsyncs the
+  # full codebase, then runs Laravel post-deploy
+  # commands inside the running app container.
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-24.04
+    needs: build   # only runs when build succeeds
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Pull the compiled public/build/ back into the workspace so
+      # rsync picks it up as part of the file transfer.
+      - name: Download built assets
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-assets
+          path: public/build/
+
+      # Write the private key from the secret to a temp file.
+      # Permissions must be 600 or SSH will reject the key.
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pre-trust the server fingerprint so SSH doesn't prompt.
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      # rsync the working tree to the server, excluding directories
+      # that are managed on the server side (storage, .env, vendor, node_modules).
+      - name: Sync files to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='.env' \
+            --exclude='storage/app/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+      # All subsequent commands run inside the already-running app
+      # container via `docker compose exec -T`.
+      # The -T flag disables pseudo-TTY allocation (required for non-interactive CI).
+      - name: Install PHP dependencies (production, no dev)
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && \
+               docker compose exec -T app composer install \
+                 --no-dev \
+                 --optimize-autoloader \
+                 --no-interaction \
+                 --prefer-dist"
+
+      - name: Run database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && \
+               docker compose exec -T app php artisan migrate --force"
+
+      # Wipe all caches first (config, route, view, opcache, events)
+      # then rebuild them in the correct order so nothing references stale data.
+      - name: Rebuild Laravel caches
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && \
+               docker compose exec -T app php artisan optimize:clear && \
+               docker compose exec -T app php artisan config:cache && \
+               docker compose exec -T app php artisan route:cache && \
+               docker compose exec -T app php artisan view:cache && \
+               docker compose exec -T app php artisan event:cache"
+
+      # Restart Horizon so it picks up the new code.
+      # The horizon container is defined in docker-compose.prod.yml.
+      - name: Restart Horizon worker
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && \
+               docker compose exec -T app php artisan horizon:terminate || true"
+
+      # Quick smoke test: PHP-FPM responding means the container is healthy.
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "docker inspect --format='{{.State.Status}}' warehouseops-app | grep -q running && \
+               docker inspect --format='{{.State.Status}}' warehouseops-nginx | grep -q running && \
+               docker inspect --format='{{.State.Status}}' warehouseops-redis | grep -q running && \
+               echo 'All containers are running.'"
+
+      # Clean up the private key from the runner's filesystem.
+      - name: Remove SSH key
+        if: always()   # runs even if previous steps failed
+        run: rm -f ~/.ssh/deploy_key

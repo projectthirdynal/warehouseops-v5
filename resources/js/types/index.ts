@@ -165,4 +165,5 @@ export interface PageProps {
     location: string;
     url: string;
   };
+  [key: string]: unknown;
 }
