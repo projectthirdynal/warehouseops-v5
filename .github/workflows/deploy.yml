@@ -70,7 +70,9 @@ jobs:
   # ─────────────────────────────────────────────
   deploy:
     name: Deploy to Production
-    runs-on: ubuntu-24.04
+    # Use self-hosted runner on local network to reach 192.168.0.14
+    # To set up: GitHub Repo → Settings → Actions → Runners → New self-hosted runner
+    runs-on: self-hosted
     needs: build   # only runs when build succeeds
 
     steps:
