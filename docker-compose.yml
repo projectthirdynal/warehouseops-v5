@@ -1,0 +1,133 @@
+version: '3.9'
+
+services:
+  # ===================
+  # APPLICATION
+  # ===================
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=warehouseops
+      - DB_USERNAME=warehouseops
+      - DB_PASSWORD=secret
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+
+  # ===================
+  # NGINX
+  # ===================
+  nginx:
+    image: nginx:alpine
+    container_name: warehouseops-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  # ===================
+  # NODE (for Vite dev server)
+  # ===================
+  node:
+    image: node:20-alpine
+    container_name: warehouseops-node
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - warehouseops
+
+  # ===================
+  # POSTGRESQL
+  # ===================
+  postgres:
+    image: postgres:16-alpine
+    container_name: warehouseops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: warehouseops
+      POSTGRES_USER: warehouseops
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warehouseops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+  # ===================
+  # REDIS
+  # ===================
+  redis:
+    image: redis:7-alpine
+    container_name: warehouseops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+  # ===================
+  # MAILPIT (Local mail testing)
+  # ===================
+  mailpit:
+    image: axllent/mailpit
+    container_name: warehouseops-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - warehouseops
+
+networks:
+  warehouseops:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

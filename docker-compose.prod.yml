@@ -1,0 +1,126 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-app
+    restart: always
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  nginx:
+    image: nginx:alpine
+    container_name: warehouseops-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-horizon
+    restart: always
+    command: php artisan horizon
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - app
+      - redis
+    networks:
+      - warehouseops
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-scheduler
+    restart: always
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction;
+        sleep 60;
+      done"
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: warehouseops-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-warehouseops}
+      POSTGRES_USER: ${DB_USERNAME:-warehouseops}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-warehouseops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+  redis:
+    image: redis:7-alpine
+    container_name: warehouseops-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+networks:
+  warehouseops:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
