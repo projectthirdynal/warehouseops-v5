@@ -270,7 +270,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                       <Upload className="mx-auto h-10 w-10 text-muted-foreground" />
                       <p className="font-medium">Drop file here or click to browse</p>
                       <p className="text-sm text-muted-foreground">
-                        Supports XLSX, XLS, CSV (max 10MB)
+                        Supports XLSX, XLS, CSV (max 100MB)
                       </p>
                     </div>
                   )}

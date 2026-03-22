@@ -40,7 +40,7 @@ class WaybillImportController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // 10MB max
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:102400', // 100MB max
             'courier' => 'required|string|in:jnt,flash',
         ]);
 
