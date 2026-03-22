@@ -14,15 +14,17 @@ class CallTrackingService
 
     public function initiateCall(Lead $lead, LeadCycle $cycle, User $agent): string
     {
+        if (empty($lead->phone)) {
+            throw new \InvalidArgumentException('Lead phone number is required');
+        }
+
         // Record the call attempt
         $cycle->increment('call_count');
         $cycle->update(['last_call_at' => now()]);
 
         // Update lead's last_called_at
-        $lead->update([
-            'last_called_at' => now(),
-            'call_attempts' => $lead->call_attempts + 1,
-        ]);
+        $lead->increment('call_attempts');
+        $lead->update(['last_called_at' => now()]);
 
         // Log to audit trail
         $this->auditService->log(
@@ -37,7 +39,8 @@ class CallTrackingService
         );
 
         // Return SIP link for MicroSIP
-        return 'sip:' . $lead->phone;
+        $sanitizedPhone = preg_replace('/[^0-9+]/', '', $lead->phone);
+        return 'sip:' . $sanitizedPhone;
     }
 
     public function getAgentCallStats(User $agent, ?string $period = 'today'): array
