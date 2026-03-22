@@ -1,4 +1,4 @@
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState, useRef } from 'react';
 import {
   Upload,
@@ -53,19 +53,15 @@ interface Props {
 
 export default function WaybillImport({ uploads, stats }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCourier, setSelectedCourier] = useState<string>('jnt');
   const [dragOver, setDragOver] = useState(false);
-
-  const { data, setData, post, processing, errors, reset } = useForm<{
-    file: File | null;
-    courier: string;
-  }>({
-    file: null,
-    courier: 'jnt',
-  });
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFileSelect = (file: File) => {
-    setData('file', file);
+    setSelectedFile(file);
+    setUploadError(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -90,19 +86,29 @@ export default function WaybillImport({ uploads, stats }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!data.file) return;
+    if (!selectedFile) {
+      setUploadError('Please select a file to upload');
+      return;
+    }
 
-    const formData = new FormData();
-    formData.append('file', data.file);
-    formData.append('courier', selectedCourier);
+    setIsUploading(true);
+    setUploadError(null);
 
-    post('/waybills/import', {
+    router.post('/waybills/import', {
+      file: selectedFile,
+      courier: selectedCourier,
+    }, {
       forceFormData: true,
       onSuccess: () => {
-        reset();
+        setSelectedFile(null);
+        setIsUploading(false);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
+      },
+      onError: (errors) => {
+        setIsUploading(false);
+        setUploadError(errors.file || 'Upload failed. Please try again.');
       },
     });
   };
@@ -201,10 +207,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                 {/* Courier Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Courier Provider</label>
-                  <Select value={selectedCourier} onValueChange={(v) => {
-                    setSelectedCourier(v);
-                    setData('courier', v);
-                  }}>
+                  <Select value={selectedCourier} onValueChange={setSelectedCourier}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select courier" />
                     </SelectTrigger>
@@ -220,7 +223,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                   className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                     dragOver
                       ? 'border-primary bg-primary/5'
-                      : data.file
+                      : selectedFile
                       ? 'border-green-500 bg-green-50'
                       : 'border-muted-foreground/25 hover:border-primary'
                   }`}
@@ -242,12 +245,12 @@ export default function WaybillImport({ uploads, stats }: Props) {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
 
-                  {data.file ? (
+                  {selectedFile ? (
                     <div className="space-y-2">
                       <FileSpreadsheet className="mx-auto h-10 w-10 text-green-600" />
-                      <p className="font-medium text-green-700">{data.file.name}</p>
+                      <p className="font-medium text-green-700">{selectedFile.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {(data.file.size / 1024 / 1024).toFixed(2)} MB
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                       <Button
                         type="button"
@@ -255,7 +258,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setData('file', null);
+                          setSelectedFile(null);
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                       >
@@ -273,16 +276,16 @@ export default function WaybillImport({ uploads, stats }: Props) {
                   )}
                 </div>
 
-                {errors.file && (
-                  <p className="text-sm text-red-600">{errors.file}</p>
+                {uploadError && (
+                  <p className="text-sm text-red-600">{uploadError}</p>
                 )}
 
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={!data.file || processing}
+                  disabled={!selectedFile || isUploading}
                 >
-                  {processing ? (
+                  {isUploading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Uploading...
