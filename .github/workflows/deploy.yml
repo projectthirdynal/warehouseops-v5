@@ -135,6 +135,16 @@ jobs:
               "cd ${{ secrets.DEPLOY_PATH }} && \
                docker compose exec -T app php artisan migrate --force"
 
+      # Restart nginx and app containers to pick up config changes
+      # (nginx.conf, php.ini updates like upload limits, timeouts, etc.)
+      - name: Restart containers for config changes
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && \
+               docker compose restart nginx app"
+
       # Wipe all caches first (config, route, view, opcache, events)
       # then rebuild them in the correct order so nothing references stale data.
       - name: Rebuild Laravel caches
