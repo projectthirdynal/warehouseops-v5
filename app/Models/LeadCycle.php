@@ -15,11 +15,17 @@ class LeadCycle extends Model
         'outcome',
         'opened_at',
         'closed_at',
+        'last_call_at',
+        'call_count',
+        'callback_at',
+        'callback_notes',
     ];
 
     protected $casts = [
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
+        'last_call_at' => 'datetime',
+        'callback_at' => 'datetime',
     ];
 
     public function lead(): BelongsTo
@@ -30,5 +36,11 @@ class LeadCycle extends Model
     public function assignedAgent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_agent_id');
+    }
+
+    public function recordCall(): void
+    {
+        $this->increment('call_count');
+        $this->update(['last_call_at' => now()]);
     }
 }
