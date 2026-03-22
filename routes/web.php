@@ -9,6 +9,8 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ScannerController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SmsController;
+use App\Http\Controllers\LeadPoolController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -84,5 +86,37 @@ Route::middleware(['auth'])->group(function () {
     // Settings
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
+    });
+
+    // SMS
+    Route::prefix('sms')->name('sms.')->group(function () {
+        Route::get('/', [SmsController::class, 'index'])->name('index');
+        Route::get('/create', [SmsController::class, 'create'])->name('create');
+        Route::post('/', [SmsController::class, 'store'])->name('store');
+        Route::get('/campaigns/{campaign}', [SmsController::class, 'show'])->name('show');
+        Route::post('/campaigns/{campaign}/send', [SmsController::class, 'send'])->name('send');
+        Route::post('/preview', [SmsController::class, 'preview'])->name('preview');
+        Route::post('/quick-send', [SmsController::class, 'quickSend'])->name('quick-send');
+
+        // Sequences
+        Route::get('/sequences', [SmsController::class, 'sequences'])->name('sequences');
+        Route::get('/sequences/create', [SmsController::class, 'createSequence'])->name('sequences.create');
+        Route::post('/sequences', [SmsController::class, 'storeSequence'])->name('sequences.store');
+        Route::post('/sequences/{sequence}/toggle', [SmsController::class, 'toggleSequence'])->name('sequences.toggle');
+
+        // Templates
+        Route::get('/templates', [SmsController::class, 'templates'])->name('templates');
+        Route::post('/templates', [SmsController::class, 'storeTemplate'])->name('templates.store');
+        Route::delete('/templates/{template}', [SmsController::class, 'destroyTemplate'])->name('templates.destroy');
+
+        // Logs
+        Route::get('/logs', [SmsController::class, 'logs'])->name('logs');
+    });
+
+    // Lead Pool (Supervisor)
+    Route::prefix('lead-pool')->name('lead-pool.')->group(function () {
+        Route::get('/', [LeadPoolController::class, 'index'])->name('index');
+        Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
+        Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
     });
 });

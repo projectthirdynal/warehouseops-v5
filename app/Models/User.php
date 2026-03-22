@@ -46,6 +46,11 @@ class User extends Authenticatable
         return $this->hasMany(Lead::class, 'assigned_to');
     }
 
+    public function assignedCycles(): HasMany
+    {
+        return $this->hasMany(LeadCycle::class, 'assigned_agent_id');
+    }
+
     public function isAdmin(): bool
     {
         return in_array($this->role, ['superadmin', 'admin']);
