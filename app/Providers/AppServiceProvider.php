@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Waybill\Models\Waybill;
+use App\Observers\WaybillObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Waybill::observe(WaybillObserver::class);
     }
 }
