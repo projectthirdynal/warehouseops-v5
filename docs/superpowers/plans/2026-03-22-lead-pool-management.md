@@ -3057,32 +3057,1674 @@ git commit -m "feat(agent-ui): add Agent Leads page with click-to-call
 
 ---
 
-## Phase 3: Supervisor Dashboard (Continued in Part 2)
+## Phase 3: Supervisor Dashboard
 
-> **Note:** This plan continues with Tasks 17-30 covering:
-> - LeadPoolController for supervisors
-> - Distribution modal and supervisor dashboard
-> - Agent performance monitoring
-> - Activity feed (real-time)
-> - Fraud flags review
+### Task 17: LeadPoolController
 
-See Part 2 of this plan for supervisor features.
+**Files:**
+- Create: `app/Http/Controllers/LeadPoolController.php`
+- Create: `app/Http/Resources/LeadPoolResource.php`
+- Create: `tests/Feature/Controllers/LeadPoolControllerTest.php`
+
+- [ ] **Step 1: Create LeadPoolResource (with phone for supervisors)**
+
+```php
+// app/Http/Resources/LeadPoolResource.php
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class LeadPoolResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'phone' => $this->phone, // Supervisors CAN see phone
+            'city' => $this->city,
+            'state' => $this->state,
+            'barangay' => $this->barangay,
+            'source' => $this->source,
+            'product_name' => $this->product_name,
+            'product_brand' => $this->product_brand,
+            'amount' => $this->amount,
+            'pool_status' => $this->pool_status,
+            'total_cycles' => $this->total_cycles,
+            'is_exhausted' => $this->is_exhausted,
+            'cooldown_until' => $this->cooldown_until?->toISOString(),
+            'assigned_to' => $this->assigned_to,
+            'assigned_agent' => $this->whenLoaded('assignedAgent', fn() => [
+                'id' => $this->assignedAgent->id,
+                'name' => $this->assignedAgent->name,
+            ]),
+            'customer' => $this->whenLoaded('customer', fn() => [
+                'id' => $this->customer->id,
+                'total_orders' => $this->customer->total_orders,
+                'success_rate' => $this->customer->success_rate,
+                'is_blacklisted' => $this->customer->is_blacklisted,
+            ]),
+            'created_at' => $this->created_at->toISOString(),
+        ];
+    }
+}
+```
+
+- [ ] **Step 2: Write failing test**
+
+```php
+// tests/Feature/Controllers/LeadPoolControllerTest.php
+<?php
+
+namespace Tests\Feature\Controllers;
+
+use App\Enums\PoolStatus;
+use App\Models\Lead;
+use App\Models\User;
+use App\Models\AgentProfile;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class LeadPoolControllerTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $supervisor;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->supervisor = User::factory()->create(['role' => 'supervisor']);
+    }
+
+    public function test_index_returns_pool_stats_and_leads(): void
+    {
+        Lead::factory()->count(5)->create(['pool_status' => PoolStatus::AVAILABLE]);
+        Lead::factory()->count(3)->create(['pool_status' => PoolStatus::ASSIGNED]);
+
+        $response = $this->actingAs($this->supervisor)
+            ->get('/lead-pool');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) =>
+            $page->component('LeadPool/Index')
+                ->has('stats')
+                ->where('stats.available', 5)
+                ->where('stats.assigned', 3)
+        );
+    }
+
+    public function test_distribute_assigns_leads_to_agents(): void
+    {
+        $leads = Lead::factory()->count(10)->create(['pool_status' => PoolStatus::AVAILABLE]);
+        $agents = User::factory()->count(2)->create(['role' => 'agent']);
+        foreach ($agents as $agent) {
+            AgentProfile::factory()->create(['user_id' => $agent->id, 'is_available' => true]);
+        }
+
+        $response = $this->actingAs($this->supervisor)
+            ->post('/lead-pool/distribute', [
+                'lead_ids' => $leads->pluck('id')->toArray(),
+                'agent_ids' => $agents->pluck('id')->toArray(),
+                'method' => 'equal',
+            ]);
+
+        $response->assertRedirect();
+
+        // Each agent should have 5 leads
+        foreach ($agents as $agent) {
+            $this->assertEquals(5, Lead::where('assigned_to', $agent->id)->count());
+        }
+    }
+
+    public function test_agents_cannot_access_lead_pool(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent']);
+
+        $response = $this->actingAs($agent)
+            ->get('/lead-pool');
+
+        $response->assertForbidden();
+    }
+}
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+```bash
+php artisan test tests/Feature/Controllers/LeadPoolControllerTest.php
+```
+Expected: FAIL
+
+- [ ] **Step 4: Implement LeadPoolController**
+
+```php
+// app/Http/Controllers/LeadPoolController.php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Enums\PoolStatus;
+use App\Http\Resources\LeadPoolResource;
+use App\Models\Lead;
+use App\Models\User;
+use App\Services\LeadDistributionService;
+use App\Services\LeadPoolService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class LeadPoolController extends Controller
+{
+    public function __construct(
+        private LeadPoolService $poolService,
+        private LeadDistributionService $distributionService
+    ) {
+        $this->middleware(function ($request, $next) {
+            if (!in_array(auth()->user()->role, ['supervisor', 'admin'])) {
+                abort(403, 'Supervisors only');
+            }
+            return $next($request);
+        });
+    }
+
+    public function index(Request $request): Response
+    {
+        $filters = $request->only(['source', 'city', 'product_name', 'pool_status']);
+
+        $query = Lead::with(['assignedAgent', 'customer']);
+
+        if (isset($filters['pool_status']) && $filters['pool_status'] !== 'all') {
+            $query->where('pool_status', $filters['pool_status']);
+        } else {
+            $query->where('pool_status', PoolStatus::AVAILABLE);
+        }
+
+        if (isset($filters['source'])) {
+            $query->where('source', $filters['source']);
+        }
+        if (isset($filters['city'])) {
+            $query->where('city', 'ILIKE', "%{$filters['city']}%");
+        }
+        if (isset($filters['product_name'])) {
+            $query->where('product_name', 'ILIKE', "%{$filters['product_name']}%");
+        }
+
+        $leads = $query->orderBy('created_at', 'asc')->paginate(50);
+
+        $agents = $this->distributionService->getAvailableAgents();
+
+        return Inertia::render('LeadPool/Index', [
+            'leads' => LeadPoolResource::collection($leads),
+            'stats' => $this->poolService->getPoolStats(),
+            'agents' => $agents->map(fn($agent) => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'active_leads' => Lead::where('assigned_to', $agent->id)
+                    ->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                'max_active_cycles' => $agent->agentProfile->max_active_cycles ?? 10,
+            ]),
+            'filters' => $filters,
+        ]);
+    }
+
+    public function distribute(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'agent_ids' => ['required_if:method,equal', 'array'],
+            'agent_ids.*' => ['integer', 'exists:users,id'],
+            'distribution' => ['required_if:method,custom', 'array'],
+            'method' => ['required', 'in:equal,custom'],
+        ]);
+
+        if ($validated['method'] === 'equal') {
+            $result = $this->distributionService->distributeEqual(
+                $validated['lead_ids'],
+                $validated['agent_ids'],
+                auth()->id()
+            );
+        } else {
+            $result = $this->distributionService->distributeCustom(
+                $validated['lead_ids'],
+                $validated['distribution'],
+                auth()->id()
+            );
+        }
+
+        return redirect()->back()->with('success', "Distributed {$result['total_distributed']} leads to {$result['agent_count']} agents");
+    }
+
+    public function agentPerformance(): Response
+    {
+        $agents = User::where('role', 'agent')
+            ->where('is_active', true)
+            ->with('agentProfile')
+            ->get()
+            ->map(function ($agent) {
+                $todayCycles = $agent->assignedCycles()
+                    ->whereDate('opened_at', today())
+                    ->get();
+
+                return [
+                    'id' => $agent->id,
+                    'name' => $agent->name,
+                    'active_leads' => Lead::where('assigned_to', $agent->id)
+                        ->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                    'called_today' => $todayCycles->where('call_count', '>', 0)->count(),
+                    'sold_today' => $todayCycles->where('outcome', 'ORDERED')->count(),
+                    'no_answer_today' => $todayCycles->where('outcome', 'NO_ANSWER')->count(),
+                    'conversion_rate' => $todayCycles->count() > 0
+                        ? round($todayCycles->where('outcome', 'ORDERED')->count() / $todayCycles->count() * 100, 1)
+                        : 0,
+                    'is_available' => $agent->agentProfile?->is_available ?? false,
+                ];
+            });
+
+        return Inertia::render('LeadPool/AgentPerformance', [
+            'agents' => $agents,
+        ]);
+    }
+}
+```
+
+- [ ] **Step 5: Add User relationship for cycles**
+
+Add to `app/Models/User.php`:
+
+```php
+public function assignedCycles(): \Illuminate\Database\Eloquent\Relations\HasMany
+{
+    return $this->hasMany(LeadCycle::class, 'assigned_agent_id');
+}
+```
+
+- [ ] **Step 6: Add routes**
+
+Add to `routes/web.php`:
+
+```php
+use App\Http\Controllers\LeadPoolController;
+
+// Inside auth middleware group:
+Route::prefix('lead-pool')->name('lead-pool.')->group(function () {
+    Route::get('/', [LeadPoolController::class, 'index'])->name('index');
+    Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
+    Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
+});
+```
+
+- [ ] **Step 7: Run test to verify it passes**
+
+```bash
+php artisan test tests/Feature/Controllers/LeadPoolControllerTest.php
+```
+Expected: PASS
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A
+git commit -m "feat(supervisor): implement LeadPoolController
+
+- GET /lead-pool - view available leads with filters
+- POST /lead-pool/distribute - distribute leads to agents
+- GET /lead-pool/agents - agent performance stats
+- Supervisors can see phone numbers"
+```
 
 ---
 
-## Phase 4: Automation (Continued in Part 2)
+### Task 18: DistributionModal Component
 
-> **Note:** Tasks 31-40 cover:
-> - ProcessCooldownLeads job
-> - DetectFraudPatterns job
-> - WaybillObserver for auto-lead creation
-> - CSV import functionality
+**Files:**
+- Create: `resources/js/components/leads/DistributionModal.tsx`
 
-See Part 2 of this plan for automation features.
+- [ ] **Step 1: Create DistributionModal component**
+
+```tsx
+// resources/js/components/leads/DistributionModal.tsx
+import { useState } from 'react';
+import { router } from '@inertiajs/react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
+
+interface Agent {
+  id: number;
+  name: string;
+  active_leads: number;
+  max_active_cycles: number;
+}
+
+interface DistributionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedLeadIds: number[];
+  agents: Agent[];
+}
+
+export function DistributionModal({
+  isOpen,
+  onClose,
+  selectedLeadIds,
+  agents,
+}: DistributionModalProps) {
+  const [method, setMethod] = useState<'equal' | 'custom'>('equal');
+  const [selectedAgents, setSelectedAgents] = useState<number[]>([]);
+  const [customDistribution, setCustomDistribution] = useState<Record<number, number>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const availableAgents = agents.filter(
+    (a) => a.active_leads < a.max_active_cycles
+  );
+
+  const toggleAgent = (agentId: number) => {
+    setSelectedAgents((prev) =>
+      prev.includes(agentId)
+        ? prev.filter((id) => id !== agentId)
+        : [...prev, agentId]
+    );
+  };
+
+  const perAgentCount =
+    method === 'equal' && selectedAgents.length > 0
+      ? Math.floor(selectedLeadIds.length / selectedAgents.length)
+      : 0;
+
+  const totalCustom = Object.values(customDistribution).reduce((a, b) => a + b, 0);
+
+  const handleSubmit = () => {
+    setIsSubmitting(true);
+
+    const data: Record<string, unknown> = {
+      lead_ids: selectedLeadIds,
+      method,
+    };
+
+    if (method === 'equal') {
+      data.agent_ids = selectedAgents;
+    } else {
+      data.distribution = customDistribution;
+    }
+
+    router.post('/lead-pool/distribute', data, {
+      onSuccess: () => {
+        onClose();
+        setSelectedAgents([]);
+        setCustomDistribution({});
+      },
+      onFinish: () => setIsSubmitting(false),
+    });
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Distribute {selectedLeadIds.length} Leads</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <RadioGroup
+            value={method}
+            onValueChange={(v) => setMethod(v as 'equal' | 'custom')}
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="equal" id="equal" />
+              <Label htmlFor="equal">Equal split</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="custom" id="custom" />
+              <Label htmlFor="custom">Custom per agent</Label>
+            </div>
+          </RadioGroup>
+
+          <div className="border rounded-lg p-3 max-h-64 overflow-y-auto">
+            <Label className="text-sm font-medium mb-2 block">Select Agents</Label>
+            {availableAgents.map((agent) => (
+              <div
+                key={agent.id}
+                className="flex items-center justify-between py-2 border-b last:border-0"
+              >
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={
+                      method === 'equal'
+                        ? selectedAgents.includes(agent.id)
+                        : (customDistribution[agent.id] || 0) > 0
+                    }
+                    onCheckedChange={() => {
+                      if (method === 'equal') {
+                        toggleAgent(agent.id);
+                      }
+                    }}
+                  />
+                  <span>{agent.name}</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({agent.active_leads}/{agent.max_active_cycles})
+                  </span>
+                </div>
+                {method === 'custom' && (
+                  <Input
+                    type="number"
+                    min={0}
+                    max={selectedLeadIds.length}
+                    className="w-20"
+                    value={customDistribution[agent.id] || ''}
+                    onChange={(e) =>
+                      setCustomDistribution((prev) => ({
+                        ...prev,
+                        [agent.id]: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-muted p-3 rounded-lg text-sm">
+            {method === 'equal' ? (
+              <p>
+                {selectedLeadIds.length} leads ÷ {selectedAgents.length || '?'} agents
+                = <strong>{perAgentCount || '?'} each</strong>
+              </p>
+            ) : (
+              <p>
+                Total assigned: <strong>{totalCustom}</strong> / {selectedLeadIds.length}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isSubmitting ||
+              (method === 'equal' && selectedAgents.length === 0) ||
+              (method === 'custom' && totalCustom === 0)
+            }
+          >
+            {isSubmitting ? 'Distributing...' : 'Distribute'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add -A
+git commit -m "feat(ui): add DistributionModal for lead assignment
+
+- Equal split or custom per-agent distribution
+- Shows agent capacity (active/max)
+- Calculates distribution preview"
+```
+
+---
+
+### Task 19: Supervisor Lead Pool Page
+
+**Files:**
+- Create: `resources/js/pages/LeadPool/Index.tsx`
+
+- [ ] **Step 1: Create Lead Pool Index page**
+
+```tsx
+// resources/js/pages/LeadPool/Index.tsx
+import { useState } from 'react';
+import { Head, router } from '@inertiajs/react';
+import {
+  Users,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Filter,
+  Send,
+} from 'lucide-react';
+import AppLayout from '@/layouts/AppLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { DistributionModal } from '@/components/leads/DistributionModal';
+import type { PoolStats } from '@/types/lead-pool';
+
+interface PoolLead {
+  id: number;
+  name: string;
+  phone: string;
+  city: string | null;
+  source: string | null;
+  product_name: string | null;
+  amount: number | null;
+  pool_status: string;
+  total_cycles: number;
+  customer?: {
+    total_orders: number;
+    success_rate: number;
+  };
+}
+
+interface Agent {
+  id: number;
+  name: string;
+  active_leads: number;
+  max_active_cycles: number;
+}
+
+interface Props {
+  leads: { data: PoolLead[] };
+  stats: PoolStats;
+  agents: Agent[];
+  filters: Record<string, string>;
+}
+
+export default function LeadPoolIndex({ leads, stats, agents, filters }: Props) {
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showDistribute, setShowDistribute] = useState(false);
+  const [poolStatus, setPoolStatus] = useState(filters.pool_status || 'AVAILABLE');
+
+  const toggleAll = () => {
+    if (selectedIds.length === leads.data.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(leads.data.map((l) => l.id));
+    }
+  };
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleFilter = (status: string) => {
+    setPoolStatus(status);
+    router.get('/lead-pool', { pool_status: status }, { preserveState: true });
+  };
+
+  return (
+    <AppLayout>
+      <Head title="Lead Pool" />
+
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">Lead Pool</h1>
+            <p className="text-muted-foreground">Manage and distribute leads to agents</p>
+          </div>
+          <Button
+            onClick={() => setShowDistribute(true)}
+            disabled={selectedIds.length === 0}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Distribute ({selectedIds.length})
+          </Button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.available}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Assigned</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{stats.assigned}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Cooldown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{stats.cooldown}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Exhausted</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{stats.exhausted}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex gap-4">
+              <Select value={poolStatus} onValueChange={handleFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AVAILABLE">Available</SelectItem>
+                  <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                  <SelectItem value="COOLDOWN">Cooldown</SelectItem>
+                  <SelectItem value="EXHAUSTED">Exhausted</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="h-12 px-4 text-left">
+                    <Checkbox
+                      checked={selectedIds.length === leads.data.length && leads.data.length > 0}
+                      onCheckedChange={toggleAll}
+                    />
+                  </th>
+                  <th className="h-12 px-4 text-left font-medium">Name</th>
+                  <th className="h-12 px-4 text-left font-medium">Phone</th>
+                  <th className="h-12 px-4 text-left font-medium">City</th>
+                  <th className="h-12 px-4 text-left font-medium">Product</th>
+                  <th className="h-12 px-4 text-left font-medium">Cycles</th>
+                  <th className="h-12 px-4 text-left font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.data.map((lead) => (
+                  <tr key={lead.id} className="border-b hover:bg-muted/50">
+                    <td className="p-4">
+                      <Checkbox
+                        checked={selectedIds.includes(lead.id)}
+                        onCheckedChange={() => toggleOne(lead.id)}
+                      />
+                    </td>
+                    <td className="p-4 font-medium">{lead.name}</td>
+                    <td className="p-4 font-mono text-sm">{lead.phone}</td>
+                    <td className="p-4">{lead.city || '-'}</td>
+                    <td className="p-4">
+                      {lead.product_name || '-'}
+                      {lead.amount && (
+                        <span className="ml-2 text-green-600">₱{lead.amount.toLocaleString()}</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <Badge variant="outline">{lead.total_cycles}</Badge>
+                    </td>
+                    <td className="p-4">
+                      <Badge
+                        variant={
+                          lead.pool_status === 'AVAILABLE'
+                            ? 'default'
+                            : lead.pool_status === 'ASSIGNED'
+                            ? 'secondary'
+                            : 'outline'
+                        }
+                      >
+                        {lead.pool_status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+
+      <DistributionModal
+        isOpen={showDistribute}
+        onClose={() => setShowDistribute(false)}
+        selectedLeadIds={selectedIds}
+        agents={agents}
+      />
+    </AppLayout>
+  );
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add -A
+git commit -m "feat(supervisor-ui): add Lead Pool page with distribution
+
+- Pool stats overview (available, assigned, cooldown, exhausted)
+- Filterable lead table with checkbox selection
+- Bulk distribution via DistributionModal
+- Supervisors see full phone numbers"
+```
+
+---
+
+### Task 20: FraudDetectionService
+
+**Files:**
+- Create: `app/Services/FraudDetectionService.php`
+- Create: `tests/Unit/Services/FraudDetectionServiceTest.php`
+
+- [ ] **Step 1: Write failing test**
+
+```php
+// tests/Unit/Services/FraudDetectionServiceTest.php
+<?php
+
+namespace Tests\Unit\Services;
+
+use App\Models\FraudFlag;
+use App\Models\Lead;
+use App\Models\LeadCycle;
+use App\Models\LeadPoolAudit;
+use App\Models\User;
+use App\Services\FraudDetectionService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class FraudDetectionServiceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private FraudDetectionService $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->service = new FraudDetectionService();
+    }
+
+    public function test_detects_suspicious_velocity(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent']);
+
+        // Create 12 NO_ANSWER outcomes in 20 minutes
+        for ($i = 0; $i < 12; $i++) {
+            $lead = Lead::factory()->create(['assigned_to' => $agent->id]);
+            LeadCycle::factory()->create([
+                'lead_id' => $lead->id,
+                'assigned_agent_id' => $agent->id,
+                'outcome' => 'NO_ANSWER',
+                'closed_at' => now()->subMinutes(rand(1, 20)),
+            ]);
+        }
+
+        $flags = $this->service->detectSuspiciousVelocity();
+
+        $this->assertCount(1, $flags);
+        $this->assertEquals('SUSPICIOUS_VELOCITY', $flags[0]->flag_type);
+        $this->assertEquals($agent->id, $flags[0]->agent_id);
+    }
+
+    public function test_detects_outcome_without_call(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent']);
+        $lead = Lead::factory()->create(['assigned_to' => $agent->id]);
+
+        // Cycle with outcome but no call_count
+        LeadCycle::factory()->create([
+            'lead_id' => $lead->id,
+            'assigned_agent_id' => $agent->id,
+            'outcome' => 'NO_ANSWER',
+            'call_count' => 0, // No calls made!
+            'closed_at' => now(),
+        ]);
+
+        $flags = $this->service->detectNoCallOutcomes();
+
+        $this->assertCount(1, $flags);
+        $this->assertEquals('NO_CALL_INITIATED', $flags[0]->flag_type);
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+```bash
+php artisan test tests/Unit/Services/FraudDetectionServiceTest.php
+```
+Expected: FAIL
+
+- [ ] **Step 3: Implement FraudDetectionService**
+
+```php
+// app/Services/FraudDetectionService.php
+<?php
+
+namespace App\Services;
+
+use App\Models\FraudFlag;
+use App\Models\LeadCycle;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+class FraudDetectionService
+{
+    public function runAllDetections(): array
+    {
+        return [
+            'suspicious_velocity' => $this->detectSuspiciousVelocity(),
+            'no_call_outcomes' => $this->detectNoCallOutcomes(),
+            'lead_hoarding' => $this->detectLeadHoarding(),
+        ];
+    }
+
+    public function detectSuspiciousVelocity(int $threshold = 10, int $minutes = 30): Collection
+    {
+        $flags = collect();
+
+        // Find agents with too many same outcomes in short time
+        $suspicious = LeadCycle::select('assigned_agent_id', 'outcome', DB::raw('COUNT(*) as count'))
+            ->where('closed_at', '>=', now()->subMinutes($minutes))
+            ->whereNotNull('outcome')
+            ->groupBy('assigned_agent_id', 'outcome')
+            ->having('count', '>=', $threshold)
+            ->get();
+
+        foreach ($suspicious as $record) {
+            // Check if flag already exists today
+            $exists = FraudFlag::where('agent_id', $record->assigned_agent_id)
+                ->where('flag_type', 'SUSPICIOUS_VELOCITY')
+                ->whereDate('created_at', today())
+                ->exists();
+
+            if (!$exists) {
+                $flag = FraudFlag::create([
+                    'agent_id' => $record->assigned_agent_id,
+                    'flag_type' => 'SUSPICIOUS_VELOCITY',
+                    'severity' => 'WARNING',
+                    'details' => [
+                        'outcome' => $record->outcome,
+                        'count' => $record->count,
+                        'period_minutes' => $minutes,
+                    ],
+                ]);
+                $flags->push($flag);
+            }
+        }
+
+        return $flags;
+    }
+
+    public function detectNoCallOutcomes(): Collection
+    {
+        $flags = collect();
+
+        // Find cycles closed with outcome but no calls
+        $suspicious = LeadCycle::whereNotNull('outcome')
+            ->where('call_count', 0)
+            ->whereDate('closed_at', today())
+            ->with('assignedAgent')
+            ->get();
+
+        foreach ($suspicious as $cycle) {
+            $exists = FraudFlag::where('agent_id', $cycle->assigned_agent_id)
+                ->where('lead_id', $cycle->lead_id)
+                ->where('flag_type', 'NO_CALL_INITIATED')
+                ->exists();
+
+            if (!$exists) {
+                $flag = FraudFlag::create([
+                    'agent_id' => $cycle->assigned_agent_id,
+                    'lead_id' => $cycle->lead_id,
+                    'flag_type' => 'NO_CALL_INITIATED',
+                    'severity' => 'CRITICAL',
+                    'details' => [
+                        'cycle_id' => $cycle->id,
+                        'outcome' => $cycle->outcome,
+                    ],
+                ]);
+                $flags->push($flag);
+            }
+        }
+
+        return $flags;
+    }
+
+    public function detectLeadHoarding(int $hoursThreshold = 24): Collection
+    {
+        $flags = collect();
+
+        // Find leads assigned but never called for 24+ hours
+        $suspicious = LeadCycle::where('status', 'ACTIVE')
+            ->where('call_count', 0)
+            ->where('opened_at', '<=', now()->subHours($hoursThreshold))
+            ->with('assignedAgent')
+            ->get();
+
+        foreach ($suspicious as $cycle) {
+            $exists = FraudFlag::where('agent_id', $cycle->assigned_agent_id)
+                ->where('lead_id', $cycle->lead_id)
+                ->where('flag_type', 'LEAD_HOARDING')
+                ->exists();
+
+            if (!$exists) {
+                $flag = FraudFlag::create([
+                    'agent_id' => $cycle->assigned_agent_id,
+                    'lead_id' => $cycle->lead_id,
+                    'flag_type' => 'LEAD_HOARDING',
+                    'severity' => 'WARNING',
+                    'details' => [
+                        'hours_since_assignment' => now()->diffInHours($cycle->opened_at),
+                    ],
+                ]);
+                $flags->push($flag);
+            }
+        }
+
+        return $flags;
+    }
+
+    public function getUnreviewedFlags(): Collection
+    {
+        return FraudFlag::unreviewed()
+            ->with(['agent', 'lead'])
+            ->orderByDesc('created_at')
+            ->get();
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+```bash
+php artisan test tests/Unit/Services/FraudDetectionServiceTest.php
+```
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "feat(fraud): implement FraudDetectionService
+
+- detectSuspiciousVelocity() - too many same outcomes quickly
+- detectNoCallOutcomes() - outcomes without calls
+- detectLeadHoarding() - leads never called
+- Creates FraudFlag records for supervisor review"
+```
+
+---
+
+## Phase 4: Automation
+
+### Task 21: ProcessCooldownLeads Job
+
+**Files:**
+- Create: `app/Jobs/ProcessCooldownLeads.php`
+- Create: `tests/Unit/Jobs/ProcessCooldownLeadsTest.php`
+
+- [ ] **Step 1: Write failing test**
+
+```php
+// tests/Unit/Jobs/ProcessCooldownLeadsTest.php
+<?php
+
+namespace Tests\Unit\Jobs;
+
+use App\Enums\PoolStatus;
+use App\Jobs\ProcessCooldownLeads;
+use App\Models\Lead;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ProcessCooldownLeadsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_moves_expired_cooldowns_to_available(): void
+    {
+        // Expired cooldown
+        $expiredLead = Lead::factory()->create([
+            'pool_status' => PoolStatus::COOLDOWN,
+            'cooldown_until' => now()->subHour(),
+        ]);
+
+        // Not yet expired
+        $activeLead = Lead::factory()->create([
+            'pool_status' => PoolStatus::COOLDOWN,
+            'cooldown_until' => now()->addHour(),
+        ]);
+
+        $job = new ProcessCooldownLeads();
+        $job->handle();
+
+        $expiredLead->refresh();
+        $activeLead->refresh();
+
+        $this->assertEquals(PoolStatus::AVAILABLE, $expiredLead->pool_status);
+        $this->assertEquals(PoolStatus::COOLDOWN, $activeLead->pool_status);
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+```bash
+php artisan test tests/Unit/Jobs/ProcessCooldownLeadsTest.php
+```
+Expected: FAIL
+
+- [ ] **Step 3: Implement ProcessCooldownLeads job**
+
+```php
+// app/Jobs/ProcessCooldownLeads.php
+<?php
+
+namespace App\Jobs;
+
+use App\Services\LeadRecyclingService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class ProcessCooldownLeads implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public function handle(LeadRecyclingService $recyclingService): void
+    {
+        $processed = $recyclingService->processExpiredCooldowns();
+
+        Log::info("ProcessCooldownLeads: Processed {$processed} leads");
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+```bash
+php artisan test tests/Unit/Jobs/ProcessCooldownLeadsTest.php
+```
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "feat(jobs): add ProcessCooldownLeads background job
+
+- Moves expired cooldown leads back to AVAILABLE
+- Designed to run every 15 minutes via scheduler"
+```
+
+---
+
+### Task 22: DetectFraudPatterns Job
+
+**Files:**
+- Create: `app/Jobs/DetectFraudPatterns.php`
+
+- [ ] **Step 1: Implement job**
+
+```php
+// app/Jobs/DetectFraudPatterns.php
+<?php
+
+namespace App\Jobs;
+
+use App\Services\FraudDetectionService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class DetectFraudPatterns implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public function handle(FraudDetectionService $fraudService): void
+    {
+        $results = $fraudService->runAllDetections();
+
+        $totalFlags = collect($results)->flatten()->count();
+
+        Log::info("DetectFraudPatterns: Created {$totalFlags} new flags", [
+            'suspicious_velocity' => $results['suspicious_velocity']->count(),
+            'no_call_outcomes' => $results['no_call_outcomes']->count(),
+            'lead_hoarding' => $results['lead_hoarding']->count(),
+        ]);
+    }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add -A
+git commit -m "feat(jobs): add DetectFraudPatterns background job
+
+- Runs all fraud detection checks
+- Creates FraudFlag records for review
+- Designed to run every 30 minutes"
+```
+
+---
+
+### Task 23: WaybillObserver for Auto Lead Creation
+
+**Files:**
+- Create: `app/Observers/WaybillObserver.php`
+- Create: `app/Jobs/CreateLeadFromWaybill.php`
+
+- [ ] **Step 1: Create CreateLeadFromWaybill job**
+
+```php
+// app/Jobs/CreateLeadFromWaybill.php
+<?php
+
+namespace App\Jobs;
+
+use App\Enums\PoolStatus;
+use App\Models\Customer;
+use App\Models\Lead;
+use App\Models\Waybill;
+use App\Services\LeadAuditService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+
+class CreateLeadFromWaybill implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public function __construct(
+        private int $waybillId
+    ) {}
+
+    public function handle(LeadAuditService $auditService): void
+    {
+        $waybill = Waybill::find($this->waybillId);
+
+        if (!$waybill || $waybill->status !== 'DELIVERED') {
+            return;
+        }
+
+        // Find or create customer by phone
+        $customer = Customer::firstOrCreate(
+            ['phone' => $waybill->receiver_phone],
+            [
+                'name' => $waybill->receiver_name,
+                'canonical_address' => $waybill->receiver_address,
+                'total_orders' => 0,
+                'successful_orders' => 0,
+                'returned_orders' => 0,
+            ]
+        );
+
+        // Update customer stats
+        $customer->increment('total_orders');
+        $customer->increment('successful_orders');
+        $customer->update([
+            'success_rate' => $customer->total_orders > 0
+                ? round($customer->successful_orders / $customer->total_orders * 100, 2)
+                : 0,
+        ]);
+
+        // Check if blacklisted
+        if ($customer->is_blacklisted) {
+            return;
+        }
+
+        // Find existing lead or create new
+        $lead = Lead::where('customer_id', $customer->id)
+            ->where('pool_status', '!=', PoolStatus::EXHAUSTED)
+            ->first();
+
+        if ($lead) {
+            // Update existing lead with new product info
+            $lead->update([
+                'product_name' => $waybill->item_name,
+                'amount' => $waybill->amount,
+                'source' => 'DELIVERED_WAYBILL',
+            ]);
+        } else {
+            // Create new lead
+            $lead = Lead::create([
+                'customer_id' => $customer->id,
+                'name' => $waybill->receiver_name,
+                'phone' => $waybill->receiver_phone,
+                'address' => $waybill->receiver_address,
+                'city' => $waybill->city,
+                'state' => $waybill->state,
+                'barangay' => $waybill->barangay,
+                'product_name' => $waybill->item_name,
+                'amount' => $waybill->amount,
+                'source' => 'DELIVERED_WAYBILL',
+                'pool_status' => PoolStatus::AVAILABLE,
+                'status' => 'NEW',
+                'sales_status' => 'NEW',
+            ]);
+
+            $auditService->log(
+                lead: $lead,
+                action: 'LEAD_CREATED',
+                metadata: ['source' => 'waybill', 'waybill_id' => $waybill->id]
+            );
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Create WaybillObserver**
+
+```php
+// app/Observers/WaybillObserver.php
+<?php
+
+namespace App\Observers;
+
+use App\Jobs\CreateLeadFromWaybill;
+use App\Models\Waybill;
+
+class WaybillObserver
+{
+    public function updated(Waybill $waybill): void
+    {
+        // Check if status changed to DELIVERED
+        if ($waybill->isDirty('status') && $waybill->status === 'DELIVERED') {
+            CreateLeadFromWaybill::dispatch($waybill->id);
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Register observer**
+
+Add to `app/Providers/AppServiceProvider.php` in boot():
+
+```php
+use App\Models\Waybill;
+use App\Observers\WaybillObserver;
+
+public function boot(): void
+{
+    Waybill::observe(WaybillObserver::class);
+}
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "feat(automation): auto-create leads from delivered waybills
+
+- WaybillObserver triggers on status change to DELIVERED
+- CreateLeadFromWaybill job handles customer and lead creation
+- Updates existing leads or creates new ones
+- Respects blacklist status"
+```
+
+---
+
+### Task 24: CSV Lead Import
+
+**Files:**
+- Create: `app/Services/LeadImportService.php`
+- Create: `app/Http/Controllers/LeadImportController.php`
+
+- [ ] **Step 1: Implement LeadImportService**
+
+```php
+// app/Services/LeadImportService.php
+<?php
+
+namespace App\Services;
+
+use App\Enums\PoolStatus;
+use App\Models\Lead;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Validator;
+
+class LeadImportService
+{
+    public function __construct(
+        private LeadAuditService $auditService
+    ) {}
+
+    public function import(UploadedFile $file, int $userId): array
+    {
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        $header = array_shift($rows);
+
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $data = array_combine($header, $row);
+
+            $validator = Validator::make($data, [
+                'name' => 'required|string',
+                'phone' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                $errors[] = "Row " . ($index + 2) . ": " . implode(', ', $validator->errors()->all());
+                $skipped++;
+                continue;
+            }
+
+            // Normalize phone
+            $phone = preg_replace('/[^0-9]/', '', $data['phone']);
+
+            // Check for existing lead by phone
+            $existing = Lead::where('phone', $phone)->first();
+
+            if ($existing) {
+                // Update existing
+                $existing->update([
+                    'name' => $data['name'],
+                    'city' => $data['city'] ?? $existing->city,
+                    'product_name' => $data['product_interest'] ?? $existing->product_name,
+                    'source' => $data['source'] ?? 'CSV_IMPORT',
+                ]);
+                $updated++;
+            } else {
+                // Create new
+                $lead = Lead::create([
+                    'name' => $data['name'],
+                    'phone' => $phone,
+                    'city' => $data['city'] ?? null,
+                    'state' => $data['state'] ?? null,
+                    'product_name' => $data['product_interest'] ?? null,
+                    'source' => $data['source'] ?? 'CSV_IMPORT',
+                    'pool_status' => PoolStatus::AVAILABLE,
+                    'status' => 'NEW',
+                    'sales_status' => 'NEW',
+                ]);
+
+                $this->auditService->log(
+                    lead: $lead,
+                    action: 'LEAD_CREATED',
+                    metadata: ['source' => 'csv_import', 'uploaded_by' => $userId]
+                );
+                $created++;
+            }
+        }
+
+        return [
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ];
+    }
+}
+```
+
+- [ ] **Step 2: Create LeadImportController**
+
+```php
+// app/Http/Controllers/LeadImportController.php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\LeadImportService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class LeadImportController extends Controller
+{
+    public function __construct(
+        private LeadImportService $importService
+    ) {
+        $this->middleware(function ($request, $next) {
+            if (!in_array(auth()->user()->role, ['supervisor', 'admin'])) {
+                abort(403);
+            }
+            return $next($request);
+        });
+    }
+
+    public function create()
+    {
+        return Inertia::render('LeadPool/Import');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+        ]);
+
+        $result = $this->importService->import(
+            $request->file('file'),
+            auth()->id()
+        );
+
+        return redirect()->route('lead-pool.index')
+            ->with('success', "Import complete: {$result['created']} created, {$result['updated']} updated, {$result['skipped']} skipped");
+    }
+}
+```
+
+- [ ] **Step 3: Add routes**
+
+Add to `routes/web.php`:
+
+```php
+use App\Http\Controllers\LeadImportController;
+
+// Inside lead-pool prefix group:
+Route::get('/import', [LeadImportController::class, 'create'])->name('import');
+Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "feat(import): add CSV lead import
+
+- LeadImportService parses CSV and creates/updates leads
+- Deduplicates by phone number
+- Validates required fields (name, phone)
+- LeadImportController with supervisor-only access"
+```
+
+---
+
+### Task 25: Schedule Background Jobs
+
+**Files:**
+- Modify: `app/Console/Kernel.php`
+
+- [ ] **Step 1: Add job schedules**
+
+```php
+// app/Console/Kernel.php
+<?php
+
+namespace App\Console;
+
+use App\Jobs\DetectFraudPatterns;
+use App\Jobs\ProcessCooldownLeads;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+
+class Kernel extends ConsoleKernel
+{
+    protected function schedule(Schedule $schedule): void
+    {
+        // Process expired cooldowns every 15 minutes
+        $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
+
+        // Detect fraud patterns every 30 minutes
+        $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
+    }
+
+    protected function commands(): void
+    {
+        $this->load(__DIR__.'/Commands');
+    }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add -A
+git commit -m "feat(scheduler): configure background job schedules
+
+- ProcessCooldownLeads runs every 15 minutes
+- DetectFraudPatterns runs every 30 minutes"
+```
+
+---
+
+### Task 26: Fix CALLBACK Handling in LeadRecyclingService
+
+**Files:**
+- Modify: `app/Services/LeadRecyclingService.php`
+
+- [ ] **Step 1: Update processOutcome for CALLBACK**
+
+Update the CALLBACK handling in `LeadRecyclingService.php`:
+
+```php
+// Handle CALLBACK - keep with agent, set callback time
+if ($outcome === LeadOutcome::CALLBACK) {
+    if ($callbackAt) {
+        // Keep assigned, cycle stays active
+        $cycle->update([
+            'status' => 'ACTIVE', // Don't close cycle
+            'callback_at' => $callbackAt,
+            'callback_notes' => $remarks,
+            'outcome' => null, // Clear outcome until callback completed
+        ]);
+    }
+    return; // Don't change pool status
+}
+```
+
+- [ ] **Step 2: Add processCallbackExpiry method**
+
+```php
+public function processExpiredCallbacks(): int
+{
+    $expired = LeadCycle::where('status', 'ACTIVE')
+        ->whereNotNull('callback_at')
+        ->where('callback_at', '<', now()->subHours(24)) // 24h past callback time
+        ->where('call_count', '>', 0) // Had at least one call
+        ->get();
+
+    $processed = 0;
+
+    foreach ($expired as $cycle) {
+        $lead = $cycle->lead;
+        $rule = RecyclingRule::forOutcome(LeadOutcome::NO_ANSWER);
+
+        if ($lead->total_cycles >= ($rule->max_cycles ?? 5)) {
+            $this->poolService->markAsExhausted($lead);
+        } else {
+            $this->poolService->markAsCooldown($lead, $rule->cooldown_hours ?? 24);
+        }
+
+        $cycle->update(['status' => 'CLOSED', 'outcome' => 'CALLBACK_EXPIRED']);
+        $processed++;
+    }
+
+    return $processed;
+}
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add -A
+git commit -m "fix(recycling): improve CALLBACK handling
+
+- CALLBACK keeps lead with agent, cycle stays active
+- Add processExpiredCallbacks for callbacks past due date
+- Cycle only closes when agent sets different outcome"
+```
 
 ---
 
 ## Testing Checklist
+
+Before marking implementation complete:
+
+- [ ] All unit tests pass: `php artisan test --testsuite=Unit`
+- [ ] All feature tests pass: `php artisan test --testsuite=Feature`
+- [ ] Phone numbers are NOT visible in any agent response (verify manually)
+- [ ] Click-to-call opens MicroSIP correctly
+- [ ] Outcome recording triggers correct recycling behavior
+- [ ] Distribution creates proper lead cycles
+- [ ] Audit trail logs all actions
+- [ ] Supervisor can see all agents' performance
+- [ ] Background jobs process cooldowns correctly
+- [ ] CSV import creates leads correctly
+- [ ] Waybill delivery creates leads automatically
+- [ ] Fraud detection creates appropriate flags
+
+---
+
+## Deployment Notes
+
+1. Run migrations: `php artisan migrate`
+2. Seed recycling rules: `php artisan db:seed --class=RecyclingRulesSeeder`
+3. Schedule background jobs in `app/Console/Kernel.php`:
+   ```php
+   $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
+   $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
+   ```
+4. Ensure MicroSIP is installed on all agent workstations
+5. Register MicroSIP as handler for `sip:` protocol links in browser
+6. Configure Laravel queue worker: `php artisan queue:work`
+7. Set up supervisor for queue worker persistence
+
+---
+
+*End of Implementation Plan*
 
 Before marking implementation complete:
 
