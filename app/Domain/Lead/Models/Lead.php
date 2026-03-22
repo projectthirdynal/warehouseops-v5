@@ -6,6 +6,7 @@ namespace App\Domain\Lead\Models;
 
 use App\Domain\Customer\Models\Customer;
 use App\Domain\Lead\Enums\LeadStatus;
+use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class Lead extends Model
 {
@@ -52,6 +54,8 @@ class Lead extends Model
         'last_scored_at',
         'current_qa_level',
         'qa_required',
+        'pool_status',
+        'cooldown_until',
     ];
 
     protected $casts = [
@@ -68,6 +72,8 @@ class Lead extends Model
         'current_qa_level' => 'integer',
         'qa_required' => 'boolean',
         'amount' => 'decimal:2',
+        'pool_status' => PoolStatus::class,
+        'cooldown_until' => 'datetime',
     ];
 
     protected $attributes = [
@@ -164,6 +170,32 @@ class Lead extends Model
     {
         return $query->where('is_exhausted', false)
             ->whereDoesntHave('cycles', fn ($q) => $q->where('status', 'ACTIVE'));
+    }
+
+    public function scopeAvailable(Builder $query): Builder
+    {
+        return $query->where('pool_status', PoolStatus::AVAILABLE);
+    }
+
+    public function scopeAssigned(Builder $query): Builder
+    {
+        return $query->where('pool_status', PoolStatus::ASSIGNED);
+    }
+
+    public function scopeInCooldown(Builder $query): Builder
+    {
+        return $query->where('pool_status', PoolStatus::COOLDOWN);
+    }
+
+    public function scopeExhausted(Builder $query): Builder
+    {
+        return $query->where('pool_status', PoolStatus::EXHAUSTED);
+    }
+
+    public function scopeCooldownExpired(Builder $query): Builder
+    {
+        return $query->where('pool_status', PoolStatus::COOLDOWN)
+            ->where('cooldown_until', '<=', now());
     }
 
     // -------------------------------------------------------------------------
