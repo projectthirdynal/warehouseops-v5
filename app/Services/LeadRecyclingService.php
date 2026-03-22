@@ -23,13 +23,33 @@ class LeadRecyclingService
         ?string $remarks = null,
         ?\DateTimeInterface $callbackAt = null
     ): void {
+        // Handle CALLBACK - keep with agent, set callback time
+        if ($outcome === LeadOutcome::CALLBACK) {
+            if ($callbackAt) {
+                // Keep assigned, cycle stays active
+                $cycle->update([
+                    'status' => 'ACTIVE', // Don't close cycle
+                    'callback_at' => $callbackAt,
+                    'callback_notes' => $remarks,
+                    'outcome' => null, // Clear outcome until callback completed
+                ]);
+
+                $this->auditService->log(
+                    lead: $lead,
+                    action: 'CALLBACK_SCHEDULED',
+                    user: $agent,
+                    cycle: $cycle,
+                    metadata: ['callback_at' => $callbackAt->format('c'), 'notes' => $remarks]
+                );
+            }
+            return; // Don't change pool status
+        }
+
         // Close the cycle
         $cycle->update([
             'status' => 'CLOSED',
             'outcome' => $outcome->value,
             'closed_at' => now(),
-            'callback_at' => $callbackAt,
-            'callback_notes' => $callbackAt ? $remarks : null,
         ]);
 
         // Log outcome
@@ -39,7 +59,7 @@ class LeadRecyclingService
             user: $agent,
             cycle: $cycle,
             newValue: $outcome->value,
-            metadata: ['remarks' => $remarks, 'callback_at' => $callbackAt?->format('c')]
+            metadata: ['remarks' => $remarks]
         );
 
         // Get recycling rule
@@ -56,12 +76,6 @@ class LeadRecyclingService
         if ($lead->total_cycles >= $rule->max_cycles || $rule->shouldExhaust()) {
             $this->poolService->markAsExhausted($lead);
 
-            return;
-        }
-
-        // Handle CALLBACK - keep with agent
-        if ($outcome === LeadOutcome::CALLBACK && $callbackAt) {
-            // Keep assigned, don't change status
             return;
         }
 
@@ -94,6 +108,33 @@ class LeadRecyclingService
             }
 
             $this->poolService->markAsAvailable($lead);
+            $processed++;
+        }
+
+        return $processed;
+    }
+
+    public function processExpiredCallbacks(): int
+    {
+        $expired = LeadCycle::where('status', 'ACTIVE')
+            ->whereNotNull('callback_at')
+            ->where('callback_at', '<', now()->subHours(24))
+            ->where('call_count', '>', 0)
+            ->get();
+
+        $processed = 0;
+
+        foreach ($expired as $cycle) {
+            $lead = $cycle->lead;
+            $rule = RecyclingRule::forOutcome(LeadOutcome::NO_ANSWER);
+
+            if ($lead->total_cycles >= ($rule->max_cycles ?? 5)) {
+                $this->poolService->markAsExhausted($lead);
+            } else {
+                $this->poolService->markAsCooldown($lead, $rule->cooldown_hours ?? 24);
+            }
+
+            $cycle->update(['status' => 'CLOSED', 'outcome' => 'CALLBACK_EXPIRED']);
             $processed++;
         }
 

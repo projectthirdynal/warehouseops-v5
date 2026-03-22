@@ -11,6 +11,7 @@ use App\Http\Controllers\TicketController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\LeadPoolController;
+use App\Http\Controllers\LeadImportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -118,5 +119,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [LeadPoolController::class, 'index'])->name('index');
         Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
+        Route::get('/import', [LeadImportController::class, 'create'])->name('import');
+        Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
     });
 });
