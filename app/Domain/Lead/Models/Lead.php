@@ -10,6 +10,7 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\User;
+use Database\Factories\LeadFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,11 @@ use Illuminate\Database\Eloquent\Builder;
 class Lead extends Model
 {
     use HasFactory, SoftDeletes;
+
+    protected static function newFactory(): LeadFactory
+    {
+        return LeadFactory::new();
+    }
 
     protected $fillable = [
         'customer_id',
