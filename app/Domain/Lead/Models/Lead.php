@@ -9,6 +9,7 @@ use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
 use App\Domain\Waybill\Models\Waybill;
+use App\Models\LeadCycle;
 use App\Models\User;
 use Database\Factories\LeadFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
