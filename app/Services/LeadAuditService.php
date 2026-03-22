@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Lead;
+use App\Domain\Lead\Models\Lead;
 use App\Models\LeadCycle;
 use App\Models\LeadPoolAudit;
 use App\Models\User;

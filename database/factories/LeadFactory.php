@@ -2,11 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\Lead;
+use App\Domain\Lead\Enums\PoolStatus;
+use App\Domain\Lead\Models\Lead;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Lead>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Domain\Lead\Models\Lead>
  */
 class LeadFactory extends Factory
 {
@@ -27,15 +28,17 @@ class LeadFactory extends Factory
             'state' => fake()->state(),
             'barangay' => fake()->word(),
             'postal_code' => fake()->postcode(),
-            'status' => 'AVAILABLE',
+            'status' => 'NEW',
             'sales_status' => 'NEW',
             'source' => fake()->randomElement(['WEB', 'PHONE', 'REFERRAL', 'WALK_IN']),
             'product_name' => fake()->words(3, true),
             'product_brand' => fake()->company(),
-            'product_sku' => fake()->bothify('???-####'),
             'amount' => fake()->randomFloat(2, 100, 10000),
             'total_cycles' => 0,
+            'max_cycles' => 3,
+            'is_exhausted' => false,
             'quality_score' => fake()->numberBetween(0, 100),
+            'pool_status' => PoolStatus::AVAILABLE,
         ];
     }
 }
