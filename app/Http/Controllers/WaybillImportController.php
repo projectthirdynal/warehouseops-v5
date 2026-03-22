@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Imports\JntWaybillImport;
+use App\Imports\JntWaybillFastImport;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
-use Maatwebsite\Excel\Facades\Excel;
+use Rap2hpoutre\FastExcel\FastExcel;
 
 class WaybillImportController extends Controller
 {
@@ -61,16 +61,17 @@ class WaybillImportController extends Controller
         ]);
 
         try {
-            // Count total rows
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(storage_path('app/' . $path));
-            $worksheet = $spreadsheet->getActiveSheet();
-            $totalRows = $worksheet->getHighestRow() - 1; // Subtract header row
-            $upload->update(['total_rows' => $totalRows]);
+            // Count total rows using fast streaming (no memory issues)
+            $rowCount = 0;
+            (new FastExcel)->import(storage_path('app/' . $path), function ($row) use (&$rowCount) {
+                $rowCount++;
+            });
+            $upload->update(['total_rows' => $rowCount]);
 
-            // Import based on courier
+            // Import based on courier using fast streaming import
             if ($courier === 'jnt') {
-                $import = new JntWaybillImport($upload, $request->user()->id);
-                Excel::import($import, storage_path('app/' . $path));
+                $import = new JntWaybillFastImport($upload, $request->user()->id);
+                $import->import(storage_path('app/' . $path));
 
                 $upload->update([
                     'status' => 'completed',
@@ -78,15 +79,14 @@ class WaybillImportController extends Controller
                 ]);
 
                 return back()->with('success', sprintf(
-                    'Import completed! %d waybills imported, %d updated, %d errors.',
-                    $import->getSuccessCount() - $import->getUpdatedCount(),
-                    $import->getUpdatedCount(),
+                    'Import completed! %d waybills imported, %d errors.',
+                    $import->getSuccessCount(),
                     $import->getErrorCount()
                 ));
             }
 
             // Flash courier (similar implementation)
-            // TODO: Implement FlashWaybillImport
+            // TODO: Implement FlashWaybillFastImport
 
             return back()->with('success', 'Import completed successfully.');
 
@@ -207,8 +207,8 @@ class WaybillImportController extends Controller
         ]);
 
         try {
-            $import = new JntWaybillImport($upload, $upload->uploaded_by);
-            Excel::import($import, storage_path('app/' . $path));
+            $import = new JntWaybillFastImport($upload, $upload->uploaded_by);
+            $import->import(storage_path('app/' . $path));
 
             $upload->update([
                 'status' => 'completed',

@@ -55,6 +55,7 @@ const statusConfig: Record<WaybillStatus, { label: string; variant: 'default' | 
   PICKED_UP: { label: 'Picked Up', variant: 'default', icon: Package },
   IN_TRANSIT: { label: 'In Transit', variant: 'default', icon: Truck },
   OUT_FOR_DELIVERY: { label: 'Out for Delivery', variant: 'default', icon: Truck },
+  AT_WAREHOUSE: { label: 'At Warehouse', variant: 'outline', icon: Package },
   DELIVERED: { label: 'Delivered', variant: 'default', icon: CheckCircle },
   RETURNED: { label: 'Returned', variant: 'destructive', icon: XCircle },
   CANCELLED: { label: 'Cancelled', variant: 'destructive', icon: XCircle },
@@ -193,8 +194,8 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Receiver</th>
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Courier</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Amount</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Remarks</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">COD</th>
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date</th>
                     <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
                   </tr>
@@ -227,9 +228,13 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                               {config?.label || waybill.status}
                             </Badge>
                           </td>
-                          <td className="p-4 align-middle text-sm">{waybill.courier_provider}</td>
+                          <td className="p-4 align-middle text-sm max-w-[200px]">
+                            <div className="truncate" title={waybill.remarks || ''}>
+                              {waybill.remarks || '-'}
+                            </div>
+                          </td>
                           <td className="p-4 align-middle text-sm font-medium">
-                            ₱{waybill.amount?.toLocaleString() || '0'}
+                            ₱{waybill.cod_amount?.toLocaleString() || '0'}
                           </td>
                           <td className="p-4 align-middle text-sm text-muted-foreground">
                             {new Date(waybill.created_at).toLocaleDateString()}

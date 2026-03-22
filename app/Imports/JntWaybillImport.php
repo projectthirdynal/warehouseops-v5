@@ -6,6 +6,7 @@ use App\Models\Upload;
 use App\Models\Waybill;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -50,6 +51,17 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
         'valuation_fee' => ['valuation_fee', 'valuation fee', 'insurance_fee'],
     ];
 
+    // Fields to update on conflict (upsert)
+    protected const UPSERT_UPDATE_FIELDS = [
+        'creator_code', 'status', 'sign_for_pictures', 'signed_at',
+        'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'receiver_address',
+        'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount',
+        'submitted_at', 'rts_reason', 'remarks', 'express_type',
+        'sender_name', 'sender_phone', 'sender_province', 'sender_city',
+        'item_name', 'item_qty', 'item_value', 'valuation_fee',
+        'delivered_at', 'returned_at', 'updated_at',
+    ];
+
     public function __construct(Upload $upload, int $userId)
     {
         $this->upload = $upload;
@@ -58,54 +70,95 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
 
     public function collection(Collection $rows): void
     {
+        $batchData = [];
+        $now = now();
+
         foreach ($rows as $index => $row) {
             try {
-                $this->processRow($row->toArray(), $index + 2); // +2 for header row offset
+                $data = $this->mapRowToData($row->toArray());
+
+                // Validate required fields
+                if (empty($data['waybill_number'])) {
+                    throw new \Exception('Waybill number is required');
+                }
+
+                if (empty($data['receiver_name'])) {
+                    throw new \Exception('Receiver name is required');
+                }
+
+                if (empty($data['receiver_phone'])) {
+                    throw new \Exception('Receiver phone is required');
+                }
+
+                // Add common fields
+                $data['uploaded_by'] = $this->userId;
+                $data['upload_id'] = $this->upload->id;
+                $data['courier_provider'] = 'J&T';
+                $data['created_at'] = $now;
+                $data['updated_at'] = $now;
+
+                // Convert Carbon dates to strings for bulk insert
+                foreach (['signed_at', 'submitted_at', 'delivered_at', 'returned_at'] as $dateField) {
+                    if (isset($data[$dateField]) && $data[$dateField] instanceof Carbon) {
+                        $data[$dateField] = $data[$dateField]->toDateTimeString();
+                    }
+                }
+
+                $batchData[] = $data;
+                $this->successCount++;
+
             } catch (\Exception $e) {
                 $this->errors[] = [
                     'row' => $index + 2,
                     'error' => $e->getMessage(),
                 ];
                 $this->errorCount++;
-                $this->upload->incrementError();
+            }
+        }
+
+        // Bulk upsert - single query for entire chunk
+        if (!empty($batchData)) {
+            $this->bulkUpsert($batchData);
+
+            // Update upload progress in single query
+            $this->upload->increment('success_rows', count($batchData));
+            $this->upload->increment('processed_rows', count($batchData) + count($this->errors));
+
+            if ($this->errorCount > 0) {
+                $this->upload->increment('error_rows', count($this->errors));
             }
         }
     }
 
-    protected function processRow(array $row, int $rowNumber): void
+    protected function bulkUpsert(array $data): void
     {
-        $data = $this->mapRowToData($row);
+        // Ensure all rows have the same columns for PostgreSQL upsert
+        $allColumns = [
+            'waybill_number', 'creator_code', 'status', 'sign_for_pictures', 'signed_at',
+            'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'receiver_address',
+            'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount',
+            'submitted_at', 'rts_reason', 'remarks', 'express_type',
+            'sender_name', 'sender_phone', 'sender_province', 'sender_city',
+            'item_name', 'item_qty', 'item_value', 'valuation_fee',
+            'delivered_at', 'returned_at', 'courier_provider', 'upload_id', 'uploaded_by',
+            'created_at', 'updated_at',
+        ];
 
-        // Validate required fields
-        if (empty($data['waybill_number'])) {
-            throw new \Exception('Waybill number is required');
-        }
+        // Normalize all rows to have the same columns
+        $normalizedData = array_map(function ($row) use ($allColumns) {
+            $normalized = [];
+            foreach ($allColumns as $col) {
+                $normalized[$col] = $row[$col] ?? null;
+            }
+            return $normalized;
+        }, $data);
 
-        if (empty($data['receiver_name'])) {
-            throw new \Exception('Receiver name is required');
-        }
-
-        if (empty($data['receiver_phone'])) {
-            throw new \Exception('Receiver phone is required');
-        }
-
-        // Check if waybill exists
-        $existingWaybill = Waybill::where('waybill_number', $data['waybill_number'])->first();
-
-        if ($existingWaybill) {
-            // Update existing waybill
-            $existingWaybill->update($data);
-            $this->updatedCount++;
-        } else {
-            // Create new waybill
-            $data['uploaded_by'] = $this->userId;
-            $data['upload_id'] = $this->upload->id;
-            $data['courier_provider'] = 'J&T';
-            Waybill::create($data);
-        }
-
-        $this->successCount++;
-        $this->upload->incrementSuccess();
+        // Use upsert - insert or update on duplicate waybill_number
+        Waybill::upsert(
+            $normalizedData,
+            ['waybill_number'], // Unique key
+            self::UPSERT_UPDATE_FIELDS // Fields to update on conflict
+        );
     }
 
     protected function mapRowToData(array $row): array
@@ -266,7 +319,10 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
 
     public function chunkSize(): int
     {
-        return 500;
+        // PostgreSQL has 65535 parameter limit
+        // With 34 columns, max safe batch = ~1900 rows
+        // Using 1000 for safety margin
+        return 1000;
     }
 
     public function getSuccessCount(): int

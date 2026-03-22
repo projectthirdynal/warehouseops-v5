@@ -71,7 +71,7 @@ export function DistributionModal({
       data.distribution = customDistribution;
     }
 
-    router.post('/lead-pool/distribute', data, {
+    router.post('/lead-pool/distribute', data as any, {
       onSuccess: () => {
         onClose();
         setSelectedAgents([]);

@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'skysms' => [
+        'url' => env('SKYSMS_API_URL', 'https://skysms.skyio.site/api/v1/sms'),
+        'key' => env('SKYSMS_API_KEY', 'sk_deoYwH46rnXLBJUFbzoSbSyR0lOYzuQK'),
+    ],
+
 ];

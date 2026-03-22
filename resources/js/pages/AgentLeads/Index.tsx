@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LeadCard } from './LeadCard';
-import type { AgentLead, PoolStats, LeadCycle } from '@/types/lead-pool';
+import type { AgentLead, PoolStats } from '@/types/lead-pool';
 
 interface Props {
   leads: AgentLead[];

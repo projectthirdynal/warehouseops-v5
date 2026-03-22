@@ -16,6 +16,7 @@ import {
   UserCog,
   Headphones,
   Upload,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ const navigation: NavItem[] = [
   { name: 'Recycling', href: '/recycling/pool', icon: Recycle, permission: 'leads_manage' },
   { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, permission: 'leads_manage' },
   { name: 'Agents', href: '/agents/governance', icon: UserCog, permission: 'leads_manage' },
+  { name: 'SMS', href: '/sms', icon: MessageSquare, permission: 'accounts' },
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 
