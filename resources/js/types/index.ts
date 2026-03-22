@@ -23,12 +23,17 @@ export interface Waybill {
   item_name?: string;
   item_qty: number;
   amount: number;
+  cod_amount?: number;
+  shipping_cost?: number;
   courier_provider: string;
+  remarks?: string;
+  rts_reason?: string;
   lead_id?: number;
   created_at: string;
   updated_at: string;
   dispatched_at?: string;
   delivered_at?: string;
+  returned_at?: string;
 }
 
 export type WaybillStatus =
@@ -37,6 +42,7 @@ export type WaybillStatus =
   | 'PICKED_UP'
   | 'IN_TRANSIT'
   | 'OUT_FOR_DELIVERY'
+  | 'AT_WAREHOUSE'
   | 'DELIVERED'
   | 'RETURNED'
   | 'CANCELLED';
@@ -167,3 +173,5 @@ export interface PageProps {
   };
   [key: string]: unknown;
 }
+
+export * from './lead-pool';
