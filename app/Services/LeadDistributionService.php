@@ -26,6 +26,10 @@ class LeadDistributionService
      */
     public function distributeEqual(array $leadIds, array $agentIds, int $supervisorId): array
     {
+        if (empty($agentIds)) {
+            return ['total_distributed' => 0, 'agent_count' => 0, 'per_agent' => 0];
+        }
+
         $leadsPerAgent = (int) floor(count($leadIds) / count($agentIds));
         $distribution = array_fill_keys($agentIds, $leadsPerAgent);
 
@@ -59,10 +63,14 @@ class LeadDistributionService
             ->shuffle();
 
         $leadIndex = 0;
+        $supervisor = User::find($supervisorId);
 
-        DB::transaction(function () use ($leads, $distribution, $supervisorId, &$totalDistributed, &$leadIndex) {
+        DB::transaction(function () use ($leads, $distribution, $supervisor, &$totalDistributed, &$leadIndex) {
             foreach ($distribution as $agentId => $count) {
                 $agent = User::find($agentId);
+                if (!$agent) {
+                    continue; // Skip invalid agent IDs
+                }
 
                 for ($i = 0; $i < $count && $leadIndex < $leads->count(); $i++) {
                     $lead = $leads[$leadIndex];
@@ -89,7 +97,7 @@ class LeadDistributionService
                     $this->auditService->log(
                         lead: $lead,
                         action: 'DISTRIBUTED',
-                        user: User::find($supervisorId),
+                        user: $supervisor,
                         cycle: $cycle,
                         metadata: [
                             'agent_id' => $agentId,
