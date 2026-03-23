@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Imports\JntWaybillFastImport;
+use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
@@ -78,8 +79,11 @@ class WaybillImportController extends Controller
                     'errors' => $import->getErrors(),
                 ]);
 
+                // Auto-generate leads from delivered waybills in this batch
+                GenerateLeadsFromUpload::dispatch($upload->id);
+
                 return back()->with('success', sprintf(
-                    'Import completed! %d waybills imported, %d errors.',
+                    'Import completed! %d waybills imported, %d errors. Leads are being generated in the background.',
                     $import->getSuccessCount(),
                     $import->getErrorCount()
                 ));
@@ -215,8 +219,10 @@ class WaybillImportController extends Controller
                 'errors' => $import->getErrors(),
             ]);
 
+            GenerateLeadsFromUpload::dispatch($upload->id);
+
             return back()->with('success', sprintf(
-                'Retry completed! %d waybills imported, %d errors.',
+                'Retry completed! %d waybills imported, %d errors. Leads are being generated in the background.',
                 $import->getSuccessCount(),
                 $import->getErrorCount()
             ));
