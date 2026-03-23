@@ -32,6 +32,11 @@ class AuthController extends Controller
             $user->last_login_at = now();
             $user->save();
 
+            // Agents go directly to their self-service portal
+            if ($user->isAgent()) {
+                return redirect()->intended(route('agent.leads'));
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 

@@ -29,8 +29,23 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
-// Protected routes
+// Agent Self-Service Portal (all authenticated users can access their own portal)
 Route::middleware(['auth'])->group(function () {
+    Route::prefix('agent')->name('agent.')->group(function () {
+        Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
+        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
+    });
+
+    // Agent API (AJAX calls from portal)
+    Route::prefix('api/agent')->name('api.agent.')->group(function () {
+        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
+        Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
+        Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
+    });
+});
+
+// Admin / Supervisor routes — agents are redirected to their portal on login
+Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -43,7 +58,6 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('waybills')->name('waybills.')->group(function () {
         Route::get('/', [WaybillController::class, 'index'])->name('index');
 
-        // Import routes (before {waybill} to avoid conflict)
         Route::get('/import', [WaybillImportController::class, 'index'])->name('import');
         Route::post('/import', [WaybillImportController::class, 'store'])->name('import.store');
         Route::get('/import/template', [WaybillImportController::class, 'template'])->name('import.template');
@@ -78,6 +92,9 @@ Route::middleware(['auth'])->group(function () {
     // Agents
     Route::prefix('agents')->name('agents.')->group(function () {
         Route::get('/governance', [AgentController::class, 'index'])->name('governance');
+        Route::post('/', [AgentController::class, 'store'])->name('store');
+        Route::patch('/{user}', [AgentController::class, 'update'])->name('update');
+        Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active');
     });
 
     // Tickets
@@ -100,35 +117,19 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/preview', [SmsController::class, 'preview'])->name('preview');
         Route::post('/quick-send', [SmsController::class, 'quickSend'])->name('quick-send');
 
-        // Sequences
         Route::get('/sequences', [SmsController::class, 'sequences'])->name('sequences');
         Route::get('/sequences/create', [SmsController::class, 'createSequence'])->name('sequences.create');
         Route::post('/sequences', [SmsController::class, 'storeSequence'])->name('sequences.store');
         Route::post('/sequences/{sequence}/toggle', [SmsController::class, 'toggleSequence'])->name('sequences.toggle');
 
-        // Templates
         Route::get('/templates', [SmsController::class, 'templates'])->name('templates');
         Route::post('/templates', [SmsController::class, 'storeTemplate'])->name('templates.store');
         Route::delete('/templates/{template}', [SmsController::class, 'destroyTemplate'])->name('templates.destroy');
 
-        // Logs
         Route::get('/logs', [SmsController::class, 'logs'])->name('logs');
     });
 
-    // Agent Self-Service Portal
-    Route::prefix('agent')->name('agent.')->group(function () {
-        Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
-        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
-    });
-
-    // Agent API (AJAX calls from portal)
-    Route::prefix('api/agent')->name('api.agent.')->group(function () {
-        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
-        Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
-        Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
-    });
-
-    // Lead Pool (Supervisor)
+    // Lead Pool
     Route::prefix('lead-pool')->name('lead-pool.')->group(function () {
         Route::get('/', [LeadPoolController::class, 'index'])->name('index');
         Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');

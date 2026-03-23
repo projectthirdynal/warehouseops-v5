@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Lead;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class AgentController extends Controller
@@ -51,6 +53,64 @@ class AgentController extends Controller
             'agents' => $agents,
             'stats' => $stats,
         ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', Password::min(8)],
+            'phone'    => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $user = User::create([
+            'name'      => $validated['name'],
+            'email'     => $validated['email'],
+            'password'  => Hash::make($validated['password']),
+            'phone'     => $validated['phone'] ?? null,
+            'role'      => 'agent',
+            'is_active' => true,
+        ]);
+
+        $user->agentProfile()->create([
+            'max_active_cycles' => 10,
+            'is_available'      => true,
+        ]);
+
+        return back()->with('success', "Agent account created for {$user->name}.");
+    }
+
+    public function update(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'unique:users,email,' . $user->id],
+            'phone'    => ['nullable', 'string', 'max:20'],
+            'password' => ['nullable', Password::min(8)],
+        ]);
+
+        $data = [
+            'name'  => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+        ];
+
+        if (!empty($validated['password'])) {
+            $data['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($data);
+
+        return back()->with('success', 'Agent updated.');
+    }
+
+    public function toggleActive(User $user)
+    {
+        $user->update(['is_active' => !$user->is_active]);
+        $status = $user->is_active ? 'activated' : 'deactivated';
+
+        return back()->with('success', "Agent {$user->name} has been {$status}.");
     }
 
     public function monitoring()

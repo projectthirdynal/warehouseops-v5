@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   Users,
@@ -8,11 +8,13 @@ import {
   Eye,
   Edit,
   UserX,
+  UserCheck,
   TrendingUp,
   Clock,
   Phone,
   Mail,
   Activity,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ import type { User, AgentProfile } from '@/types';
 interface Agent extends User {
   phone?: string;
   profile?: AgentProfile;
+  agentProfile?: AgentProfile;
   stats?: {
     leads_today: number;
     sales_today: number;
@@ -56,9 +59,103 @@ interface Props {
   };
 }
 
+function AddAgentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data, setData, post, processing, errors, reset } = useForm({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    post('/agents', {
+      onSuccess: () => {
+        reset();
+        onClose();
+      },
+    });
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Create Agent Account</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Full Name</label>
+            <input
+              type="text"
+              value={data.name}
+              onChange={e => setData('name', e.target.value)}
+              placeholder="Juan dela Cruz"
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Email Address</label>
+            <input
+              type="email"
+              value={data.email}
+              onChange={e => setData('email', e.target.value)}
+              placeholder="agent@company.com"
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Password</label>
+            <input
+              type="password"
+              value={data.password}
+              onChange={e => setData('password', e.target.value)}
+              placeholder="Min 8 characters"
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Phone <span className="text-muted-foreground">(optional)</span></label>
+            <input
+              type="text"
+              value={data.phone}
+              onChange={e => setData('phone', e.target.value)}
+              placeholder="+63 9XX XXX XXXX"
+              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" disabled={processing}>
+              {processing ? 'Creating...' : 'Create Account'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentsIndex({ agents, stats }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const filteredAgents = agents?.filter(agent => {
     const matchesSearch = agent.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -73,9 +170,15 @@ export default function AgentsIndex({ agents, stats }: Props) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  function toggleActive(agent: Agent) {
+    router.patch(`/agents/${agent.id}/toggle-active`);
+  }
+
   return (
     <AppLayout>
       <Head title="Agents" />
+
+      <AddAgentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
 
       <div className="space-y-6">
         {/* Header */}
@@ -86,7 +189,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               Manage team members and monitor performance
             </p>
           </div>
-          <Button>
+          <Button onClick={() => setShowAddModal(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
             Add Agent
           </Button>
@@ -187,9 +290,21 @@ export default function AgentsIndex({ agents, stats }: Props) {
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          <UserX className="mr-2 h-4 w-4" />
-                          Deactivate
+                        <DropdownMenuItem
+                          onClick={() => toggleActive(agent)}
+                          className={agent.is_active ? 'text-destructive' : 'text-green-600'}
+                        >
+                          {agent.is_active ? (
+                            <>
+                              <UserX className="mr-2 h-4 w-4" />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Activate
+                            </>
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -197,7 +312,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
 
                   <div className="flex flex-col items-center text-center">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={agent.avatar_url} />
+                      <AvatarImage src={(agent as any).avatar_url} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-lg">
                         {getInitials(agent.name)}
                       </AvatarFallback>
@@ -241,33 +356,33 @@ export default function AgentsIndex({ agents, stats }: Props) {
                     <div className="mt-3 w-full">
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="text-muted-foreground">Performance</span>
-                        <span className="font-medium">{agent.profile?.performance_score || 50}%</span>
+                        <span className="font-medium">{agent.agentProfile?.performance_score || 50}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-muted">
                         <div
                           className={`h-full rounded-full ${
-                            (agent.profile?.performance_score || 50) >= 70
+                            (agent.agentProfile?.performance_score || 50) >= 70
                               ? 'bg-green-600'
-                              : (agent.profile?.performance_score || 50) >= 40
+                              : (agent.agentProfile?.performance_score || 50) >= 40
                               ? 'bg-yellow-600'
                               : 'bg-red-600'
                           }`}
-                          style={{ width: `${agent.profile?.performance_score || 50}%` }}
+                          style={{ width: `${agent.agentProfile?.performance_score || 50}%` }}
                         />
                       </div>
                     </div>
 
                     {/* Skills */}
-                    {agent.profile?.product_skills && agent.profile.product_skills.length > 0 && (
+                    {agent.agentProfile?.product_skills && agent.agentProfile.product_skills.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1 justify-center">
-                        {agent.profile.product_skills.slice(0, 3).map((skill, i) => (
+                        {agent.agentProfile.product_skills.slice(0, 3).map((skill, i) => (
                           <Badge key={i} variant="outline" className="text-xs">
                             {skill}
                           </Badge>
                         ))}
-                        {agent.profile.product_skills.length > 3 && (
+                        {agent.agentProfile.product_skills.length > 3 && (
                           <Badge variant="outline" className="text-xs">
-                            +{agent.profile.product_skills.length - 3}
+                            +{agent.agentProfile.product_skills.length - 3}
                           </Badge>
                         )}
                       </div>
@@ -284,6 +399,12 @@ export default function AgentsIndex({ agents, stats }: Props) {
                 <p className="text-muted-foreground">
                   {search || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first agent to get started'}
                 </p>
+                {!search && statusFilter === 'all' && (
+                  <Button className="mt-4" onClick={() => setShowAddModal(true)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Add First Agent
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
