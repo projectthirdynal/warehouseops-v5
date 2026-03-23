@@ -44,6 +44,7 @@ const navigation: NavItem[] = [
   { name: 'Scanner', href: '/scanner', icon: Package, permission: 'scanner' },
   { name: 'Waybills', href: '/waybills', icon: Truck, permission: 'accounts' },
   { name: 'Import', href: '/waybills/import', icon: Upload, permission: 'accounts' },
+  { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Leads', href: '/leads', icon: Users, permission: 'leads_view' },
   { name: 'QC Review', href: '/qc', icon: ClipboardCheck, permission: 'qc' },
   { name: 'Recycling', href: '/recycling/pool', icon: Recycle, permission: 'leads_manage' },
