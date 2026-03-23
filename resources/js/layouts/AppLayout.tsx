@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   LogOut,
   Menu,
+  Phone,
   Recycle,
   UserCog,
   Headphones,
