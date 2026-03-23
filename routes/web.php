@@ -12,6 +12,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
+use App\Http\Controllers\AgentLeadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -112,6 +113,19 @@ Route::middleware(['auth'])->group(function () {
 
         // Logs
         Route::get('/logs', [SmsController::class, 'logs'])->name('logs');
+    });
+
+    // Agent Self-Service Portal
+    Route::prefix('agent')->name('agent.')->group(function () {
+        Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
+        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
+    });
+
+    // Agent API (AJAX calls from portal)
+    Route::prefix('api/agent')->name('api.agent.')->group(function () {
+        Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
+        Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
+        Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
     });
 
     // Lead Pool (Supervisor)

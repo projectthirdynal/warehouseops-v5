@@ -6,18 +6,131 @@ use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\AgentLeadResource;
+use App\Models\LeadCycle;
 use App\Services\CallTrackingService;
+use App\Services\LeadDistributionService;
 use App\Services\LeadRecyclingService;
+use App\Services\LeadPoolService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class AgentLeadController extends Controller
 {
     public function __construct(
         private CallTrackingService $callService,
-        private LeadRecyclingService $recyclingService
+        private LeadRecyclingService $recyclingService,
+        private LeadDistributionService $distributionService,
+        private LeadPoolService $poolService
     ) {}
+
+    public function portal(Request $request): Response
+    {
+        $agent = auth()->user();
+        $filters = $request->only(['status', 'search']);
+
+        $query = Lead::where('assigned_to', $agent->id)
+            ->whereIn('pool_status', [PoolStatus::ASSIGNED, PoolStatus::COOLDOWN])
+            ->with(['customer', 'cycles' => fn ($q) => $q->where('assigned_agent_id', $agent->id)->orderBy('cycle_number', 'desc')]);
+
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            $query->where('pool_status', $filters['status']);
+        }
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ILIKE', "%{$search}%")
+                  ->orWhere('city', 'ILIKE', "%{$search}%")
+                  ->orWhere('barangay', 'ILIKE', "%{$search}%");
+            });
+        }
+
+        $leads = $query->orderBy('assigned_at', 'asc')->get();
+
+        $todayCycles = LeadCycle::where('assigned_agent_id', $agent->id)
+            ->whereDate('opened_at', today())
+            ->get();
+
+        $callbacksToday = Lead::where('assigned_to', $agent->id)
+            ->whereHas('cycles', fn ($q) => $q
+                ->where('assigned_agent_id', $agent->id)
+                ->whereNotNull('callback_at')
+                ->whereDate('callback_at', today())
+                ->where('status', 'ACTIVE')
+            )
+            ->with(['customer', 'cycles'])
+            ->get();
+
+        return Inertia::render('AgentLeads/Index', [
+            'leads' => AgentLeadResource::collection($leads),
+            'stats' => [
+                'assigned' => Lead::where('assigned_to', $agent->id)
+                    ->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                'called_today' => $todayCycles->where('call_count', '>', 0)->count(),
+                'sold_today' => $todayCycles->where('outcome', 'ORDERED')->count(),
+                'callbacks_due' => $callbacksToday->count(),
+                'conversion_rate' => $todayCycles->count() > 0
+                    ? round($todayCycles->where('outcome', 'ORDERED')->count() / $todayCycles->count() * 100, 1)
+                    : 0,
+            ],
+            'poolStats' => $this->poolService->getPoolStats(),
+            'filters' => $filters,
+            'callbacksToday' => AgentLeadResource::collection($callbacksToday),
+        ]);
+    }
+
+    public function requestLeads(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'count' => ['sometimes', 'integer', 'min:1', 'max:10'],
+        ]);
+
+        $agent = auth()->user();
+        $count = $validated['count'] ?? 5;
+
+        $activeLeads = Lead::where('assigned_to', $agent->id)
+            ->where('pool_status', PoolStatus::ASSIGNED)
+            ->count();
+
+        $maxActive = $agent->agentProfile?->max_active_cycles ?? 10;
+        $canRequest = max(0, $maxActive - $activeLeads);
+
+        if ($canRequest === 0) {
+            return response()->json([
+                'message' => "You already have {$activeLeads} active leads. Complete some before requesting more.",
+                'assigned' => 0,
+            ], 422);
+        }
+
+        $toAssign = min($count, $canRequest);
+
+        $availableLeads = Lead::available()
+            ->orderBy('created_at', 'asc')
+            ->limit($toAssign)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($availableLeads)) {
+            return response()->json([
+                'message' => 'No leads available in the pool right now. Please check back later.',
+                'assigned' => 0,
+            ]);
+        }
+
+        $result = $this->distributionService->distributeCustom(
+            $availableLeads,
+            [$agent->id => count($availableLeads)],
+            $agent->id
+        );
+
+        return response()->json([
+            'message' => "Successfully assigned {$result['total_distributed']} lead(s) to you.",
+            'assigned' => $result['total_distributed'],
+        ]);
+    }
 
     public function index(Request $request): AnonymousResourceCollection
     {
