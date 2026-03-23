@@ -64,6 +64,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const isAgent = auth?.user?.role === 'agent';
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
 
   const isActive = (href: string) => {
@@ -130,7 +131,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation.filter((item) => !isAgent || !item.permission).map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
 

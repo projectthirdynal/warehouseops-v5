@@ -14,7 +14,7 @@ import {
   Package,
   Recycle,
 } from 'lucide-react';
-import AppLayout from '@/layouts/AppLayout';
+import AgentLayout from '@/layouts/AgentLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -112,7 +112,7 @@ export default function AgentLeadsIndex({
   };
 
   return (
-    <AppLayout>
+    <AgentLayout>
       <Head title="My Leads" />
 
       {/* Toast */}
@@ -365,6 +365,6 @@ export default function AgentLeadsIndex({
           )}
         </div>
       </div>
-    </AppLayout>
+    </AgentLayout>
   );
 }
