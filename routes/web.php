@@ -93,8 +93,9 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
     Route::prefix('agents')->name('agents.')->group(function () {
         Route::get('/governance', [AgentController::class, 'index'])->name('governance');
         Route::post('/', [AgentController::class, 'store'])->name('store');
-        Route::patch('/{user}', [AgentController::class, 'update'])->name('update');
+        Route::patch('/{user}/profile', [AgentController::class, 'updateProfile'])->name('update-profile');
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active');
+        Route::patch('/{user}', [AgentController::class, 'update'])->name('update');
     });
 
     // Tickets

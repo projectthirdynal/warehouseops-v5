@@ -5,8 +5,8 @@ import {
   UserPlus,
   Search,
   MoreHorizontal,
-  Eye,
   Edit,
+  Eye,
   UserX,
   UserCheck,
   TrendingUp,
@@ -15,6 +15,8 @@ import {
   Mail,
   Activity,
   X,
+  Package,
+  Plus,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -152,10 +154,132 @@ function AddAgentModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open: boolean; onClose: () => void }) {
+  const [skills, setSkills] = useState<string[]>(agent?.agentProfile?.product_skills ?? []);
+  const [skillInput, setSkillInput] = useState('');
+  const [maxCycles, setMaxCycles] = useState(agent?.agentProfile?.max_active_cycles ?? 10);
+  const [saving, setSaving] = useState(false);
+
+  if (!open || !agent) return null;
+
+  const addSkill = () => {
+    const trimmed = skillInput.trim();
+    if (trimmed && !skills.includes(trimmed)) {
+      setSkills([...skills, trimmed]);
+    }
+    setSkillInput('');
+  };
+
+  const removeSkill = (skill: string) => setSkills(skills.filter((s) => s !== skill));
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); addSkill(); }
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    router.patch(`/agents/${agent.id}/profile`, {
+      product_skills: skills,
+      max_active_cycles: maxCycles,
+    }, {
+      onFinish: () => { setSaving(false); onClose(); },
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Product Skills — {agent.name}
+          </h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Product Lines</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Agent will only receive leads matching these products (e.g. "STEM Coffee", "Mullein Inhaler")
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type product name + Enter"
+                className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={addSkill}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 min-h-[36px]">
+              {skills.length === 0 && (
+                <span className="text-xs text-muted-foreground italic">No products set — agent pulls any available lead</span>
+              )}
+              {skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium"
+                >
+                  {skill}
+                  <button onClick={() => removeSkill(skill)} className="ml-1 text-muted-foreground hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Max Active Leads</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={maxCycles}
+              onChange={(e) => setMaxCycles(Number(e.target.value))}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-md border border-input bg-background px-4 py-2 text-sm hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentsIndex({ agents, stats }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
 
   const filteredAgents = agents?.filter(agent => {
     const matchesSearch = agent.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -179,6 +303,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
       <Head title="Agents" />
 
       <AddAgentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+      <EditProfileModal agent={editingAgent} open={editingAgent !== null} onClose={() => setEditingAgent(null)} />
 
       <div className="space-y-6">
         {/* Header */}
@@ -285,7 +410,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
                           <Eye className="mr-2 h-4 w-4" />
                           View Profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditingAgent(agent)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>

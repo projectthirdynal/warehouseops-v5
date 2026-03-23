@@ -113,6 +113,38 @@ class AgentController extends Controller
         return back()->with('success', "Agent {$user->name} has been {$status}.");
     }
 
+    public function updateProfile(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'product_skills'    => ['nullable', 'array'],
+            'product_skills.*'  => ['string', 'max:100'],
+            'regions'           => ['nullable', 'array'],
+            'regions.*'         => ['string', 'max:100'],
+            'max_active_cycles' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'is_available'      => ['nullable', 'boolean'],
+        ]);
+
+        $profile = $user->agentProfile;
+
+        if (!$profile) {
+            $user->agentProfile()->create([
+                'product_skills'    => $validated['product_skills'] ?? [],
+                'regions'           => $validated['regions'] ?? [],
+                'max_active_cycles' => $validated['max_active_cycles'] ?? 10,
+                'is_available'      => $validated['is_available'] ?? true,
+            ]);
+        } else {
+            $profile->update(array_filter([
+                'product_skills'    => $validated['product_skills'] ?? $profile->product_skills,
+                'regions'           => $validated['regions'] ?? $profile->regions,
+                'max_active_cycles' => $validated['max_active_cycles'] ?? $profile->max_active_cycles,
+                'is_available'      => $validated['is_available'] ?? $profile->is_available,
+            ], fn ($v) => $v !== null));
+        }
+
+        return back()->with('success', "Profile updated for {$user->name}.");
+    }
+
     public function monitoring()
     {
         $metrics = [

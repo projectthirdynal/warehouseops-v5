@@ -29,7 +29,10 @@ class AgentLeadController extends Controller
     public function portal(Request $request): Response
     {
         $agent = auth()->user();
-        $filters = $request->only(['status', 'search']);
+        $agent->load('agentProfile');
+        $filters = $request->only(['status', 'search', 'product']);
+
+        $productSkills = $agent->agentProfile?->product_skills ?? [];
 
         $query = Lead::where('assigned_to', $agent->id)
             ->whereIn('pool_status', [PoolStatus::ASSIGNED, PoolStatus::COOLDOWN])
@@ -48,6 +51,10 @@ class AgentLeadController extends Controller
             });
         }
 
+        if (!empty($filters['product'])) {
+            $query->where('product_name', 'ILIKE', "%{$filters['product']}%");
+        }
+
         $leads = $query->orderBy('assigned_at', 'asc')->get();
 
         $todayCycles = LeadCycle::where('assigned_agent_id', $agent->id)
@@ -64,6 +71,14 @@ class AgentLeadController extends Controller
             ->with(['customer', 'cycles'])
             ->get();
 
+        // Count available matching leads in pool per product skill
+        $matchingInPool = [];
+        foreach ($productSkills as $skill) {
+            $matchingInPool[$skill] = Lead::available()
+                ->where('product_name', 'ILIKE', "%{$skill}%")
+                ->count();
+        }
+
         return Inertia::render('AgentLeads/Index', [
             'leads' => AgentLeadResource::collection($leads),
             'stats' => [
@@ -79,16 +94,20 @@ class AgentLeadController extends Controller
             'poolStats' => $this->poolService->getPoolStats(),
             'filters' => $filters,
             'callbacksToday' => AgentLeadResource::collection($callbacksToday),
+            'productSkills' => $productSkills,
+            'matchingInPool' => $matchingInPool,
         ]);
     }
 
     public function requestLeads(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'count' => ['sometimes', 'integer', 'min:1', 'max:10'],
+            'count'   => ['sometimes', 'integer', 'min:1', 'max:10'],
+            'product' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
         $agent = auth()->user();
+        $agent->load('agentProfile');
         $count = $validated['count'] ?? 5;
 
         $activeLeads = Lead::where('assigned_to', $agent->id)
@@ -100,18 +119,62 @@ class AgentLeadController extends Controller
 
         if ($canRequest === 0) {
             return response()->json([
-                'message' => "You already have {$activeLeads} active leads. Complete some before requesting more.",
+                'message' => "You already have {$activeLeads} active leads. Finish some before requesting more.",
                 'assigned' => 0,
             ], 422);
         }
 
         $toAssign = min($count, $canRequest);
+        $productSkills = $agent->agentProfile?->product_skills ?? [];
 
-        $availableLeads = Lead::available()
-            ->orderBy('created_at', 'asc')
-            ->limit($toAssign)
-            ->pluck('id')
-            ->toArray();
+        // Determine which product to filter by:
+        // 1. Explicit product param from request
+        // 2. Agent's registered product skills (match any)
+        $requestedProduct = $validated['product'] ?? null;
+
+        $query = Lead::available()->orderBy('created_at', 'asc');
+
+        if ($requestedProduct) {
+            // Explicit product filter requested
+            $query->where('product_name', 'ILIKE', "%{$requestedProduct}%");
+        } elseif (!empty($productSkills)) {
+            // Filter by ANY of the agent's product skills
+            $query->where(function ($q) use ($productSkills) {
+                foreach ($productSkills as $skill) {
+                    $q->orWhere('product_name', 'ILIKE', "%{$skill}%");
+                }
+            });
+        }
+        // If no skills set and no explicit filter → pull any available lead
+
+        $availableLeads = $query->limit($toAssign)->pluck('id')->toArray();
+
+        if (empty($availableLeads) && !empty($productSkills)) {
+            // No matching product leads — try without product filter
+            $availableLeads = Lead::available()
+                ->orderBy('created_at', 'asc')
+                ->limit($toAssign)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($availableLeads)) {
+                return response()->json([
+                    'message' => 'No leads available in the pool right now. Please check back later.',
+                    'assigned' => 0,
+                ]);
+            }
+
+            $result = $this->distributionService->distributeCustom(
+                $availableLeads,
+                [$agent->id => count($availableLeads)],
+                $agent->id
+            );
+
+            return response()->json([
+                'message' => "No matching product leads available. Assigned {$result['total_distributed']} general lead(s) instead.",
+                'assigned' => $result['total_distributed'],
+            ]);
+        }
 
         if (empty($availableLeads)) {
             return response()->json([
@@ -126,8 +189,13 @@ class AgentLeadController extends Controller
             $agent->id
         );
 
+        $productLabel = $requestedProduct ?? (count($productSkills) === 1 ? $productSkills[0] : null);
+        $message = $productLabel
+            ? "Assigned {$result['total_distributed']} {$productLabel} lead(s) to you."
+            : "Successfully assigned {$result['total_distributed']} lead(s) to you.";
+
         return response()->json([
-            'message' => "Successfully assigned {$result['total_distributed']} lead(s) to you.",
+            'message' => $message,
             'assigned' => $result['total_distributed'],
         ]);
     }
