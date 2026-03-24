@@ -1,0 +1,139 @@
+services:
+  # ===================
+  # APPLICATION
+  # ===================
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-warehouseops}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+
+  # ===================
+  # NGINX
+  # ===================
+  nginx:
+    image: nginx:alpine
+    container_name: warehouseops-nginx
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  # ===================
+  # HORIZON (Queue Worker)
+  # ===================
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-horizon
+    restart: unless-stopped
+    command: php artisan horizon
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-warehouseops}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      - app
+      - redis
+    networks:
+      - warehouseops
+
+  # ===================
+  # SCHEDULER
+  # ===================
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-scheduler
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction;
+        sleep 60;
+      done"
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-warehouseops}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  # ===================
+  # REDIS
+  # ===================
+  redis:
+    image: redis:7-alpine
+    container_name: warehouseops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+networks:
+  warehouseops:
+    driver: bridge
+
+volumes:
+  redis-data:
