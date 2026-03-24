@@ -41,6 +41,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
+        Route::get('/leads/{lead}/customer-history', [AgentLeadController::class, 'customerHistory'])->name('leads.customer-history');
     });
 });
 
@@ -106,6 +107,9 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
     // Settings
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
+        Route::patch('/profile', [SettingsController::class, 'updateProfile'])->name('profile.update');
+        Route::patch('/appearance', [SettingsController::class, 'updateAppearance'])->name('appearance.update');
+        Route::patch('/password', [SettingsController::class, 'updatePassword'])->name('password.update');
     });
 
     // SMS

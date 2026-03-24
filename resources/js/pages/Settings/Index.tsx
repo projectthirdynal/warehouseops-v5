@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   User,
@@ -10,6 +10,7 @@ import {
   Palette,
   Save,
   Key,
+  CheckCircle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -23,18 +24,284 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface Props {
-  settings: Record<string, string | boolean | number>;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-    role: string;
-  };
+interface UserData {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  theme: string;
+  language: string;
+  timezone: string;
 }
 
-export default function SettingsIndex({ user }: Props) {
-  const [activeTab, setActiveTab] = useState('profile');
+interface Props {
+  settings: Record<string, string | boolean | number>;
+  user: UserData;
+}
+
+function SuccessBanner({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300">
+      <CheckCircle className="h-4 w-4 shrink-0" />
+      {message}
+    </div>
+  );
+}
+
+function ProfileTab({ user }: { user: UserData }) {
+  const { data, setData, patch, processing, errors, recentlySuccessful } = useForm({
+    name: user.name ?? '',
+    email: user.email ?? '',
+    phone: user.phone ?? '',
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    patch('/settings/profile');
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Profile Settings</CardTitle>
+        <CardDescription>Update your personal information</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-6">
+          {recentlySuccessful && <SuccessBanner message="Profile updated successfully." />}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Full Name</label>
+              <input
+                type="text"
+                value={data.name}
+                onChange={e => setData('name', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <input
+                type="email"
+                value={data.email}
+                onChange={e => setData('email', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Phone Number</label>
+            <input
+              type="tel"
+              value={data.phone}
+              onChange={e => setData('phone', e.target.value)}
+              placeholder="+63 9XX XXX XXXX"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Role</label>
+            <div className="flex items-center gap-2">
+              <Badge>{user.role || 'Agent'}</Badge>
+              <span className="text-sm text-muted-foreground">Contact admin to change role</span>
+            </div>
+          </div>
+
+          <Button type="submit" disabled={processing}>
+            <Save className="mr-2 h-4 w-4" />
+            {processing ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SecurityTab() {
+  const { data, setData, patch, processing, errors, recentlySuccessful, reset } = useForm({
+    current_password: '',
+    password: '',
+    password_confirmation: '',
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    patch('/settings/password', {
+      onSuccess: () => reset(),
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Security Settings</CardTitle>
+        <CardDescription>Manage your password and security preferences</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form onSubmit={submit} className="space-y-4">
+          <h3 className="font-medium flex items-center gap-2">
+            <Key className="h-4 w-4" /> Change Password
+          </h3>
+
+          {recentlySuccessful && <SuccessBanner message="Password updated successfully." />}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Current Password</label>
+            <input
+              type="password"
+              value={data.current_password}
+              onChange={e => setData('current_password', e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.current_password && <p className="text-xs text-destructive">{errors.current_password}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">New Password</label>
+            <input
+              type="password"
+              value={data.password}
+              onChange={e => setData('password', e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Confirm New Password</label>
+            <input
+              type="password"
+              value={data.password_confirmation}
+              onChange={e => setData('password_confirmation', e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
+          <Button type="submit" disabled={processing}>
+            {processing ? 'Updating…' : 'Update Password'}
+          </Button>
+        </form>
+
+        <div className="border-t pt-6">
+          <h3 className="font-medium mb-4">Active Sessions</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <div className="font-medium">Current Session</div>
+                <div className="text-sm text-muted-foreground">This device</div>
+              </div>
+              <Badge variant="default">Active</Badge>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AppearanceTab({ user }: { user: UserData }) {
+  const { data, setData, patch, processing, recentlySuccessful } = useForm({
+    theme: user.theme ?? 'light',
+    language: user.language ?? 'en',
+    timezone: user.timezone ?? 'Asia/Manila',
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    patch('/settings/appearance', {
+      onSuccess: () => {
+        applyTheme(data.theme);
+      },
+    });
+  };
+
+  const applyTheme = (theme: string) => {
+    const html = document.documentElement;
+    if (theme === 'dark') {
+      html.classList.add('dark');
+    } else if (theme === 'light') {
+      html.classList.remove('dark');
+    } else {
+      // system
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      html.classList.toggle('dark', prefersDark);
+    }
+  };
+
+  const handleThemeChange = (value: string) => {
+    setData('theme', value);
+    applyTheme(value);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>Customize the look and feel of the application</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-6">
+          {recentlySuccessful && <SuccessBanner message="Preferences saved." />}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Theme</label>
+            <Select value={data.theme} onValueChange={handleThemeChange}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="system">System</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Language</label>
+            <Select value={data.language} onValueChange={v => setData('language', v)}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="tl">Filipino (Tagalog)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Timezone</label>
+            <Select value={data.timezone} onValueChange={v => setData('timezone', v)}>
+              <SelectTrigger className="w-full md:w-[300px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Asia/Manila">Asia/Manila (GMT+8)</SelectItem>
+                <SelectItem value="UTC">UTC</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button type="submit" disabled={processing}>
+            <Save className="mr-2 h-4 w-4" />
+            {processing ? 'Saving…' : 'Save Preferences'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SettingsIndex({ user, settings }: Props) {
+  const [activeTab, setActiveTab] = useState('appearance');
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -51,12 +318,9 @@ export default function SettingsIndex({ user }: Props) {
       <Head title="Settings" />
 
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your account and application preferences
-          </p>
+          <p className="text-muted-foreground">Manage your account and application preferences</p>
         </div>
 
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -83,68 +347,17 @@ export default function SettingsIndex({ user }: Props) {
 
           {/* Content */}
           <div className="flex-1">
-            {activeTab === 'profile' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Profile Settings</CardTitle>
-                  <CardDescription>
-                    Update your personal information and preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Full Name</label>
-                      <input
-                        type="text"
-                        defaultValue={user?.name}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Email</label>
-                      <input
-                        type="email"
-                        defaultValue={user?.email}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    </div>
-                  </div>
+            {activeTab === 'profile' && <ProfileTab user={user} />}
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Phone Number</label>
-                    <input
-                      type="tel"
-                      placeholder="+63 9XX XXX XXXX"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  </div>
+            {activeTab === 'appearance' && <AppearanceTab user={user} />}
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role</label>
-                    <div className="flex items-center gap-2">
-                      <Badge>{user?.role || 'Agent'}</Badge>
-                      <span className="text-sm text-muted-foreground">
-                        Contact admin to change role
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+            {activeTab === 'security' && <SecurityTab />}
 
             {activeTab === 'notifications' && (
               <Card>
                 <CardHeader>
                   <CardTitle>Notification Preferences</CardTitle>
-                  <CardDescription>
-                    Configure how you receive notifications
-                  </CardDescription>
+                  <CardDescription>Configure how you receive notifications</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {[
@@ -164,122 +377,6 @@ export default function SettingsIndex({ user }: Props) {
                       </label>
                     </div>
                   ))}
-
-                  <Button>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Preferences
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === 'security' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Security Settings</CardTitle>
-                  <CardDescription>
-                    Manage your password and security preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="font-medium flex items-center gap-2">
-                      <Key className="h-4 w-4" /> Change Password
-                    </h3>
-                    <div className="grid gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Current Password</label>
-                        <input
-                          type="password"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">New Password</label>
-                        <input
-                          type="password"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Confirm New Password</label>
-                        <input
-                          type="password"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button>Update Password</Button>
-
-                  <div className="border-t pt-6">
-                    <h3 className="font-medium mb-4">Active Sessions</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <div className="font-medium">Current Session</div>
-                          <div className="text-sm text-muted-foreground">
-                            Chrome on Windows • Manila, PH
-                          </div>
-                        </div>
-                        <Badge variant="default">Active</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === 'appearance' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Appearance</CardTitle>
-                  <CardDescription>
-                    Customize the look and feel of the application
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Theme</label>
-                    <Select defaultValue="system">
-                      <SelectTrigger className="w-full md:w-[200px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
-                        <SelectItem value="system">System</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Language</label>
-                    <Select defaultValue="en">
-                      <SelectTrigger className="w-full md:w-[200px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="tl">Filipino (Tagalog)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Timezone</label>
-                    <Select defaultValue="asia-manila">
-                      <SelectTrigger className="w-full md:w-[300px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="asia-manila">Asia/Manila (GMT+8)</SelectItem>
-                        <SelectItem value="utc">UTC</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <Button>
                     <Save className="mr-2 h-4 w-4" />
                     Save Preferences
@@ -292,9 +389,7 @@ export default function SettingsIndex({ user }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle>Courier Configuration</CardTitle>
-                  <CardDescription>
-                    Manage courier provider integrations and settings
-                  </CardDescription>
+                  <CardDescription>Manage courier provider integrations and settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {[
@@ -329,9 +424,7 @@ export default function SettingsIndex({ user }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle>Team Settings</CardTitle>
-                  <CardDescription>
-                    Configure team and agent settings
-                  </CardDescription>
+                  <CardDescription>Configure team and agent settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
@@ -339,14 +432,13 @@ export default function SettingsIndex({ user }: Props) {
                       <label className="text-sm font-medium">Max Active Leads per Agent</label>
                       <input
                         type="number"
-                        defaultValue={10}
+                        defaultValue={settings.max_active_leads as number}
                         className="flex h-10 w-full md:w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       />
                     </div>
-
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Lead Recycle After (No Answer)</label>
-                      <Select defaultValue="3">
+                      <Select defaultValue={String(settings.recycle_attempts)}>
                         <SelectTrigger className="w-full md:w-[200px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -357,10 +449,9 @@ export default function SettingsIndex({ user }: Props) {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Callback Expiry</label>
-                      <Select defaultValue="24">
+                      <Select defaultValue={String(settings.callback_expiry_hours)}>
                         <SelectTrigger className="w-full md:w-[200px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -372,7 +463,6 @@ export default function SettingsIndex({ user }: Props) {
                       </Select>
                     </div>
                   </div>
-
                   <Button>
                     <Save className="mr-2 h-4 w-4" />
                     Save Settings
@@ -385,9 +475,7 @@ export default function SettingsIndex({ user }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle>System Information</CardTitle>
-                  <CardDescription>
-                    Application and system configuration
-                  </CardDescription>
+                  <CardDescription>Application and system configuration</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4">
@@ -412,7 +500,6 @@ export default function SettingsIndex({ user }: Props) {
                       <span className="font-mono text-sm">8.3</span>
                     </div>
                   </div>
-
                   <div className="flex gap-2">
                     <Button variant="outline">Clear Cache</Button>
                     <Button variant="outline">Run Migrations</Button>

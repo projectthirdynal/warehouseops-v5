@@ -1,75 +1,112 @@
-version: '3.9'
+networks:
+  proxy:
+    external: true
+    name: infra_proxy
+  internal:
+    external: true
+    name: infra_internal
+  app:
+    driver: bridge
+
+volumes:
+  redis-data:
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: docker/app/Dockerfile
-    container_name: warehouseops-app
-    restart: always
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
-      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
-    environment:
-      - APP_ENV=production
-      - APP_DEBUG=false
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - warehouseops
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
 
+  # ─────────────────────────────────────────
+  # NGINX — Web Server (Traefik entry point)
+  # ─────────────────────────────────────────
   nginx:
     image: nginx:alpine
     container_name: warehouseops-nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
+    restart: unless-stopped
     volumes:
-      - ./:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - app
     networks:
-      - warehouseops
+      - proxy
+      - app
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.warehouseops.rule=Host(`warehouseops.thirdynals.org`)
+      - traefik.http.routers.warehouseops.entrypoints=websecure
+      - traefik.http.routers.warehouseops.tls.certresolver=cloudflare
+      - traefik.http.services.warehouseops.loadbalancer.server.port=80
+      - traefik.docker.network=infra_proxy
 
+  # ─────────────────────────────────────────
+  # APP — PHP-FPM
+  # ─────────────────────────────────────────
+  app:
+    image: warehouseops-app:latest
+    container_name: warehouseops-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL:-https://warehouseops.thirdynals.org}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app
+      - internal
+
+  # ─────────────────────────────────────────
+  # HORIZON — Queue Worker
+  # ─────────────────────────────────────────
   horizon:
-    build:
-      context: .
-      dockerfile: docker/app/Dockerfile
+    image: warehouseops-app:latest
     container_name: warehouseops-horizon
-    restart: always
+    restart: unless-stopped
     command: php artisan horizon
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QUEUE_CONNECTION=redis
     depends_on:
       - app
       - redis
     networks:
-      - warehouseops
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+      - app
+      - internal
 
+  # ─────────────────────────────────────────
+  # SCHEDULER — Cron Runner
+  # ─────────────────────────────────────────
   scheduler:
-    build:
-      context: .
-      dockerfile: docker/app/Dockerfile
+    image: warehouseops-app:latest
     container_name: warehouseops-scheduler
-    restart: always
+    restart: unless-stopped
     command: >
       sh -c "while true; do
         php artisan schedule:run --verbose --no-interaction;
@@ -78,49 +115,36 @@ services:
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
     depends_on:
       - app
     networks:
-      - warehouseops
+      - app
+      - internal
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: warehouseops-postgres
-    restart: always
-    environment:
-      POSTGRES_DB: ${DB_DATABASE:-warehouseops}
-      POSTGRES_USER: ${DB_USERNAME:-warehouseops}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password required}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres/backups:/backups
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-warehouseops}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - warehouseops
-
+  # ─────────────────────────────────────────
+  # REDIS — Cache / Queue / Session
+  # ─────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: warehouseops-redis
-    restart: always
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - warehouseops
-
-networks:
-  warehouseops:
-    driver: bridge
-
-volumes:
-  postgres-data:
-  redis-data:
+      - app

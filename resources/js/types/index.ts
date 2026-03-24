@@ -4,6 +4,7 @@ export interface User {
   email: string;
   role: 'superadmin' | 'admin' | 'teamleader' | 'agent' | 'checker' | 'encoder';
   is_active: boolean;
+  theme?: 'light' | 'dark' | 'system';
   avatar_url?: string;
   created_at: string;
   updated_at: string;

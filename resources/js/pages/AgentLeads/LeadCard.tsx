@@ -8,12 +8,14 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  History,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CallButton } from '@/components/leads/CallButton';
 import { OutcomeModal } from '@/components/leads/OutcomeModal';
+import { CustomerHistoryModal } from '@/components/leads/CustomerHistoryModal';
 import { formatCurrency, formatDateTime, formatRelativeTime } from '@/lib/utils';
 import type { AgentLead, PoolStatus } from '@/types/lead-pool';
 
@@ -32,6 +34,7 @@ const poolStatusConfig: Record<PoolStatus, { label: string; color: string }> = {
 export function LeadCard({ lead, onUpdate }: LeadCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOutcomeModal, setShowOutcomeModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const statusCfg = poolStatusConfig[lead.pool_status];
   const hasCustomerHistory = lead.customer && lead.customer.total_orders > 0;
@@ -74,15 +77,20 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Customer History Alert */}
+          {/* Customer History Alert — clickable to open full history */}
           {hasCustomerHistory && (
-            <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg text-sm">
-              <User className="h-4 w-4 text-blue-600" />
-              <span>
+            <button
+              type="button"
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center gap-2 p-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm w-full text-left transition-colors cursor-pointer"
+            >
+              <User className="h-4 w-4 text-blue-600 shrink-0" />
+              <span className="flex-1">
                 Returning customer: {lead.customer!.successful_orders}/{lead.customer!.total_orders} orders
                 ({lead.customer!.success_rate}% success)
               </span>
-            </div>
+              <History className="h-3.5 w-3.5 text-blue-400" />
+            </button>
           )}
 
           {/* Last Called Info */}
@@ -105,6 +113,14 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
             >
               <MessageSquare className="mr-2 h-4 w-4" />
               Record Outcome
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowHistoryModal(true)}
+              title="View customer order history"
+            >
+              <History className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
@@ -194,6 +210,12 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
         isOpen={showOutcomeModal}
         onClose={() => setShowOutcomeModal(false)}
         onSuccess={() => onUpdate?.()}
+      />
+
+      <CustomerHistoryModal
+        leadId={lead.id}
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
       />
     </>
   );

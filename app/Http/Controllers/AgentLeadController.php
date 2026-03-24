@@ -7,6 +7,7 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\LeadCycle;
+use App\Models\Waybill;
 use App\Services\CallTrackingService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadRecyclingService;
@@ -273,6 +274,84 @@ class AgentLeadController extends Controller
         return response()->json([
             'message' => 'Outcome recorded',
             'lead' => new AgentLeadResource($lead->fresh(['customer', 'cycles'])),
+        ]);
+    }
+
+    /**
+     * Customer history lookup — only accessible if the agent is assigned to this lead.
+     * Returns the customer's profile + their full waybill/order history (by phone match).
+     * Agents cannot browse waybills directly; this is scoped to one specific customer.
+     */
+    public function customerHistory(Lead $lead): JsonResponse
+    {
+        if ($lead->assigned_to !== auth()->id()) {
+            abort(403, 'You are not assigned to this lead.');
+        }
+
+        $lead->load('customer');
+        $customer = $lead->customer;
+
+        if (!$customer) {
+            return response()->json([
+                'customer' => null,
+                'waybills' => [],
+                'message' => 'No customer profile linked to this lead.',
+            ]);
+        }
+
+        // Fetch waybill history for this customer via phone number match
+        $waybills = Waybill::where('receiver_phone', $customer->phone)
+            ->select([
+                'id',
+                'waybill_number',
+                'status',
+                'item_name',
+                'cod_amount',
+                'amount',
+                'city',
+                'state',
+                'barangay',
+                'receiver_address',
+                'rts_reason',
+                'delivered_at',
+                'returned_at',
+                'created_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(fn ($w) => [
+                'id'             => $w->id,
+                'waybill_number' => $w->waybill_number,
+                'status'         => $w->status,
+                'item_name'      => $w->item_name,
+                'amount'         => $w->cod_amount ?? $w->amount,
+                'city'           => $w->city,
+                'state'          => $w->state,
+                'barangay'       => $w->barangay,
+                'address'        => $w->receiver_address,
+                'rts_reason'     => $w->rts_reason,
+                'delivered_at'   => $w->delivered_at,
+                'returned_at'    => $w->returned_at,
+                'created_at'     => $w->created_at,
+            ]);
+
+        return response()->json([
+            'customer' => [
+                'id'                => $customer->id,
+                'name'              => $customer->name,
+                'phone'             => $customer->phone,
+                'canonical_address' => $customer->canonical_address,
+                'total_orders'      => $customer->total_orders,
+                'successful_orders' => $customer->successful_orders,
+                'returned_orders'   => $customer->returned_orders,
+                'success_rate'      => $customer->success_rate,
+                'total_revenue'     => $customer->total_revenue,
+                'risk_level'        => $customer->risk_level,
+                'is_blacklisted'    => $customer->is_blacklisted,
+                'blacklist_reason'  => $customer->blacklist_reason,
+            ],
+            'waybills' => $waybills,
         ]);
     }
 

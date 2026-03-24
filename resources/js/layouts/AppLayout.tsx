@@ -1,4 +1,4 @@
-import { PropsWithChildren, useState } from 'react';
+import { PropsWithChildren, useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard,
@@ -63,6 +63,19 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const { auth } = usePage<PageProps>().props;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const theme = auth?.user?.theme ?? 'light';
+    const html = document.documentElement;
+    if (theme === 'dark') {
+      html.classList.add('dark');
+    } else if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      html.classList.toggle('dark', prefersDark);
+    } else {
+      html.classList.remove('dark');
+    }
+  }, [auth?.user?.theme]);
 
   const isAgent = auth?.user?.role === 'agent';
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
