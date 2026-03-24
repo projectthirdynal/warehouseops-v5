@@ -35,7 +35,7 @@ class SettingsController extends Controller
 
         $request->user()->update($validated);
 
-        return back()->with('success', 'Profile updated.');
+        return redirect()->back(303)->with('success', 'Profile updated.');
     }
 
     public function updateAppearance(Request $request)
@@ -48,7 +48,7 @@ class SettingsController extends Controller
 
         $request->user()->update($validated);
 
-        return back()->with('success', 'Appearance saved.');
+        return redirect()->back(303)->with('success', 'Appearance saved.');
     }
 
     public function updatePassword(Request $request)
@@ -68,6 +68,6 @@ class SettingsController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        return back()->with('success', 'Password updated.');
+        return redirect()->back(303)->with('success', 'Password updated.');
     }
 }
