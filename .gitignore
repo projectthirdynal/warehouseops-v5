@@ -17,3 +17,9 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Desktop app build artifacts
+desktop/node_modules
+desktop/dist
+desktop/dist-electron
+desktop/release
