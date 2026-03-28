@@ -135,6 +135,37 @@ class ApiClient {
     })
     return res.data
   }
+
+  // SMS
+  async getSmsData() {
+    const res = await this.client.get('/api/desktop/sms')
+    return res.data
+  }
+
+  async smsPreviewRecipients(targetAudience: string) {
+    const res = await this.client.post('/api/desktop/sms/preview', { target_audience: targetAudience })
+    return res.data
+  }
+
+  async smsSendCampaign(data: { name: string; message: string; target_audience: string }) {
+    const res = await this.client.post('/api/desktop/sms/campaigns', data)
+    return res.data
+  }
+
+  async smsQuickSend(phone: string, message: string) {
+    const res = await this.client.post('/api/desktop/sms/quick-send', { phone, message })
+    return res.data
+  }
+
+  async smsCreateTemplate(data: { name: string; message: string; category: string }) {
+    const res = await this.client.post('/api/desktop/sms/templates', data)
+    return res.data
+  }
+
+  async smsDeleteTemplate(id: number) {
+    const res = await this.client.delete(`/api/desktop/sms/templates/${id}`)
+    return res.data
+  }
 }
 
 export const api = new ApiClient()

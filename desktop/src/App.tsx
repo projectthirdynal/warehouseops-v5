@@ -6,6 +6,7 @@ import Dashboard from '@/pages/Dashboard';
 import Scanner from '@/pages/Scanner';
 import Import from '@/pages/Import';
 import Monitoring from '@/pages/Monitoring';
+import Sms from '@/pages/Sms';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!api.isAuthenticated()) {
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/scanner" element={<ProtectedRoute><Scanner /></ProtectedRoute>} />
         <Route path="/import" element={<ProtectedRoute><Import /></ProtectedRoute>} />
+        <Route path="/sms" element={<ProtectedRoute><Sms /></ProtectedRoute>} />
         <Route path="/monitoring" element={<ProtectedRoute><Monitoring /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

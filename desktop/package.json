@@ -1,6 +1,6 @@
 {
   "name": "warehouseops-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "WarehouseOps Admin Desktop - Dashboard, Scanner, Import & Monitoring",
   "main": "dist-electron/main.js",
   "homepage": "https://github.com/projectthirdynal/warehouseops-v5",

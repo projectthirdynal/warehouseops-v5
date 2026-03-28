@@ -65,4 +65,12 @@ Route::prefix('desktop')->middleware('auth:sanctum')->group(function () {
 
     // Monitoring
     Route::get('monitoring', [DesktopApiController::class, 'monitoring']);
+
+    // SMS
+    Route::get('sms', [DesktopApiController::class, 'smsIndex']);
+    Route::post('sms/preview', [DesktopApiController::class, 'smsPreview']);
+    Route::post('sms/campaigns', [DesktopApiController::class, 'smsSendCampaign']);
+    Route::post('sms/quick-send', [DesktopApiController::class, 'smsQuickSend']);
+    Route::post('sms/templates', [DesktopApiController::class, 'smsCreateTemplate']);
+    Route::delete('sms/templates/{template}', [DesktopApiController::class, 'smsDeleteTemplate']);
 });

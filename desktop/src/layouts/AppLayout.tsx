@@ -5,6 +5,7 @@ import {
   QrCode,
   Upload,
   Activity,
+  MessageSquare,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/scanner', label: 'Scanner', icon: QrCode },
   { path: '/import', label: 'Import', icon: Upload },
+  { path: '/sms', label: 'SMS', icon: MessageSquare },
   { path: '/monitoring', label: 'Monitoring', icon: Activity },
 ];
 

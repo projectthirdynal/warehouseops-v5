@@ -4,6 +4,7 @@ import { Loader2, Server, Lock, Mail } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import teccBanner from '@/assets/tecc-banner.png';
 
 export default function Login() {
   const [serverUrl, setServerUrl] = useState(api.getServerUrl() || 'https://warehouseops.thirdynals.org');
@@ -69,13 +70,15 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* App Logo */}
+        {/* TECS Banner */}
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold">
-            WO
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">WarehouseOps Admin</h1>
-          <p className="text-muted-foreground">Desktop Application</p>
+          <img
+            src={teccBanner}
+            alt="TECS - Thirdynal E-Commerce System"
+            className="mx-auto h-20 object-contain"
+          />
+          <h1 className="mt-3 text-xl font-bold">WarehouseOps Admin</h1>
+          <p className="text-sm text-muted-foreground">Desktop Application</p>
         </div>
 
         {step === 'server' ? (

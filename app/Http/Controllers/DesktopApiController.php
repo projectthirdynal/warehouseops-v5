@@ -7,9 +7,13 @@ namespace App\Http\Controllers;
 use App\Imports\JntWaybillFastImport;
 use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Lead;
+use App\Models\SmsCampaign;
+use App\Models\SmsLog;
+use App\Models\SmsTemplate;
 use App\Models\Upload;
 use App\Models\User;
 use App\Models\Waybill;
+use App\Services\SmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -519,5 +523,232 @@ class DesktopApiController extends Controller
             'hourly_activity' => $hourlyActivity,
             'top_agents' => $topAgents,
         ]);
+    }
+
+    // ========================================
+    // SMS Endpoints
+    // ========================================
+
+    /**
+     * SMS dashboard data: stats, campaigns, templates, logs
+     */
+    public function smsIndex(): JsonResponse
+    {
+        $stats = [
+            'total_sent' => SmsLog::whereIn('status', ['sent', 'delivered'])->count(),
+            'total_failed' => SmsLog::where('status', 'failed')->count(),
+            'active_campaigns' => SmsCampaign::whereIn('status', ['sending', 'scheduled'])->count(),
+            'total_templates' => SmsTemplate::count(),
+        ];
+
+        $campaigns = SmsCampaign::orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(fn($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'message' => $c->message,
+                'type' => $c->type,
+                'status' => $c->status,
+                'target_audience' => $c->target_audience,
+                'total_recipients' => $c->total_recipients,
+                'sent_count' => $c->sent_count,
+                'failed_count' => $c->failed_count,
+                'delivered_count' => $c->delivered_count,
+                'created_at' => $c->created_at->toISOString(),
+            ]);
+
+        $templates = SmsTemplate::orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'message' => $t->message,
+                'category' => $t->category,
+                'variables' => $t->variables ?? [],
+            ]);
+
+        $logs = SmsLog::orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(fn($l) => [
+                'id' => $l->id,
+                'phone' => $l->phone,
+                'message' => $l->message,
+                'status' => $l->status,
+                'campaign_name' => $l->campaign?->name,
+                'error_message' => $l->error_message,
+                'sent_at' => $l->sent_at?->toISOString(),
+                'created_at' => $l->created_at->toISOString(),
+            ]);
+
+        return response()->json([
+            'stats' => $stats,
+            'campaigns' => $campaigns,
+            'templates' => $templates,
+            'logs' => $logs,
+        ]);
+    }
+
+    /**
+     * Preview recipients for target audience
+     */
+    public function smsPreview(Request $request): JsonResponse
+    {
+        $request->validate(['target_audience' => 'required|string']);
+
+        $query = $this->buildSmsRecipientQuery($request->target_audience);
+        $count = $query->count();
+        $samples = $query->limit(5)->pluck('receiver_phone')->toArray();
+
+        return response()->json([
+            'count' => $count,
+            'samples' => $samples,
+        ]);
+    }
+
+    /**
+     * Create and send campaign
+     */
+    public function smsSendCampaign(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'message' => 'required|string|max:1000',
+            'target_audience' => 'required|string|in:all_customers,delivered,pending,returned',
+        ]);
+
+        $query = $this->buildSmsRecipientQuery($request->target_audience);
+        $recipients = $query->get();
+
+        $campaign = SmsCampaign::create([
+            'name' => $request->name,
+            'message' => $request->message,
+            'type' => 'broadcast',
+            'status' => 'sending',
+            'target_audience' => $request->target_audience,
+            'total_recipients' => $recipients->count(),
+            'created_by' => $request->user()->id,
+            'started_at' => now(),
+        ]);
+
+        // Build recipients array for bulk send
+        $recipientList = $recipients->map(fn($w) => [
+            'phone' => $w->receiver_phone,
+            'name' => $w->receiver_name,
+            'waybill' => $w->waybill_number,
+            'status' => $w->status,
+            'amount' => $w->amount ?? 0,
+            'cod' => $w->cod_amount ?? 0,
+        ])->toArray();
+
+        try {
+            $smsService = app(SmsService::class);
+            $result = $smsService->sendBulk($recipientList, $request->message, $campaign->id);
+
+            $campaign->update([
+                'status' => 'completed',
+                'sent_count' => $result['sent'] ?? 0,
+                'failed_count' => $result['failed'] ?? 0,
+                'completed_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => sprintf('Campaign sent: %d delivered, %d failed', $result['sent'] ?? 0, $result['failed'] ?? 0),
+                'campaign_id' => $campaign->id,
+            ]);
+
+        } catch (\Exception $e) {
+            $campaign->update(['status' => 'failed']);
+
+            return response()->json(['message' => 'Campaign failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Quick send to single number
+     */
+    public function smsQuickSend(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone' => 'required|string',
+            'message' => 'required|string|max:1000',
+        ]);
+
+        try {
+            $smsService = app(SmsService::class);
+            $result = $smsService->send($request->phone, $request->message);
+
+            return response()->json([
+                'success' => $result['success'] ?? false,
+                'message' => $result['success'] ? 'Message sent' : 'Failed to send',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Send failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Create template
+     */
+    public function smsCreateTemplate(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'message' => 'required|string|max:1000',
+            'category' => 'nullable|string|in:delivery,marketing,reminder,notification',
+        ]);
+
+        // Extract variables from message
+        preg_match_all('/\{(\w+)\}/', $request->message, $matches);
+        $variables = array_unique($matches[0] ?? []);
+
+        $template = SmsTemplate::create([
+            'name' => $request->name,
+            'message' => $request->message,
+            'category' => $request->category,
+            'variables' => array_values($variables),
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json(['message' => 'Template created', 'id' => $template->id]);
+    }
+
+    /**
+     * Delete template
+     */
+    public function smsDeleteTemplate(SmsTemplate $template): JsonResponse
+    {
+        $template->delete();
+
+        return response()->json(['message' => 'Template deleted']);
+    }
+
+    /**
+     * Build recipient query based on audience
+     */
+    private function buildSmsRecipientQuery(string $audience)
+    {
+        $query = Waybill::whereNotNull('receiver_phone')
+            ->where('receiver_phone', '!=', '');
+
+        switch ($audience) {
+            case 'delivered':
+                $query->where('status', 'DELIVERED');
+                break;
+            case 'pending':
+                $query->where('status', 'PENDING');
+                break;
+            case 'returned':
+                $query->where('status', 'RETURNED');
+                break;
+            case 'all_customers':
+            default:
+                // All with phone numbers
+                break;
+        }
+
+        return $query;
     }
 }
