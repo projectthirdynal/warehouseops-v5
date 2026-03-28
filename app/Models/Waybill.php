@@ -12,20 +12,6 @@ class Waybill extends Model
 {
     use HasFactory, SoftDeletes;
 
-    // J&T status mapping
-    public const JNT_STATUS_MAP = [
-        'Delivered' => 'DELIVERED',
-        'In Transit' => 'IN_TRANSIT',
-        'Pending' => 'PENDING',
-        'Dispatched' => 'DISPATCHED',
-        'Returned' => 'RETURNED',
-        'RTS' => 'RETURNED',
-        'Return to Sender' => 'RETURNED',
-        'Out for Delivery' => 'OUT_FOR_DELIVERY',
-        'Picked Up' => 'PICKED_UP',
-        'At Warehouse' => 'AT_WAREHOUSE',
-    ];
-
     protected $fillable = [
         'waybill_number',
         'creator_code',
@@ -102,10 +88,12 @@ class Waybill extends Model
     }
 
     /**
-     * Map J&T status to internal status
+     * Map courier status to internal status using StatusMapper.
      */
-    public static function mapJntStatus(string $jntStatus): string
+    public static function mapCourierStatus(string $courierCode, string $courierStatus): string
     {
-        return self::JNT_STATUS_MAP[$jntStatus] ?? 'PENDING';
+        $mapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+
+        return $mapper->resolve($courierCode, $courierStatus)->value;
     }
 }

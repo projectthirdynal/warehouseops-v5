@@ -36,4 +36,18 @@ return [
         'key' => env('SKYSMS_API_KEY', 'sk_deoYwH46rnXLBJUFbzoSbSyR0lOYzuQK'),
     ],
 
+    'couriers' => [
+        'flash' => [
+            'base_url'       => env('FLASH_API_URL', 'https://open.flashexpress.ph/open/v3'),
+            'api_key'        => env('FLASH_API_KEY'),
+            'webhook_secret' => env('FLASH_WEBHOOK_SECRET'),
+        ],
+        'jnt' => [
+            'base_url'       => env('JNT_API_URL', 'https://openapi.jtexpress.ph/api'),
+            'api_key'        => env('JNT_API_KEY'),
+            'api_secret'     => env('JNT_API_SECRET'),
+            'webhook_secret' => env('JNT_WEBHOOK_SECRET'),
+        ],
+    ],
+
 ];

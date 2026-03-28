@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;
 use Illuminate\Console\Scheduling\Schedule;
@@ -16,6 +17,9 @@ class Kernel extends ConsoleKernel
     {
         $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
         $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
+        $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
     }
 
     /**

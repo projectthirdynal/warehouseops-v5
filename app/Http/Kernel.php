@@ -65,5 +65,6 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'role' => \App\Http\Middleware\EnsureRole::class,
+        'courier.webhook' => \App\Domain\Courier\Http\Middleware\VerifyCourierWebhookSignature::class,
     ];
 }

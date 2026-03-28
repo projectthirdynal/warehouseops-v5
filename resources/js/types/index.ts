@@ -136,6 +136,39 @@ export interface LeadCycle {
   closed_at?: string;
 }
 
+export interface CourierProvider {
+  id: number;
+  code: string;
+  name: string;
+  is_active: boolean;
+  api_endpoint: string | null;
+  config: Record<string, unknown>;
+  webhook_secret: string | null;
+  total_api_calls?: number;
+  failed_api_calls?: number;
+  last_api_call_at?: string;
+  active_waybills?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CourierApiLog {
+  id: number;
+  courier_provider_id: number | null;
+  courier_code: string;
+  action: string;
+  direction: 'outbound' | 'inbound';
+  endpoint?: string;
+  request_data?: Record<string, unknown>;
+  response_data?: Record<string, unknown>;
+  http_status?: number;
+  is_success: boolean;
+  error_message?: string;
+  response_time_ms?: number;
+  waybill_id?: number;
+  created_at: string;
+}
+
 export interface DashboardStats {
   total_waybills: number;
   pending_dispatch: number;

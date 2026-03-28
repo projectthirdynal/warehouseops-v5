@@ -139,7 +139,7 @@ class JntWaybillFastImport
         }
 
         // Map status
-        $data['status'] = isset($data['status']) ? Waybill::mapJntStatus($data['status']) : 'PENDING';
+        $data['status'] = isset($data['status']) ? Waybill::mapCourierStatus('JNT', $data['status']) : 'PENDING';
 
         // Set delivered_at / returned_at based on status
         if ($data['status'] === 'DELIVERED' && isset($data['signed_at'])) {

@@ -12,6 +12,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
+use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use Illuminate\Support\Facades\Route;
 
@@ -132,6 +133,16 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::delete('/templates/{template}', [SmsController::class, 'destroyTemplate'])->name('templates.destroy');
 
         Route::get('/logs', [SmsController::class, 'logs'])->name('logs');
+    });
+
+    // Courier Management
+    Route::prefix('couriers')->name('couriers.')->group(function () {
+        Route::get('/', [CourierProviderController::class, 'index'])->name('index');
+        Route::patch('/{provider}', [CourierProviderController::class, 'update'])->name('update');
+        Route::post('/{provider}/test', [CourierProviderController::class, 'testConnection'])->name('test');
+        Route::post('/{provider}/sync', [CourierProviderController::class, 'syncTracking'])->name('sync');
+        Route::get('/{provider}/logs', [CourierProviderController::class, 'logs'])->name('logs');
+        Route::post('/create-order', [CourierProviderController::class, 'createOrder'])->name('create-order');
     });
 
     // Lead Pool

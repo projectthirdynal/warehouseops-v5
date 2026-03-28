@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Courier\Http\Controllers\CourierWebhookController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\DesktopApiController;
 use Illuminate\Http\Request;
@@ -84,4 +85,21 @@ Route::prefix('desktop')->middleware('auth:sanctum')->group(function () {
     Route::post('users', [DesktopApiController::class, 'usersStore']);
     Route::patch('users/{targetUser}', [DesktopApiController::class, 'usersUpdate']);
     Route::patch('users/{targetUser}/toggle-active', [DesktopApiController::class, 'usersToggleActive']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Courier Webhook Routes (public, signature-verified)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('webhooks/courier')->group(function () {
+    Route::post('/flash', [CourierWebhookController::class, 'handle'])
+        ->defaults('courier', 'FLASH')
+        ->middleware('courier.webhook:FLASH')
+        ->name('webhook.courier.flash');
+
+    Route::post('/jnt', [CourierWebhookController::class, 'handle'])
+        ->defaults('courier', 'JNT')
+        ->middleware('courier.webhook:JNT')
+        ->name('webhook.courier.jnt');
 });

@@ -175,7 +175,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
 
         // Map status from J&T to internal status
         if (isset($data['status'])) {
-            $data['status'] = Waybill::mapJntStatus($data['status']);
+            $data['status'] = Waybill::mapCourierStatus('JNT', $data['status']);
         } else {
             $data['status'] = 'PENDING';
         }
