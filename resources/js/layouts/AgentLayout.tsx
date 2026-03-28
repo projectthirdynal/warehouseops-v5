@@ -100,12 +100,9 @@ export default function AgentLayout({ children }: PropsWithChildren) {
         {/* Brand header */}
         <div className="flex h-16 items-center justify-between border-b px-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm">
-              <Phone className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src="/images/tecc-banner.png" alt="TECS" className="h-8 object-contain" />
             <div>
               <p className="text-sm font-bold leading-none">Agent Portal</p>
-              <p className="text-xs text-muted-foreground mt-0.5">WarehouseOps</p>
             </div>
           </div>
           <Button

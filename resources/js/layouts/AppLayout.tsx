@@ -116,13 +116,12 @@ export default function AppLayout({ children }: PropsWithChildren) {
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4">
             {!collapsed && (
-              <Link href="/" className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                  <Package className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <span className="text-lg font-bold text-sidebar-foreground">
-                  WarehouseOps
-                </span>
+              <Link href="/" className="flex items-center">
+                <img
+                  src="/images/tecc-banner.png"
+                  alt="TECS"
+                  className="h-9 object-contain"
+                />
               </Link>
             )}
             <Button
