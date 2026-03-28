@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "WarehouseOps Admin Desktop - Dashboard, Scanner, Import & Monitoring",
   "main": "dist-electron/main.js",
-  "author": "ProjectThirdynal",
+  "homepage": "https://github.com/projectthirdynal/warehouseops-v5",
+  "author": {
+    "name": "ProjectThirdynal",
+    "email": "projectthirdynal@gmail.com"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -83,7 +87,8 @@
     "linux": {
       "target": ["AppImage", "deb"],
       "icon": "build/icon.png",
-      "category": "Office"
+      "category": "Office",
+      "maintainer": "projectthirdynal@gmail.com"
     },
     "publish": {
       "provider": "github",
