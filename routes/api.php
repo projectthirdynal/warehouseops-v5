@@ -73,4 +73,15 @@ Route::prefix('desktop')->middleware('auth:sanctum')->group(function () {
     Route::post('sms/quick-send', [DesktopApiController::class, 'smsQuickSend']);
     Route::post('sms/templates', [DesktopApiController::class, 'smsCreateTemplate']);
     Route::delete('sms/templates/{template}', [DesktopApiController::class, 'smsDeleteTemplate']);
+
+    // Settings
+    Route::patch('settings/profile', [DesktopApiController::class, 'updateProfile']);
+    Route::patch('settings/password', [DesktopApiController::class, 'updatePassword']);
+    Route::patch('settings/appearance', [DesktopApiController::class, 'updateAppearance']);
+
+    // User Management
+    Route::get('users', [DesktopApiController::class, 'usersList']);
+    Route::post('users', [DesktopApiController::class, 'usersStore']);
+    Route::patch('users/{targetUser}', [DesktopApiController::class, 'usersUpdate']);
+    Route::patch('users/{targetUser}/toggle-active', [DesktopApiController::class, 'usersToggleActive']);
 });

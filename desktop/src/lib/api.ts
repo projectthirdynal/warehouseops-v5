@@ -166,6 +166,43 @@ class ApiClient {
     const res = await this.client.delete(`/api/desktop/sms/templates/${id}`)
     return res.data
   }
+
+  // Settings
+  async updateProfile(data: { name: string }) {
+    const res = await this.client.patch('/api/desktop/settings/profile', data)
+    return res.data
+  }
+
+  async updatePassword(data: { current_password: string; password: string; password_confirmation: string }) {
+    const res = await this.client.patch('/api/desktop/settings/password', data)
+    return res.data
+  }
+
+  async updateAppearance(data: { theme: string }) {
+    const res = await this.client.patch('/api/desktop/settings/appearance', data)
+    return res.data
+  }
+
+  // Users
+  async getUsers() {
+    const res = await this.client.get('/api/desktop/users')
+    return res.data
+  }
+
+  async createUser(data: { name: string; email: string; role: string; password: string }) {
+    const res = await this.client.post('/api/desktop/users', data)
+    return res.data
+  }
+
+  async updateUser(id: number, data: { name: string; email: string; role: string; password?: string }) {
+    const res = await this.client.patch(`/api/desktop/users/${id}`, data)
+    return res.data
+  }
+
+  async toggleUserActive(id: number) {
+    const res = await this.client.patch(`/api/desktop/users/${id}/toggle-active`)
+    return res.data
+  }
 }
 
 export const api = new ApiClient()

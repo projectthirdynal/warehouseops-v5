@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   QrCode,
   Upload,
   Activity,
   MessageSquare,
+  Users,
+  Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   Download,
-  Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import teccBanner from '@/assets/tecc-banner.png';
 import type { User } from '@/types';
 
 const navItems = [
@@ -23,6 +25,11 @@ const navItems = [
   { path: '/import', label: 'Import', icon: Upload },
   { path: '/sms', label: 'SMS', icon: MessageSquare },
   { path: '/monitoring', label: 'Monitoring', icon: Activity },
+  { path: '/users', label: 'Users', icon: Users },
+];
+
+const bottomNavItems = [
+  { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,16 +39,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [updateDownloaded, setUpdateDownloaded] = useState(false);
   const [appVersion, setAppVersion] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
-    // Load user info
     api.getUser().then(setUser).catch(() => navigate('/login'));
-
-    // Load app version
     window.electronAPI?.getVersion().then(setAppVersion);
 
-    // Listen for update events
     window.electronAPI?.onUpdaterAvailable(() => setUpdateAvailable(true));
     window.electronAPI?.onUpdaterDownloaded(() => {
       setUpdateAvailable(false);
@@ -67,14 +69,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }`}
       >
         {/* Logo */}
-        <div className="flex h-14 items-center border-b px-4">
+        <div className="flex h-14 items-center border-b px-3">
           {!collapsed && (
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                WO
-              </div>
-              <span className="font-semibold text-sm">WarehouseOps</span>
-            </div>
+            <img src={teccBanner} alt="TECC" className="h-8 object-contain" />
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -126,8 +123,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* User section */}
-        <div className="border-t p-2">
+        {/* Bottom nav (Settings) */}
+        <div className="border-t p-2 space-y-1">
+          {bottomNavItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                } ${collapsed ? 'justify-center' : ''}`
+              }
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </NavLink>
+          ))}
+
+          {/* User info */}
           {user && (
             <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${collapsed ? 'justify-center' : ''}`}>
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
@@ -145,13 +160,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className={`w-full mt-1 ${collapsed ? 'justify-center px-0' : 'justify-start'}`}
+            className={`w-full ${collapsed ? 'justify-center px-0' : 'justify-start'}`}
           >
             <LogOut className="h-4 w-4" />
             {!collapsed && <span className="ml-2">Logout</span>}
           </Button>
           {!collapsed && appVersion && (
-            <p className="text-center text-xs text-muted-foreground mt-2">v{appVersion}</p>
+            <p className="text-center text-xs text-muted-foreground">v{appVersion}</p>
           )}
         </div>
       </aside>

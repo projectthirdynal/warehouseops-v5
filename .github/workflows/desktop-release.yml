@@ -79,6 +79,6 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-          name: "WarehouseOps Desktop ${{ github.ref_name }}"
+          name: "TECC Desktop ${{ github.ref_name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

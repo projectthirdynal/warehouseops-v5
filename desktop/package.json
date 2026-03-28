@@ -1,7 +1,7 @@
 {
-  "name": "warehouseops-desktop",
-  "version": "1.1.0",
-  "description": "WarehouseOps Admin Desktop - Dashboard, Scanner, Import & Monitoring",
+  "name": "tecc-desktop",
+  "version": "1.2.0",
+  "description": "TECC Desktop - Thirdynal E-Commerce System",
   "main": "dist-electron/main.js",
   "homepage": "https://github.com/projectthirdynal/warehouseops-v5",
   "author": {
@@ -54,8 +54,8 @@
     "vite-plugin-electron-renderer": "^0.14.0"
   },
   "build": {
-    "appId": "com.projectthirdynal.warehouseops",
-    "productName": "WarehouseOps Admin",
+    "appId": "com.projectthirdynal.tecc",
+    "productName": "TECC Desktop",
     "directories": {
       "output": "release"
     },
@@ -82,7 +82,7 @@
       "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "WarehouseOps Admin"
+      "shortcutName": "TECC Desktop"
     },
     "linux": {
       "target": ["AppImage", "deb"],

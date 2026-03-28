@@ -751,4 +751,113 @@ class DesktopApiController extends Controller
 
         return $query;
     }
+
+    // ========================================
+    // Settings Endpoints
+    // ========================================
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $request->validate(['name' => 'required|string|max:255']);
+        $request->user()->update(['name' => $request->name]);
+
+        return response()->json(['message' => 'Profile updated']);
+    }
+
+    public function updatePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if (!Hash::check($request->current_password, $request->user()->password)) {
+            return response()->json(['message' => 'Current password is incorrect'], 422);
+        }
+
+        $request->user()->update(['password' => Hash::make($request->password)]);
+
+        return response()->json(['message' => 'Password changed']);
+    }
+
+    public function updateAppearance(Request $request): JsonResponse
+    {
+        $request->validate(['theme' => 'required|string|in:light,dark']);
+        $request->user()->update(['theme' => $request->theme]);
+
+        return response()->json(['message' => 'Appearance updated']);
+    }
+
+    // ========================================
+    // User Management Endpoints
+    // ========================================
+
+    public function usersList(): JsonResponse
+    {
+        $users = User::orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'role' => $u->role,
+                'is_active' => $u->is_active,
+                'last_login_at' => $u->last_login_at?->toISOString(),
+                'created_at' => $u->created_at->toISOString(),
+            ]);
+
+        return response()->json(['users' => $users]);
+    }
+
+    public function usersStore(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'role' => 'required|string|in:agent,supervisor,admin,superadmin',
+            'password' => 'required|string|min:8',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'role' => $request->role,
+            'password' => Hash::make($request->password),
+            'is_active' => true,
+        ]);
+
+        return response()->json(['message' => 'User created', 'id' => $user->id]);
+    }
+
+    public function usersUpdate(Request $request, User $targetUser): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $targetUser->id,
+            'role' => 'required|string|in:agent,supervisor,admin,superadmin',
+            'password' => 'nullable|string|min:8',
+        ]);
+
+        $targetUser->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'role' => $request->role,
+        ]);
+
+        if ($request->filled('password')) {
+            $targetUser->update(['password' => Hash::make($request->password)]);
+        }
+
+        return response()->json(['message' => 'User updated']);
+    }
+
+    public function usersToggleActive(User $targetUser): JsonResponse
+    {
+        $targetUser->update(['is_active' => !$targetUser->is_active]);
+
+        return response()->json([
+            'message' => $targetUser->is_active ? 'User activated' : 'User deactivated',
+            'is_active' => $targetUser->is_active,
+        ]);
+    }
 }

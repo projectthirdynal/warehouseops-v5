@@ -77,8 +77,7 @@ export default function Login() {
             alt="TECS - Thirdynal E-Commerce System"
             className="mx-auto h-20 object-contain"
           />
-          <h1 className="mt-3 text-xl font-bold">WarehouseOps Admin</h1>
-          <p className="text-sm text-muted-foreground">Desktop Application</p>
+          <p className="mt-2 text-sm text-muted-foreground">Desktop Application</p>
         </div>
 
         {step === 'server' ? (

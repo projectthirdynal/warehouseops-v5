@@ -19,7 +19,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'WarehouseOps Admin',
+    title: 'TECC Desktop',
     icon: path.join(__dirname, '../build/icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
@@ -69,7 +69,7 @@ function createTray() {
   tray = new Tray(trayIcon)
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open WarehouseOps',
+      label: 'Open TECC',
       click: () => {
         mainWindow?.show()
         mainWindow?.focus()
@@ -93,7 +93,7 @@ function createTray() {
     },
   ])
 
-  tray.setToolTip('WarehouseOps Admin')
+  tray.setToolTip('TECC Desktop')
   tray.setContextMenu(contextMenu)
   tray.on('double-click', () => {
     mainWindow?.show()
