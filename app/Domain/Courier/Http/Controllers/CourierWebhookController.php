@@ -41,7 +41,7 @@ class CourierWebhookController
                 'number'  => $payload->waybillNumber,
             ]);
             // ACK anyway to stop courier retries
-            return response()->json(['success' => true]);
+            return $this->ack($courier);
         }
 
         // Only update if status actually changed and current status is not terminal
@@ -66,6 +66,19 @@ class CourierWebhookController
             event(new TrackingStatusUpdated($waybill->fresh(), $payload));
         }
 
-        return response()->json(['success' => true]);
+        return $this->ack($courier);
+    }
+
+    /**
+     * Return the ACK response format each courier expects.
+     * Flash requires {"code":1,"message":"success"}, J&T requires {"code":"1","msg":"success"}.
+     */
+    private function ack(string $courier): JsonResponse
+    {
+        if (strtoupper($courier) === 'FLASH') {
+            return response()->json(['code' => 1, 'message' => 'success']);
+        }
+
+        return response()->json(['code' => '1', 'msg' => 'success']);
     }
 }

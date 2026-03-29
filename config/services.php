@@ -38,9 +38,9 @@ return [
 
     'couriers' => [
         'flash' => [
-            'base_url'       => env('FLASH_API_URL', 'https://open.flashexpress.ph/open/v3'),
-            'api_key'        => env('FLASH_API_KEY'),
-            'webhook_secret' => env('FLASH_WEBHOOK_SECRET'),
+            'base_url'       => env('FLASH_API_URL', 'https://open-api.flashexpress.com'),
+            'mch_id'         => env('FLASH_MCH_ID'),
+            'secret_key'     => env('FLASH_SECRET_KEY'),
         ],
         'jnt' => [
             'base_url'       => env('JNT_API_URL', 'https://openapi.jtexpress.ph/api'),

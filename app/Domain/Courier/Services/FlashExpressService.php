@@ -13,20 +13,21 @@ use App\Domain\Courier\Models\CourierApiLog;
 use App\Domain\Courier\Models\CourierProvider;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class FlashExpressService implements CourierServiceInterface
 {
     private string $baseUrl;
-    private string $apiKey;
-    private string $webhookSecret;
+    private string $mchId;
+    private string $secretKey;
     private StatusMapper $statusMapper;
     private ?int $providerId;
 
     public function __construct(StatusMapper $statusMapper)
     {
-        $this->baseUrl = config('services.couriers.flash.base_url', 'https://open.flashexpress.ph/open/v3');
-        $this->apiKey = config('services.couriers.flash.api_key', '');
-        $this->webhookSecret = config('services.couriers.flash.webhook_secret', '');
+        $this->baseUrl   = rtrim(config('services.couriers.flash.base_url', 'https://open-api.flashexpress.com'), '/');
+        $this->mchId     = config('services.couriers.flash.mch_id', '');
+        $this->secretKey = config('services.couriers.flash.secret_key', '');
         $this->statusMapper = $statusMapper;
         $this->providerId = CourierProvider::where('code', 'FLASH')->value('id');
     }
@@ -36,12 +37,19 @@ class FlashExpressService implements CourierServiceInterface
         return 'FLASH';
     }
 
+    // =========================================================================
+    // Order creation
+    // =========================================================================
+
     public function createOrder(CreateOrderDTO $dto): CreateOrderResultDTO
     {
         $body = [
-            'mchId'            => $this->apiKey,
-            'nonceStr'         => str_replace('-', '', (string) \Illuminate\Support\Str::uuid()),
+            'mchId'            => $this->mchId,
+            'nonceStr'         => $this->nonce(),
             'outTradeNo'       => $dto->waybillId ? 'WO-' . $dto->waybillId : 'WO-' . time(),
+            'expressCategory'  => $dto->codAmount > 0 ? 1 : 1, // 1=Standard (confirm with Flash for PH categories)
+            'articleCategory'  => 1, // 1=General merchandise
+            'weight'           => $this->toGrams($dto->weight),
             'srcName'          => $dto->senderName,
             'srcPhone'         => $dto->senderPhone,
             'srcProvinceName'  => $dto->senderProvince,
@@ -51,18 +59,25 @@ class FlashExpressService implements CourierServiceInterface
             'dstPhone'         => $dto->receiverPhone,
             'dstProvinceName'  => $dto->receiverProvince,
             'dstCityName'      => $dto->receiverCity,
-            'dstBarangayName'  => $dto->receiverBarangay,
+            'dstDistrictName'  => $dto->receiverBarangay,
             'dstPostalCode'    => $dto->postalCode ?? '',
             'dstDetailAddress' => $dto->receiverAddress,
-            'articleCategory'  => 2, // 2 = parcel
-            'expressCategory'  => $dto->codAmount > 0 ? 2 : 1, // 2=COD, 1=standard
-            'weight'           => max(0.1, $dto->weight),
-            'codAmount'        => $dto->codAmount > 0 ? $dto->codAmount : null,
-            'insureDeclareValue' => $dto->itemValue,
             'remark'           => $dto->remarks ?? '',
         ];
 
-        return $this->callApi('create_order', '/orders', $body, $dto->waybillId, function ($data) {
+        // COD
+        if ($dto->codAmount > 0) {
+            $body['codEnabled'] = 1;
+            $body['codAmount']  = $this->toCents($dto->codAmount);
+        }
+
+        // Insurance
+        if ($dto->itemValue > 0) {
+            $body['insured'] = 1;
+            $body['insureDeclareValue'] = $this->toCents($dto->itemValue);
+        }
+
+        return $this->callApi('create_order', '/open/v1/orders', $body, $dto->waybillId, function ($data) {
             return new CreateOrderResultDTO(
                 success:        true,
                 trackingNumber: $data['pno'] ?? null,
@@ -72,129 +87,197 @@ class FlashExpressService implements CourierServiceInterface
         });
     }
 
+    // =========================================================================
+    // Cancel order — PNO goes in the URL path
+    // =========================================================================
+
     public function cancelOrder(string $trackingNumber): bool
     {
         $body = [
-            'mchId'    => $this->apiKey,
-            'nonceStr' => bin2hex(random_bytes(16)),
-            'pno'      => $trackingNumber,
+            'mchId'    => $this->mchId,
+            'nonceStr' => $this->nonce(),
         ];
 
-        $result = $this->callApi('cancel_order', '/orders/cancel', $body, null, fn ($data) => true);
+        $result = $this->callApi(
+            'cancel_order',
+            "/open/v1/orders/{$trackingNumber}/cancel",
+            $body,
+            null,
+            fn () => true
+        );
 
-        return $result instanceof CreateOrderResultDTO ? $result->success : (bool) $result;
+        return $result === true;
     }
+
+    // =========================================================================
+    // Tracking — single via /orders/{pno}/routes, batch via /orders/routesBatch
+    // =========================================================================
 
     public function queryTracking(array $waybillNumbers): array
     {
         $results = [];
 
-        // Flash tracking is per-waybill
-        foreach ($waybillNumbers as $number) {
+        if (count($waybillNumbers) === 1) {
+            // Single tracking via URL path
+            return $this->querySingleTracking($waybillNumbers[0]);
+        }
+
+        // Batch tracking via pnoList (comma-separated)
+        $chunks = array_chunk($waybillNumbers, 30);
+
+        foreach ($chunks as $chunk) {
             try {
                 $body = [
-                    'mchId'    => $this->apiKey,
-                    'nonceStr' => bin2hex(random_bytes(16)),
-                    'pno'      => $number,
+                    'mchId'    => $this->mchId,
+                    'nonceStr' => $this->nonce(),
+                    'pnoList'  => implode(',', $chunk),
                 ];
 
-                $response = $this->makeRequest('/orders/trace', $body);
+                $response = $this->makeRequest('/open/v1/orders/routesBatch', $body);
 
                 if ($response && isset($response['data'])) {
-                    $data = $response['data'];
-                    $courierStatus = $data['state'] ?? $data['status'] ?? '';
-                    $mappedStatus = $this->statusMapper->resolve('FLASH', (int) $courierStatus);
+                    $trackingList = is_array($response['data']) ? $response['data'] : [$response['data']];
 
-                    $results[] = new TrackingResultDTO(
-                        waybillNumber: $number,
-                        mappedStatus:  $mappedStatus,
-                        courierStatus: (string) $courierStatus,
-                        location:      $data['location'] ?? null,
-                        statusAt:      isset($data['updatedAt']) ? new \DateTimeImmutable($data['updatedAt']) : null,
-                        rawData:       $data,
-                    );
+                    foreach ($trackingList as $item) {
+                        $pno   = $item['pno'] ?? '';
+                        $state = $item['state'] ?? 0;
+                        $mappedStatus = $this->statusMapper->resolve('FLASH', (int) $state);
+
+                        $results[] = new TrackingResultDTO(
+                            waybillNumber: $pno,
+                            mappedStatus:  $mappedStatus,
+                            courierStatus: (string) $state,
+                            location:      null,
+                            statusAt:      isset($item['stateChangeAt'])
+                                ? (new \DateTimeImmutable())->setTimestamp((int) $item['stateChangeAt'])
+                                : null,
+                            rawData:       $item,
+                        );
+                    }
                 }
 
-                usleep(100_000); // 100ms between requests to respect rate limits
+                usleep(100_000); // 100ms between batch chunks
             } catch (\Exception $e) {
-                Log::warning("Flash tracking query failed for {$number}", ['error' => $e->getMessage()]);
+                Log::warning('Flash batch tracking failed', ['error' => $e->getMessage()]);
             }
         }
 
         return $results;
     }
 
+    private function querySingleTracking(string $pno): array
+    {
+        try {
+            $body = [
+                'mchId'    => $this->mchId,
+                'nonceStr' => $this->nonce(),
+            ];
+
+            $response = $this->makeRequest("/open/v1/orders/{$pno}/routes", $body);
+
+            if ($response && isset($response['data'])) {
+                $data  = $response['data'];
+                $state = $data['state'] ?? 0;
+                $mappedStatus = $this->statusMapper->resolve('FLASH', (int) $state);
+
+                return [new TrackingResultDTO(
+                    waybillNumber: $data['pno'] ?? $pno,
+                    mappedStatus:  $mappedStatus,
+                    courierStatus: (string) $state,
+                    location:      null,
+                    statusAt:      isset($data['stateChangeAt'])
+                        ? (new \DateTimeImmutable())->setTimestamp((int) $data['stateChangeAt'])
+                        : null,
+                    rawData:       $data,
+                )];
+            }
+        } catch (\Exception $e) {
+            Log::warning("Flash tracking query failed for {$pno}", ['error' => $e->getMessage()]);
+        }
+
+        return [];
+    }
+
+    // =========================================================================
+    // Webhook — sign is computed from the flattened `data` object
+    // =========================================================================
+
     public function verifyWebhookSignature(string $payload, string $signature): bool
     {
-        if (empty($this->webhookSecret)) {
+        if (empty($this->secretKey)) {
             return false;
         }
 
-        // Verify by reconstructing the signature from the payload params
-        $params = json_decode($payload, true);
-        if (!is_array($params)) {
+        $decoded = json_decode($payload, true);
+        if (!is_array($decoded) || !isset($decoded['data'])) {
             return false;
         }
 
-        // Use webhook secret as the signing key for inbound verification
-        unset($params['sign']);
-        $params = array_filter($params, fn ($v) => $v !== '' && $v !== null);
-        ksort($params);
-
-        $parts = [];
-        foreach ($params as $key => $value) {
-            if (is_array($value)) {
-                $value = json_encode($value);
-            }
-            $parts[] = "{$key}={$value}";
+        // Per Flash docs: flatten the `data` object, sort by key, append &key=SECRET, SHA256 uppercase
+        $data = $decoded['data'];
+        if (!is_array($data)) {
+            return false;
         }
-        $queryString = implode('&', $parts) . '&key=' . $this->webhookSecret;
-        $expected = hash('sha256', $queryString);
 
-        return hash_equals($expected, $signature);
+        $expected = $this->generateSign($data);
+
+        return hash_equals($expected, strtoupper($signature));
     }
 
     public function parseWebhookPayload(array $data): WebhookPayloadDTO
     {
-        $courierStatus = $data['state'] ?? $data['status'] ?? 0;
-        $mappedStatus = $this->statusMapper->resolve('FLASH', (int) $courierStatus);
+        // Webhook payload structure: { mchId, data: { pno, state, stateText, stateChangeAt }, sign }
+        $inner = $data['data'] ?? $data;
+
+        $state = $inner['state'] ?? 0;
+        $mappedStatus = $this->statusMapper->resolve('FLASH', (int) $state);
 
         return new WebhookPayloadDTO(
-            waybillNumber: $data['pno'] ?? '',
+            waybillNumber: $inner['pno'] ?? '',
             mappedStatus:  $mappedStatus,
-            courierStatus: (string) $courierStatus,
-            location:      $data['location'] ?? null,
-            statusAt:      isset($data['updatedAt']) ? new \DateTimeImmutable($data['updatedAt']) : null,
-            reason:        $data['failedReason'] ?? $data['remark'] ?? null,
+            courierStatus: (string) $state,
+            location:      null,
+            statusAt:      isset($inner['stateChangeAt'])
+                ? (new \DateTimeImmutable())->setTimestamp((int) $inner['stateChangeAt'])
+                : null,
+            reason:        $inner['stateText'] ?? null,
             rawData:       $data,
         );
     }
 
+    // =========================================================================
+    // Connection test
+    // =========================================================================
+
     public function testConnection(): array
     {
         try {
-            // Use a tracking query with a dummy number to verify connectivity
+            // Query warehouses — lightweight endpoint to verify credentials
             $body = [
-                'mchId'    => $this->apiKey,
-                'nonceStr' => bin2hex(random_bytes(16)),
-                'pno'      => 'TEST000000000',
+                'mchId'    => $this->mchId,
+                'nonceStr' => $this->nonce(),
             ];
 
-            $body['sign'] = $this->sign($body);
+            $body['sign'] = $this->generateSign($body);
 
             $response = Http::timeout(10)
-                ->withHeaders(['Content-Type' => 'application/json'])
-                ->post($this->baseUrl . '/orders/trace', $body);
+                ->asForm()
+                ->post($this->baseUrl . '/open/v1/warehouses', $body);
 
-            $this->logApi('test_connection', '/orders/trace', $body, $response->json(), $response->status(), true);
+            $responseData = $response->json();
+            $this->logApi('test_connection', '/open/v1/warehouses', $body, $responseData, $response->status(), true);
+
+            $isSuccess = ($responseData['code'] ?? -1) == 1;
 
             return [
-                'connected' => true,
-                'message'   => 'Flash Express API is reachable',
+                'connected' => $isSuccess,
+                'message'   => $isSuccess
+                    ? 'Flash Express API connected successfully'
+                    : 'API responded but returned error: ' . ($responseData['message'] ?? 'unknown'),
                 'status'    => $response->status(),
             ];
         } catch (\Exception $e) {
-            $this->logApi('test_connection', '/orders/trace', [], ['error' => $e->getMessage()], 0, false, $e->getMessage());
+            $this->logApi('test_connection', '/open/v1/warehouses', [], ['error' => $e->getMessage()], 0, false, $e->getMessage());
 
             return [
                 'connected' => false,
@@ -203,45 +286,58 @@ class FlashExpressService implements CourierServiceInterface
         }
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
     // Private helpers
-    // -------------------------------------------------------------------------
+    // =========================================================================
 
     /**
-     * Generate Flash Express SHA256 signature.
-     * Sort params alphabetically, concatenate as key=value&, append &key=API_SECRET.
+     * Generate Flash Express SHA256 signature (UPPERCASE).
+     *
+     * Per official docs:
+     * 1. Remove empty/blank values and the `sign` field itself
+     * 2. Sort by key name (ASCII ascending, case-sensitive)
+     * 3. Concatenate as key1=value1&key2=value2&...
+     * 4. Append &key=SECRET_KEY
+     * 5. SHA256 → UPPERCASE
      */
-    private function sign(array $params): string
+    private function generateSign(array $params): string
     {
-        // Remove 'sign' if present
         unset($params['sign']);
 
-        // Filter out empty values
-        $params = array_filter($params, fn ($v) => $v !== '' && $v !== null);
+        // Filter out empty/blank values
+        $filtered = array_filter($params, function ($v) {
+            if (is_array($v)) {
+                return true; // keep arrays (they get json_encoded)
+            }
+            return trim((string) $v) !== '';
+        });
 
-        // Sort alphabetically by key
-        ksort($params);
+        ksort($filtered);
 
-        // Build query string
         $parts = [];
-        foreach ($params as $key => $value) {
+        foreach ($filtered as $key => $value) {
             if (is_array($value)) {
                 $value = json_encode($value);
             }
             $parts[] = "{$key}={$value}";
         }
-        $queryString = implode('&', $parts) . '&key=' . $this->apiKey;
 
-        return hash('sha256', $queryString);
+        $stringA = implode('&', $parts);
+        $stringSignTemp = $stringA . '&key=' . $this->secretKey;
+
+        return strtoupper(hash('sha256', $stringSignTemp));
     }
 
+    /**
+     * Send a form-encoded POST request to Flash Express API.
+     */
     private function makeRequest(string $endpoint, array $body): ?array
     {
-        $body['sign'] = $this->sign($body);
+        $body['sign'] = $this->generateSign($body);
 
         $response = Http::timeout(30)
             ->retry(3, 500)
-            ->withHeaders(['Content-Type' => 'application/json'])
+            ->asForm()
             ->post($this->baseUrl . $endpoint, $body);
 
         $data = $response->json();
@@ -253,16 +349,19 @@ class FlashExpressService implements CourierServiceInterface
         return null;
     }
 
+    /**
+     * Execute an API call with logging and structured error handling.
+     */
     private function callApi(string $action, string $endpoint, array $body, ?int $waybillId, callable $onSuccess): mixed
     {
         $startTime = microtime(true);
 
         try {
-            $body['sign'] = $this->sign($body);
+            $body['sign'] = $this->generateSign($body);
 
             $response = Http::timeout(30)
                 ->retry(3, 500)
-                ->withHeaders(['Content-Type' => 'application/json'])
+                ->asForm()
                 ->post($this->baseUrl . $endpoint, $body);
 
             $responseData = $response->json();
@@ -301,16 +400,37 @@ class FlashExpressService implements CourierServiceInterface
         }
     }
 
+    private function nonce(): string
+    {
+        return (string) Str::ulid();
+    }
+
+    /** Convert weight (kg float from DTO) to grams (integer for API). */
+    private function toGrams(float $weightKg): int
+    {
+        return max(1, (int) round($weightKg * 1000));
+    }
+
+    /** Convert PHP amount (float) to cents (integer for API). */
+    private function toCents(float $amount): int
+    {
+        return (int) round($amount * 100);
+    }
+
     private function logApi(string $action, string $endpoint, array $requestData, ?array $responseData, int $httpStatus, bool $success, ?string $error = null, ?float $elapsed = null, ?int $waybillId = null): void
     {
         try {
+            // Redact the secret key and sign from logged request data
+            $logData = $requestData;
+            unset($logData['sign']);
+
             CourierApiLog::create([
                 'courier_provider_id' => $this->providerId,
                 'courier_code'        => 'FLASH',
                 'action'              => $action,
                 'direction'           => 'outbound',
                 'endpoint'            => $this->baseUrl . $endpoint,
-                'request_data'        => $requestData,
+                'request_data'        => $logData,
                 'response_data'       => $responseData,
                 'http_status'         => $httpStatus,
                 'is_success'          => $success,
