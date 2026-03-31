@@ -1,8 +1,8 @@
 <div align="center">
 
-# 📦 WarehouseOps v5
+# TECS WarehouseOps v5
 
-**Enterprise Warehouse Operations & Logistics Management System**
+**Thirdynal E-Commerce & Courier System**
 
 [![PHP](https://img.shields.io/badge/PHP-8.2+-777BB4?style=flat-square&logo=php&logoColor=white)](https://php.net)
 [![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=flat-square&logo=laravel&logoColor=white)](https://laravel.com)
@@ -10,55 +10,70 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
+[![Electron](https://img.shields.io/badge/Desktop-Electron_29-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](#)
 
-A full-stack web application for managing warehouse operations — waybill tracking, lead lifecycle management, courier imports, agent performance monitoring, and QC workflows — all in a single, cohesive platform.
+End-to-end warehouse operations platform — multi-courier parcel management, lead generation & distribution, agent call center, SMS marketing, and fulfillment automation.
 
 </div>
 
 ---
 
-## ✨ Features
+## Features
 
-### 🚚 Waybill & Courier Management
-- **Bulk Excel import** for J&T Express and Flash courier manifest files
-- Automatic waybill deduplication — new rows update existing records
-- Downloadable import templates with pre-styled headers
-- Full waybill lifecycle tracking: `PENDING → DISPATCHED → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED / RETURNED`
-- Retry failed imports without re-uploading the original file
+### Waybill & Courier Management
+- **Multi-courier API integration** — Flash Express and J&T Express (order creation, tracking, webhooks)
+- Bulk Excel import with streaming reader (handles 100k+ rows)
+- Real-time status sync via courier webhooks + scheduled polling (every 15 min)
+- Full lifecycle tracking: `PENDING > DISPATCHED > IN_TRANSIT > OUT_FOR_DELIVERY > DELIVERED / RETURNED`
+- Waybill tracking history with raw courier data logging
+- Barcode scanner for batch dispatch operations
 
-### 📊 Operations Dashboard
-- Live KPIs — total waybills, in-transit, delivered today, returns today
-- Lead performance metrics — new leads, sales today, conversion rate
-- Real-time activity feed (deliveries, lead assignments, QC approvals)
-- Agents-online indicator based on last login timestamp
+### Lead Pool & Distribution
+- Automatic lead generation from delivered waybills
+- Customer deduplication by phone number with risk scoring (LOW/MEDIUM/HIGH/BLACKLISTED)
+- Lead pool lifecycle: `AVAILABLE > ASSIGNED > COOLDOWN > EXHAUSTED`
+- Supervisor bulk distribution UI
+- CSV lead import with phone normalization and blacklist checking
+- Product-skill-based lead matching (agents pull leads matching their specialization)
 
-### 👥 Lead & CRM
-- Lead ingestion, assignment to agents, and full status lifecycle
-- QC approval workflow — QA_PENDING → QA_APPROVED / QA_REJECTED
-- Recycling pool for unqualified or expired leads
-- Customer linkage per lead
+### Agent Self-Service Portal
+- Dedicated agent layout — agents only see their own portal sections
+- Self-pull leads with product-skill filtering + fallback to general pool
+- Call initiation (SIP) and attempt tracking
+- Outcome recording: NO_ANSWER, CALLBACK, INTERESTED, ORDERED, NOT_INTERESTED, WRONG_NUMBER
+- Callback scheduling with due-today reminders
+- Customer order history lookup (scoped to agent's assigned leads only)
 
-### 🤝 Agent Governance & Monitoring
-- Agent profile management with role-based access
-- Monitoring dashboard — agent activity, leads worked, and performance
-- Governance panel for admin supervision
+### Lead Recycling & Automation
+- Configurable recycling rules engine — per-outcome behavior (cooldown, exhaust, recycle)
+- Cooldown timers — leads auto-return to pool (`ProcessCooldownLeads` job, every 15 min)
+- Fraud detection — suspicious velocity, no-call outcomes, lead hoarding (`DetectFraudPatterns` job, every 30 min)
+- Append-only audit trail for all lead state transitions
+- QC/QA approval workflow: QA_PENDING > QA_APPROVED / QA_REJECTED
 
-### 🔐 Authentication & RBAC
-- Session-based authentication with Laravel Sanctum
-- Role-based middleware powered by **Spatie Laravel Permission**
-- Supports role segregation: `admin`, `supervisor`, `agent`, etc.
+### SMS System
+- Campaign management with template variables ({name}, {waybill}, {amount}, etc.)
+- Bulk send with rate-limited batching via SkySMS API
+- Automated multi-step sequences triggered by waybill status events
+- Template library — create, reuse, delete
+- Full send log with delivery status tracking
 
-### ⚙️ Infrastructure
-- **Inertia.js** bridge for a seamless Laravel + React SPA experience
-- **Laravel Horizon** for Redis queue monitoring
-- **Ziggy** for type-safe route generation in TypeScript
-- **Telegram notifications** for operational alerts
-- Docker-ready with Nginx, Redis, and Mailpit (dev mail catcher)
+### Agent Governance & Monitoring
+- Agent profile management with product skills, quotas, regions
+- Real-time performance monitoring dashboard
+- Fraud flags with severity levels (WARNING/CRITICAL)
+- Role-based access: `superadmin`, `admin`, `teamleader`, `agent`, `checker`, `encoder`
+
+### Desktop App
+- Electron 29 admin app (Windows NSIS + Linux AppImage/deb)
+- Same UI stack as web (React + Tailwind + shadcn/ui)
+- OTA auto-updates via GitHub Releases
+- Auto-builds on `desktop-v*` tags
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -66,248 +81,186 @@ A full-stack web application for managing warehouse operations — waybill track
 | **Frontend** | React 18, TypeScript 5, Inertia.js |
 | **Styling** | Tailwind CSS 3, Radix UI, shadcn/ui |
 | **Database** | PostgreSQL 16 |
-| **Cache / Queue / Session** | Redis 7 (via Predis) |
+| **Cache / Queue / Session** | Redis 7 (Predis) |
 | **Queue Monitor** | Laravel Horizon |
-| **Excel Import** | Maatwebsite/Laravel-Excel (PhpSpreadsheet) |
+| **Excel Import** | Rap2h/Fast-Excel (streaming), Maatwebsite/Laravel-Excel |
 | **RBAC** | Spatie Laravel Permission |
 | **Build Tool** | Vite 5 |
+| **Desktop** | Electron 29, electron-builder |
 | **Testing** | Pest PHP 2, PHPUnit 10 |
 | **Static Analysis** | Larastan (PHPStan) |
 | **Code Style** | Laravel Pint, ESLint, Prettier |
 
 ---
 
-## 📁 Project Structure
+## Architecture
 
 ```
-warehouseops-v5/
-├── app/
-│   ├── Domain/              # Domain-layer logic (Lead, Waybill)
-│   ├── Http/
-│   │   ├── Controllers/     # Thin HTTP controllers
-│   │   └── Middleware/
-│   ├── Imports/             # Maatwebsite Excel importers (JntWaybillImport)
-│   ├── Models/              # Eloquent models
-│   └── Providers/
-├── database/
-│   ├── migrations/          # Schema migrations
-│   ├── seeders/
-│   └── factories/
-├── resources/
-│   ├── js/
-│   │   ├── components/      # Reusable React/shadcn UI components
-│   │   ├── layouts/         # App shell layouts
-│   │   ├── pages/           # Inertia page components
-│   │   └── types/           # TypeScript type definitions
-│   └── views/               # Blade root template
-├── routes/
-│   ├── web.php              # All Inertia-powered routes
-│   └── api.php
-├── docker/                  # Nginx config, PHP config, Dockerfiles
-├── docker-compose.yml       # Development stack
-└── docker-compose.prod.yml  # Production stack
+app/
+├── Domain/                    # Domain-Driven Design
+│   ├── Agent/                 # Agent profiles, performance
+│   ├── Courier/               # Flash Express + J&T Express API integration
+│   │   ├── Contracts/         # CourierServiceInterface
+│   │   ├── DTOs/              # CreateOrderDTO, TrackingResultDTO, WebhookPayloadDTO
+│   │   ├── Events/            # TrackingStatusUpdated
+│   │   ├── Http/              # WebhookController, ProviderController
+│   │   ├── Jobs/              # SyncTrackingStatusJob
+│   │   ├── Listeners/         # TriggerSmsOnStatusChange
+│   │   ├── Models/            # CourierProvider, CourierApiLog
+│   │   ├── Services/          # FlashExpressService, JntExpressService, StatusMapper
+│   │   └── StatusMaps/        # Per-courier status code mappings
+│   ├── Customer/              # Customer profiles, risk scoring, blacklisting
+│   ├── Lead/                  # Lead lifecycle, pool, cycles, recycling
+│   ├── Notification/          # Telegram operational alerts
+│   └── Waybill/               # Waybill model, status enum, tracking history
+├── Services/                  # Business logic (9 services)
+├── Jobs/                      # Queued jobs (lead gen, cooldown, fraud, SMS, tracking sync)
+├── Observers/                 # WaybillObserver
+└── Imports/                   # JntWaybillFastImport, JntWaybillImport
+
+resources/js/
+├── layouts/
+│   ├── AppLayout.tsx          # Admin/supervisor (role-filtered nav)
+│   └── AgentLayout.tsx        # Agent-only portal
+├── pages/                     # 15 page modules
+│   ├── Dashboard/             # KPI dashboard
+│   ├── Waybills/              # List, detail, import
+│   ├── Leads/                 # Lead list, detail
+│   ├── LeadPool/              # Distribution, import, agent performance
+│   ├── AgentLeads/            # Agent self-service portal
+│   ├── Couriers/              # Courier management + API logs
+│   ├── Sms/                   # Campaigns, sequences, templates, logs
+│   ├── QC/                    # QA review queue
+│   ├── Recycling/             # Lead pool recovery
+│   ├── Monitoring/            # Agent performance
+│   ├── Agents/                # Agent governance
+│   ├── Scanner/               # Barcode scanner
+│   ├── Settings/              # Profile, appearance, password
+│   └── Tickets/               # Support tickets
+└── components/
+    ├── ui/                    # shadcn/ui components
+    └── leads/                 # CallButton, OutcomeModal, CustomerHistoryModal
 ```
 
 ---
 
-## 🗺️ Application Routes
+## Routes
 
-| Route | Description |
-|---|---|
-| `/` | Operations dashboard with live KPIs |
-| `/scanner` | Barcode scanner interface |
-| `/waybills` | Waybill list and search |
-| `/waybills/import` | Bulk Excel import (J&T, Flash) |
-| `/leads` | Lead list with CRM features |
-| `/qc` | QC queue — QA_PENDING leads |
-| `/recycling/pool` | Recycled / disqualified leads |
-| `/monitoring/dashboard` | Agent performance monitoring |
-| `/agents/governance` | Agent management & governance |
-| `/tickets` | Support ticket management |
-| `/settings` | System settings |
+| Group | Middleware | Prefix | Purpose |
+|---|---|---|---|
+| Public | `guest` | `/login` | Authentication |
+| Agent | `auth` | `/agent/*` | Agent self-service portal |
+| Agent API | `auth` | `/api/agent/*` | Agent AJAX calls (leads, calls, outcomes) |
+| Admin | `auth` + `role:supervisor,admin,superadmin` | `/` | All admin routes |
+| Webhooks | none (signature verified) | `/api/webhooks/courier/{courier}` | Courier status push |
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- PHP 8.2+
-- Composer 2.x
-- Node.js 20+ & npm
+- PHP 8.2+, Composer 2.x
+- Node.js 20+, npm
 - PostgreSQL 16
 - Redis 7
 
-### Local Setup (Without Docker)
+### Local Setup
 
 ```bash
-# 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/projectthirdynal/warehouseops-v5.git
 cd warehouseops-v5
 
-# 2. Install PHP dependencies
 composer install
-
-# 3. Install JS dependencies
 npm install
 
-# 4. Configure environment
 cp .env.example .env
 php artisan key:generate
 
-# 5. Edit .env with your DB credentials, then run migrations
+# Edit .env with your DB credentials
 php artisan migrate
 
-# 6. Build frontend assets
 npm run build
-
-# 7. Start the local development server
 php artisan serve
-
-# 8. (Optional) Run the queue worker
-php artisan queue:work
+php artisan queue:work   # in a separate terminal
 ```
 
-> Visit `http://localhost:8000` to access the application.
-
----
-
-### Local Setup (Docker)
-
-The project ships with a ready-to-use `docker-compose.yml` that includes **Nginx**, **Redis**, and **Mailpit**.
-
-> **Note:** PostgreSQL is expected to run on the host machine. The app container connects to it via `host.docker.internal`.
+### Docker Setup
 
 ```bash
-# 1. Copy and configure environment
 cp .env.example .env
-# Edit .env — set DB_HOST=host.docker.internal and your credentials
+# Edit .env — set DB_HOST=host.docker.internal
 
-# 2. Build and start containers
 docker compose up -d --build
-
-# 3. Run migrations inside the container
 docker exec -it warehouseops-app php artisan migrate
-
-# 4. Build frontend assets (run on host, not in container)
 npm install && npm run build
 ```
 
 | Service | URL |
 |---|---|
 | Application | http://localhost:8088 |
-| Mailpit (UI) | http://localhost:8025 |
+| Mailpit | http://localhost:8025 |
 | Redis | localhost:6380 |
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
-Key variables in `.env` (see `.env.example` for full list):
+```env
+# Database
+DB_CONNECTION=pgsql
 
-| Variable | Description |
-|---|---|
-| `DB_CONNECTION` | `pgsql` (PostgreSQL) |
-| `QUEUE_CONNECTION` | `redis` |
-| `CACHE_STORE` | `redis` |
-| `SESSION_DRIVER` | `redis` |
-| `TELEGRAM_BOT_TOKEN` | Bot token for operational alerts |
-| `TELEGRAM_CHAT_ID` | Target chat/channel ID |
-| `JNT_API_KEY` | J&T Express API key |
-| `JNT_API_SECRET` | J&T Express API secret |
-| `JNT_WEBHOOK_SECRET` | J&T webhook validation secret |
+# Cache / Queue
+REDIS_HOST=redis
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+
+# Courier: Flash Express
+FLASH_API_URL=https://open-api.flashexpress.com
+FLASH_MCH_ID=
+FLASH_SECRET_KEY=
+
+# Courier: J&T Express
+JNT_API_URL=https://openapi.jtexpress.ph/api
+JNT_API_KEY=
+JNT_API_SECRET=
+JNT_WEBHOOK_SECRET=
+
+# SMS
+SKYSMS_API_URL=https://skysms.skyio.site/api/v1/sms
+SKYSMS_API_KEY=
+
+# Telegram Alerts
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
 
 ---
 
-## 📥 Waybill Import
-
-The system supports bulk waybill import from courier-exported Excel files.
-
-1. Navigate to **Waybills → Import**
-2. Download the template for your courier (J&T or Flash)
-3. Fill in your waybill data matching the template columns
-4. Upload the `.xlsx` or `.csv` file and select the courier
-5. Review the import results — success count, updated count, and row-level errors
-6. Failed imports can be retried without re-uploading
-
-**Supported Couriers:**
-- ✅ **J&T Express** — fully implemented
-- 🔜 **Flash** — in development
-
----
-
-## 🧪 Testing & Code Quality
+## Development
 
 ```bash
-# Run tests
-php artisan test
-# or
-composer test
-
-# Static analysis
-composer analyse
-
-# Code formatting
-composer format          # PHP (Laravel Pint)
-npm run format           # TypeScript/TSX (Prettier)
+npm run dev              # Vite dev server (HMR)
+npm run build            # Production build
 npm run lint             # ESLint
+npm run format           # Prettier
+
+php artisan test         # Run Pest tests
+composer analyse         # Larastan static analysis
+composer format          # Laravel Pint
 ```
 
 ---
 
-## 🐳 Production Deployment
+## Deployment
 
-A separate `docker-compose.prod.yml` is available for production use:
+**CI/CD:** GitHub Actions self-hosted runner deploys on push to `main`.
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-Use `deploy.sh` for scripted deployment:
-
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
+Pipeline: `npm ci` > `npm run build` > rsync to `/opt/warehouseops/` > `composer install --no-dev` > `php artisan migrate --force` > cache rebuild > Horizon graceful restart > health check.
 
 ---
 
-## 📋 Data Models
+## License
 
-| Model | Key Fields |
-|---|---|
-| `Waybill` | `waybill_number`, `status`, `courier_provider`, `cod_amount`, `lead_id`, `upload_id` |
-| `Lead` | `status`, `sales_status`, `assigned_to`, `customer_id` |
-| `LeadCycle` | Tracks each cycle/attempt on a lead |
-| `Upload` | `type`, `status`, `total_rows`, `success_rows`, `error_rows`, `errors` |
-| `User` | `role`, `is_active`, `last_login_at` |
-| `AgentProfile` | Agent-specific profile and metadata |
-| `Customer` | Customer contact details |
-| `WaybillTrackingHistory` | Append-only tracking event log per waybill |
-
-### Waybill Statuses
-
-```
-PENDING → DISPATCHED → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED
-                                                      ↘ RETURNED
-                                   AT_WAREHOUSE
-                                   PICKED_UP
-```
-
----
-
-## 📬 Notifications
-
-Operational alerts are dispatched via **Telegram**. Configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` to enable them.
-
----
-
-## 🤝 Contributing
-
-This is a proprietary internal system. Contact the repository owner for access and contribution guidelines.
-
----
-
-## 📄 License
-
-Proprietary — All rights reserved. © Thirdynal / WarehouseOps.
+Proprietary — All rights reserved. TECS / Thirdynal.
