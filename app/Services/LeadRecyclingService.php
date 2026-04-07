@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\RecyclingRule;
 use App\Models\User;
@@ -12,7 +13,8 @@ class LeadRecyclingService
 {
     public function __construct(
         private LeadPoolService $poolService,
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private OrderFulfillmentService $orderService,
     ) {}
 
     public function processOutcome(
@@ -61,6 +63,21 @@ class LeadRecyclingService
             newValue: $outcome->value,
             metadata: ['remarks' => $remarks]
         );
+
+        // ORDERED → create order and enter fulfillment pipeline (don't recycle)
+        if ($outcome === LeadOutcome::ORDERED) {
+            $this->orderService->createFromLead($lead);
+
+            $this->auditService->log(
+                lead: $lead,
+                action: 'ORDER_CREATED',
+                user: $agent,
+                cycle: $cycle,
+                metadata: ['remarks' => $remarks]
+            );
+
+            return; // Don't recycle — lead stays assigned until order is fulfilled
+        }
 
         // Get recycling rule
         $rule = RecyclingRule::forOutcome($outcome);

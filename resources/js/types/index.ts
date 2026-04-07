@@ -226,6 +226,55 @@ export interface InventoryMovement {
   created_at: string;
 }
 
+export type OrderStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'QA_PENDING'
+  | 'QA_APPROVED'
+  | 'QA_REJECTED'
+  | 'PROCESSING'
+  | 'DISPATCHED'
+  | 'DELIVERED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export interface Order {
+  id: number;
+  order_number: string;
+  lead_id: number | null;
+  customer_id: number | null;
+  product_id: number | null;
+  variant_id: number | null;
+  assigned_agent_id: number | null;
+  status: OrderStatus;
+  courier_code: string | null;
+  waybill_id: number | null;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  cod_amount: number;
+  shipping_cost: number;
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  city: string | null;
+  state: string | null;
+  barangay: string | null;
+  postal_code: string | null;
+  notes: string | null;
+  rejection_reason: string | null;
+  confirmed_at: string | null;
+  dispatched_at: string | null;
+  delivered_at: string | null;
+  returned_at: string | null;
+  created_at: string;
+  product?: Product;
+  agent?: User;
+  customer?: Customer;
+  lead?: Lead;
+  waybill?: Waybill;
+}
+
 export interface DashboardStats {
   total_waybills: number;
   pending_dispatch: number;

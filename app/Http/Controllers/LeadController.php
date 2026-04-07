@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Models\Order;
+use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -73,20 +76,20 @@ class LeadController extends Controller
 
     public function qcIndex()
     {
-        $queue = Lead::with(['customer'])
-            ->where('sales_status', 'QA_PENDING')
+        $queue = Order::with(['product', 'agent', 'customer', 'lead'])
+            ->where('status', OrderStatus::QA_PENDING)
             ->orderBy('created_at', 'asc')
             ->get();
 
         $stats = [
-            'pending' => Lead::where('sales_status', 'QA_PENDING')->count(),
-            'approved_today' => Lead::where('sales_status', 'QA_APPROVED')
+            'pending' => Order::where('status', OrderStatus::QA_PENDING)->count(),
+            'approved_today' => Order::where('status', OrderStatus::QA_APPROVED)
+                ->whereDate('confirmed_at', today())
+                ->count(),
+            'rejected_today' => Order::where('status', OrderStatus::QA_REJECTED)
                 ->whereDate('updated_at', today())
                 ->count(),
-            'rejected_today' => Lead::where('sales_status', 'QA_REJECTED')
-                ->whereDate('updated_at', today())
-                ->count(),
-            'avg_review_time' => '3m',
+            'total_today' => Order::whereDate('created_at', today())->count(),
         ];
 
         return Inertia::render('QC/Index', [
