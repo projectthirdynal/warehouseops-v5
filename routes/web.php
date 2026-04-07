@@ -14,6 +14,7 @@ use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
+use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -98,6 +99,18 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::patch('/{user}/profile', [AgentController::class, 'updateProfile'])->name('update-profile');
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active');
         Route::patch('/{user}', [AgentController::class, 'update'])->name('update');
+    });
+
+    // Products & Inventory
+    Route::prefix('products')->name('products.')->group(function () {
+        Route::get('/', [ProductController::class, 'index'])->name('index');
+        Route::get('/create', [ProductController::class, 'create'])->name('create');
+        Route::post('/', [ProductController::class, 'store'])->name('store');
+        Route::get('/{product}', [ProductController::class, 'show'])->name('show');
+        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
+        Route::put('/{product}', [ProductController::class, 'update'])->name('update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+        Route::post('/{product}/stock', [ProductController::class, 'adjustStock'])->name('stock.adjust');
     });
 
     // Tickets

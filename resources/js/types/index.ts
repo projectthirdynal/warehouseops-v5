@@ -169,6 +169,63 @@ export interface CourierApiLog {
   created_at: string;
 }
 
+export interface Product {
+  id: number;
+  sku: string;
+  name: string;
+  brand: string | null;
+  category: string | null;
+  selling_price: number;
+  cost_price: number;
+  weight_grams: number;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  requires_qa: boolean;
+  margin?: number;
+  available_stock?: number;
+  is_low_stock?: boolean;
+  stock?: ProductStock;
+  variants?: ProductVariant[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductVariant {
+  id: number;
+  product_id: number;
+  sku: string;
+  variant_name: string;
+  selling_price: number | null;
+  cost_price: number | null;
+  weight_grams: number | null;
+  is_active: boolean;
+  stock?: ProductStock;
+}
+
+export interface ProductStock {
+  id: number;
+  product_id: number;
+  variant_id: number | null;
+  current_stock: number;
+  reserved_stock: number;
+  available_stock: number;
+  reorder_point: number;
+  is_low_stock: boolean;
+  last_restock_at: string | null;
+}
+
+export interface InventoryMovement {
+  id: number;
+  product_id: number;
+  variant_id: number | null;
+  type: 'STOCK_IN' | 'STOCK_OUT' | 'ADJUSTMENT' | 'RETURN' | 'RESERVATION' | 'RELEASE';
+  quantity: number;
+  notes: string | null;
+  performer?: User;
+  created_at: string;
+}
+
 export interface DashboardStats {
   total_waybills: number;
   pending_dispatch: number;
