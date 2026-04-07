@@ -15,6 +15,7 @@ use App\Http\Controllers\LeadImportController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
@@ -170,6 +171,12 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::get('/cod', [FinanceController::class, 'codSettlements'])->name('cod');
         Route::post('/cod', [FinanceController::class, 'storeCodSettlement'])->name('cod.store');
         Route::post('/cod/{settlement}/receive', [FinanceController::class, 'receiveCodSettlement'])->name('cod.receive');
+    });
+
+    // Reports
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/download', [ReportController::class, 'download'])->name('download');
     });
 
     // Courier Management
