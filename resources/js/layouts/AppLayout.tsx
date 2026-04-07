@@ -53,6 +53,7 @@ const navigation: NavItem[] = [
   { name: 'Agents', href: '/agents/governance', icon: UserCog, permission: 'leads_manage' },
   { name: 'SMS', href: '/sms', icon: MessageSquare, permission: 'accounts' },
   { name: 'Orders', href: '/orders', icon: ClipboardCheck, permission: 'accounts' },
+  { name: 'Finance', href: '/finance', icon: BarChart3, permission: 'accounts' },
   { name: 'Products', href: '/products', icon: Package, permission: 'accounts' },
   { name: 'Couriers', href: '/couriers', icon: Truck, permission: 'accounts' },
   { name: 'Tickets', href: '/tickets', icon: Headphones },

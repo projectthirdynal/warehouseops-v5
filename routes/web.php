@@ -14,6 +14,7 @@ use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
@@ -157,6 +158,18 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::delete('/templates/{template}', [SmsController::class, 'destroyTemplate'])->name('templates.destroy');
 
         Route::get('/logs', [SmsController::class, 'logs'])->name('logs');
+    });
+
+    // Finance
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('/', [FinanceController::class, 'dashboard'])->name('dashboard');
+        Route::get('/commissions', [FinanceController::class, 'commissions'])->name('commissions');
+        Route::post('/commissions/approve', [FinanceController::class, 'approveCommissions'])->name('commissions.approve');
+        Route::post('/commissions/pay', [FinanceController::class, 'payCommissions'])->name('commissions.pay');
+        Route::post('/commissions/rules', [FinanceController::class, 'storeRule'])->name('commissions.rules.store');
+        Route::get('/cod', [FinanceController::class, 'codSettlements'])->name('cod');
+        Route::post('/cod', [FinanceController::class, 'storeCodSettlement'])->name('cod.store');
+        Route::post('/cod/{settlement}/receive', [FinanceController::class, 'receiveCodSettlement'])->name('cod.receive');
     });
 
     // Courier Management

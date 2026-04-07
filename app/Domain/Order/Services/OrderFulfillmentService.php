@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Order\Services;
 
 use App\Domain\Courier\Actions\CreateCourierOrder;
+use App\Domain\Finance\Services\CommissionService;
+use App\Domain\Finance\Services\RevenueService;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
@@ -23,6 +25,8 @@ class OrderFulfillmentService
         private InventoryService $inventory,
         private CreateCourierOrder $createCourierOrder,
         private LeadAuditService $auditService,
+        private CommissionService $commissionService,
+        private RevenueService $revenueService,
     ) {}
 
     /**
@@ -239,11 +243,15 @@ class OrderFulfillmentService
                 $customer->increment('total_revenue', $order->total_amount);
                 $this->recalculateCustomerStats($customer);
             }
+
+            // Record revenue + create agent commission
+            $this->revenueService->recordSale($order);
+            $this->commissionService->createForOrder($order);
         });
     }
 
     /**
-     * Handle return — release stock, update customer.
+     * Handle return — release stock, cancel commission, update customer.
      */
     public function handleReturn(Order $order): void
     {
@@ -271,6 +279,10 @@ class OrderFulfillmentService
                 $customer->increment('returned_orders');
                 $this->recalculateCustomerStats($customer);
             }
+
+            // Record return + cancel commission
+            $this->revenueService->recordReturn($order);
+            $this->commissionService->cancelForOrder($order);
         });
     }
 
