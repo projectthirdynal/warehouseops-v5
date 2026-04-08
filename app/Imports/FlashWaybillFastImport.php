@@ -123,6 +123,9 @@ class FlashWaybillFastImport
         if ($this->errorCount > 0) {
             $this->upload->increment('error_rows', $this->errorCount);
         }
+
+        // Set total rows (avoids separate counting pass)
+        $this->upload->update(['total_rows' => $this->successCount + $this->errorCount]);
     }
 
     protected function mapRow(array $row, string $now): ?array

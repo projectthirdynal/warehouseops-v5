@@ -63,13 +63,6 @@ class WaybillImportController extends Controller
         ]);
 
         try {
-            // Count total rows using fast streaming (no memory issues)
-            $rowCount = 0;
-            (new FastExcel)->import(storage_path('app/' . $path), function ($row) use (&$rowCount) {
-                $rowCount++;
-            });
-            $upload->update(['total_rows' => $rowCount]);
-
             // Import based on courier using fast streaming import
             if ($courier === 'jnt') {
                 $import = new JntWaybillFastImport($upload, $request->user()->id);
