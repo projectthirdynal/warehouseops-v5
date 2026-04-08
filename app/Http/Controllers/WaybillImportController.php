@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
 use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Upload;
@@ -89,10 +90,25 @@ class WaybillImportController extends Controller
                 ));
             }
 
-            // Flash courier (similar implementation)
-            // TODO: Implement FlashWaybillFastImport
+            if ($courier === 'flash') {
+                $import = new FlashWaybillFastImport($upload, $request->user()->id);
+                $import->import(storage_path('app/' . $path));
 
-            return back()->with('success', 'Import completed successfully.');
+                $upload->update([
+                    'status' => 'completed',
+                    'errors' => $import->getErrors(),
+                ]);
+
+                GenerateLeadsFromUpload::dispatch($upload->id);
+
+                return back()->with('success', sprintf(
+                    'Flash import completed! %d waybills imported, %d errors. Leads are being generated in the background.',
+                    $import->getSuccessCount(),
+                    $import->getErrorCount()
+                ));
+            }
+
+            return back()->with('error', 'Unknown courier type.');
 
         } catch (\Exception $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);
@@ -211,7 +227,16 @@ class WaybillImportController extends Controller
         ]);
 
         try {
-            $import = new JntWaybillFastImport($upload, $upload->uploaded_by);
+            // Detect courier from existing waybills or filename
+            $courier = Waybill::where('upload_id', $upload->id)->value('courier_provider');
+            $isFlash = $courier === 'FLASH' || str_contains(strtolower($upload->original_filename), 'flash');
+
+            if ($isFlash) {
+                $import = new FlashWaybillFastImport($upload, $upload->uploaded_by);
+            } else {
+                $import = new JntWaybillFastImport($upload, $upload->uploaded_by);
+            }
+
             $import->import(storage_path('app/' . $path));
 
             $upload->update([
