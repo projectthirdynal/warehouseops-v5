@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
@@ -89,6 +89,13 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={processing}>
                 {processing ? 'Signing in...' : 'Sign in'}
               </Button>
+
+              <div className="text-center text-sm text-muted-foreground mt-2">
+                New here?{' '}
+                <Link href="/register" className="text-primary font-medium hover:underline">
+                  Create an account
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>
