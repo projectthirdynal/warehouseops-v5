@@ -205,6 +205,20 @@ class WaybillImportController extends Controller
         return response()->download($tempPath, $filename)->deleteFileAfterSend(true);
     }
 
+    public function cancel(Upload $upload)
+    {
+        if (!in_array($upload->status, ['processing', 'pending'])) {
+            return back()->with('error', 'Only processing or pending uploads can be cancelled.');
+        }
+
+        $upload->update(['status' => 'cancelled']);
+
+        // Delete waybills that were imported as part of this upload
+        $deleted = Waybill::where('upload_id', $upload->id)->delete();
+
+        return back()->with('success', "Upload cancelled. {$deleted} imported waybills removed.");
+    }
+
     public function retry(Upload $upload)
     {
         if ($upload->status !== 'failed') {

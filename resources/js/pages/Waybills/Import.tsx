@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Loader2,
   Eye,
+  StopCircle,
+  Ban,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -32,7 +34,7 @@ interface UploadRecord {
   processed_rows: number;
   success_rows: number;
   error_rows: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   errors: Array<{ row: number; error: string }> | null;
   uploaded_by: { name: string } | null;
   created_at: string;
@@ -117,6 +119,12 @@ export default function WaybillImport({ uploads, stats }: Props) {
     router.post(`/waybills/import/${uploadId}/retry`);
   };
 
+  const handleCancel = (uploadId: number) => {
+    if (confirm('Stop this import? Waybills already imported from this upload will be removed.')) {
+      router.post(`/waybills/import/${uploadId}/cancel`);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
@@ -125,6 +133,8 @@ export default function WaybillImport({ uploads, stats }: Props) {
         return <Badge className="bg-blue-100 text-blue-800"><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Processing</Badge>;
       case 'failed':
         return <Badge className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" /> Failed</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-orange-100 text-orange-800"><Ban className="w-3 h-3 mr-1" /> Cancelled</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
     }
@@ -345,6 +355,17 @@ export default function WaybillImport({ uploads, stats }: Props) {
                       </div>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(upload.status)}
+                        {upload.status === 'processing' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleCancel(upload.id)}
+                            title="Stop import"
+                          >
+                            <StopCircle className="h-4 w-4" />
+                          </Button>
+                        )}
                         {upload.status === 'failed' && (
                           <Button
                             variant="outline"

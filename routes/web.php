@@ -71,6 +71,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::get('/import/template', [WaybillImportController::class, 'template'])->name('import.template');
         Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
+        Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
 
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');

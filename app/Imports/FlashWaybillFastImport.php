@@ -102,6 +102,11 @@ class FlashWaybillFastImport
             }
 
             if (count($batch) >= $this->batchSize) {
+                if ($this->upload->fresh()->status === 'cancelled') {
+                    $batch = [];
+                    return;
+                }
+
                 $this->bulkUpsert($batch);
                 $this->upload->increment('success_rows', count($batch));
                 $this->upload->increment('processed_rows', count($batch));
