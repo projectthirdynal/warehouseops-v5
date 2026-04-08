@@ -55,12 +55,12 @@ class FlashWaybillFastImport
     ];
 
     protected const ALL_COLUMNS = [
-        'waybill_number', 'creator_code', 'status', 'sign_for_pictures', 'signed_at',
+        'waybill_number', 'creator_code', 'status',
         'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'receiver_address',
-        'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount', 'amount',
+        'settlement_weight', 'shipping_cost', 'cod_amount', 'amount',
         'submitted_at', 'rts_reason', 'remarks', 'express_type',
         'sender_name', 'sender_phone', 'sender_province', 'sender_city',
-        'item_name', 'item_qty', 'item_value', 'valuation_fee',
+        'item_name', 'item_qty', 'item_value',
         'delivered_at', 'returned_at', 'courier_provider', 'upload_id', 'uploaded_by',
         'created_at', 'updated_at',
     ];
