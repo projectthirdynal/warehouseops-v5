@@ -355,6 +355,56 @@ class AgentLeadController extends Controller
         ]);
     }
 
+    /**
+     * Agent waybill tracking — search only, no browsing.
+     */
+    public function tracking(Request $request): \Inertia\Response
+    {
+        $search = $request->input('search', '');
+        $waybill = null;
+
+        if (!empty($search)) {
+            $waybill = \App\Models\Waybill::where('waybill_number', trim($search))
+                ->with('trackingHistory')
+                ->first();
+
+            // If not found by exact match, try partial
+            if (!$waybill) {
+                $waybill = \App\Models\Waybill::where('waybill_number', 'ILIKE', '%' . trim($search) . '%')
+                    ->with('trackingHistory')
+                    ->first();
+            }
+        }
+
+        return Inertia::render('AgentLeads/Tracking', [
+            'waybill' => $waybill ? [
+                'id'              => $waybill->id,
+                'waybill_number'  => $waybill->waybill_number,
+                'status'          => $waybill->status,
+                'courier_provider' => $waybill->courier_provider,
+                'receiver_name'   => $waybill->receiver_name,
+                'receiver_phone'  => substr($waybill->receiver_phone, 0, 4) . '****' . substr($waybill->receiver_phone, -3),
+                'city'            => $waybill->city,
+                'state'           => $waybill->state,
+                'item_name'       => $waybill->item_name,
+                'cod_amount'      => $waybill->cod_amount,
+                'dispatched_at'   => $waybill->dispatched_at,
+                'delivered_at'    => $waybill->delivered_at,
+                'returned_at'     => $waybill->returned_at,
+                'created_at'      => $waybill->created_at,
+                'tracking_history' => $waybill->trackingHistory->map(fn ($h) => [
+                    'status'          => $h->status,
+                    'previous_status' => $h->previous_status,
+                    'reason'          => $h->reason,
+                    'location'        => $h->location,
+                    'tracked_at'      => $h->tracked_at,
+                ]),
+            ] : null,
+            'search' => $search,
+            'notFound' => !empty($search) && !$waybill,
+        ]);
+    }
+
     public function callbacks(): AnonymousResourceCollection
     {
         $leads = Lead::where('assigned_to', auth()->id())

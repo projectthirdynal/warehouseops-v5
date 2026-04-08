@@ -41,6 +41,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('agent')->name('agent.')->group(function () {
         Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
+        Route::get('/tracking', [AgentLeadController::class, 'tracking'])->name('tracking');
     });
 
     // Agent API (AJAX calls from portal)

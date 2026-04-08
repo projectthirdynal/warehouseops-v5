@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
   Phone,
   Headphones,
+  Search,
   Settings,
   LogOut,
   Menu,
@@ -26,6 +27,7 @@ interface NavItem {
 
 const agentNav: NavItem[] = [
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
+  { name: 'Track Waybill', href: '/agent/tracking', icon: Search },
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 
