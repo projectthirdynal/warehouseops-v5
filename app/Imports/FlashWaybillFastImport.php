@@ -57,7 +57,7 @@ class FlashWaybillFastImport
     protected const ALL_COLUMNS = [
         'waybill_number', 'creator_code', 'status', 'sign_for_pictures', 'signed_at',
         'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'receiver_address',
-        'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount',
+        'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount', 'amount',
         'submitted_at', 'rts_reason', 'remarks', 'express_type',
         'sender_name', 'sender_phone', 'sender_province', 'sender_city',
         'item_name', 'item_qty', 'item_value', 'valuation_fee',
@@ -186,6 +186,10 @@ class FlashWaybillFastImport
 
         // Clean up non-db fields
         unset($data['signer'], $data['cod_fee'], $data['weight']);
+
+        // Defaults for fields Flash CSV doesn't have
+        $data['item_qty'] = 1;
+        $data['amount'] = $data['cod_amount'] ?? 0;
 
         // Common fields
         $data['courier_provider'] = 'FLASH';
