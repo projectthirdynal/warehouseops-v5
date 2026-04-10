@@ -356,43 +356,69 @@ class AgentLeadController extends Controller
     }
 
     /**
-     * Agent waybill tracking — search only, no browsing.
+     * Agent waybill tracking — search by tracking number, customer name, or phone.
      */
     public function tracking(Request $request): \Inertia\Response
     {
-        $search = $request->input('search', '');
-        $waybill = null;
+        $search = trim($request->input('search', ''));
+        $waybills = collect();
+        $selectedWaybill = null;
 
         if (!empty($search)) {
-            $waybill = \App\Models\Waybill::where('waybill_number', trim($search))
-                ->with('trackingHistory')
-                ->first();
+            // Search by tracking number, receiver name, or phone
+            $query = \App\Models\Waybill::query()
+                ->where(function ($q) use ($search) {
+                    $q->where('waybill_number', 'ILIKE', "%{$search}%")
+                      ->orWhere('receiver_name', 'ILIKE', "%{$search}%")
+                      ->orWhere('receiver_phone', 'ILIKE', "%{$search}%");
+                })
+                ->orderBy('created_at', 'desc')
+                ->limit(20);
 
-            // If not found by exact match, try partial
-            if (!$waybill) {
-                $waybill = \App\Models\Waybill::where('waybill_number', 'ILIKE', '%' . trim($search) . '%')
-                    ->with('trackingHistory')
-                    ->first();
+            $waybills = $query->get();
+
+            // If viewing a specific waybill
+            $viewId = $request->input('view');
+            if ($viewId) {
+                $selectedWaybill = \App\Models\Waybill::with('trackingHistory')
+                    ->find($viewId);
+            } elseif ($waybills->count() === 1) {
+                // Auto-select if only one result
+                $selectedWaybill = $waybills->first();
+                $selectedWaybill->load('trackingHistory');
             }
         }
 
         return Inertia::render('AgentLeads/Tracking', [
-            'waybill' => $waybill ? [
-                'id'              => $waybill->id,
-                'waybill_number'  => $waybill->waybill_number,
-                'status'          => $waybill->status,
-                'courier_provider' => $waybill->courier_provider,
-                'receiver_name'   => $waybill->receiver_name,
-                'receiver_phone'  => substr($waybill->receiver_phone, 0, 4) . '****' . substr($waybill->receiver_phone, -3),
-                'city'            => $waybill->city,
-                'state'           => $waybill->state,
-                'item_name'       => $waybill->item_name,
-                'cod_amount'      => $waybill->cod_amount,
-                'dispatched_at'   => $waybill->dispatched_at,
-                'delivered_at'    => $waybill->delivered_at,
-                'returned_at'     => $waybill->returned_at,
-                'created_at'      => $waybill->created_at,
-                'tracking_history' => $waybill->trackingHistory->map(fn ($h) => [
+            'results' => $waybills->map(fn ($w) => [
+                'id'              => $w->id,
+                'waybill_number'  => $w->waybill_number,
+                'status'          => $w->status,
+                'courier_provider' => $w->courier_provider,
+                'receiver_name'   => $w->receiver_name,
+                'receiver_phone'  => substr($w->receiver_phone, 0, 4) . '****' . substr($w->receiver_phone, -3),
+                'city'            => $w->city,
+                'state'           => $w->state,
+                'item_name'       => $w->item_name,
+                'cod_amount'      => $w->cod_amount,
+                'created_at'      => $w->created_at,
+            ]),
+            'waybill' => $selectedWaybill ? [
+                'id'              => $selectedWaybill->id,
+                'waybill_number'  => $selectedWaybill->waybill_number,
+                'status'          => $selectedWaybill->status,
+                'courier_provider' => $selectedWaybill->courier_provider,
+                'receiver_name'   => $selectedWaybill->receiver_name,
+                'receiver_phone'  => substr($selectedWaybill->receiver_phone, 0, 4) . '****' . substr($selectedWaybill->receiver_phone, -3),
+                'city'            => $selectedWaybill->city,
+                'state'           => $selectedWaybill->state,
+                'item_name'       => $selectedWaybill->item_name,
+                'cod_amount'      => $selectedWaybill->cod_amount,
+                'dispatched_at'   => $selectedWaybill->dispatched_at,
+                'delivered_at'    => $selectedWaybill->delivered_at,
+                'returned_at'     => $selectedWaybill->returned_at,
+                'created_at'      => $selectedWaybill->created_at,
+                'tracking_history' => $selectedWaybill->trackingHistory->map(fn ($h) => [
                     'status'          => $h->status,
                     'previous_status' => $h->previous_status,
                     'reason'          => $h->reason,
@@ -401,7 +427,7 @@ class AgentLeadController extends Controller
                 ]),
             ] : null,
             'search' => $search,
-            'notFound' => !empty($search) && !$waybill,
+            'notFound' => !empty($search) && $waybills->isEmpty(),
         ]);
     }
 
