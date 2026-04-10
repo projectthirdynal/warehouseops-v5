@@ -14,10 +14,12 @@ class CourierServiceManager
      */
     public function driver(string $code): CourierServiceInterface
     {
-        return match (strtoupper($code)) {
-            'FLASH' => app(FlashExpressService::class),
-            'JNT'   => app(JntExpressService::class),
-            default => throw new \InvalidArgumentException("Unknown courier: {$code}"),
+        $normalized = strtoupper(str_replace('&', '', $code)); // J&T → JT
+
+        return match ($normalized) {
+            'FLASH'       => app(FlashExpressService::class),
+            'JNT', 'JT'  => app(JntExpressService::class),
+            default       => throw new \InvalidArgumentException("Unknown courier: {$code}"),
         };
     }
 
