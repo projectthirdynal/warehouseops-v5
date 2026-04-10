@@ -309,7 +309,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
 
   function deleteAgent(agent: Agent) {
     if (confirm(`Delete agent ${agent.name}? This cannot be undone.`)) {
-      router.delete(`/agents/${agent.id}`);
+      router.post(`/agents/${agent.id}/delete`);
     }
   }
 
