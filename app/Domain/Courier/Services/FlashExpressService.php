@@ -26,8 +26,8 @@ class FlashExpressService implements CourierServiceInterface
     public function __construct(StatusMapper $statusMapper)
     {
         $this->baseUrl   = rtrim(config('services.couriers.flash.base_url', 'https://open-api.flashexpress.com'), '/');
-        $this->mchId     = config('services.couriers.flash.mch_id', '');
-        $this->secretKey = config('services.couriers.flash.secret_key', '');
+        $this->mchId     = config('services.couriers.flash.mch_id') ?? '';
+        $this->secretKey = config('services.couriers.flash.secret_key') ?? '';
         $this->statusMapper = $statusMapper;
         $this->providerId = CourierProvider::where('code', 'FLASH')->value('id');
     }

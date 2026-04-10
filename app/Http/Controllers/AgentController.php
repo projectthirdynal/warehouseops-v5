@@ -105,6 +105,19 @@ class AgentController extends Controller
         return back()->with('success', 'Agent updated.');
     }
 
+    public function destroy(User $user)
+    {
+        if ($user->role !== 'agent') {
+            return back()->with('error', 'Only agent accounts can be deleted.');
+        }
+
+        $name = $user->name;
+        $user->agentProfile?->delete();
+        $user->delete();
+
+        return back()->with('success', "Agent {$name} deleted.");
+    }
+
     public function toggleActive(User $user)
     {
         $user->update(['is_active' => !$user->is_active]);

@@ -116,6 +116,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::patch('/{user}/profile', [AgentController::class, 'updateProfile'])->name('update-profile');
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active');
         Route::patch('/{user}', [AgentController::class, 'update'])->name('update');
+        Route::delete('/{user}', [AgentController::class, 'destroy'])->name('destroy');
     });
 
     // Products & Inventory

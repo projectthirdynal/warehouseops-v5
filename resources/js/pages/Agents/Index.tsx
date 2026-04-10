@@ -1,5 +1,5 @@
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users,
   UserPlus,
@@ -8,6 +8,7 @@ import {
   Edit,
   Eye,
   UserX,
+  Trash2,
   UserCheck,
   TrendingUp,
   Clock,
@@ -155,10 +156,18 @@ function AddAgentModal({ open, onClose }: { open: boolean; onClose: () => void }
 }
 
 function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open: boolean; onClose: () => void }) {
-  const [skills, setSkills] = useState<string[]>(agent?.agentProfile?.product_skills ?? []);
+  const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState('');
-  const [maxCycles, setMaxCycles] = useState(agent?.agentProfile?.max_active_cycles ?? 10);
+  const [maxCycles, setMaxCycles] = useState(10);
   const [saving, setSaving] = useState(false);
+
+  // Sync state when agent changes
+  useEffect(() => {
+    if (agent) {
+      setSkills(agent.agentProfile?.product_skills ?? []);
+      setMaxCycles(agent.agentProfile?.max_active_cycles ?? 10);
+    }
+  }, [agent]);
 
   if (!open || !agent) return null;
 
@@ -298,6 +307,12 @@ export default function AgentsIndex({ agents, stats }: Props) {
     router.patch(`/agents/${agent.id}/toggle-active`);
   }
 
+  function deleteAgent(agent: Agent) {
+    if (confirm(`Delete agent ${agent.name}? This cannot be undone.`)) {
+      router.delete(`/agents/${agent.id}`);
+    }
+  }
+
   return (
     <AppLayout>
       <Head title="Agents" />
@@ -430,6 +445,14 @@ export default function AgentsIndex({ agents, stats }: Props) {
                               Activate
                             </>
                           )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => deleteAgent(agent)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

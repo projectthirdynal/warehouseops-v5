@@ -26,9 +26,9 @@ class JntExpressService implements CourierServiceInterface
     public function __construct(StatusMapper $statusMapper)
     {
         $this->baseUrl = config('services.couriers.jnt.base_url', 'https://openapi.jtexpress.ph/api');
-        $this->apiKey = config('services.couriers.jnt.api_key', '');
-        $this->apiSecret = config('services.couriers.jnt.api_secret', '');
-        $this->webhookSecret = config('services.couriers.jnt.webhook_secret', '');
+        $this->apiKey = config('services.couriers.jnt.api_key') ?? '';
+        $this->apiSecret = config('services.couriers.jnt.api_secret') ?? '';
+        $this->webhookSecret = config('services.couriers.jnt.webhook_secret') ?? '';
         $this->statusMapper = $statusMapper;
         $this->providerId = CourierProvider::where('code', 'JNT')->value('id');
     }
