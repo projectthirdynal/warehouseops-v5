@@ -43,6 +43,8 @@ interface WaybillSummary {
 }
 
 interface WaybillDetail extends WaybillSummary {
+  submitted_at: string | null;
+  signed_at: string | null;
   dispatched_at: string | null;
   delivered_at: string | null;
   returned_at: string | null;
@@ -251,9 +253,15 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                     <p className="font-medium">{waybill.courier_provider}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Created</span>
-                    <p className="font-medium">{formatDateTime(waybill.created_at)}</p>
+                    <span className="text-muted-foreground">Submitted</span>
+                    <p className="font-medium">{waybill.submitted_at ? formatDateTime(waybill.submitted_at) : formatDateTime(waybill.created_at)}</p>
                   </div>
+                  {waybill.signed_at && (
+                    <div>
+                      <span className="text-muted-foreground">Delivered</span>
+                      <p className="font-medium text-green-600">{formatDateTime(waybill.signed_at)}</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

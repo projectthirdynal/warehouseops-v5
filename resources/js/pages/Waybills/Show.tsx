@@ -135,7 +135,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
             <div>
               <h1 className="text-2xl font-bold tracking-tight font-mono">{waybill.waybill_number}</h1>
               <p className="text-muted-foreground">
-                Created {new Date(waybill.created_at).toLocaleDateString()}
+                {waybill.submitted_at ? `Submitted ${new Date(waybill.submitted_at).toLocaleDateString()}` : `Added ${new Date(waybill.created_at).toLocaleDateString()}`}
               </p>
             </div>
           </div>
@@ -377,20 +377,11 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
-                    <div>
-                      <p className="font-medium text-sm">Created</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(waybill.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
                   {waybill.submitted_at && (
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-purple-500" />
+                      <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
                       <div>
-                        <p className="font-medium text-sm">Submitted</p>
+                        <p className="font-medium text-sm">Submitted to Courier</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(waybill.submitted_at).toLocaleString()}
                         </p>

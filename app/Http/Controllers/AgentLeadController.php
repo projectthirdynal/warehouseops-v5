@@ -474,6 +474,8 @@ class AgentLeadController extends Controller
                 'state'           => $selectedWaybill->state,
                 'item_name'       => $selectedWaybill->item_name,
                 'cod_amount'      => $selectedWaybill->cod_amount,
+                'submitted_at'    => $selectedWaybill->submitted_at,
+                'signed_at'       => $selectedWaybill->signed_at,
                 'dispatched_at'   => $selectedWaybill->dispatched_at,
                 'delivered_at'    => $selectedWaybill->delivered_at,
                 'returned_at'     => $selectedWaybill->returned_at,
