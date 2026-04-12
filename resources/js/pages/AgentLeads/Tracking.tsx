@@ -49,9 +49,33 @@ interface WaybillDetail extends WaybillSummary {
   tracking_history: TrackingEvent[];
 }
 
+interface CustomerStats {
+  total_orders: number;
+  delivered: number;
+  returned: number;
+  pending: number;
+  success_rate: number;
+  total_cod: number;
+  risk_label: string;
+}
+
+interface OrderHistoryItem {
+  id: number;
+  waybill_number: string;
+  status: string;
+  item_name: string | null;
+  amount: number | null;
+  delivered_at: string | null;
+  returned_at: string | null;
+  created_at: string;
+  is_current: boolean;
+}
+
 interface Props {
   results: WaybillSummary[];
   waybill: WaybillDetail | null;
+  customer: CustomerStats | null;
+  orderHistory: OrderHistoryItem[];
   search: string;
   notFound: boolean;
 }
@@ -70,7 +94,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   CANCELLED:        { label: 'Cancelled',         color: 'bg-gray-100 text-gray-600',     icon: <XCircle className="h-3.5 w-3.5" /> },
 };
 
-export default function AgentTracking({ results, waybill, search, notFound }: Props) {
+export default function AgentTracking({ results, waybill, customer, orderHistory, search, notFound }: Props) {
   const [query, setQuery] = useState(search || '');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -284,6 +308,91 @@ export default function AgentTracking({ results, waybill, search, notFound }: Pr
                 )}
               </CardContent>
             </Card>
+
+            {/* Customer Stats */}
+            {customer && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span>Customer Profile</span>
+                    <Badge className={
+                      customer.risk_label === 'Reliable' ? 'bg-green-100 text-green-800' :
+                      customer.risk_label === 'High Risk' ? 'bg-red-100 text-red-800' :
+                      customer.risk_label === 'New' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }>{customer.risk_label}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="text-center p-3 rounded-lg bg-muted/50">
+                      <p className="text-xl font-bold">{customer.total_orders}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">Total Orders</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-green-50">
+                      <p className="text-xl font-bold text-green-600">{customer.delivered}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">Delivered</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-red-50">
+                      <p className="text-xl font-bold text-red-500">{customer.returned}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">Returned</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm border-t pt-3">
+                    <div>
+                      <span className="text-muted-foreground">Success Rate</span>
+                      <p className={`font-semibold ${customer.success_rate >= 70 ? 'text-green-600' : customer.success_rate >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                        {customer.success_rate}%
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground">Total COD Value</span>
+                      <p className="font-semibold">{formatCurrency(customer.total_cod)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Previous Orders */}
+            {orderHistory.length > 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Order History ({orderHistory.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {orderHistory.map((o) => {
+                      const oCfg = statusConfig[o.status] ?? statusConfig.PENDING;
+                      return (
+                        <div
+                          key={o.id}
+                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                            o.is_current ? 'border-primary bg-primary/5' : 'hover:bg-muted/30 cursor-pointer'
+                          }`}
+                          onClick={() => !o.is_current && viewWaybill(o.id)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-semibold">{o.waybill_number}</span>
+                              <Badge className={`${oCfg.color} text-[10px] gap-1`}>{oCfg.icon}{oCfg.label}</Badge>
+                              {o.is_current && <Badge variant="outline" className="text-[10px]">Current</Badge>}
+                            </div>
+                            {o.item_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{o.item_name}</p>}
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            {o.amount != null && <p className="text-sm font-semibold">{formatCurrency(o.amount)}</p>}
+                            <p className="text-[10px] text-muted-foreground">
+                              {o.delivered_at ? formatDateTime(o.delivered_at) : o.returned_at ? formatDateTime(o.returned_at) : formatDateTime(o.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 

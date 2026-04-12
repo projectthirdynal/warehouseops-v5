@@ -404,6 +404,51 @@ class AgentLeadController extends Controller
             }
         }
 
+        // Build customer context if viewing a specific waybill
+        $customerData = null;
+        $orderHistory = [];
+        if ($selectedWaybill) {
+            $phone = $selectedWaybill->receiver_phone;
+
+            // Get all orders for this customer (by phone)
+            $allOrders = \App\Models\Waybill::where('receiver_phone', $phone)
+                ->orderBy('created_at', 'desc')
+                ->limit(20)
+                ->get(['id', 'waybill_number', 'status', 'item_name', 'cod_amount', 'amount', 'delivered_at', 'returned_at', 'created_at']);
+
+            $orderHistory = $allOrders->map(fn ($w) => [
+                'id'             => $w->id,
+                'waybill_number' => $w->waybill_number,
+                'status'         => $w->status,
+                'item_name'      => $w->item_name,
+                'amount'         => $w->cod_amount ?? $w->amount,
+                'delivered_at'   => $w->delivered_at,
+                'returned_at'    => $w->returned_at,
+                'created_at'     => $w->created_at,
+                'is_current'     => $w->id === $selectedWaybill->id,
+            ])->toArray();
+
+            $totalOrders = $allOrders->count();
+            $delivered = $allOrders->where('status', 'DELIVERED')->count();
+            $returned = $allOrders->where('status', 'RETURNED')->count();
+
+            $customerData = [
+                'total_orders'   => $totalOrders,
+                'delivered'      => $delivered,
+                'returned'       => $returned,
+                'pending'        => $totalOrders - $delivered - $returned,
+                'success_rate'   => $totalOrders > 0 ? round(($delivered / $totalOrders) * 100, 1) : 0,
+                'total_cod'      => (float) $allOrders->sum(fn ($w) => $w->cod_amount ?? $w->amount),
+                'risk_label'     => match (true) {
+                    $totalOrders === 0                                           => 'New',
+                    $totalOrders > 0 && $delivered === 0 && $returned > 0        => 'High Risk',
+                    $totalOrders > 2 && ($returned / $totalOrders) > 0.5         => 'High Risk',
+                    $totalOrders > 2 && ($delivered / $totalOrders) >= 0.75      => 'Reliable',
+                    default                                                      => 'Normal',
+                },
+            ];
+        }
+
         return Inertia::render('AgentLeads/Tracking', [
             'results' => $waybills->map(fn ($w) => [
                 'id'              => $w->id,
@@ -441,6 +486,8 @@ class AgentLeadController extends Controller
                     'tracked_at'      => $h->tracked_at,
                 ]),
             ] : null,
+            'customer' => $customerData,
+            'orderHistory' => $orderHistory,
             'search' => $search,
             'notFound' => !empty($search) && $waybills->isEmpty(),
         ]);
