@@ -22,6 +22,7 @@ return [
     'Arrived Hub'      => WaybillStatus::ARRIVED_HUB,
     'At Warehouse'     => WaybillStatus::ARRIVED_HUB,
     'Out for Delivery' => WaybillStatus::OUT_FOR_DELIVERY,
+    'Delivering'       => WaybillStatus::OUT_FOR_DELIVERY,
     'Delivered'        => WaybillStatus::DELIVERED,
     'Return to Sender' => WaybillStatus::RETURNING,
     'RTS'              => WaybillStatus::RETURNING,

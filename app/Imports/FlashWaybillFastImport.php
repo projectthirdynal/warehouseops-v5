@@ -169,15 +169,18 @@ class FlashWaybillFastImport
             unset($data['sender_address']);
         }
 
-        // Set delivered_at / returned_at based on status
+        // Set delivered_at / returned_at from actual courier data — NOT upload time
+        // Flash CSV: "Delivery time" has date only when status=Delivered, empty for returns
         if ($data['status'] === 'DELIVERED' && !empty($data['delivered_at'])) {
-            // already set
-        } elseif ($data['status'] === 'DELIVERED' && !empty($data['submitted_at'])) {
-            $data['delivered_at'] = $data['submitted_at'];
+            // delivered_at already set from "Delivery time" column — correct
+        } elseif ($data['status'] === 'DELIVERED') {
+            // No delivery time but status is delivered — leave null, don't fake it
+            $data['delivered_at'] = null;
         }
 
         if ($data['status'] === 'RETURNED') {
-            $data['returned_at'] = $data['delivered_at'] ?? $now;
+            // Flash doesn't provide a return date — leave null rather than using upload time
+            $data['returned_at'] = null;
             $data['delivered_at'] = null;
         }
 

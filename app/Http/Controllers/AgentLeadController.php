@@ -72,24 +72,39 @@ class AgentLeadController extends Controller
             ->with(['customer', 'cycles'])
             ->get();
 
-        // Count available matching leads in pool per product skill
+        // Count available matching leads in pool per product skill (single query)
         $matchingInPool = [];
-        foreach ($productSkills as $skill) {
-            $matchingInPool[$skill] = Lead::available()
-                ->where('product_name', 'ILIKE', "%{$skill}%")
-                ->count();
+        if (!empty($productSkills)) {
+            $poolCounts = Lead::available()
+                ->where(function ($q) use ($productSkills) {
+                    foreach ($productSkills as $skill) {
+                        $q->orWhere('product_name', 'ILIKE', "%{$skill}%");
+                    }
+                })
+                ->selectRaw("product_name, count(*) as cnt")
+                ->groupBy('product_name')
+                ->pluck('cnt', 'product_name');
+
+            foreach ($productSkills as $skill) {
+                $matchingInPool[$skill] = $poolCounts->filter(
+                    fn ($cnt, $name) => stripos($name, $skill) !== false
+                )->sum();
+            }
         }
+
+        $assignedCount = $leads->where('pool_status', PoolStatus::ASSIGNED->value)->count();
+        $calledToday = $todayCycles->where('call_count', '>', 0)->count();
+        $soldToday = $todayCycles->where('outcome', 'ORDERED')->count();
 
         return Inertia::render('AgentLeads/Index', [
             'leads' => AgentLeadResource::collection($leads),
             'stats' => [
-                'assigned' => Lead::where('assigned_to', $agent->id)
-                    ->where('pool_status', PoolStatus::ASSIGNED)->count(),
-                'called_today' => $todayCycles->where('call_count', '>', 0)->count(),
-                'sold_today' => $todayCycles->where('outcome', 'ORDERED')->count(),
+                'assigned' => $assignedCount,
+                'called_today' => $calledToday,
+                'sold_today' => $soldToday,
                 'callbacks_due' => $callbacksToday->count(),
                 'conversion_rate' => $todayCycles->count() > 0
-                    ? round($todayCycles->where('outcome', 'ORDERED')->count() / $todayCycles->count() * 100, 1)
+                    ? round($soldToday / $todayCycles->count() * 100, 1)
                     : 0,
             ],
             'poolStats' => $this->poolService->getPoolStats(),
