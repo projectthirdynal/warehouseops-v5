@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
 use App\Jobs\GenerateLeadsFromUpload;
+use App\Jobs\ProcessWaybillImport;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
@@ -53,7 +54,7 @@ class WaybillImportController extends Controller
         $filename = time() . '_' . $file->getClientOriginalName();
         $path = $file->storeAs('uploads/waybills', $filename, 'local');
 
-        // Create upload record
+        // Create upload record as pending — processing happens in the queue
         $upload = Upload::create([
             'filename' => $filename,
             'original_filename' => $file->getClientOriginalName(),
@@ -62,52 +63,15 @@ class WaybillImportController extends Controller
             'uploaded_by' => $request->user()->id,
         ]);
 
-        try {
-            // Import based on courier using fast streaming import
-            if ($courier === 'jnt') {
-                $import = new JntWaybillFastImport($upload, $request->user()->id);
-                $import->import(storage_path('app/' . $path));
+        // Dispatch background job — returns immediately, no Cloudflare timeout
+        ProcessWaybillImport::dispatch(
+            $upload->id,
+            $courier,
+            storage_path('app/' . $path),
+            $request->user()->id,
+        );
 
-                $upload->update([
-                    'status' => 'completed',
-                    'errors' => $import->getErrors(),
-                ]);
-
-                // Auto-generate leads from delivered waybills in this batch
-                GenerateLeadsFromUpload::dispatch($upload->id);
-
-                return back()->with('success', sprintf(
-                    'Import completed! %d waybills imported, %d errors. Leads are being generated in the background.',
-                    $import->getSuccessCount(),
-                    $import->getErrorCount()
-                ));
-            }
-
-            if ($courier === 'flash') {
-                $import = new FlashWaybillFastImport($upload, $request->user()->id);
-                $import->import(storage_path('app/' . $path));
-
-                $upload->update([
-                    'status' => 'completed',
-                    'errors' => $import->getErrors(),
-                ]);
-
-                GenerateLeadsFromUpload::dispatch($upload->id);
-
-                return back()->with('success', sprintf(
-                    'Flash import completed! %d waybills imported, %d errors. Leads are being generated in the background.',
-                    $import->getSuccessCount(),
-                    $import->getErrorCount()
-                ));
-            }
-
-            return back()->with('error', 'Unknown courier type.');
-
-        } catch (\Exception $e) {
-            $upload->markAsFailed(['message' => $e->getMessage()]);
-
-            return back()->with('error', 'Import failed: ' . $e->getMessage());
-        }
+        return back()->with('success', 'File uploaded successfully. Processing in the background — check the status below.');
     }
 
     public function show(Upload $upload)
@@ -233,36 +197,18 @@ class WaybillImportController extends Controller
             'errors' => null,
         ]);
 
-        try {
-            // Detect courier from existing waybills or filename
-            $courier = Waybill::where('upload_id', $upload->id)->value('courier_provider');
-            $isFlash = $courier === 'FLASH' || str_contains(strtolower($upload->original_filename), 'flash');
+        // Detect courier from existing waybills or filename
+        $courierProvider = Waybill::where('upload_id', $upload->id)->value('courier_provider');
+        $isFlash = $courierProvider === 'FLASH' || str_contains(strtolower($upload->original_filename ?? ''), 'flash');
+        $courier = $isFlash ? 'flash' : 'jnt';
 
-            if ($isFlash) {
-                $import = new FlashWaybillFastImport($upload, $upload->uploaded_by);
-            } else {
-                $import = new JntWaybillFastImport($upload, $upload->uploaded_by);
-            }
+        ProcessWaybillImport::dispatch(
+            $upload->id,
+            $courier,
+            storage_path('app/' . $path),
+            $upload->uploaded_by,
+        );
 
-            $import->import(storage_path('app/' . $path));
-
-            $upload->update([
-                'status' => 'completed',
-                'errors' => $import->getErrors(),
-            ]);
-
-            GenerateLeadsFromUpload::dispatch($upload->id);
-
-            return back()->with('success', sprintf(
-                'Retry completed! %d waybills imported, %d errors. Leads are being generated in the background.',
-                $import->getSuccessCount(),
-                $import->getErrorCount()
-            ));
-
-        } catch (\Exception $e) {
-            $upload->markAsFailed(['message' => $e->getMessage()]);
-
-            return back()->with('error', 'Retry failed: ' . $e->getMessage());
-        }
+        return back()->with('success', 'Retry queued. Processing in the background — check the status below.');
     }
 }
