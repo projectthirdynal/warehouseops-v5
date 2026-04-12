@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatDate } from '@/lib/utils';
 
 interface Ticket {
   id: number;
@@ -225,7 +226,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {new Date(ticket.created_at).toLocaleDateString()}
+                            {formatDate(ticket.created_at)}
                           </div>
                           <div className="flex items-center gap-1">
                             <MessageSquare className="h-3 w-3" />

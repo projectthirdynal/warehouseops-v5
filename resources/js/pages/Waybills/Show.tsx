@@ -19,6 +19,7 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatDate, formatDateTime } from '@/lib/utils';
 
 interface Waybill {
   id: number;
@@ -135,7 +136,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
             <div>
               <h1 className="text-2xl font-bold tracking-tight font-mono">{waybill.waybill_number}</h1>
               <p className="text-muted-foreground">
-                {waybill.submitted_at ? `Submitted ${new Date(waybill.submitted_at).toLocaleDateString()}` : `Added ${new Date(waybill.created_at).toLocaleDateString()}`}
+                {waybill.submitted_at ? `Submitted ${formatDate(waybill.submitted_at)}` : `Added ${formatDate(waybill.created_at)}`}
               </p>
             </div>
           </div>
@@ -259,7 +260,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                             </td>
                             <td className="p-3 text-sm font-medium">₱{order.cod_amount?.toLocaleString() || '0'}</td>
                             <td className="p-3 text-sm text-muted-foreground">
-                              {new Date(order.created_at).toLocaleDateString()}
+                              {formatDate(order.created_at)}
                             </td>
                           </tr>
                         );
@@ -383,7 +384,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                       <div>
                         <p className="font-medium text-sm">Submitted to Courier</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(waybill.submitted_at).toLocaleString()}
+                          {formatDateTime(waybill.submitted_at)}
                         </p>
                       </div>
                     </div>
@@ -394,7 +395,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                       <div>
                         <p className="font-medium text-sm">Dispatched</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(waybill.dispatched_at).toLocaleString()}
+                          {formatDateTime(waybill.dispatched_at)}
                         </p>
                       </div>
                     </div>
@@ -405,7 +406,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                       <div>
                         <p className="font-medium text-sm">Delivered</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(waybill.delivered_at).toLocaleString()}
+                          {formatDateTime(waybill.delivered_at)}
                         </p>
                       </div>
                     </div>
@@ -416,7 +417,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                       <div>
                         <p className="font-medium text-sm">Returned</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(waybill.returned_at).toLocaleString()}
+                          {formatDateTime(waybill.returned_at)}
                         </p>
                         {waybill.rts_reason && (
                           <p className="text-xs text-red-600 mt-1">{waybill.rts_reason}</p>

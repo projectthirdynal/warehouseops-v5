@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Waybill, PaginatedResponse, WaybillStatus } from '@/types';
+import { formatDate } from '@/lib/utils';
 
 interface Props {
   waybills: PaginatedResponse<Waybill>;
@@ -237,7 +238,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                             ₱{waybill.cod_amount?.toLocaleString() || '0'}
                           </td>
                           <td className="p-4 align-middle text-sm text-muted-foreground">
-                            {new Date(waybill.created_at).toLocaleDateString()}
+                            {formatDate(waybill.created_at)}
                           </td>
                           <td className="p-4 align-middle text-right">
                             <DropdownMenu>

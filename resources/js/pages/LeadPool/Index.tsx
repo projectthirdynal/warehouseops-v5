@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { DistributionModal } from '@/components/leads/DistributionModal';
 import type { PaginatedResponse, PoolStats } from '@/types';
+import { formatDate } from '@/lib/utils';
 
 interface PoolLead {
   id: number;
@@ -262,7 +263,7 @@ export default function LeadPoolIndex({ leads, stats, agents, filters }: Props) 
                             </Badge>
                             {lead.pool_status === 'COOLDOWN' && lead.cooldown_until && (
                               <div className="text-xs text-muted-foreground mt-1">
-                                Until {new Date(lead.cooldown_until).toLocaleDateString()}
+                                Until {formatDate(lead.cooldown_until)}
                               </div>
                             )}
                           </td>

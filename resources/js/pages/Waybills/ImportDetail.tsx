@@ -12,6 +12,7 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatDateTime } from '@/lib/utils';
 
 interface Waybill {
   id: number;
@@ -78,7 +79,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               {upload.original_filename}
             </h1>
             <p className="text-muted-foreground">
-              Uploaded {new Date(upload.created_at).toLocaleString()}
+              Uploaded {formatDateTime(upload.created_at)}
               {upload.uploaded_by && ` by ${upload.uploaded_by.name}`}
             </p>
           </div>

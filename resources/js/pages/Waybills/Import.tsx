@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatDateTime } from '@/lib/utils';
 
 interface UploadRecord {
   id: number;
@@ -348,7 +349,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(upload.created_at).toLocaleString()}
+                            {formatDateTime(upload.created_at)}
                             {upload.uploaded_by && ` by ${upload.uploaded_by.name}`}
                           </p>
                         </div>
