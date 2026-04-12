@@ -147,6 +147,11 @@ class FlashWaybillFastImport
         // Clean tracking number (Flash CSVs sometimes have leading tabs)
         $data['waybill_number'] = trim($data['waybill_number'], " \t\n\r\0\x0B");
 
+        // Ensure required NOT NULL fields have defaults
+        $data['receiver_name'] = $data['receiver_name'] ?? 'Unknown';
+        $data['receiver_phone'] = $data['receiver_phone'] ?? '';
+        $data['receiver_address'] = $data['receiver_address'] ?? '';
+
         // Map status using StatusMapper
         $data['status'] = isset($data['status'])
             ? Waybill::mapCourierStatus('FLASH', trim($data['status']))

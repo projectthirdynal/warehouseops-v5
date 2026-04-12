@@ -146,6 +146,11 @@ class JntWaybillFastImport
             return null; // Skip rows without waybill number
         }
 
+        // Ensure required NOT NULL fields have defaults
+        $data['receiver_name'] = $data['receiver_name'] ?? 'Unknown';
+        $data['receiver_phone'] = $data['receiver_phone'] ?? '';
+        $data['receiver_address'] = $data['receiver_address'] ?? '';
+
         // Map status
         $data['status'] = isset($data['status']) ? Waybill::mapCourierStatus('JNT', $data['status']) : 'PENDING';
 
