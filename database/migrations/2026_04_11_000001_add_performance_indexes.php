@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -16,42 +17,37 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Waybills — search by name/phone (agent tracking)
-        Schema::table('waybills', function (Blueprint $table) {
-            $table->index(['receiver_name']);
-            $table->index(['courier_provider', 'status']);
-            $table->index(['status', 'delivered_at']);
-            $table->index(['status', 'returned_at']);
-            $table->index(['upload_id', 'status']);
-        });
+        $this->addIndexIfNotExists('waybills', 'waybills_receiver_name_index', ['receiver_name']);
+        $this->addIndexIfNotExists('waybills', 'waybills_status_delivered_at_index', ['status', 'delivered_at']);
+        $this->addIndexIfNotExists('waybills', 'waybills_status_returned_at_index', ['status', 'returned_at']);
+        $this->addIndexIfNotExists('waybills', 'waybills_upload_id_status_index', ['upload_id', 'status']);
 
-        // Leads — agent portal + distribution queries
-        Schema::table('leads', function (Blueprint $table) {
-            $table->index(['assigned_to', 'pool_status']);
-            $table->index(['pool_status', 'product_name']);
-            $table->index(['sales_status']);
-            $table->index(['customer_id']);
-            $table->index(['pool_status', 'cooldown_until']);
-        });
+        $this->addIndexIfNotExists('leads', 'leads_assigned_to_pool_status_index', ['assigned_to', 'pool_status']);
+        $this->addIndexIfNotExists('leads', 'leads_pool_status_product_name_index', ['pool_status', 'product_name']);
+        $this->addIndexIfNotExists('leads', 'leads_sales_status_index', ['sales_status']);
+        $this->addIndexIfNotExists('leads', 'leads_customer_id_index', ['customer_id']);
+        $this->addIndexIfNotExists('leads', 'leads_pool_status_cooldown_until_index', ['pool_status', 'cooldown_until']);
 
-        // Lead cycles — agent call history
-        Schema::table('lead_cycles', function (Blueprint $table) {
-            $table->index(['assigned_agent_id', 'status']);
-            $table->index(['assigned_agent_id', 'opened_at']);
-        });
+        $this->addIndexIfNotExists('lead_cycles', 'lead_cycles_assigned_agent_id_status_index', ['assigned_agent_id', 'status']);
+        $this->addIndexIfNotExists('lead_cycles', 'lead_cycles_assigned_agent_id_opened_at_index', ['assigned_agent_id', 'opened_at']);
 
-        // Orders — pipeline queries
-        Schema::table('orders', function (Blueprint $table) {
-            $table->index(['lead_id']);
-            $table->index(['customer_id']);
-            $table->index(['product_id']);
-            $table->index(['status', 'created_at']);
-        });
+        $this->addIndexIfNotExists('orders', 'orders_lead_id_index', ['lead_id']);
+        $this->addIndexIfNotExists('orders', 'orders_customer_id_index', ['customer_id']);
+        $this->addIndexIfNotExists('orders', 'orders_product_id_index', ['product_id']);
+        $this->addIndexIfNotExists('orders', 'orders_status_created_at_index', ['status', 'created_at']);
 
-        // Agent commissions — finance queries
-        Schema::table('agent_commissions', function (Blueprint $table) {
-            $table->index(['agent_id', 'earned_at']);
-        });
+        $this->addIndexIfNotExists('agent_commissions', 'agent_commissions_agent_id_earned_at_index', ['agent_id', 'earned_at']);
+    }
+
+    private function addIndexIfNotExists(string $table, string $indexName, array $columns): void
+    {
+        $exists = DB::select("SELECT 1 FROM pg_indexes WHERE tablename = ? AND indexname = ?", [$table, $indexName]);
+
+        if (empty($exists)) {
+            Schema::table($table, function (Blueprint $table) use ($columns) {
+                $table->index($columns);
+            });
+        }
     }
 
     public function down(): void
