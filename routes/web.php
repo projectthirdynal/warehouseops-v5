@@ -14,6 +14,8 @@ use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
+use App\Http\Controllers\ClaimController;
+use App\Http\Controllers\ReturnReceiptController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OrderController;
@@ -73,6 +75,26 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
+
+        // Claims
+        Route::prefix('claims')->name('claims.')->group(function () {
+            Route::get('/', [ClaimController::class, 'index'])->name('index');
+            Route::get('/approved', [ClaimController::class, 'approved'])->name('approved');
+            Route::get('/beyond-sla', [ClaimController::class, 'beyondSla'])->name('beyond-sla');
+            Route::get('/create', [ClaimController::class, 'create'])->name('create');
+            Route::post('/', [ClaimController::class, 'store'])->name('store');
+            Route::get('/{claim}', [ClaimController::class, 'show'])->name('show');
+            Route::post('/{claim}/file', [ClaimController::class, 'file'])->name('file');
+            Route::post('/{claim}/approve', [ClaimController::class, 'approve'])->name('approve');
+            Route::post('/{claim}/reject', [ClaimController::class, 'reject'])->name('reject');
+            Route::post('/{claim}/settle', [ClaimController::class, 'settle'])->name('settle');
+        });
+
+        // Return receipts (batch scan for Beyond SLA)
+        Route::post('/returns/scan', [ReturnReceiptController::class, 'store'])->name('returns.scan');
+
+        // Waybill search API (used by Claims create form)
+        Route::get('/search', [WaybillController::class, 'search'])->name('search');
 
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');

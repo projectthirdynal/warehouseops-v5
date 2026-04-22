@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Waybill extends Model
@@ -69,6 +70,16 @@ class Waybill extends Model
     public function batchScanItems(): HasMany
     {
         return $this->hasMany(BatchScanItem::class);
+    }
+
+    public function claims(): HasMany
+    {
+        return $this->hasMany(Claim::class);
+    }
+
+    public function returnReceipt(): HasOne
+    {
+        return $this->hasOne(ReturnReceipt::class);
     }
 
     // -------------------------------------------------------------------------

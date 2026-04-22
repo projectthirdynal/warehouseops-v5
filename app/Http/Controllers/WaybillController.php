@@ -138,4 +138,19 @@ class WaybillController extends Controller
 
         return back()->with('success', 'Waybill status updated successfully');
     }
+
+    public function search(Request $request)
+    {
+        $q = trim($request->query('q', ''));
+
+        if (strlen($q) < 3) {
+            return response()->json(['waybill' => null]);
+        }
+
+        $waybill = Waybill::where('waybill_number', 'ILIKE', "%{$q}%")
+            ->select(['id', 'waybill_number', 'receiver_name', 'city', 'status', 'amount', 'cod_amount'])
+            ->first();
+
+        return response()->json(['waybill' => $waybill]);
+    }
 }

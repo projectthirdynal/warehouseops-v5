@@ -18,6 +18,8 @@ import {
   Headphones,
   Upload,
   MessageSquare,
+  ShieldAlert,
+  AlertOctagon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -45,6 +47,8 @@ const navigation: NavItem[] = [
   { name: 'Scanner', href: '/scanner', icon: Package, permission: 'scanner' },
   { name: 'Waybills', href: '/waybills', icon: Truck, permission: 'accounts' },
   { name: 'Import', href: '/waybills/import', icon: Upload, permission: 'accounts' },
+  { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert, permission: 'accounts' },
+  { name: 'Beyond SLA', href: '/waybills/claims/beyond-sla', icon: AlertOctagon, permission: 'accounts' },
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Leads', href: '/leads', icon: Users, permission: 'leads_view' },
   { name: 'QC Review', href: '/qc', icon: ClipboardCheck, permission: 'qc' },

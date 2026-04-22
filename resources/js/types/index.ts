@@ -2,7 +2,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'teamleader' | 'agent' | 'checker' | 'encoder';
+  role: 'superadmin' | 'admin' | 'teamleader' | 'agent' | 'checker' | 'encoder' | 'claims_officer';
   is_active: boolean;
   theme?: 'light' | 'dark' | 'system';
   avatar_url?: string;
@@ -47,6 +47,51 @@ export type WaybillStatus =
   | 'DELIVERED'
   | 'RETURNED'
   | 'CANCELLED';
+
+export type ClaimStatus = 'DRAFT' | 'FILED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SETTLED';
+export type ClaimType = 'LOST' | 'DAMAGED' | 'BEYOND_SLA';
+
+export interface Claim {
+  id: number;
+  claim_number: string;
+  waybill_id: number;
+  waybill?: Waybill;
+  type: ClaimType;
+  status: ClaimStatus;
+  description: string | null;
+  claim_amount: number;
+  approved_amount: number | null;
+  jnt_reference_number: string | null;
+  filed_by: number;
+  filed_by_user?: User;
+  filed_at: string | null;
+  reviewed_by: number | null;
+  reviewed_by_user?: User;
+  reviewed_at: string | null;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReturnReceipt {
+  id: number;
+  waybill_id: number;
+  waybill?: Waybill;
+  scanned_by: number;
+  scanned_by_user?: User;
+  scanned_at: string;
+  condition: 'GOOD' | 'DAMAGED';
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ScanResults {
+  scanned: string[];
+  already_received: string[];
+  not_found: string[];
+  wrong_status: string[];
+}
 
 export interface Lead {
   id: number;
