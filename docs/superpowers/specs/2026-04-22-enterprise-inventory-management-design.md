@@ -126,7 +126,8 @@ expiry_tracking  BOOLEAN default false
 ```sql
 warehouse_id     FK → warehouses
 location_id      FK → warehouse_locations nullable
-available_stock  INTEGER GENERATED (current_stock - reserved_stock)
+-- NOTE: available_stock is NOT a generated column (see fix #3 below)
+-- Exposed as an Eloquent accessor: current_stock - reserved_stock
 ```
 
 **Extend existing `inventory_movements` table:**
@@ -170,17 +171,78 @@ stock_audit_sessions (id, warehouse_id, name, status[OPEN/COUNTING/FINALIZED],
 stock_audit_items (id, session_id, product_id[nullable], supply_id[nullable],
                    variant_id[nullable], location_id, system_qty, counted_qty,
                    variance, status[PENDING/COUNTED/APPROVED], notes)
+
+-- FIFO cost lot tracking (fix #1)
+-- Created on every GRN confirmation; consumed FIFO on delivery
+stock_cost_lots (
+    id                 BIGSERIAL PRIMARY KEY,
+    product_id         BIGINT NOT NULL REFERENCES products(id),
+    variant_id         BIGINT NULL REFERENCES product_variants(id),
+    warehouse_id       BIGINT NOT NULL REFERENCES warehouses(id),
+    grn_item_id        BIGINT NOT NULL REFERENCES receiving_report_items(id),
+    quantity_received  DECIMAL(12,4) NOT NULL,
+    quantity_remaining DECIMAL(12,4) NOT NULL,  -- decremented on each sale
+    unit_cost          DECIMAL(12,4) NOT NULL,
+    currency_code      CHAR(3) NOT NULL DEFAULT 'PHP',
+    exchange_rate      DECIMAL(14,6) NOT NULL DEFAULT 1.0,
+    received_at        TIMESTAMP NOT NULL,
+    expiry_date        DATE NULL,
+    batch_number       VARCHAR NULL,
+    timestamps
+    -- INDEX on (product_id, variant_id, warehouse_id, received_at) WHERE quantity_remaining > 0
+)
+
+-- Reservation tracking (fix #4) — replaces bare counter-only approach
+-- product_stocks.reserved_stock remains as a fast-read cache, kept in sync with this table
+stock_reservations (
+    id               BIGSERIAL PRIMARY KEY,
+    product_id       BIGINT NOT NULL REFERENCES products(id),
+    variant_id       BIGINT NULL REFERENCES product_variants(id),
+    warehouse_id     BIGINT NOT NULL REFERENCES warehouses(id),
+    quantity         INTEGER NOT NULL,
+    reference_type   VARCHAR NOT NULL,  -- 'order', 'lead', 'cart'
+    reference_id     BIGINT NOT NULL,
+    reserved_by      BIGINT REFERENCES users(id),
+    reserved_at      TIMESTAMP NOT NULL,
+    expires_at       TIMESTAMP NOT NULL,
+    status           VARCHAR NOT NULL,  -- ACTIVE, CONSUMED, RELEASED, EXPIRED
+    released_at      TIMESTAMP NULL,
+    released_reason  VARCHAR NULL,
+    timestamps
+    -- INDEX on (status, expires_at) WHERE status = 'ACTIVE'
+)
+
+-- Reference tables (fix #7 — multi-currency readiness)
+currencies (code CHAR(3) PK, name, symbol, decimal_places, is_active)
+exchange_rates (id, from_currency, to_currency, rate DECIMAL(14,6),
+                rate_date DATE, source[manual/bsp/openexchangerates],
+                UNIQUE(from_currency, to_currency, rate_date))
 ```
 
 ### 5.2 Service Layer
 
 **`App\Domain\Inventory\Services\StockService`**
-- `stockIn(product, quantity, location, reference, batch, expiry)` — validates, writes movement, updates stock
-- `stockOut(product, quantity, location, reference)` — checks available stock, blocks if insufficient
-- `transfer(product, quantity, fromLocation, toLocation)` — atomic: out + in in one transaction
-- `reserve(product, quantity)` — increments reserved_stock (for pending orders)
-- `release(product, quantity)` — decrements reserved_stock (on cancellation)
-- `adjust(stockAdjustment)` — applies approved adjustments, writes movement
+- `stockIn(product, quantity, location, reference, batch, expiry, unitCost, currency)` — validates, writes movement, creates `stock_cost_lots` row, updates stock; uses `SELECT FOR UPDATE` on stock row
+- `stockOut(product, quantity, location, reference)` — uses `SELECT FOR UPDATE`; blocks if insufficient available stock
+- `transfer(product, quantity, fromLocation, toLocation)` — atomic DB transaction: out + in
+- `reserve(product, referenceType, referenceId, quantity, expiresAt)` — atomic conditional UPDATE: `SET reserved_stock = reserved_stock + qty WHERE (current_stock - reserved_stock) >= qty`; checks affected rows; creates `stock_reservations` row; throws `InsufficientStockException` if 0 rows affected
+- `release(stockReservation)` — marks reservation RELEASED, decrements `reserved_stock` atomically
+- `adjust(stockAdjustment)` — uses `SELECT FOR UPDATE`; applies approved adjustments, writes ADJUSTMENT movement
+
+**Concurrency rules (fix #2):**
+- `reserve()` uses atomic conditional UPDATE (Option B) — lock-free, high throughput, safe under concurrency
+- `stockOut()` and `adjust()` use `SELECT FOR UPDATE` (Option A) — lower frequency, complex logic requires explicit lock
+- Every method that reads-then-writes MUST be inside a `DB::transaction()`
+- `available_stock` is never read from a column — always computed as `current_stock - reserved_stock` at query time or via Eloquent accessor (fix #3)
+
+**`App\Domain\Finance\Services\CogsService`** (fix #1 + #6)
+- `record(product, variant, quantity, waybillId)` — consumes `stock_cost_lots` FIFO (ordered by `received_at ASC`; FEFO for expiry-tracked items ordered by `expiry_date ASC`); uses `SELECT FOR UPDATE` on lot rows; writes one `cogs_entries` row per lot touched; locks COGS method in `finance_settings` on first call
+
+**`App\Jobs\ReleaseExpiredReservationsJob`** (fix #4)
+- Runs every 5 minutes via Laravel scheduler
+- Finds `stock_reservations` with `status = ACTIVE AND expires_at < NOW()`
+- Transitions each to EXPIRED, decrements `product_stocks.reserved_stock` atomically
+- Expiry policy: 30 min for cart, 24 hours for confirmed-unpaid orders (configurable in `finance_settings`)
 
 **`App\Domain\Inventory\Services\AuditService`**
 - `openSession(warehouse)` — creates session, snapshots current system quantities
@@ -229,6 +291,9 @@ purchase_request_items (id, pr_id, product_id[null], supply_id[null],
 purchase_orders (id, po_number[PO-YYYYMMDD-XXXX], pr_id[nullable], supplier_id,
                  warehouse_id, payment_terms, expected_delivery_date,
                  status[DRAFT/SENT/PARTIALLY_RECEIVED/RECEIVED/CANCELLED],
+                 currency_code CHAR(3) DEFAULT 'PHP',    -- fix #7
+                 exchange_rate DECIMAL(14,6) DEFAULT 1.0, -- fix #7
+                 exchange_rate_date DATE NULL,             -- fix #7
                  subtotal, tax_amount, total_amount,
                  approved_by, approved_at, qbo_po_id, notes, timestamps)
 
@@ -238,6 +303,8 @@ purchase_order_items (id, po_id, product_id[null], supply_id[null],
 
 receiving_reports (id, grn_number[GRN-YYYYMMDD-XXXX], po_id, warehouse_id,
                    location_id, received_by, received_at,
+                   exchange_rate DECIMAL(14,6) DEFAULT 1.0, -- fix #7: rate locked at receipt
+                   exchange_rate_date DATE NULL,              -- fix #7
                    status[DRAFT/CONFIRMED], notes, discrepancy_notes, timestamps)
 
 receiving_report_items (id, grn_id, po_item_id, quantity_received,
@@ -300,8 +367,10 @@ qbo_connections (id, realm_id, access_token[encrypted], refresh_token[encrypted]
                  connected_by, connected_at, timestamps)
 
 qbo_sync_queue (id, entity_type, entity_id, operation[CREATE/UPDATE/DELETE],
+                idempotency_key UUID NOT NULL DEFAULT gen_random_uuid(), -- fix #5: unique per queue row, never changes across retries
                 status[PENDING/SYNCED/FAILED], qbo_id, payload[json],
-                error_message, attempts, synced_at, timestamps)
+                error_message, attempts, synced_at, timestamps
+                UNIQUE INDEX on idempotency_key)
 
 qbo_account_mappings (id, mapping_key, qbo_account_id, qbo_account_name,
                       mapped_by, timestamps)
@@ -309,8 +378,22 @@ qbo_account_mappings (id, mapping_key, qbo_account_id, qbo_account_name,
   --               shipping_expense, commission_expense, revenue
 
 cogs_entries (id, product_id, variant_id, waybill_id[null], order_id[null],
+              cost_lot_id[null REFERENCES stock_cost_lots],  -- fix #1: lot traceability
               method[FIFO/WEIGHTED_AVG], quantity, unit_cost, total_cost,
+              currency_code CHAR(3) DEFAULT 'PHP',            -- fix #7
+              exchange_rate DECIMAL(14,6) DEFAULT 1.0,        -- fix #7
               recorded_at, synced_to_qbo_at)
+
+-- Finance configuration + COGS method lock (fix #6)
+finance_settings (id, key VARCHAR UNIQUE, value JSONB,
+                  locked_at TIMESTAMP NULL, locked_by FK users NULL,
+                  locked_trigger_reference VARCHAR NULL, timestamps)
+-- Seeded rows:
+--   ('cogs_method',              '{"method": "FIFO"}')
+--   ('default_currency',         '{"code": "PHP"}')
+--   ('fiscal_year_start_month',  '{"month": 1}')
+--   ('reservation_expiry_cart',  '{"minutes": 30}')
+--   ('reservation_expiry_order', '{"hours": 24}')
 ```
 
 ### 7.3 Sync Map
@@ -330,7 +413,11 @@ cogs_entries (id, product_id, variant_id, waybill_id[null], order_id[null],
 
 ### 7.4 COGS Method
 
-Default: **FIFO** — on delivery, system finds oldest unrealized cost lots from `inventory_movements` and records them as COGS. Weighted average available as system-wide setting. Method is locked once transactions exist (cannot switch mid-period).
+Default: **FIFO** — on delivery, `CogsService` queries `stock_cost_lots` ordered by `received_at ASC` (or `expiry_date ASC` for expiry-tracked items, i.e. FEFO), walks lots decrementing `quantity_remaining` with `SELECT FOR UPDATE` until the sale quantity is consumed, writes one `cogs_entries` row per lot with `cost_lot_id` for full traceability.
+
+Weighted average: maintained in a `product_cost_averages` table (running avg per product/variant/warehouse), updated on each GRN — simpler but less granular.
+
+**Method lock (fix #6):** Configured in `finance_settings.key = 'cogs_method'`. Lock activates on the first `cogs_entries` insert — `CogsService::record()` checks `locked_at`, sets it if null, then proceeds. Switching method after lock requires superadmin with explicit override reason written to an audit log. Cannot switch mid-fiscal-year without restatement.
 
 ### 7.5 Sync Reliability
 
@@ -339,6 +426,8 @@ Default: **FIFO** — on delivery, system finds oldest unrealized cost lots from
 - After 3 failures: status → FAILED, surfaces in Finance/QuickBooks page
 - Finance Officer can manually retry individual items or trigger full reconciliation
 - Nightly `QboReconciliationJob`: cross-checks EIMS totals vs QBO, flags discrepancies
+
+**Idempotency (fix #5):** Every `QboSyncJob` passes `qbo_sync_queue.idempotency_key` as the `RequestId` query parameter on every QBO write call. The key is generated once at queue-row creation and never changes across retries. QBO returns the same resource on repeat calls with the same `RequestId` — duplicate Bills/Journal Entries are impossible. For the rare QBO endpoints that don't support `RequestId`, `QboSyncJob` checks for an existing `qbo_id` on the queue row before POSTing.
 
 ### 7.6 UI Pages
 
@@ -365,6 +454,8 @@ assets (id, asset_number[AST-XXXX], name, description, category_id,
         assigned_to[FK users], warehouse_id, location_id,
         status[ACTIVE/UNDER_REPAIR/DISPOSED/LOST],
         purchase_date, purchase_cost, supplier_id, po_id[null],
+        currency_code CHAR(3) DEFAULT 'PHP',     -- fix #7
+        exchange_rate DECIMAL(14,6) DEFAULT 1.0, -- fix #7
         warranty_expiry, expected_useful_life_months,
         current_book_value, salvage_value,
         barcode, qr_code, serial_number,
@@ -453,7 +544,20 @@ Main landing for inventory roles:
 - **Stock writes are transactional** — DB transaction wraps every StockService call
 - **inventory_movements is append-only** — no UPDATE or DELETE ever
 - **QBO sync never blocks UI** — always async via Redis queue
-- **Stock cannot go negative** — hard block in StockService, not just validation
-- **Audit trail on everything** — movements, adjustments, approvals all timestamped with actor
-- **COGS method locked once transactions exist** — enforced at service layer
+- **Stock cannot go negative** — hard block in StockService via atomic conditional UPDATE (reserve) and SELECT FOR UPDATE (out/adjust)
+- **No oversell under concurrency** — reservation uses atomic conditional UPDATE; affected-rows=0 throws InsufficientStockException (fix #2)
+- **available_stock is computed, not stored** — Eloquent accessor `current_stock - reserved_stock`; never a DB generated column (fix #3)
+- **Reservations are traceable and expire** — backed by `stock_reservations` table; `ReleaseExpiredReservationsJob` runs every 5 min (fix #4)
+- **FIFO lot tracking** — `stock_cost_lots` records every received batch; CogsService consumes with SELECT FOR UPDATE (fix #1)
+- **QBO idempotency** — every write passes `idempotency_key` as QBO RequestId; retries never create duplicates (fix #5)
+- **COGS method locked once transactions exist** — `finance_settings` table with `locked_at`; enforced in CogsService::record() (fix #6)
+- **Multi-currency schema-ready** — `currency_code` + `exchange_rate` on all procurement, COGS, and asset tables; default PHP/1.0 (fix #7)
+- **Audit trail on everything** — movements, adjustments, approvals, lot consumption all timestamped with actor
 - **Multi-warehouse ready** — warehouse_id on every stock record from Phase 1 day one
+
+## 11. Deferred (Phase 5+)
+
+- Full multi-currency UI — currency selector on PO, live exchange rate fetch from BSP/OpenExchangeRates, foreign-currency Bill posting to QBO
+- RFID integration for asset tracking
+- Advanced demand forecasting (ML-based)
+- Mobile warehouse app (barcode scan stock movements)
