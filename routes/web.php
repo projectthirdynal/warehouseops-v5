@@ -16,6 +16,8 @@ use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ReturnReceiptController;
+use App\Http\Controllers\WaybillExportController;
+use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OrderController;
@@ -68,6 +70,23 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
     // Waybills
     Route::prefix('waybills')->name('waybills.')->group(function () {
         Route::get('/', [WaybillController::class, 'index'])->name('index');
+
+        // Scanner (sub-tab under Waybills)
+        Route::get('/scanner', [ScannerController::class, 'index'])->name('scanner');
+
+        // Scan API
+        Route::post('/scan', [ScannerController::class, 'scan'])->name('scan');
+        Route::post('/scan/batch', [ScannerController::class, 'batchScan'])->name('scan.batch');
+
+        // Unknown waybills
+        Route::get('/unknown', [UnknownWaybillController::class, 'index'])->name('unknown.index');
+        Route::get('/unknown/suggest', [UnknownWaybillController::class, 'suggest'])->name('unknown.suggest');
+        Route::post('/unknown/{unknown}/match', [UnknownWaybillController::class, 'match'])->name('unknown.match');
+        Route::post('/unknown/{unknown}/dismiss', [UnknownWaybillController::class, 'dismiss'])->name('unknown.dismiss');
+
+        // Exports
+        Route::get('/claims/export', [WaybillExportController::class, 'claims'])->name('claims.export');
+        Route::get('/beyond-sla/export', [WaybillExportController::class, 'beyondSla'])->name('beyond-sla.export');
 
         Route::get('/import', [WaybillImportController::class, 'index'])->name('import');
         Route::post('/import', [WaybillImportController::class, 'store'])->name('import.store');

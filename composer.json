@@ -2,7 +2,12 @@
     "name": "thirdynal/warehouseops",
     "type": "project",
     "description": "WarehouseOps v5 - Enterprise Warehouse Operations System",
-    "keywords": ["laravel", "warehouse", "operations", "logistics"],
+    "keywords": [
+        "laravel",
+        "warehouse",
+        "operations",
+        "logistics"
+    ],
     "license": "proprietary",
     "require": {
         "php": "^8.2",
@@ -16,7 +21,8 @@
         "predis/predis": "^2.2",
         "rap2hpoutre/fast-excel": "^5.6",
         "spatie/laravel-permission": "^6.4",
-        "tightenco/ziggy": "^2.0"
+        "tightenco/ziggy": "^2.0",
+        "barryvdh/laravel-dompdf": "^3.0"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.10",

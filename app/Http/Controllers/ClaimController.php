@@ -18,6 +18,8 @@ class ClaimController extends Controller
         $claims = Claim::with(['waybill', 'filedBy'])
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
+            ->when($request->from, fn ($q, $v) => $q->where('filed_at', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->where('filed_at', '<=', $v . ' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('claim_number', 'ILIKE', "%{$v}%")
                     ->orWhereHas('waybill', fn ($wq) => $wq->where('waybill_number', 'ILIKE', "%{$v}%"));
@@ -37,7 +39,7 @@ class ClaimController extends Controller
         return Inertia::render('Waybills/Claims/Index', [
             'claims'  => $claims,
             'stats'   => $stats,
-            'filters' => $request->only(['status', 'type', 'search']),
+            'filters' => $request->only(['status', 'type', 'search', 'from', 'to']),
         ]);
     }
 
@@ -162,6 +164,8 @@ class ClaimController extends Controller
     {
         $claims = Claim::with(['waybill', 'filedBy', 'reviewedBy'])
             ->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])
+            ->when($request->from, fn ($q, $v) => $q->where('resolved_at', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->where('resolved_at', '<=', $v . ' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('claim_number', 'ILIKE', "%{$v}%")
                     ->orWhereHas('waybill', fn ($wq) => $wq->where('waybill_number', 'ILIKE', "%{$v}%"));
@@ -180,7 +184,7 @@ class ClaimController extends Controller
         return Inertia::render('Waybills/Claims/Approved', [
             'claims'  => $claims,
             'totals'  => $totals,
-            'filters' => $request->only(['search']),
+            'filters' => $request->only(['search', 'from', 'to']),
         ]);
     }
 
@@ -191,6 +195,8 @@ class ClaimController extends Controller
         $query = Waybill::where('status', 'RETURNED')
             ->where('returned_at', '<', $today)
             ->whereDoesntHave('returnReceipt')
+            ->when($request->from, fn ($q, $v) => $q->where('returned_at', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('waybill_number', 'ILIKE', "%{$v}%")
                     ->orWhere('receiver_name', 'ILIKE', "%{$v}%");
@@ -198,13 +204,13 @@ class ClaimController extends Controller
             ->with(['claims'])
             ->latest('returned_at');
 
-        $waybills     = (clone $query)->paginate(30)->withQueryString();
+        $waybills       = (clone $query)->paginate(30)->withQueryString();
         $beyondSlaCount = (clone $query)->count();
 
         return Inertia::render('Waybills/Claims/BeyondSla', [
-            'waybills'        => $waybills,
+            'waybills'         => $waybills,
             'beyond_sla_count' => $beyondSlaCount,
-            'filters'         => $request->only(['search']),
+            'filters'          => $request->only(['search', 'from', 'to']),
         ]);
     }
 }

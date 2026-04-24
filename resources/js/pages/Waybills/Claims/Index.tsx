@@ -11,6 +11,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,8 +25,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, AlertTriangle, CheckCircle, Clock, Plus } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, Clock, Plus, Download, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
 import type { Claim, ClaimStatus, ClaimType, PaginatedResponse } from '@/types';
 
 interface Props {
@@ -36,6 +43,8 @@ interface Props {
     status?: string;
     type?: string;
     search?: string;
+    from?: string;
+    to?: string;
   };
 }
 
@@ -71,6 +80,7 @@ const TYPE_COLORS: Record<ClaimType, string> = {
 
 export default function ClaimsIndex({ claims, stats, filters }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
+  const dateRange = usePersistedDateRange('claims-index-range', filters.from, filters.to);
 
   function applyFilters(overrides: Record<string, string>) {
     router.get('/waybills/claims', { ...filters, ...overrides }, { preserveState: true, replace: true });
@@ -81,17 +91,52 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
     applyFilters({ search, page: '1' });
   }
 
+  function exportUrl(format: string) {
+    const params = new URLSearchParams({ format });
+    if (filters.status) params.set('status', filters.status);
+    if (filters.type) params.set('type', filters.type);
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+    if (filters.search) params.set('search', filters.search);
+    return `/waybills/claims/export?${params.toString()}`;
+  }
+
   return (
     <AppLayout>
       <Head title="Claims" />
 
       <div className="space-y-6 p-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">Claims</h1>
             <p className="text-sm text-muted-foreground">Manage J&T Express claims for lost or damaged parcels</p>
           </div>
+          <DateRangePicker
+            value={dateRange}
+            storageKey="claims-index-range"
+            onChange={(range) => applyFilters({ from: range.from, to: range.to, page: '1' })}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+                <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('xlsx')} download>Excel (.xlsx)</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('csv')} download>CSV</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('pdf')} download>PDF</a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link href="/waybills/claims/create">
             <Button>
               <Plus className="mr-2 h-4 w-4" />

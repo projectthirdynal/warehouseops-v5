@@ -4,6 +4,12 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Table,
   TableBody,
   TableCell,
@@ -12,8 +18,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Banknote, CheckCircle } from 'lucide-react';
+import { Banknote, CheckCircle, Download, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
 import type { Claim, PaginatedResponse } from '@/types';
 
 interface Props {
@@ -24,11 +31,12 @@ interface Props {
     approved_count: number;
     settled_count: number;
   };
-  filters: { search?: string };
+  filters: { search?: string; from?: string; to?: string };
 }
 
 export default function ClaimsApproved({ claims, totals, filters }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
+  const dateRange = usePersistedDateRange('claims-approved-range', filters.from, filters.to);
 
   function applyFilters(overrides: Record<string, string>) {
     router.get('/waybills/claims/approved', { ...filters, ...overrides }, { preserveState: true, replace: true });
@@ -43,15 +51,50 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
     router.post(`/waybills/claims/${claimId}/settle`);
   }
 
+  function exportUrl(format: string) {
+    const params = new URLSearchParams({ format, status: 'APPROVED' });
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+    if (filters.search) params.set('search', filters.search);
+    return `/waybills/claims/export?${params.toString()}`;
+  }
+
   return (
     <AppLayout>
       <Head title="Approved Claims" />
 
       <div className="space-y-6 p-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">Approved Claims</h1>
-          <p className="text-sm text-muted-foreground">Claims approved or settled with J&T Express</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold">Approved Claims</h1>
+            <p className="text-sm text-muted-foreground">Claims approved or settled with J&T Express</p>
+          </div>
+          <DateRangePicker
+            value={dateRange}
+            storageKey="claims-approved-range"
+            onChange={(range) => applyFilters({ from: range.from, to: range.to, page: '1' })}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+                <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('xlsx')} download>Excel (.xlsx)</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('csv')} download>CSV</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('pdf')} download>PDF</a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Sub-nav */}

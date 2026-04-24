@@ -10,6 +10,7 @@ import {
   Settings,
   Bell,
   ChevronLeft,
+  ChevronDown,
   LogOut,
   Menu,
   Phone,
@@ -20,6 +21,8 @@ import {
   MessageSquare,
   ShieldAlert,
   AlertOctagon,
+  ScanLine,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -42,13 +45,34 @@ interface NavItem {
   permission?: string;
 }
 
-const navigation: NavItem[] = [
+interface NavGroup {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: string;
+  children: NavItem[];
+}
+
+type NavEntry = NavItem | NavGroup;
+
+function isNavGroup(entry: NavEntry): entry is NavGroup {
+  return 'children' in entry;
+}
+
+const navigation: NavEntry[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Scanner', href: '/scanner', icon: Package, permission: 'scanner' },
-  { name: 'Waybills', href: '/waybills', icon: Truck, permission: 'accounts' },
-  { name: 'Import', href: '/waybills/import', icon: Upload, permission: 'accounts' },
-  { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert, permission: 'accounts' },
-  { name: 'Beyond SLA', href: '/waybills/claims/beyond-sla', icon: AlertOctagon, permission: 'accounts' },
+  {
+    name: 'Waybills',
+    icon: Truck,
+    permission: 'accounts',
+    children: [
+      { name: 'All Waybills', href: '/waybills', icon: Truck },
+      { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine },
+      { name: 'Import', href: '/waybills/import', icon: Upload },
+      { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert },
+      { name: 'Beyond SLA', href: '/waybills/claims/beyond-sla', icon: AlertOctagon },
+      { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle },
+    ],
+  },
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Leads', href: '/leads', icon: Users, permission: 'leads_view' },
   { name: 'QC Review', href: '/qc', icon: ClipboardCheck, permission: 'qc' },
@@ -72,6 +96,21 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const { auth } = usePage<PageProps>().props;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+
+  // Auto-expand groups that contain the active path
+  useEffect(() => {
+    const autoExpand: Record<string, boolean> = {};
+    navigation.forEach((entry) => {
+      if (isNavGroup(entry)) {
+        const hasActive = entry.children.some((child) => currentPath.startsWith(child.href));
+        if (hasActive) autoExpand[entry.name] = true;
+      }
+    });
+    setOpenGroups((prev) => ({ ...prev, ...autoExpand }));
+  }, [currentPath]);
 
   useEffect(() => {
     const theme = auth?.user?.theme ?? 'light';
@@ -87,20 +126,142 @@ export default function AppLayout({ children }: PropsWithChildren) {
   }, [auth?.user?.theme]);
 
   const isAgent = auth?.user?.role === 'agent';
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
 
   const isActive = (href: string) => {
     if (href === '/') return currentPath === '/';
+    if (href === '/waybills') return currentPath === '/waybills';
     return currentPath.startsWith(href);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const isGroupActive = (group: NavGroup) =>
+    group.children.some((child) => isActive(child.href));
+
+  const toggleGroup = (name: string) =>
+    setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
+
+  const getInitials = (name: string) =>
+    name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const renderNavItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = isActive(item.href);
+
+    if (collapsed) {
+      return (
+        <Tooltip key={item.name}>
+          <TooltipTrigger asChild>
+            <Link
+              href={item.href}
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                active
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>{item.name}</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+          active
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+        )}
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        <span className="flex-1">{item.name}</span>
+        {item.badge && item.badge > 0 && (
+          <Badge variant="destructive" className="h-5 px-1.5">
+            {item.badge}
+          </Badge>
+        )}
+      </Link>
+    );
+  };
+
+  const renderNavGroup = (group: NavGroup) => {
+    const Icon = group.icon;
+    const active = isGroupActive(group);
+    const open = openGroups[group.name] ?? false;
+
+    if (collapsed) {
+      // Show group icon as a tooltip trigger, clicking navigates to first child
+      return (
+        <Tooltip key={group.name}>
+          <TooltipTrigger asChild>
+            <Link
+              href={group.children[0]?.href ?? '/'}
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                active
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>{group.name}</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <div key={group.name}>
+        <button
+          onClick={() => toggleGroup(group.name)}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+            active
+              ? 'text-sidebar-accent-foreground font-medium'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          )}
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          <span className="flex-1 text-left">{group.name}</span>
+          <ChevronDown
+            className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
+          />
+        </button>
+        {open && (
+          <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
+            {group.children.map((child) => {
+              const ChildIcon = child.icon;
+              const childActive = isActive(child.href);
+              return (
+                <Link
+                  key={child.name}
+                  href={child.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                    childActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  )}
+                >
+                  <ChildIcon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{child.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -151,55 +312,14 @@ export default function AppLayout({ children }: PropsWithChildren) {
           <Separator />
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
-            {navigation.filter((item) => !isAgent || !item.permission).map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              if (collapsed) {
-                return (
-                  <Tooltip key={item.name}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                          active
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{item.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                    active
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className="flex-1">{item.name}</span>
-                  {item.badge && item.badge > 0 && (
-                    <Badge variant="destructive" className="h-5 px-1.5">
-                      {item.badge}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
+            {navigation
+              .filter((entry) => !isAgent || !(isNavGroup(entry) ? entry.permission : entry.permission))
+              .map((entry) =>
+                isNavGroup(entry)
+                  ? renderNavGroup(entry)
+                  : renderNavItem(entry)
+              )}
           </nav>
 
           <Separator />

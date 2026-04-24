@@ -13,6 +13,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Table,
   TableBody,
   TableCell,
@@ -27,14 +33,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { AlertTriangle, PackageX, ScanLine } from 'lucide-react';
+import { AlertTriangle, PackageX, ScanLine, Download, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
 import type { PaginatedResponse, ScanResults, Waybill, PageProps } from '@/types';
 
 interface Props {
   waybills: PaginatedResponse<Waybill & { claims?: { id: number }[] }>;
   beyond_sla_count: number;
-  filters: { search?: string };
+  filters: { search?: string; from?: string; to?: string };
 }
 
 function daysOverdue(returnedAt: string): number {
@@ -51,6 +58,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
   const [search, setSearch] = useState(filters.search ?? '');
   const [scanOpen, setScanOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(!!scanResults);
+  const dateRange = usePersistedDateRange('beyond-sla-range', filters.from, filters.to);
 
   const scanForm = useForm({
     waybill_numbers: '',
@@ -65,6 +73,14 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     applyFilters({ search, page: '1' });
+  }
+
+  function exportUrl(format: string) {
+    const params = new URLSearchParams({ format });
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
+    if (filters.search) params.set('search', filters.search);
+    return `/waybills/beyond-sla/export?${params.toString()}`;
   }
 
   function submitScan(e: React.FormEvent) {
@@ -84,13 +100,38 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
       <div className="space-y-6 p-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">Beyond SLA</h1>
             <p className="text-sm text-muted-foreground">
               Returned parcels J&T failed to deliver back by the next calendar day
             </p>
           </div>
+          <DateRangePicker
+            value={dateRange}
+            storageKey="beyond-sla-range"
+            onChange={(range) => applyFilters({ from: range.from, to: range.to, page: '1' })}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+                <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('xlsx')} download>Excel (.xlsx)</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('csv')} download>CSV</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={exportUrl('pdf')} download>PDF</a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setScanOpen(true)}>
             <ScanLine className="mr-2 h-4 w-4" />
             Scan Received Returns
