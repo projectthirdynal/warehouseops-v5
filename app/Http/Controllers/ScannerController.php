@@ -74,11 +74,11 @@ class ScannerController extends Controller
         }
 
         $currentStatus = is_string($waybill->status) ? $waybill->status : $waybill->status->value;
-        $today         = now()->setTimezone('Asia/Manila')->startOfDay()->utc();
+        $slaCutoff   = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
 
         $isBeyondSla = $currentStatus === 'RETURNED'
             && $waybill->returned_at !== null
-            && $waybill->returned_at < $today
+            && $waybill->returned_at < $slaCutoff
             && ! ReturnReceipt::where('waybill_id', $waybill->id)->exists();
 
         $actionTaken = null;

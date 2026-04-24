@@ -22,10 +22,10 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
 
     public function collection(): Collection
     {
-        $today = now()->setTimezone('Asia/Manila')->startOfDay()->utc();
+        $slaCutoff = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
 
         $q = Waybill::where('status', 'RETURNED')
-            ->where('returned_at', '<', $today)
+            ->where('returned_at', '<', $slaCutoff)
             ->whereDoesntHave('returnReceipt')
             ->with(['claims'])
             ->when($this->filters['from'] ?? null, fn ($q, $v) => $q->where('returned_at', '>=', $v))

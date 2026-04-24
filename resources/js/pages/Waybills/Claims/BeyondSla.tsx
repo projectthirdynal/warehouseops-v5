@@ -1,17 +1,8 @@
-import { useState } from 'react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,15 +19,19 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { AlertTriangle, PackageX, ScanLine, Download, ChevronDown } from 'lucide-react';
+  AlertTriangle,
+  PackageX,
+  Download,
+  ChevronDown,
+  ScanLine,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
-import type { PaginatedResponse, ScanResults, Waybill, PageProps } from '@/types';
+import type { PaginatedResponse, Waybill } from '@/types';
 
 interface Props {
   waybills: PaginatedResponse<Waybill & { claims?: { id: number }[] }>;
@@ -44,27 +39,87 @@ interface Props {
   filters: { search?: string; from?: string; to?: string };
 }
 
+type ScanStatus = 'ok' | 'beyond_sla' | 'already_processed' | 'wrong_status' | 'unknown' | 'duplicate' | 'scanning';
+
+interface ScanEntry {
+  id: string;
+  waybill_number: string;
+  status: ScanStatus;
+  message: string;
+  ts: number;
+}
+
+function uuid(): string {
+  return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+}
+
+function playBeep(type: 'success' | 'error' | 'warn'): void {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const configs = {
+      success: { freq: 880, dur: 0.12, vol: 0.3 },
+      warn:    { freq: 520, dur: 0.2,  vol: 0.35 },
+      error:   { freq: 220, dur: 0.35, vol: 0.45 },
+    };
+    const c = configs[type];
+    osc.frequency.value = c.freq;
+    gain.gain.setValueAtTime(c.vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + c.dur);
+    osc.start();
+    osc.stop(ctx.currentTime + c.dur);
+    osc.onended = () => ctx.close();
+  } catch {
+    // AudioContext unavailable — silent
+  }
+}
+
+const STATUS_META: Record<ScanStatus, {
+  label: string;
+  icon: React.ReactNode;
+  rowCls: string;
+  beep: 'success' | 'warn' | 'error' | null;
+}> = {
+  ok:                { label: 'Received',        icon: <CheckCircle className="h-4 w-4 text-green-500" />,  rowCls: 'bg-green-50',  beep: 'success' },
+  beyond_sla:        { label: 'Received (late)',  icon: <AlertCircle className="h-4 w-4 text-orange-500" />, rowCls: 'bg-orange-50', beep: 'warn' },
+  already_processed: { label: 'Already received', icon: <CheckCircle className="h-4 w-4 text-blue-400" />,  rowCls: 'bg-blue-50',   beep: null },
+  wrong_status:      { label: 'Wrong status',     icon: <XCircle className="h-4 w-4 text-red-500" />,       rowCls: 'bg-red-50',    beep: 'error' },
+  unknown:           { label: 'Not found',        icon: <XCircle className="h-4 w-4 text-red-500" />,       rowCls: 'bg-red-50',    beep: 'error' },
+  duplicate:         { label: 'Duplicate scan',   icon: <AlertCircle className="h-4 w-4 text-gray-400" />,  rowCls: 'bg-gray-50',   beep: null },
+  scanning:          { label: 'Scanning…',        icon: <Loader2 className="h-4 w-4 animate-spin" />,       rowCls: 'bg-white',     beep: null },
+};
+
 function daysOverdue(returnedAt: string): number {
-  const returned = new Date(returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00');
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - returned.getTime()) / (1000 * 60 * 60 * 24));
-  return Math.max(0, diff);
+  const returned = new Date(
+    returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
+  );
+  return Math.max(0, Math.floor((Date.now() - returned.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function slaDeadlineLabel(returnedAt: string): string {
+  const d = new Date(
+    returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
+  );
+  d.setDate(d.getDate() + 1);
+  return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props) {
-  const { props } = usePage<PageProps & { scan_results?: ScanResults }>();
-  const scanResults = props.scan_results;
-
-  const [search, setSearch] = useState(filters.search ?? '');
-  const [scanOpen, setScanOpen] = useState(false);
-  const [resultsOpen, setResultsOpen] = useState(!!scanResults);
+  const [sessionId]                   = useState(() => uuid());
+  const [inputVal, setInputVal]       = useState('');
+  const [scanFeed, setScanFeed]       = useState<ScanEntry[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [search, setSearch]           = useState(filters.search ?? '');
+  const inputRef                      = useRef<HTMLInputElement>(null);
+  const reloadTimer                   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateRange = usePersistedDateRange('beyond-sla-range', filters.from, filters.to);
-
-  const scanForm = useForm({
-    waybill_numbers: '',
-    condition: 'GOOD',
-    notes: '',
-  });
 
   function applyFilters(overrides: Record<string, string>) {
     router.get('/waybills/claims/beyond-sla', { ...filters, ...overrides }, { preserveState: true, replace: true });
@@ -77,21 +132,77 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
   function exportUrl(format: string) {
     const params = new URLSearchParams({ format });
-    if (filters.from) params.set('from', filters.from);
-    if (filters.to) params.set('to', filters.to);
+    if (filters.from)   params.set('from', filters.from);
+    if (filters.to)     params.set('to', filters.to);
     if (filters.search) params.set('search', filters.search);
     return `/waybills/beyond-sla/export?${params.toString()}`;
   }
 
-  function submitScan(e: React.FormEvent) {
-    e.preventDefault();
-    scanForm.post('/waybills/returns/scan', {
-      onSuccess: () => {
-        setScanOpen(false);
-        setResultsOpen(true);
-        scanForm.reset();
-      },
-    });
+  // Debounce list reload — batch scans only trigger one refresh
+  function scheduleReload() {
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => {
+      router.reload({ only: ['waybills', 'beyond_sla_count'] });
+    }, 1500);
+  }
+
+  const refocus = useCallback(() => {
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
+
+  useEffect(() => {
+    if (!scannerOpen) return;
+    document.addEventListener('click', refocus);
+    inputRef.current?.focus();
+    return () => document.removeEventListener('click', refocus);
+  }, [scannerOpen, refocus]);
+
+  async function submitScan(raw: string) {
+    const number = raw.trim().toUpperCase();
+    if (!number) return;
+    setInputVal('');
+
+    const tempId = uuid();
+    const pendingEntry: ScanEntry = { id: tempId, waybill_number: number, status: 'scanning', message: 'Scanning…', ts: Date.now() };
+    setScanFeed(f => [pendingEntry, ...f].slice(0, 50));
+
+    try {
+      const res = await fetch('/waybills/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': getCsrf(),
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ waybill_number: number, session_id: sessionId, mode: 'receive_return' }),
+      });
+
+      const data: { status?: string; message?: string } = await res.json();
+      const status = (data.status ?? 'unknown') as ScanStatus;
+      const meta = STATUS_META[status] ?? STATUS_META.unknown;
+
+      if (meta.beep) playBeep(meta.beep);
+
+      setScanFeed(f =>
+        f.map((e): ScanEntry => e.id === tempId ? { ...e, status, message: data.message ?? meta.label } : e)
+      );
+
+      if (status === 'ok' || status === 'beyond_sla') scheduleReload();
+    } catch {
+      playBeep('error');
+      setScanFeed(f =>
+        f.map(e => e.id === tempId ? { ...e, status: 'unknown', message: 'Network error — check connection.' } : e)
+      );
+    }
+
+    refocus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitScan(inputVal);
+    }
   }
 
   return (
@@ -99,12 +210,13 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
       <Head title="Beyond SLA" />
 
       <div className="space-y-6 p-6">
+
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">Beyond SLA</h1>
             <p className="text-sm text-muted-foreground">
-              Returned parcels J&T failed to deliver back by the next calendar day
+              Returned parcels not received at warehouse by the next calendar day (midnight)
             </p>
           </div>
           <DateRangePicker
@@ -132,9 +244,12 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setScanOpen(true)}>
+          <Button
+            variant={scannerOpen ? 'default' : 'outline'}
+            onClick={() => setScannerOpen(v => !v)}
+          >
             <ScanLine className="mr-2 h-4 w-4" />
-            Scan Received Returns
+            {scannerOpen ? 'Hide Scanner' : 'Scan Received Returns'}
           </Button>
         </div>
 
@@ -153,7 +268,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
           </Link>
         </div>
 
-        {/* Alert banner */}
+        {/* Alert */}
         {beyond_sla_count > 0 && (
           <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
             <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
@@ -161,6 +276,69 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
               {beyond_sla_count} parcel{beyond_sla_count !== 1 ? 's' : ''} beyond SLA — J&T is obligated to compensate for these.
             </p>
           </div>
+        )}
+
+        {/* Continuous scanner panel */}
+        {scannerOpen && (
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Scan Received Returns</span>
+              <span className="text-xs text-muted-foreground">— scan barcode or type waybill number, press Enter</span>
+            </div>
+
+            <Input
+              ref={inputRef}
+              value={inputVal}
+              onChange={e => setInputVal(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Waiting for scan…"
+              className="font-mono text-base max-w-sm"
+              autoComplete="off"
+              autoFocus
+            />
+
+            {scanFeed.length > 0 && (
+              <div className="rounded-md border overflow-hidden max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Waybill #</th>
+                      <th className="px-3 py-2 text-left font-medium">Result</th>
+                      <th className="px-3 py-2 text-left font-medium">Details</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scanFeed.map(entry => {
+                      const meta = STATUS_META[entry.status] ?? STATUS_META.unknown;
+                      return (
+                        <tr key={entry.id} className={`border-t ${meta.rowCls}`}>
+                          <td className="px-3 py-1.5 font-mono font-medium">{entry.waybill_number}</td>
+                          <td className="px-3 py-1.5">
+                            <span className="inline-flex items-center gap-1.5">
+                              {meta.icon}
+                              {meta.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{entry.message}</td>
+                          <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(entry.ts).toLocaleTimeString('en-PH', {
+                              hour: '2-digit', minute: '2-digit', second: '2-digit',
+                            })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Scanned items are removed from the Beyond SLA list below automatically.
+            </p>
+          </Card>
         )}
 
         {/* Search */}
@@ -184,6 +362,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                 <TableHead>City</TableHead>
                 <TableHead className="text-right">COD Amount</TableHead>
                 <TableHead>Returned Date</TableHead>
+                <TableHead>SLA Deadline</TableHead>
                 <TableHead>Days Overdue</TableHead>
                 <TableHead>Existing Claims</TableHead>
                 <TableHead></TableHead>
@@ -192,7 +371,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             <TableBody>
               {waybills.data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                     <PackageX className="mx-auto mb-2 h-8 w-8 opacity-30" />
                     No parcels beyond SLA. All returned parcels have been received.
                   </TableCell>
@@ -200,6 +379,8 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
               ) : (
                 waybills.data.map((waybill) => {
                   const overdue = waybill.returned_at ? daysOverdue(waybill.returned_at as string) : 0;
+                  const deadline = waybill.returned_at ? slaDeadlineLabel(waybill.returned_at as string) : '—';
+
                   return (
                     <TableRow key={waybill.id}>
                       <TableCell>
@@ -215,6 +396,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                       <TableCell className="text-sm">
                         {waybill.returned_at ? formatDate(waybill.returned_at as string) : '—'}
                       </TableCell>
+                      <TableCell className="text-sm font-medium text-orange-700">{deadline}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                           overdue >= 3 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
@@ -231,9 +413,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                       </TableCell>
                       <TableCell>
                         <Link href={`/waybills/claims/create?waybill_id=${waybill.id}&type=BEYOND_SLA`}>
-                          <Button size="sm" variant="outline">
-                            File Claim
-                          </Button>
+                          <Button size="sm" variant="outline">File Claim</Button>
                         </Link>
                       </TableCell>
                     </TableRow>
@@ -259,112 +439,8 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             ))}
           </div>
         )}
+
       </div>
-
-      {/* Batch scan dialog */}
-      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Scan Received Returns</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitScan} className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter waybill numbers of parcels physically received by your team. One per line, or paste from a spreadsheet.
-            </p>
-            <div className="space-y-1">
-              <Label>Waybill Numbers</Label>
-              <Textarea
-                value={scanForm.data.waybill_numbers}
-                onChange={(e) => scanForm.setData('waybill_numbers', e.target.value)}
-                placeholder={'JT0000000001\nJT0000000002\nJT0000000003'}
-                rows={8}
-                className="font-mono text-sm"
-                required
-              />
-              {scanForm.errors.waybill_numbers && (
-                <p className="text-sm text-red-600">{scanForm.errors.waybill_numbers}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Condition</Label>
-                <Select
-                  value={scanForm.data.condition}
-                  onValueChange={(v) => scanForm.setData('condition', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GOOD">Good</SelectItem>
-                    <SelectItem value="DAMAGED">Damaged</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Notes <span className="text-muted-foreground">(optional)</span></Label>
-                <Input
-                  value={scanForm.data.notes}
-                  onChange={(e) => scanForm.setData('notes', e.target.value)}
-                  placeholder="Batch notes..."
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={() => setScanOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={scanForm.processing}>
-                {scanForm.processing ? 'Processing...' : 'Mark as Received'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Scan results dialog */}
-      {scanResults && (
-        <Dialog open={resultsOpen} onOpenChange={setResultsOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Scan Results</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 text-sm">
-              {scanResults.scanned.length > 0 && (
-                <div className="rounded-lg bg-green-50 p-3">
-                  <p className="font-medium text-green-800 mb-1">
-                    ✓ {scanResults.scanned.length} received successfully
-                  </p>
-                  <p className="font-mono text-green-700 text-xs">{scanResults.scanned.join(', ')}</p>
-                </div>
-              )}
-              {scanResults.already_received.length > 0 && (
-                <div className="rounded-lg bg-blue-50 p-3">
-                  <p className="font-medium text-blue-800 mb-1">
-                    Already received ({scanResults.already_received.length})
-                  </p>
-                  <p className="font-mono text-blue-700 text-xs">{scanResults.already_received.join(', ')}</p>
-                </div>
-              )}
-              {scanResults.wrong_status.length > 0 && (
-                <div className="rounded-lg bg-yellow-50 p-3">
-                  <p className="font-medium text-yellow-800 mb-1">
-                    Wrong status — not RETURNED ({scanResults.wrong_status.length})
-                  </p>
-                  <p className="font-mono text-yellow-700 text-xs">{scanResults.wrong_status.join(', ')}</p>
-                </div>
-              )}
-              {scanResults.not_found.length > 0 && (
-                <div className="rounded-lg bg-red-50 p-3">
-                  <p className="font-medium text-red-800 mb-1">
-                    Not found ({scanResults.not_found.length})
-                  </p>
-                  <p className="font-mono text-red-700 text-xs">{scanResults.not_found.join(', ')}</p>
-                </div>
-              )}
-            </div>
-            <Button onClick={() => setResultsOpen(false)}>Done</Button>
-          </DialogContent>
-        </Dialog>
-      )}
     </AppLayout>
   );
 }

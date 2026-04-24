@@ -74,10 +74,10 @@ class WaybillExportController extends Controller
 
     private function beyondSlaPdf(array $filters, string $filename): \Illuminate\Http\Response
     {
-        $today = now()->setTimezone('Asia/Manila')->startOfDay()->utc();
+        $slaCutoff = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
 
         $waybills = Waybill::where('status', 'RETURNED')
-            ->where('returned_at', '<', $today)
+            ->where('returned_at', '<', $slaCutoff)
             ->whereDoesntHave('returnReceipt')
             ->when($filters['from'] ?? null, fn ($q, $v) => $q->where('returned_at', '>=', $v))
             ->when($filters['to'] ?? null, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))

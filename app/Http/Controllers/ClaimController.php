@@ -190,10 +190,12 @@ class ClaimController extends Controller
 
     public function beyondSla(Request $request)
     {
-        $today = now()->setTimezone('Asia/Manila')->startOfDay()->utc();
+        // SLA rule: returned on day D → must be received by end of day D+1 (midnight).
+        // Cutoff is start of yesterday Manila time, so returned-yesterday items still have today.
+        $slaCutoff = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
 
         $query = Waybill::where('status', 'RETURNED')
-            ->where('returned_at', '<', $today)
+            ->where('returned_at', '<', $slaCutoff)
             ->whereDoesntHave('returnReceipt')
             ->when($request->from, fn ($q, $v) => $q->where('returned_at', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
