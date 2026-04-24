@@ -7,7 +7,7 @@ namespace App\Http\Controllers;
 use App\Domain\Waybill\Models\Claim;
 use App\Exports\BeyondSlaExport;
 use App\Exports\ClaimsExport;
-use App\Models\Waybill;
+use App\Domain\Waybill\Models\Waybill;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
