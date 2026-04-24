@@ -84,14 +84,14 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href={exportUrl('xlsx')} download>Excel (.xlsx)</a>
+              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('xlsx'); }}>
+                Excel (.xlsx)
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={exportUrl('csv')} download>CSV</a>
+              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('csv'); }}>
+                CSV
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href={exportUrl('pdf')} download>PDF</a>
+              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('pdf'); }}>
+                PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
