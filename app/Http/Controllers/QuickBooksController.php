@@ -41,6 +41,9 @@ class QuickBooksController extends Controller
             $mappingStatus[$key] = $mappings->get($key)?->qbo_account_name;
         }
 
+        $clientId     = (string) config('services.qbo.client_id');
+        $clientSecret = (string) config('services.qbo.client_secret');
+
         return Inertia::render('Finance/QuickBooks/Dashboard', [
             'connection'     => $connection ? [
                 'realm_id'     => $connection->realm_id,
@@ -52,6 +55,8 @@ class QuickBooksController extends Controller
             'stats'          => $stats,
             'recent'         => $recent,
             'mapping_status' => $mappingStatus,
+            'credentials_configured' => $clientId !== '' && $clientSecret !== '',
+            'redirect_uri'   => url('/finance/quickbooks/callback'),
         ]);
     }
 

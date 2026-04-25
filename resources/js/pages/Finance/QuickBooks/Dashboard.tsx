@@ -1,12 +1,13 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Building2, RefreshCw, CheckCircle2, AlertCircle, XCircle, Clock, Power, Settings } from 'lucide-react';
+import { Building2, RefreshCw, CheckCircle2, AlertCircle, XCircle, Clock, Power, Settings, KeyRound } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import type { PageProps } from '@/types';
 
 interface Connection {
   realm_id: string;
@@ -34,6 +35,8 @@ interface Props {
   stats: { pending: number; failed: number; synced: number };
   recent: SyncRow[];
   mapping_status: Record<string, string | null>;
+  credentials_configured: boolean;
+  redirect_uri: string;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -42,7 +45,8 @@ const STATUS_COLOR: Record<string, string> = {
   FAILED:  'bg-red-100 text-red-700',
 };
 
-export default function QuickBooksDashboard({ connection, stats, recent, mapping_status }: Props) {
+export default function QuickBooksDashboard({ connection, stats, recent, mapping_status, credentials_configured, redirect_uri }: Props) {
+  const flash = (usePage<PageProps & { flash?: { error?: string; success?: string } }>().props.flash) ?? {};
   const missingMappings = Object.entries(mapping_status).filter(([, v]) => !v).map(([k]) => k);
 
   function retry(id: number) {
@@ -67,11 +71,54 @@ export default function QuickBooksDashboard({ connection, stats, recent, mapping
             <Button variant="outline" onClick={disconnect}><Power className="mr-2 h-4 w-4" />Disconnect</Button>
           ) : (
             <div className="flex gap-2">
-              <Link href="/finance/quickbooks/connect?env=sandbox"><Button variant="outline"><Building2 className="mr-2 h-4 w-4" />Connect Sandbox</Button></Link>
-              <Link href="/finance/quickbooks/connect?env=production"><Button><Building2 className="mr-2 h-4 w-4" />Connect Production</Button></Link>
+              <Button variant="outline" disabled={!credentials_configured} onClick={() => { window.location.href = '/finance/quickbooks/connect?env=sandbox'; }}>
+                <Building2 className="mr-2 h-4 w-4" />Connect Sandbox
+              </Button>
+              <Button disabled={!credentials_configured} onClick={() => { window.location.href = '/finance/quickbooks/connect?env=production'; }}>
+                <Building2 className="mr-2 h-4 w-4" />Connect Production
+              </Button>
             </div>
           )}
         </div>
+
+        {/* Flash error from controller */}
+        {flash.error && (
+          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <XCircle className="h-5 w-5 shrink-0" />
+            <span>{flash.error}</span>
+          </div>
+        )}
+        {flash.success && (
+          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <span>{flash.success}</span>
+          </div>
+        )}
+
+        {/* Credentials missing — must come before connect can work */}
+        {!credentials_configured && !connection && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+            <div className="flex items-start gap-3">
+              <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div className="flex-1 text-sm text-amber-900">
+                <p className="font-semibold">QuickBooks credentials are not configured</p>
+                <p className="mt-1">
+                  Before you can connect, an admin must register this app on{' '}
+                  <a className="underline" href="https://developer.intuit.com/app/developer/dashboard" target="_blank" rel="noreferrer">developer.intuit.com</a>{' '}
+                  and add these to the server <code className="rounded bg-amber-100 px-1 font-mono">.env</code>:
+                </p>
+                <pre className="mt-2 overflow-x-auto rounded bg-amber-100 p-2 font-mono text-xs">
+{`QBO_CLIENT_ID=your_client_id
+QBO_CLIENT_SECRET=your_client_secret
+QBO_ENVIRONMENT=sandbox    # or "production"`}
+                </pre>
+                <p className="mt-2">When registering the QuickBooks app, set the redirect URI to:</p>
+                <p className="mt-1 break-all rounded bg-amber-100 p-2 font-mono text-xs">{redirect_uri}</p>
+                <p className="mt-2">After saving, run <code className="rounded bg-amber-100 px-1 font-mono">php artisan config:clear</code> on the server, then refresh this page.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Connection card */}
         <Card>
