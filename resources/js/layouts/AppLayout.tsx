@@ -86,7 +86,17 @@ const navigation: NavEntry[] = [
   { name: 'Agents', href: '/agents/governance', icon: UserCog, permission: 'leads_manage' },
   { name: 'SMS', href: '/sms', icon: MessageSquare, permission: 'accounts' },
   { name: 'Orders', href: '/orders', icon: ClipboardCheck, permission: 'accounts' },
-  { name: 'Finance', href: '/finance', icon: BarChart3, permission: 'accounts' },
+  {
+    name: 'Finance',
+    icon: BarChart3,
+    permission: 'accounts',
+    children: [
+      { name: 'Dashboard',     href: '/finance',                icon: BarChart3 },
+      { name: 'QuickBooks',    href: '/finance/quickbooks',     icon: Building2 },
+      { name: 'Cost of Goods', href: '/finance/cost-of-goods',  icon: Package },
+      { name: 'Mappings',      href: '/finance/quickbooks/mappings', icon: Settings },
+    ],
+  },
   { name: 'Reports', href: '/reports', icon: ClipboardCheck, permission: 'accounts' },
   {
     name: 'Inventory',

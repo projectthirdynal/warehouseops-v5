@@ -28,6 +28,8 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceivingReportController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\InventoryDashboardController;
+use App\Http\Controllers\QuickBooksController;
+use App\Http\Controllers\CostOfGoodsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -222,6 +224,21 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
             Route::get('/{receiving}',         [ReceivingReportController::class, 'show'])->name('show');
             Route::post('/{receiving}/confirm',[ReceivingReportController::class, 'confirm'])->name('confirm');
         });
+    });
+
+    // Finance — QuickBooks + COGS
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::prefix('quickbooks')->name('quickbooks.')->group(function () {
+            Route::get('/',                    [QuickBooksController::class, 'dashboard'])->name('dashboard');
+            Route::get('/connect',             [QuickBooksController::class, 'connect'])->name('connect');
+            Route::get('/callback',            [QuickBooksController::class, 'callback'])->name('callback');
+            Route::post('/disconnect',         [QuickBooksController::class, 'disconnect'])->name('disconnect');
+            Route::post('/sync/{queue}/retry', [QuickBooksController::class, 'retry'])->name('sync.retry');
+            Route::get('/accounts',            [QuickBooksController::class, 'accounts'])->name('accounts');
+            Route::get('/mappings',            [QuickBooksController::class, 'mappings'])->name('mappings.index');
+            Route::post('/mappings',           [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
+        });
+        Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
     });
 
     // Tickets

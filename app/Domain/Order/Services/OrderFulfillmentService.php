@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Order\Services;
 
 use App\Domain\Courier\Actions\CreateCourierOrder;
+use App\Domain\Finance\Services\CogsService;
 use App\Domain\Finance\Services\CommissionService;
+use App\Domain\Finance\Services\QboSyncService;
 use App\Domain\Finance\Services\RevenueService;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Order\Enums\OrderStatus;
@@ -27,6 +29,8 @@ class OrderFulfillmentService
         private LeadAuditService $auditService,
         private CommissionService $commissionService,
         private RevenueService $revenueService,
+        private CogsService $cogsService,
+        private QboSyncService $qboSyncService,
     ) {}
 
     /**
@@ -247,6 +251,24 @@ class OrderFulfillmentService
             // Record revenue + create agent commission
             $this->revenueService->recordSale($order);
             $this->commissionService->createForOrder($order);
+
+            // Record COGS (FIFO lot consumption) + push journal entry to QBO
+            if ($order->product_id) {
+                try {
+                    $cogs = $this->cogsService->record(
+                        productId: (int) $order->product_id,
+                        variantId: $order->variant_id ? (int) $order->variant_id : null,
+                        quantity:  (float) $order->quantity,
+                        waybillId: $order->waybill_id ? (int) $order->waybill_id : null,
+                        orderId:   (int) $order->id,
+                    );
+                    if ($cogs->isNotEmpty()) {
+                        $this->qboSyncService->enqueueCogsJournal($cogs, $order->waybill_id ? (int) $order->waybill_id : null);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("COGS recording failed for order {$order->order_number}: {$e->getMessage()}");
+                }
+            }
         });
     }
 
@@ -283,6 +305,15 @@ class OrderFulfillmentService
             // Record return + cancel commission
             $this->revenueService->recordReturn($order);
             $this->commissionService->cancelForOrder($order);
+
+            // Reverse COGS — return inventory units to their lots
+            if ($order->waybill_id) {
+                try {
+                    $this->cogsService->reverse((int) $order->waybill_id);
+                } catch (\Throwable $e) {
+                    Log::warning("COGS reversal failed for order {$order->order_number}: {$e->getMessage()}");
+                }
+            }
         });
     }
 

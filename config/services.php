@@ -36,6 +36,12 @@ return [
         'key' => env('SKYSMS_API_KEY', 'sk_deoYwH46rnXLBJUFbzoSbSyR0lOYzuQK'),
     ],
 
+    'qbo' => [
+        'client_id'     => env('QBO_CLIENT_ID'),
+        'client_secret' => env('QBO_CLIENT_SECRET'),
+        'environment'   => env('QBO_ENVIRONMENT', 'sandbox'),
+    ],
+
     'couriers' => [
         'flash' => [
             'base_url'       => env('FLASH_API_URL', 'https://open-api.flashexpress.com'),

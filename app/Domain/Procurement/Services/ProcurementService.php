@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Procurement\Services;
 
+use App\Domain\Finance\Services\QboSyncService;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Procurement\Enums\GrnStatus;
 use App\Domain\Procurement\Enums\PoStatus;
@@ -19,6 +20,7 @@ class ProcurementService
 {
     public function __construct(
         private readonly StockService $stockService,
+        private readonly QboSyncService $qbo,
     ) {}
 
     /**
@@ -82,6 +84,9 @@ class ProcurementService
         if ($po->purchaseRequest && $po->purchaseRequest->status === PrStatus::APPROVED) {
             $po->purchaseRequest->update(['status' => PrStatus::CONVERTED]);
         }
+
+        // Async push to QBO (silent no-op if not connected)
+        try { $this->qbo->enqueuePurchaseOrder($po); } catch (\Throwable $e) { /* logged inside */ }
     }
 
     public function cancelPo(PurchaseOrder $po, string $reason): void
@@ -146,5 +151,9 @@ class ProcurementService
             };
             $po->save();
         });
+
+        // After commit: enqueue Bill to QBO (no-op if not connected or no mappings yet)
+        try { $this->qbo->enqueueBillFromGrn($grn->fresh(['items.purchaseOrderItem.product', 'purchaseOrder.supplier'])); }
+        catch (\Throwable $e) { /* logged inside */ }
     }
 }
