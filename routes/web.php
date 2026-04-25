@@ -22,6 +22,12 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\ReceivingReportController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\InventoryDashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -170,6 +176,52 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::put('/{product}', [ProductController::class, 'update'])->name('update');
         Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
         Route::post('/{product}/stock', [ProductController::class, 'adjustStock'])->name('stock.adjust');
+    });
+
+    // Inventory dashboard + movements
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::get('/',          [InventoryDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/movements', [InventoryDashboardController::class, 'movements'])->name('movements');
+    });
+
+    // Warehouses + locations
+    Route::prefix('warehouses')->name('warehouses.')->group(function () {
+        Route::get('/',                                  [WarehouseController::class, 'index'])->name('index');
+        Route::post('/',                                 [WarehouseController::class, 'store'])->name('store');
+        Route::post('/{warehouse}/locations',            [WarehouseController::class, 'storeLocation'])->name('locations.store');
+        Route::delete('/locations/{location}',           [WarehouseController::class, 'destroyLocation'])->name('locations.destroy');
+    });
+
+    // Procurement: suppliers, PR, PO, GRN
+    Route::prefix('procurement')->name('procurement.')->group(function () {
+        Route::resource('suppliers', SupplierController::class)->except(['create', 'edit', 'show']);
+
+        Route::prefix('requests')->name('requests.')->group(function () {
+            Route::get('/',                  [PurchaseRequestController::class, 'index'])->name('index');
+            Route::get('/create',            [PurchaseRequestController::class, 'create'])->name('create');
+            Route::post('/',                 [PurchaseRequestController::class, 'store'])->name('store');
+            Route::get('/{request}',         [PurchaseRequestController::class, 'show'])->name('show');
+            Route::post('/{request}/submit', [PurchaseRequestController::class, 'submit'])->name('submit');
+            Route::post('/{request}/approve',[PurchaseRequestController::class, 'approve'])->name('approve');
+            Route::post('/{request}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
+        });
+
+        Route::prefix('orders')->name('orders.')->group(function () {
+            Route::get('/',                [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/create',          [PurchaseOrderController::class, 'create'])->name('create');
+            Route::post('/',               [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{order}',         [PurchaseOrderController::class, 'show'])->name('show');
+            Route::post('/{order}/send',   [PurchaseOrderController::class, 'send'])->name('send');
+            Route::post('/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
+        });
+
+        Route::prefix('receiving')->name('receiving.')->group(function () {
+            Route::get('/',                    [ReceivingReportController::class, 'index'])->name('index');
+            Route::get('/create',              [ReceivingReportController::class, 'create'])->name('create');
+            Route::post('/',                   [ReceivingReportController::class, 'store'])->name('store');
+            Route::get('/{receiving}',         [ReceivingReportController::class, 'show'])->name('show');
+            Route::post('/{receiving}/confirm',[ReceivingReportController::class, 'confirm'])->name('confirm');
+        });
     });
 
     // Tickets

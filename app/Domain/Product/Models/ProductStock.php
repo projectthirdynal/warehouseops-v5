@@ -12,11 +12,15 @@ class ProductStock extends Model
     protected $fillable = [
         'product_id',
         'variant_id',
+        'warehouse_id',
+        'location_id',
         'current_stock',
         'reserved_stock',
         'reorder_point',
         'last_restock_at',
     ];
+
+    protected $appends = ['available_stock', 'is_low_stock'];
 
     protected $casts = [
         'current_stock'  => 'integer',

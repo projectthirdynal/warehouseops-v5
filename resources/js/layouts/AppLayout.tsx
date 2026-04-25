@@ -23,6 +23,11 @@ import {
   AlertOctagon,
   ScanLine,
   HelpCircle,
+  Warehouse as WarehouseIcon,
+  ShoppingCart,
+  FileText,
+  PackageCheck,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -83,7 +88,28 @@ const navigation: NavEntry[] = [
   { name: 'Orders', href: '/orders', icon: ClipboardCheck, permission: 'accounts' },
   { name: 'Finance', href: '/finance', icon: BarChart3, permission: 'accounts' },
   { name: 'Reports', href: '/reports', icon: ClipboardCheck, permission: 'accounts' },
-  { name: 'Products', href: '/products', icon: Package, permission: 'accounts' },
+  {
+    name: 'Inventory',
+    icon: WarehouseIcon,
+    permission: 'accounts',
+    children: [
+      { name: 'Dashboard',  href: '/inventory',           icon: BarChart3 },
+      { name: 'Movements',  href: '/inventory/movements', icon: Recycle },
+      { name: 'Products',   href: '/products',            icon: Package },
+      { name: 'Warehouses', href: '/warehouses',          icon: Building2 },
+    ],
+  },
+  {
+    name: 'Procurement',
+    icon: ShoppingCart,
+    permission: 'accounts',
+    children: [
+      { name: 'Suppliers',         href: '/procurement/suppliers', icon: Building2 },
+      { name: 'Purchase Requests', href: '/procurement/requests',  icon: FileText },
+      { name: 'Purchase Orders',   href: '/procurement/orders',    icon: ShoppingCart },
+      { name: 'Receiving (GRN)',   href: '/procurement/receiving', icon: PackageCheck },
+    ],
+  },
   { name: 'Couriers', href: '/couriers', icon: Truck, permission: 'accounts' },
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];

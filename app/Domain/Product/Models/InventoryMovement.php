@@ -13,17 +13,36 @@ class InventoryMovement extends Model
     protected $fillable = [
         'product_id',
         'variant_id',
+        'warehouse_id',
+        'location_id',
+        'to_location_id',
         'type',
         'quantity',
         'reference_type',
         'reference_id',
         'notes',
+        'batch_number',
+        'expiry_date',
         'performed_by',
+        'approved_by',
+        'approved_at',
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
+        'quantity'    => 'integer',
+        'expiry_date' => 'date',
+        'approved_at' => 'datetime',
     ];
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Inventory\Models\Warehouse::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Inventory\Models\WarehouseLocation::class, 'location_id');
+    }
 
     public function product(): BelongsTo
     {
