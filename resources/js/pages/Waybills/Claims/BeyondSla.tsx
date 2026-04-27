@@ -426,21 +426,60 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
         {/* Pagination */}
         {waybills.last_page > 1 && (
-          <div className="flex justify-center gap-2">
-            {Array.from({ length: waybills.last_page }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                variant={page === waybills.current_page ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => applyFilters({ page: String(page) })}
-              >
-                {page}
-              </Button>
-            ))}
-          </div>
+          <Pagination
+            current={waybills.current_page}
+            last={waybills.last_page}
+            onJump={(p) => applyFilters({ page: String(p) })}
+          />
         )}
 
       </div>
     </AppLayout>
+  );
+}
+
+function Pagination({ current, last, onJump }: { current: number; last: number; onJump: (p: number) => void }) {
+  // Show: first, current ± 2, last, with ellipses for gaps
+  const window = 2;
+  const pages = new Set<number>();
+  pages.add(1);
+  pages.add(last);
+  for (let i = current - window; i <= current + window; i++) {
+    if (i >= 1 && i <= last) pages.add(i);
+  }
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+
+  const items: (number | 'gap')[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) items.push('gap');
+    items.push(p);
+    prev = p;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1">
+      <Button size="sm" variant="outline" disabled={current === 1} onClick={() => onJump(current - 1)}>
+        ‹ Prev
+      </Button>
+      {items.map((p, idx) =>
+        p === 'gap' ? (
+          <span key={`g${idx}`} className="px-2 text-sm text-muted-foreground">…</span>
+        ) : (
+          <Button
+            key={p}
+            size="sm"
+            variant={p === current ? 'default' : 'outline'}
+            onClick={() => onJump(p)}
+          >
+            {p}
+          </Button>
+        )
+      )}
+      <Button size="sm" variant="outline" disabled={current === last} onClick={() => onJump(current + 1)}>
+        Next ›
+      </Button>
+      <span className="ml-2 text-xs text-muted-foreground">Page {current} of {last}</span>
+    </div>
   );
 }

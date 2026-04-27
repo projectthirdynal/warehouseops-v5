@@ -194,11 +194,16 @@ class ClaimController extends Controller
         // Cutoff is start of yesterday Manila time, so returned-yesterday items still have today.
         $slaCutoff = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
 
+        // Default visible window: last 14 days of returns. Avoids dumping years
+        // of historical RETURNED-without-receipt rows. Date picker overrides this.
+        $defaultFrom = $request->from ?: now()->setTimezone('Asia/Manila')->subDays(14)->toDateString();
+        $defaultTo   = $request->to   ?: null;
+
         $query = Waybill::where('status', 'RETURNED')
             ->where('returned_at', '<', $slaCutoff)
             ->whereDoesntHave('returnReceipt')
-            ->when($request->from, fn ($q, $v) => $q->where('returned_at', '>=', $v))
-            ->when($request->to, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
+            ->where('returned_at', '>=', $defaultFrom)
+            ->when($defaultTo, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('waybill_number', 'ILIKE', "%{$v}%")
                     ->orWhere('receiver_name', 'ILIKE', "%{$v}%");
@@ -212,7 +217,11 @@ class ClaimController extends Controller
         return Inertia::render('Waybills/Claims/BeyondSla', [
             'waybills'         => $waybills,
             'beyond_sla_count' => $beyondSlaCount,
-            'filters'          => $request->only(['search', 'from', 'to']),
+            'filters'          => [
+                'search' => $request->search,
+                'from'   => $defaultFrom,
+                'to'     => $defaultTo,
+            ],
         ]);
     }
 }
