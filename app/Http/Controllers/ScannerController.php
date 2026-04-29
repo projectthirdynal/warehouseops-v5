@@ -74,7 +74,8 @@ class ScannerController extends Controller
         }
 
         $currentStatus = is_string($waybill->status) ? $waybill->status : $waybill->status->value;
-        $slaCutoff   = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
+        // SLA = today 00:00 Manila. Returned yesterday or earlier with no receipt → overdue today.
+        $slaCutoff   = now()->setTimezone('Asia/Manila')->startOfDay()->utc();
 
         $isBeyondSla = $currentStatus === 'RETURNED'
             && $waybill->returned_at !== null

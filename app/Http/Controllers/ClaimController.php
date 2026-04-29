@@ -190,18 +190,18 @@ class ClaimController extends Controller
 
     public function beyondSla(Request $request)
     {
-        // SLA rule: returned on day D → must be received by end of day D+1 (midnight).
-        // Cutoff = start of yesterday Manila. Returned-yesterday items still have today.
-        // Anything returned at or after this cutoff is NOT yet beyond SLA.
+        // SLA rule: courier tags parcel as RETURNED on day D → warehouse must
+        // physically receive it by day D+1. A parcel returned YESTERDAY appears
+        // in Beyond SLA TODAY. Cutoff = today 00:00 Manila — anything with a
+        // returned_at before that and no return_receipt is overdue.
         $manilaNow   = now()->setTimezone('Asia/Manila');
-        $slaCutoff   = $manilaNow->copy()->startOfDay()->subDay();   // first instant outside the SLA-overdue zone
-        $latestDate  = $slaCutoff->copy()->subDay()->toDateString();  // last day still inside the SLA-overdue zone (returned 2+ days ago)
+        $slaCutoff   = $manilaNow->copy()->startOfDay();           // today 00:00 Manila
+        $latestDate  = $slaCutoff->copy()->subDay()->toDateString();  // yesterday — most recent day of overdue zone
         $defaultFrom = $slaCutoff->copy()->subDays(14)->toDateString();
 
-        // Honor explicit user dates, but never accept dates inside today's still-allowed window
+        // Honor explicit user dates, but cap 'to' so picking today/tomorrow doesn't empty the page
         $from = $request->from ?: $defaultFrom;
         $to   = $request->to   ?: $latestDate;
-        // Clamp 'to' so picking today/tomorrow doesn't silently empty the page
         if ($to > $latestDate) $to = $latestDate;
 
         $query = Waybill::where('status', 'RETURNED')

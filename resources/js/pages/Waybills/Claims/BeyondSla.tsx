@@ -96,19 +96,35 @@ const STATUS_META: Record<ScanStatus, {
   scanning:          { label: 'Scanning…',        icon: <Loader2 className="h-4 w-4 animate-spin" />,       rowCls: 'bg-white',     beep: null },
 };
 
-function daysOverdue(returnedAt: string): number {
-  const returned = new Date(
-    returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
-  );
-  return Math.max(0, Math.floor((Date.now() - returned.getTime()) / (1000 * 60 * 60 * 24)));
+function manilaDate(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
 }
 
-function slaDeadlineLabel(returnedAt: string): string {
-  const d = new Date(
+// Calendar-day delta in Manila — returned yesterday → 1, returned today → 0.
+function daysOverdue(returnedAt: string): number {
+  const ret = new Date(
     returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
   );
-  d.setDate(d.getDate() + 1);
-  return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+  const retManilaYmd   = manilaDate(ret);
+  const todayManilaYmd = manilaDate(new Date());
+  const retStart   = new Date(retManilaYmd   + 'T00:00:00+08:00').getTime();
+  const todayStart = new Date(todayManilaYmd + 'T00:00:00+08:00').getTime();
+  return Math.max(0, Math.floor((todayStart - retStart) / 86400000));
+}
+
+// SLA deadline = next day after the return tag.
+function slaDeadlineLabel(returnedAt: string): string {
+  const ret = new Date(
+    returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
+  );
+  const retManilaYmd = manilaDate(ret);
+  const deadline = new Date(retManilaYmd + 'T00:00:00+08:00');
+  deadline.setDate(deadline.getDate() + 1);
+  return deadline.toLocaleDateString('en-PH', {
+    year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
+  });
 }
 
 export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props) {
@@ -216,7 +232,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">Beyond SLA</h1>
             <p className="text-sm text-muted-foreground">
-              Returned parcels not received at warehouse by the next calendar day (midnight)
+              Parcels the courier marked RETURNED yesterday or earlier that haven't yet been received at the warehouse
             </p>
           </div>
           <DateRangePicker

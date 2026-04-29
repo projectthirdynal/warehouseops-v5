@@ -22,8 +22,10 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
 
     public function collection(): Collection
     {
-        $slaCutoff   = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
-        $defaultFrom = $this->filters['from'] ?? now()->setTimezone('Asia/Manila')->subDays(14)->toDateString();
+        // SLA = today 00:00 Manila. Returned yesterday or earlier with no receipt → overdue today.
+        $manilaNow   = now()->setTimezone('Asia/Manila');
+        $slaCutoff   = $manilaNow->copy()->startOfDay()->utc();
+        $defaultFrom = $this->filters['from'] ?? $manilaNow->copy()->startOfDay()->subDays(14)->toDateString();
 
         $q = Waybill::where('status', 'RETURNED')
             ->where('returned_at', '<', $slaCutoff)
