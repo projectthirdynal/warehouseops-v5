@@ -191,19 +191,24 @@ class ClaimController extends Controller
     public function beyondSla(Request $request)
     {
         // SLA rule: returned on day D → must be received by end of day D+1 (midnight).
-        // Cutoff is start of yesterday Manila time, so returned-yesterday items still have today.
-        $slaCutoff = now()->setTimezone('Asia/Manila')->startOfDay()->subDay()->utc();
+        // Cutoff = start of yesterday Manila. Returned-yesterday items still have today.
+        // Anything returned at or after this cutoff is NOT yet beyond SLA.
+        $manilaNow   = now()->setTimezone('Asia/Manila');
+        $slaCutoff   = $manilaNow->copy()->startOfDay()->subDay();   // first instant outside the SLA-overdue zone
+        $latestDate  = $slaCutoff->copy()->subDay()->toDateString();  // last day still inside the SLA-overdue zone (returned 2+ days ago)
+        $defaultFrom = $slaCutoff->copy()->subDays(14)->toDateString();
 
-        // Default visible window: last 14 days of returns. Avoids dumping years
-        // of historical RETURNED-without-receipt rows. Date picker overrides this.
-        $defaultFrom = $request->from ?: now()->setTimezone('Asia/Manila')->subDays(14)->toDateString();
-        $defaultTo   = $request->to   ?: null;
+        // Honor explicit user dates, but never accept dates inside today's still-allowed window
+        $from = $request->from ?: $defaultFrom;
+        $to   = $request->to   ?: $latestDate;
+        // Clamp 'to' so picking today/tomorrow doesn't silently empty the page
+        if ($to > $latestDate) $to = $latestDate;
 
         $query = Waybill::where('status', 'RETURNED')
-            ->where('returned_at', '<', $slaCutoff)
+            ->where('returned_at', '<', $slaCutoff->utc())
             ->whereDoesntHave('returnReceipt')
-            ->where('returned_at', '>=', $defaultFrom)
-            ->when($defaultTo, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
+            ->where('returned_at', '>=', $from)
+            ->where('returned_at', '<=', $to . ' 23:59:59')
             ->when($request->search, function ($q, $v) {
                 $q->where('waybill_number', 'ILIKE', "%{$v}%")
                     ->orWhere('receiver_name', 'ILIKE', "%{$v}%");
@@ -219,8 +224,8 @@ class ClaimController extends Controller
             'beyond_sla_count' => $beyondSlaCount,
             'filters'          => [
                 'search' => $request->search,
-                'from'   => $defaultFrom,
-                'to'     => $defaultTo,
+                'from'   => $from,
+                'to'     => $to,
             ],
         ]);
     }
