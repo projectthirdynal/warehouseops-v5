@@ -137,3 +137,17 @@ php artisan test --filter=TestClassName
 # or
 ./vendor/bin/pest tests/Feature/SomeTest.php
 ```
+
+## Known Gotchas
+
+- **PhpSpreadsheet is NOT installed** — use `rap2hpoutre/fast-excel` only for Excel imports
+- **J&T tracking endpoint returns 404 in prod** — open bug, workaround exists in `JTTrackingService`
+- **MTU must be 1450 on Docker network** — or file uploads fail silently (daemon.json: `"mtu": 1450`)
+- **Horizon is configured with single retry** — verify retry config in `config/horizon.php` before adding new queue jobs
+- **`Waybill::upsert()` bypasses Eloquent observers** — `WaybillObserver::updated()` does NOT fire on bulk imports; `GenerateLeadsFromUpload` job compensates
+- **DB_HOST=postgres** in prod `.env` (shared container on `infra_internal` Docker network), not `localhost`
+- **Superadmin password uses Hash::make()** — special chars like `!` require Hash facade, not raw bcrypt
+- **Upload stuck in processing** — reset with: `UPDATE uploads SET status='failed' WHERE id=X;`
+
+## Cross-Reference
+Workspace-level domain rules, server info, and agent list: see `../CLAUDE.md` (tecc workspace).
