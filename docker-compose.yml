@@ -11,7 +11,8 @@ services:
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
-      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./docker/app/zz-fpm.conf:/usr/local/etc/php-fpm.d/zz-custom.conf
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=${APP_DEBUG:-false}
