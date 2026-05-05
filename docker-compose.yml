@@ -35,6 +35,7 @@ services:
     networks:
       - warehouseops
       - app_bridge
+      - infra
 
   # ===================
   # NGINX
@@ -92,6 +93,9 @@ networks:
   app_bridge:
     external: true
     name: warehouseops_app
+  infra:
+    external: true
+    name: infra_internal
 
 volumes:
   redis-data:
