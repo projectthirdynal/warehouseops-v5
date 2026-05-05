@@ -16,17 +16,23 @@ class ProcessWaybillImport implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
-    public int $timeout = 1800; // 30 minutes — large files need time
+    public int $timeout = 7200; // 2 hours — handles 500k+ row files
+    public bool $failOnTimeout = true;
 
     public function __construct(
         private int $uploadId,
         private string $courier,
         private string $filePath,
         private int $userId,
-    ) {}
+    ) {
+        $this->onQueue('imports');
+    }
 
     public function handle(): void
     {
+        // Large XLSX files plus batch arrays need headroom; default php.ini may be 256M.
+        ini_set('memory_limit', '1024M');
+
         $upload = Upload::find($this->uploadId);
         if (!$upload || $upload->status === 'cancelled') {
             return;
@@ -52,7 +58,7 @@ class ProcessWaybillImport implements ShouldQueue
 
             GenerateLeadsFromUpload::dispatch($this->uploadId);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);
         }
     }

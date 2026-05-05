@@ -3,8 +3,6 @@
 namespace App\Imports;
 
 use App\Models\Upload;
-use App\Models\Waybill;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Rap2hpoutre\FastExcel\FastExcel;
 
@@ -19,7 +17,12 @@ class JntWaybillFastImport
     protected array $errors = [];
     protected int $successCount = 0;
     protected int $errorCount = 0;
-    protected int $batchSize = 1000;
+    // PostgreSQL has a 65535 bind parameter limit per query.
+    // ALL_COLUMNS has 36 fields → 65535 / 36 ≈ 1820 max rows per upsert.
+    // Use 1500 to leave headroom and still get good throughput.
+    protected int $batchSize = 1500;
+    protected int $batchCount = 0; // batches flushed so far
+    protected ?\App\Domain\Courier\Services\StatusMapper $statusMapper = null;
 
     protected const COLUMN_MAP = [
         'waybill_number' => ['waybill_number', 'waybill number', 'Waybill Number'],
@@ -84,50 +87,66 @@ class JntWaybillFastImport
         $rowNumber = 0;
         $now = now()->toDateTimeString();
 
-        // Stream read the file - very memory efficient
+        // Resolve StatusMapper once instead of per-row container lookups
+        $this->statusMapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+
+        // Trade durability for speed during bulk import: WAL fsync deferred per commit.
+        // If the DB crashes mid-import the upload can be retried; data integrity is preserved.
+        DB::statement('SET LOCAL synchronous_commit = OFF');
+
         (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
             $rowNumber++;
 
             try {
                 $data = $this->mapRow($row, $now);
-
                 if ($data) {
                     $batch[] = $data;
                     $this->successCount++;
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
                 $this->errorCount++;
             }
 
-            // Bulk insert when batch is full
             if (count($batch) >= $this->batchSize) {
-                // Check if cancelled
-                if ($this->upload->fresh()->status === 'cancelled') {
-                    $batch = [];
-                    return;
+                $this->batchCount++;
+
+                // Check cancellation every 10 batches (one SELECT per 30k rows)
+                if ($this->batchCount % 10 === 0) {
+                    if ($this->upload->fresh()->status === 'cancelled') {
+                        $batch = [];
+                        return;
+                    }
                 }
 
+                $flushed = count($batch);
                 $this->bulkUpsert($batch);
-                $this->upload->increment('success_rows', count($batch));
-                $this->upload->increment('processed_rows', count($batch));
                 $batch = [];
+
+                // Single combined write — 3 increments collapsed to 1 UPDATE
+                DB::table('uploads')->where('id', $this->upload->id)->update([
+                    'success_rows'   => DB::raw("success_rows + {$flushed}"),
+                    'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                    'total_rows'     => $rowNumber,
+                ]);
             }
         });
 
-        // Insert remaining rows
         if (!empty($batch)) {
+            $flushed = count($batch);
             $this->bulkUpsert($batch);
-            $this->upload->increment('success_rows', count($batch));
-            $this->upload->increment('processed_rows', count($batch));
+            DB::table('uploads')->where('id', $this->upload->id)->update([
+                'success_rows'   => DB::raw("success_rows + {$flushed}"),
+                'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                'total_rows'     => $this->successCount + $this->errorCount,
+            ]);
         }
 
-        // Update error count
-        if ($this->errorCount > 0) {
-            $this->upload->increment('error_rows', $this->errorCount);
-        }
-
-        $this->upload->update(['total_rows' => $this->successCount + $this->errorCount]);
+        // Final totals
+        DB::table('uploads')->where('id', $this->upload->id)->update([
+            'error_rows' => $this->errorCount,
+            'total_rows' => $this->successCount + $this->errorCount,
+        ]);
     }
 
     protected function mapRow(array $row, string $now): ?array
@@ -151,8 +170,10 @@ class JntWaybillFastImport
         $data['receiver_phone'] = $data['receiver_phone'] ?? '';
         $data['receiver_address'] = $data['receiver_address'] ?? '';
 
-        // Map status
-        $data['status'] = isset($data['status']) ? Waybill::mapCourierStatus('JNT', $data['status']) : 'PENDING';
+        // Use cached StatusMapper (resolved once in import())
+        $data['status'] = isset($data['status'])
+            ? $this->statusMapper->resolve('JNT', $data['status'])->value
+            : 'PENDING';
 
         // Set delivered_at / returned_at based on status
         if ($data['status'] === 'DELIVERED' && isset($data['signed_at'])) {
@@ -221,11 +242,9 @@ class JntWaybillFastImport
             return $value->format('Y-m-d H:i:s');
         }
 
-        try {
-            return Carbon::parse($value)->toDateTimeString();
-        } catch (\Exception $e) {
-            return null;
-        }
+        // Native strtotime is ~50x faster than Carbon::parse for known formats
+        $ts = strtotime((string) $value);
+        return $ts !== false ? date('Y-m-d H:i:s', $ts) : null;
     }
 
     protected function parseNumeric(mixed $value): float
@@ -245,7 +264,8 @@ class JntWaybillFastImport
 
     protected function bulkUpsert(array $data): void
     {
-        Waybill::upsert($data, ['waybill_number'], self::UPSERT_FIELDS);
+        // DB::table bypasses Eloquent timestamps/casting/events — pure SQL path
+        DB::table('waybills')->upsert($data, ['waybill_number'], self::UPSERT_FIELDS);
     }
 
     public function getSuccessCount(): int

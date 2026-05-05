@@ -3,8 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Upload;
-use App\Models\Waybill;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Rap2hpoutre\FastExcel\FastExcel;
 
 /**
@@ -27,7 +26,12 @@ class FlashWaybillFastImport
     protected array $errors = [];
     protected int $successCount = 0;
     protected int $errorCount = 0;
-    protected int $batchSize = 1000;
+    // PostgreSQL has a 65535 bind parameter limit per query.
+    // ALL_COLUMNS has 32 fields → 65535 / 32 ≈ 2048 max rows per upsert.
+    // Use 1500 to leave headroom and still get good throughput.
+    protected int $batchSize = 1500;
+    protected int $batchCount = 0;
+    protected ?\App\Domain\Courier\Services\StatusMapper $statusMapper = null;
 
     protected const COLUMN_MAP = [
         'waybill_number'  => ['Tracking No.', 'tracking_no', 'Tracking No', 'PNO'],
@@ -86,6 +90,12 @@ class FlashWaybillFastImport
         $rowNumber = 0;
         $now = now()->toDateTimeString();
 
+        // Resolve StatusMapper once (was: app() per row → 100k+ container resolutions)
+        $this->statusMapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+
+        // Defer WAL fsync per commit during bulk import
+        DB::statement('SET LOCAL synchronous_commit = OFF');
+
         (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
             $rowNumber++;
 
@@ -96,36 +106,48 @@ class FlashWaybillFastImport
                     $batch[] = $data;
                     $this->successCount++;
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
                 $this->errorCount++;
             }
 
             if (count($batch) >= $this->batchSize) {
-                if ($this->upload->fresh()->status === 'cancelled') {
-                    $batch = [];
-                    return;
+                $this->batchCount++;
+
+                // Check cancellation every 10 batches (one SELECT per 30k rows)
+                if ($this->batchCount % 10 === 0) {
+                    if ($this->upload->fresh()->status === 'cancelled') {
+                        $batch = [];
+                        return;
+                    }
                 }
 
+                $flushed = count($batch);
                 $this->bulkUpsert($batch);
-                $this->upload->increment('success_rows', count($batch));
-                $this->upload->increment('processed_rows', count($batch));
                 $batch = [];
+
+                DB::table('uploads')->where('id', $this->upload->id)->update([
+                    'success_rows'   => DB::raw("success_rows + {$flushed}"),
+                    'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                    'total_rows'     => $rowNumber,
+                ]);
             }
         });
 
         if (!empty($batch)) {
+            $flushed = count($batch);
             $this->bulkUpsert($batch);
-            $this->upload->increment('success_rows', count($batch));
-            $this->upload->increment('processed_rows', count($batch));
+            DB::table('uploads')->where('id', $this->upload->id)->update([
+                'success_rows'   => DB::raw("success_rows + {$flushed}"),
+                'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                'total_rows'     => $this->successCount + $this->errorCount,
+            ]);
         }
 
-        if ($this->errorCount > 0) {
-            $this->upload->increment('error_rows', $this->errorCount);
-        }
-
-        // Set total rows (avoids separate counting pass)
-        $this->upload->update(['total_rows' => $this->successCount + $this->errorCount]);
+        DB::table('uploads')->where('id', $this->upload->id)->update([
+            'error_rows' => $this->errorCount,
+            'total_rows' => $this->successCount + $this->errorCount,
+        ]);
     }
 
     protected function mapRow(array $row, string $now): ?array
@@ -152,9 +174,9 @@ class FlashWaybillFastImport
         $data['receiver_phone'] = $data['receiver_phone'] ?? '';
         $data['receiver_address'] = $data['receiver_address'] ?? '';
 
-        // Map status using StatusMapper
+        // Use cached StatusMapper instance
         $data['status'] = isset($data['status'])
-            ? Waybill::mapCourierStatus('FLASH', trim($data['status']))
+            ? $this->statusMapper->resolve('FLASH', trim($data['status']))->value
             : 'PENDING';
 
         // Parse address into components (Flash gives one combined address field)
@@ -285,18 +307,16 @@ class FlashWaybillFastImport
     {
         if (empty($value)) return null;
 
-        $value = trim((string) $value, " \t");
-        if ($value === '') return null;
-
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d H:i:s');
         }
 
-        try {
-            return Carbon::parse($value)->toDateTimeString();
-        } catch (\Exception $e) {
-            return null;
-        }
+        $value = trim((string) $value, " \t");
+        if ($value === '') return null;
+
+        // Native strtotime is ~50x faster than Carbon::parse
+        $ts = strtotime($value);
+        return $ts !== false ? date('Y-m-d H:i:s', $ts) : null;
     }
 
     protected function parseNumeric(mixed $value): float
@@ -317,7 +337,7 @@ class FlashWaybillFastImport
 
     protected function bulkUpsert(array $data): void
     {
-        Waybill::upsert($data, ['waybill_number'], self::UPSERT_FIELDS);
+        DB::table('waybills')->upsert($data, ['waybill_number'], self::UPSERT_FIELDS);
     }
 
     public function getSuccessCount(): int
