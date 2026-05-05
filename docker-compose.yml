@@ -17,8 +17,8 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=${APP_DEBUG:-false}
       - DB_CONNECTION=pgsql
-      - DB_HOST=host.docker.internal
-      - DB_PORT=5432
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
       - DB_DATABASE=${DB_DATABASE:-warehouseops}
       - DB_USERNAME=${DB_USERNAME:-devuser}
       - DB_PASSWORD=${DB_PASSWORD:-devpassword00}
@@ -34,6 +34,7 @@ services:
         condition: service_healthy
     networks:
       - warehouseops
+      - app_bridge
 
   # ===================
   # NGINX
@@ -88,6 +89,9 @@ services:
 networks:
   warehouseops:
     driver: bridge
+  app_bridge:
+    external: true
+    name: warehouseops_app
 
 volumes:
   redis-data:
