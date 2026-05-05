@@ -65,14 +65,10 @@ class JntWaybillFastImport
         'created_at', 'updated_at',
     ];
 
-    protected const UPSERT_FIELDS = [
-        'creator_code', 'status', 'sign_for_pictures', 'signed_at',
-        'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'receiver_address',
-        'payment_method', 'settlement_weight', 'shipping_cost', 'cod_amount',
-        'submitted_at', 'rts_reason', 'remarks', 'express_type',
-        'sender_name', 'sender_phone', 'sender_province', 'sender_city',
-        'item_name', 'item_qty', 'item_value', 'valuation_fee',
-        'delivered_at', 'returned_at', 'updated_at',
+    // On conflict: only update status-related fields. Static fields (name, address, etc.)
+    // are written once on INSERT and never overwritten by re-imports of the same file.
+    protected const STATUS_FIELDS = [
+        'status', 'signed_at', 'delivered_at', 'returned_at', 'rts_reason', 'remarks', 'updated_at',
     ];
 
     public function __construct(Upload $upload, int $userId)
@@ -264,8 +260,33 @@ class JntWaybillFastImport
 
     protected function bulkUpsert(array $data): void
     {
-        // DB::table bypasses Eloquent timestamps/casting/events — pure SQL path
-        DB::table('waybills')->upsert($data, ['waybill_number'], self::UPSERT_FIELDS);
+        $columns = self::ALL_COLUMNS;
+        $colList = implode(', ', $columns);
+        $rowPlaceholder = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+        $valuesList = implode(', ', array_fill(0, count($data), $rowPlaceholder));
+
+        $updateSet = implode(', ', array_map(
+            fn($col) => "{$col} = EXCLUDED.{$col}",
+            self::STATUS_FIELDS
+        ));
+
+        $bindings = [];
+        foreach ($data as $row) {
+            foreach ($columns as $col) {
+                $bindings[] = $row[$col] ?? null;
+            }
+        }
+
+        // Skip the update entirely when status and dates are unchanged — avoids
+        // writing ~20 columns worth of WAL for rows that haven't moved.
+        DB::statement("
+            INSERT INTO waybills ({$colList})
+            VALUES {$valuesList}
+            ON CONFLICT (waybill_number) DO UPDATE SET
+                {$updateSet}
+            WHERE (waybills.status, waybills.signed_at, waybills.delivered_at, waybills.returned_at)
+                  IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.signed_at, EXCLUDED.delivered_at, EXCLUDED.returned_at)
+        ", $bindings);
     }
 
     public function getSuccessCount(): int
