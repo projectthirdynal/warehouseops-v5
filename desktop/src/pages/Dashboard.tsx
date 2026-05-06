@@ -6,14 +6,15 @@ import {
   XCircle,
   Users,
   TrendingUp,
-  TrendingDown,
   Clock,
   AlertCircle,
   QrCode,
+  ClipboardCheck,
   BarChart3,
   ArrowRight,
   Loader2,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,12 +22,25 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import type { DashboardData } from '@/types';
 
+const ACTIVITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Waybill: Truck,
+  Lead: Users,
+  QC: ClipboardCheck,
+  System: BarChart3,
+};
+
+const ACTIVITY_COLORS: Record<string, string> = {
+  Waybill: 'bg-blue-500',
+  Lead: 'bg-green-500',
+  QC: 'bg-purple-500',
+  System: 'bg-gray-500',
+};
+
 function StatCard({
   title,
   value,
   description,
   icon: Icon,
-  trend,
   variant = 'default',
   onClick,
 }: {
@@ -34,7 +48,6 @@ function StatCard({
   value: string | number;
   description?: string;
   icon: React.ComponentType<{ className?: string }>;
-  trend?: { value: number; label: string };
   variant?: 'default' | 'success' | 'warning' | 'danger';
   onClick?: () => void;
 }) {
@@ -65,19 +78,6 @@ function StatCard({
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
-        {trend && (
-          <div className="flex items-center gap-1 mt-2">
-            {trend.value >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            )}
-            <span className={`text-xs font-medium ${trend.value >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {trend.value >= 0 ? '+' : ''}{trend.value}%
-            </span>
-            <span className="text-xs text-muted-foreground">{trend.label}</span>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -86,6 +86,7 @@ function StatCard({
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
@@ -94,8 +95,9 @@ export default function Dashboard() {
     try {
       const res = await api.getDashboard();
       setData(res);
+      setError(false);
     } catch {
-      // handled by interceptor
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -104,7 +106,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => fetchData(), 30000); // Auto-refresh every 30s
+    const interval = setInterval(() => fetchData(), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -116,12 +118,36 @@ export default function Dashboard() {
     );
   }
 
-  const s = data?.stats || {
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <AlertTriangle className="h-12 w-12 text-yellow-500" />
+        <div className="text-center">
+          <p className="font-semibold">Failed to load dashboard</p>
+          <p className="text-sm text-muted-foreground mt-1">Check your connection to the server</p>
+        </div>
+        <Button onClick={() => fetchData(true)} disabled={refreshing}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const s = data?.stats ?? {
     pending_dispatch: 0, in_transit: 0, delivered_today: 0, returned_today: 0,
     new_leads: 0, sales_today: 0, qc_pending: 0, agents_online: 0,
   };
 
-  const hourlyData = data?.hourly_activity || [];
+  const chartData = data?.hourly_activity?.length
+    ? data.hourly_activity
+    : Array.from({ length: 12 }, (_, i) => ({ hour: String(8 + i), waybills: 0, leads: 0 }));
+
+  const chartMax = Math.max(...chartData.map((d) => d.waybills), 1);
+  const allZero = chartData.every((d) => d.waybills === 0);
+
+  const today = new Date();
+  const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 
   return (
     <div className="space-y-6">
@@ -143,83 +169,96 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Stats */}
+      {/* Waybill stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Pending Dispatch" value={s.pending_dispatch} icon={Clock} variant="warning" description="Waybills awaiting scan" />
+        <StatCard title="Pending Dispatch" value={s.pending_dispatch} icon={Clock} variant="warning" description="Awaiting scan" />
         <StatCard title="In Transit" value={s.in_transit} icon={Truck} description="With courier" />
-        <StatCard title="Delivered Today" value={s.delivered_today} icon={CheckCircle2} variant="success" trend={{ value: 12, label: 'vs yesterday' }} />
+        <StatCard title="Delivered Today" value={s.delivered_today} icon={CheckCircle2} variant="success" />
         <StatCard title="Returns Today" value={s.returned_today} icon={XCircle} variant="danger" />
       </div>
 
-      {/* Secondary Stats */}
+      {/* Lead / ops stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="New Leads" value={s.new_leads} icon={Users} variant="success" description="Unassigned" />
-        <StatCard title="Sales Today" value={s.sales_today} icon={TrendingUp} variant="success" trend={{ value: 8, label: 'vs yesterday' }} />
+        <StatCard title="Sales Today" value={s.sales_today} icon={TrendingUp} variant="success" />
         <StatCard title="QC Pending" value={s.qc_pending} icon={AlertCircle} variant={s.qc_pending > 10 ? 'danger' : 'warning'} description="Awaiting review" />
-        <StatCard title="Agents Online" value={s.agents_online} icon={Users} variant="success" description="Currently active" />
+        <StatCard title="Agents Online" value={s.agents_online} icon={Users} variant="success" description="Active in last hour" />
       </div>
 
-      {/* Charts and Activity */}
+      {/* Chart + Activity */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Today's Activity Chart */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Today's Activity</CardTitle>
-                <CardDescription>Hourly waybill processing</CardDescription>
+                <CardDescription>Hourly waybill volume</CardDescription>
               </div>
-              <Badge variant="outline" className="text-xs">
-                {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' })}
-              </Badge>
+              <Badge variant="outline" className="text-xs">{dateLabel}</Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-2 h-32">
-              {(hourlyData.length > 0 ? hourlyData : Array.from({ length: 12 }, (_, i) => ({ hour: `${8 + i}`, waybills: 0, leads: 0 }))).map((item, i) => {
-                const hour = parseInt(item.hour) || (8 + i);
-                const isCurrentHour = new Date().getHours() === hour;
-                const value = item.waybills || 0;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className={`w-full rounded-t transition-all ${isCurrentHour ? 'bg-primary' : 'bg-primary/30 hover:bg-primary/50'}`}
-                      style={{ height: `${Math.max((value / 50) * 100, 4)}%`, minHeight: '4px' }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">
-                      {hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'p' : 'a'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            {allZero ? (
+              <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
+                No waybill activity yet today
+              </div>
+            ) : (
+              <div className="flex items-end gap-1.5 h-32">
+                {chartData.map((item) => {
+                  const hour = parseInt(item.hour, 10);
+                  const isCurrentHour = today.getHours() === hour;
+                  const heightPct = Math.max((item.waybills / chartMax) * 100, item.waybills > 0 ? 4 : 1);
+                  return (
+                    <div key={item.hour} className="flex-1 flex flex-col items-center gap-1 group">
+                      <div className="relative w-full">
+                        {item.waybills > 0 && (
+                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            {item.waybills}
+                          </span>
+                        )}
+                        <div
+                          className={`w-full rounded-t transition-all ${isCurrentHour ? 'bg-primary' : 'bg-primary/30 hover:bg-primary/60'}`}
+                          style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'p' : 'a'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Latest system events</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {(data?.recent_activity || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No recent activity</p>
-              ) : (
-                data!.recent_activity.slice(0, 6).map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3">
-                    <div className="rounded-full p-1.5 bg-blue-500">
-                      <BarChart3 className="h-3 w-3 text-white" />
+            {!data?.recent_activity?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No recent activity</p>
+            ) : (
+              <div className="space-y-4">
+                {data.recent_activity.slice(0, 6).map((activity) => {
+                  const Icon = ACTIVITY_ICONS[activity.type] ?? BarChart3;
+                  const color = ACTIVITY_COLORS[activity.type] ?? 'bg-gray-500';
+                  return (
+                    <div key={activity.id} className="flex items-start gap-3">
+                      <div className={`rounded-full p-1.5 shrink-0 ${color}`}>
+                        <Icon className="h-3 w-3 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -231,11 +270,11 @@ export default function Dashboard() {
           <CardDescription>Frequently used operations</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-3">
             {[
-              { path: '/scanner', label: 'Scanner', desc: 'Scan waybills', icon: QrCode, color: 'bg-primary/10 text-primary' },
-              { path: '/import', label: 'Import', desc: 'Upload files', icon: BarChart3, color: 'bg-green-500/10 text-green-500' },
-              { path: '/monitoring', label: 'Monitoring', desc: 'Live analytics', icon: BarChart3, color: 'bg-purple-500/10 text-purple-500' },
+              { path: '/scanner',    label: 'Scanner',    desc: 'Scan waybills',  icon: QrCode,    color: 'bg-primary/10 text-primary' },
+              { path: '/import',     label: 'Import',     desc: 'Upload files',   icon: TrendingUp, color: 'bg-green-500/10 text-green-500' },
+              { path: '/monitoring', label: 'Monitoring', desc: 'Live analytics', icon: BarChart3,  color: 'bg-purple-500/10 text-purple-500' },
             ].map((item) => (
               <button
                 key={item.path}

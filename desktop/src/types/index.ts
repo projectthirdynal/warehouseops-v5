@@ -24,7 +24,7 @@ export interface DashboardData {
     leads: number
   }>
   recent_activity: Array<{
-    id: number
+    id: string
     type: string
     description: string
     time: string

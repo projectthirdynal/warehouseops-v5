@@ -122,47 +122,63 @@ class DesktopApiController extends Controller
                 ->count(),
         ];
 
-        // Hourly activity for today
+        // Hourly activity for today — two aggregated queries instead of 24 individual ones
+        $rawWaybillHourly = Waybill::selectRaw('EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt')
+            ->whereDate('created_at', today())
+            ->whereRaw('EXTRACT(HOUR FROM created_at) BETWEEN 8 AND 19')
+            ->groupByRaw('EXTRACT(HOUR FROM created_at)::int')
+            ->pluck('cnt', 'hour');
+
+        $rawLeadHourly = Lead::selectRaw('EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt')
+            ->whereDate('created_at', today())
+            ->whereRaw('EXTRACT(HOUR FROM created_at) BETWEEN 8 AND 19')
+            ->groupByRaw('EXTRACT(HOUR FROM created_at)::int')
+            ->pluck('cnt', 'hour');
+
         $hourlyActivity = [];
         for ($h = 8; $h <= 19; $h++) {
             $hourlyActivity[] = [
-                'hour' => (string) $h,
-                'waybills' => Waybill::whereDate('created_at', today())
-                    ->whereRaw('EXTRACT(HOUR FROM created_at) = ?', [$h])
-                    ->count(),
-                'leads' => Lead::whereDate('created_at', today())
-                    ->whereRaw('EXTRACT(HOUR FROM created_at) = ?', [$h])
-                    ->count(),
+                'hour'     => (string) $h,
+                'waybills' => (int) ($rawWaybillHourly[$h] ?? 0),
+                'leads'    => (int) ($rawLeadHourly[$h] ?? 0),
             ];
         }
 
-        // Recent activity
+        // Recent activity — sort by actual timestamp, not diffForHumans() string
         $recentDeliveries = Waybill::where('status', 'DELIVERED')
             ->orderBy('delivered_at', 'desc')
             ->limit(3)
             ->get()
-            ->map(fn($w) => [
-                'id' => $w->id,
-                'type' => 'Waybill',
+            ->map(fn ($w) => [
+                'id'          => 'waybill-' . $w->id,
+                'type'        => 'Waybill',
                 'description' => "Waybill #{$w->waybill_number} delivered",
-                'time' => $w->delivered_at?->diffForHumans() ?? 'recently',
+                'time'        => $w->delivered_at?->diffForHumans() ?? 'recently',
+                '_ts'         => $w->delivered_at?->timestamp ?? 0,
             ]);
 
         $recentLeads = Lead::whereNotNull('assigned_to')
             ->orderBy('updated_at', 'desc')
             ->limit(3)
             ->get()
-            ->map(fn($l) => [
-                'id' => $l->id + 10000,
-                'type' => 'Lead',
+            ->map(fn ($l) => [
+                'id'          => 'lead-' . $l->id,
+                'type'        => 'Lead',
                 'description' => 'Lead assigned to agent',
-                'time' => $l->updated_at->diffForHumans(),
+                'time'        => $l->updated_at->diffForHumans(),
+                '_ts'         => $l->updated_at->timestamp,
             ]);
 
         $recentActivity = $recentDeliveries->merge($recentLeads)
-            ->sortByDesc('time')
+            ->sortByDesc('_ts')
             ->take(6)
             ->values()
+            ->map(fn ($item) => [
+                'id'          => $item['id'],
+                'type'        => $item['type'],
+                'description' => $item['description'],
+                'time'        => $item['time'],
+            ])
             ->toArray();
 
         return response()->json([

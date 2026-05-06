@@ -334,6 +334,23 @@ export interface DashboardStats {
   agents_online: number;
 }
 
+export interface DashboardHourlyItem {
+  hour: string;
+  waybills: number;
+}
+
+export interface DashboardActivity {
+  id: string;
+  type: string;
+  message: string;
+  time: string;
+}
+
+export interface DashboardTrends {
+  delivered: number;
+  sales: number;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   current_page: number;
