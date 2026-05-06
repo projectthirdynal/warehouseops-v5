@@ -28,6 +28,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceivingReportController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\InventoryDashboardController;
+use App\Http\Controllers\SalesTrackingController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\CostOfGoodsController;
 use Illuminate\Support\Facades\Route;
@@ -102,6 +103,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
+        Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
 
         // Claims
         Route::prefix('claims')->name('claims.')->group(function () {
@@ -303,6 +305,9 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::get('/{provider}/logs', [CourierProviderController::class, 'logs'])->name('logs');
         Route::post('/create-order', [CourierProviderController::class, 'createOrder'])->name('create-order');
     });
+
+    // Sales Tracking
+    Route::get('/sales', [SalesTrackingController::class, 'index'])->name('sales.index');
 
     // Lead Pool
     Route::prefix('lead-pool')->name('lead-pool.')->group(function () {

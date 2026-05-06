@@ -351,6 +351,48 @@ export interface DashboardTrends {
   sales: number;
 }
 
+export interface SaleStats {
+  total_sales: number;
+  conversion_rate: number;
+  avg_per_day: number;
+  top_agent: string;
+}
+
+export interface DailyPoint {
+  date: string;
+  count: number;
+}
+
+export interface AgentBar {
+  agent_name: string;
+  count: number;
+}
+
+export interface FunnelStage {
+  stage: string;
+  count: number;
+}
+
+export interface SaleLead {
+  id: number;
+  name: string;
+  phone: string;
+  product_name: string | null;
+  amount: string | null;
+  sales_status: string;
+  agent_name: string | null;
+  updated_at: string;
+}
+
+export interface SalesFilters {
+  from: string;
+  to: string;
+  search: string;
+  agent: string;
+  sort: string;
+  dir: 'asc' | 'desc';
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   current_page: number;
