@@ -63,10 +63,12 @@ jobs:
       - name: Reload PHP-FPM
         run: sudo docker exec warehouseops-app kill -USR2 1 || true
 
-      # Graceful horizon restart — picks up new code without dropping queued jobs
+      # Graceful horizon restart — terminate old worker then start fresh
       - name: Restart Horizon worker
         run: |
           sudo docker exec warehouseops-app php artisan horizon:terminate || true
+          sleep 3
+          sudo docker exec -d warehouseops-app php artisan horizon
 
       - name: Health check
         run: |
