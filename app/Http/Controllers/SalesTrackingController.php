@@ -29,7 +29,7 @@ class SalesTrackingController extends Controller
     {
         [$from, $to] = $this->dateRange($request);
 
-        $base = Lead::where('status', 'SALE')->whereBetween('updated_at', [$from, $to]);
+        $base = Lead::where('status', 'SALE')->whereBetween('leads.updated_at', [$from, $to]);
 
         // ── Stats ────────────────────────────────────────────────────────────
         $totalSales = (clone $base)->count();
