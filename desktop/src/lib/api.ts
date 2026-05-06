@@ -107,18 +107,28 @@ class ApiClient {
     return res.data
   }
 
-  async uploadWaybills(file: File, courierProvider: string) {
+  async uploadWaybills(file: File, courierProvider: string, onProgress?: (pct: number) => void) {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('courier_provider', courierProvider)
     const res = await this.client.post('/api/desktop/imports', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 120000,
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      },
     })
     return res.data
   }
 
   async getUploadDetail(id: number) {
+    const res = await this.client.get(`/api/desktop/imports/${id}`)
+    return res.data
+  }
+
+  async getUploadStatus(id: number) {
     const res = await this.client.get(`/api/desktop/imports/${id}`)
     return res.data
   }
