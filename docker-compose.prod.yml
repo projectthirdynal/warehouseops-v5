@@ -63,6 +63,9 @@ services:
       - CACHE_STORE=redis
       - QUEUE_CONNECTION=redis
       - SESSION_DRIVER=redis
+      - QBO_CLIENT_ID=${QBO_CLIENT_ID}
+      - QBO_CLIENT_SECRET=${QBO_CLIENT_SECRET}
+      - QBO_ENVIRONMENT=${QBO_ENVIRONMENT:-sandbox}
     depends_on:
       redis:
         condition: service_healthy
@@ -93,6 +96,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - QUEUE_CONNECTION=redis
+      - QBO_CLIENT_ID=${QBO_CLIENT_ID}
+      - QBO_CLIENT_SECRET=${QBO_CLIENT_SECRET}
+      - QBO_ENVIRONMENT=${QBO_ENVIRONMENT:-sandbox}
     depends_on:
       - app
       - redis
