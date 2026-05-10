@@ -73,7 +73,8 @@ class FlashWaybillFastImport
     ];
 
     protected const STATUS_FIELDS = [
-        'status', 'delivered_at', 'returned_at', 'rts_reason', 'remarks', 'updated_at',
+        'status', 'delivered_at', 'returned_at', 'rts_reason', 'remarks',
+        'shipping_cost', 'cod_amount', 'settlement_weight', 'amount', 'upload_id', 'uploaded_by', 'updated_at',
     ];
 
     public function __construct(Upload $upload, int $userId)
@@ -150,8 +151,9 @@ class FlashWaybillFastImport
         }
 
         DB::table('uploads')->where('id', $this->upload->id)->update([
-            'error_rows' => $this->errorCount,
-            'total_rows' => $this->successCount + $this->errorCount,
+            'error_rows'     => $this->errorCount,
+            'processed_rows' => $this->successCount + $this->errorCount,
+            'total_rows'     => $this->successCount + $this->errorCount,
         ]);
     }
 
@@ -168,7 +170,7 @@ class FlashWaybillFastImport
 
         // Validate: must have tracking number
         if (empty($data['waybill_number'])) {
-            return null;
+            throw new \InvalidArgumentException('Missing tracking number.');
         }
 
         // Clean tracking number (Flash CSVs sometimes have leading tabs)
@@ -360,7 +362,7 @@ class FlashWaybillFastImport
         }
 
         // Pre-query to identify existing waybill numbers so we can reliably count
-        // inserts vs updates. xmax=0 is unreliable for ON CONFLICT DO UPDATE rows.
+        // inserts vs updates while still returning xmax for PostgreSQL upsert diagnostics.
         $waybillNumbers = array_column($data, 'waybill_number');
         $existing = DB::table('waybills')
             ->whereIn('waybill_number', $waybillNumbers)
@@ -373,9 +375,28 @@ class FlashWaybillFastImport
             VALUES {$valuesList}
             ON CONFLICT (waybill_number) DO UPDATE SET
                 {$updateSet}
-            WHERE (waybills.status, waybills.delivered_at, waybills.returned_at)
-                  IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.delivered_at, EXCLUDED.returned_at)
-            RETURNING waybill_number
+            WHERE (
+                waybills.status,
+                waybills.delivered_at,
+                waybills.returned_at,
+                waybills.rts_reason,
+                waybills.remarks,
+                waybills.shipping_cost,
+                waybills.cod_amount,
+                waybills.settlement_weight,
+                waybills.amount
+            ) IS DISTINCT FROM (
+                EXCLUDED.status,
+                EXCLUDED.delivered_at,
+                EXCLUDED.returned_at,
+                EXCLUDED.rts_reason,
+                EXCLUDED.remarks,
+                EXCLUDED.shipping_cost,
+                EXCLUDED.cod_amount,
+                EXCLUDED.settlement_weight,
+                EXCLUDED.amount
+            )
+            RETURNING waybill_number, xmax
         ", $bindings);
 
         $returnedNumbers = array_map(fn($r) => $r->waybill_number, $rows);

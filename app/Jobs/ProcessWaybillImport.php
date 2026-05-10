@@ -52,8 +52,11 @@ class ProcessWaybillImport implements ShouldQueue
             }
 
             $upload->update([
-                'status' => 'completed',
+                'status' => $import->getErrorCount() > 0
+                    ? Upload::STATUS_COMPLETED_WITH_ERRORS
+                    : Upload::STATUS_COMPLETED,
                 'errors' => $import->getErrors(),
+                'completed_at' => now(),
             ]);
 
             GenerateLeadsFromUpload::dispatch($this->uploadId);

@@ -24,6 +24,9 @@ interface LiveProgress {
   total_rows: number;
   processed_rows: number;
   success_rows: number;
+  inserted_rows: number;
+  updated_rows: number;
+  skipped_rows: number;
   error_rows: number;
 }
 
@@ -41,6 +44,12 @@ export default function Import() {
   const [loading, setLoading] = useState(true);
   const [liveProgress, setLiveProgress] = useState<Record<number, LiveProgress>>({});
   const [viewingUpload, setViewingUpload] = useState<UploadRecord | null>(null);
+
+  const formatImportType = (type: string | null) => {
+    if (!type) return '';
+    if (type === 'auto_sync') return 'Auto Sync';
+    return type.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
 
   const fetchUploads = async () => {
     try {
@@ -63,7 +72,7 @@ export default function Import() {
       const data = await api.getUploadStatus(id);
       const upload = data.upload ?? data;
       setLiveProgress((prev) => ({ ...prev, [id]: upload }));
-      if (upload.status === 'completed' || upload.status === 'failed' || upload.status === 'cancelled') {
+      if (upload.status === 'completed' || upload.status === 'completed_with_errors' || upload.status === 'failed' || upload.status === 'cancelled') {
         fetchUploads();
       }
     } catch {
@@ -149,6 +158,8 @@ export default function Import() {
     switch (status) {
       case 'completed':
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>;
+      case 'completed_with_errors':
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"><AlertCircle className="w-3 h-3 mr-1" />Completed with Errors</Badge>;
       case 'processing':
         return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Processing</Badge>;
       case 'failed':
@@ -168,13 +179,26 @@ export default function Import() {
       const processed = live.processed_rows ?? 0;
       const total = live.total_rows ?? 0;
       const pct = total > 0 ? Math.min(Math.round((processed / total) * 100), 99) : null;
-      return { processed, total, success: live.success_rows, errors: live.error_rows, pct, liveStatus: live.status };
+      return {
+        processed,
+        total,
+        success: live.success_rows,
+        inserted: live.inserted_rows ?? 0,
+        updated: live.updated_rows ?? 0,
+        skipped: live.skipped_rows ?? 0,
+        errors: live.error_rows,
+        pct,
+        liveStatus: live.status,
+      };
     }
 
     return {
       processed: upload.processed_rows,
       total: upload.total_rows,
       success: upload.success_rows,
+      inserted: upload.inserted_rows ?? 0,
+      updated: upload.updated_rows ?? 0,
+      skipped: upload.skipped_rows ?? 0,
       errors: upload.error_rows,
       pct: null,
       liveStatus: upload.status,
@@ -195,7 +219,7 @@ export default function Import() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Import Waybills</h1>
-        <p className="text-muted-foreground">Upload Excel files from J&T or Flash courier to import waybill data</p>
+        <p className="text-muted-foreground">Upload courier file. Existing waybills will be updated automatically; new waybills will be added.</p>
       </div>
 
       {/* Stats */}
@@ -320,6 +344,9 @@ export default function Import() {
                   <><Upload className="mr-2 h-4 w-4" />Upload &amp; Import</>
                 )}
               </Button>
+              <p className="text-xs text-muted-foreground">
+                Existing waybills will be updated automatically. New waybills will be added.
+              </p>
             </form>
           </CardContent>
         </Card>
@@ -339,7 +366,7 @@ export default function Import() {
             ) : (
               <div className="space-y-3">
                 {uploads.map((upload) => {
-                  const { processed, total, success, errors: errCount, pct, liveStatus } = getRowSummary(upload);
+                  const { processed, total, inserted, updated, skipped, errors: errCount, pct, liveStatus } = getRowSummary(upload);
                   const live = liveProgress[upload.id];
                   const isActive = upload.status === 'processing' || upload.status === 'pending';
                   const displayTotal = total > 0 ? total : processed;
@@ -350,14 +377,28 @@ export default function Import() {
                         <div className="flex items-center gap-3 min-w-0">
                           <FileSpreadsheet className="h-8 w-8 text-green-600 shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{upload.original_filename}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium truncate">{upload.original_filename}</p>
+                              {upload.courier && (
+                                <Badge variant="outline" className="text-xs uppercase shrink-0">{upload.courier}</Badge>
+                              )}
+                              {upload.import_type && (
+                                <Badge variant="outline" className="text-xs shrink-0">{formatImportType(upload.import_type)}</Badge>
+                              )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
                               {displayTotal > 0 && <span>{displayTotal.toLocaleString()} rows</span>}
-                              {success > 0 && (
-                                <><span>|</span><span className="text-green-600">{success.toLocaleString()} success</span></>
+                              {inserted > 0 && (
+                                <><span>|</span><span className="text-green-600">{inserted.toLocaleString()} inserted</span></>
+                              )}
+                              {updated > 0 && (
+                                <><span>|</span><span className="text-blue-600">{updated.toLocaleString()} updated</span></>
+                              )}
+                              {skipped > 0 && (
+                                <><span>|</span><span className="text-yellow-600">{skipped.toLocaleString()} skipped</span></>
                               )}
                               {errCount > 0 && (
-                                <><span>|</span><span className="text-red-600">{errCount.toLocaleString()} errors</span></>
+                                <><span>|</span><span className="text-red-600">{errCount.toLocaleString()} failed</span></>
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground">

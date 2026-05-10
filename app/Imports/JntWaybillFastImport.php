@@ -71,7 +71,8 @@ class JntWaybillFastImport
     // On conflict: only update status-related fields. Static fields (name, address, etc.)
     // are written once on INSERT and never overwritten by re-imports of the same file.
     protected const STATUS_FIELDS = [
-        'status', 'signed_at', 'delivered_at', 'returned_at', 'rts_reason', 'remarks', 'updated_at',
+        'status', 'signed_at', 'delivered_at', 'returned_at', 'rts_reason', 'remarks',
+        'shipping_cost', 'cod_amount', 'settlement_weight', 'upload_id', 'uploaded_by', 'updated_at',
     ];
 
     public function __construct(Upload $upload, int $userId)
@@ -149,8 +150,9 @@ class JntWaybillFastImport
 
         // Final totals
         DB::table('uploads')->where('id', $this->upload->id)->update([
-            'error_rows' => $this->errorCount,
-            'total_rows' => $this->successCount + $this->errorCount,
+            'error_rows'     => $this->errorCount,
+            'processed_rows' => $this->successCount + $this->errorCount,
+            'total_rows'     => $this->successCount + $this->errorCount,
         ]);
     }
 
@@ -167,7 +169,7 @@ class JntWaybillFastImport
 
         // Validate required fields
         if (empty($data['waybill_number'])) {
-            return null; // Skip rows without waybill number
+            throw new \InvalidArgumentException('Missing waybill number.');
         }
 
         // Ensure required NOT NULL fields have defaults
@@ -287,7 +289,7 @@ class JntWaybillFastImport
         }
 
         // Pre-query to identify existing waybill numbers so we can reliably count
-        // inserts vs updates. xmax=0 is unreliable for ON CONFLICT DO UPDATE rows.
+        // inserts vs updates while still returning xmax for PostgreSQL upsert diagnostics.
         $waybillNumbers = array_column($data, 'waybill_number');
         $existing = DB::table('waybills')
             ->whereIn('waybill_number', $waybillNumbers)
@@ -295,16 +297,35 @@ class JntWaybillFastImport
             ->flip()
             ->all();
 
-        // Skip the update entirely when status and dates are unchanged — avoids
+        // Skip the update entirely when courier-sync fields are unchanged — avoids
         // writing ~20 columns worth of WAL for rows that haven't moved.
         $rows = DB::select("
             INSERT INTO waybills ({$colList})
             VALUES {$valuesList}
             ON CONFLICT (waybill_number) DO UPDATE SET
                 {$updateSet}
-            WHERE (waybills.status, waybills.signed_at, waybills.delivered_at, waybills.returned_at)
-                  IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.signed_at, EXCLUDED.delivered_at, EXCLUDED.returned_at)
-            RETURNING waybill_number
+            WHERE (
+                waybills.status,
+                waybills.signed_at,
+                waybills.delivered_at,
+                waybills.returned_at,
+                waybills.rts_reason,
+                waybills.remarks,
+                waybills.shipping_cost,
+                waybills.cod_amount,
+                waybills.settlement_weight
+            ) IS DISTINCT FROM (
+                EXCLUDED.status,
+                EXCLUDED.signed_at,
+                EXCLUDED.delivered_at,
+                EXCLUDED.returned_at,
+                EXCLUDED.rts_reason,
+                EXCLUDED.remarks,
+                EXCLUDED.shipping_cost,
+                EXCLUDED.cod_amount,
+                EXCLUDED.settlement_weight
+            )
+            RETURNING waybill_number, xmax
         ", $bindings);
 
         $returnedNumbers = array_map(fn($r) => $r->waybill_number, $rows);

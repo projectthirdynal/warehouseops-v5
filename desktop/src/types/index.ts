@@ -58,8 +58,13 @@ export interface UploadRecord {
   total_rows: number
   processed_rows: number
   success_rows: number
+  inserted_rows: number
+  updated_rows: number
+  skipped_rows: number
   error_rows: number
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  courier: string | null
+  import_type: string | null
+  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed' | 'cancelled'
   errors: Array<{ row: number; error: string }> | null
   uploaded_by: { name: string } | null
   created_at: string

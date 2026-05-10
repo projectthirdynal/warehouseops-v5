@@ -32,7 +32,13 @@ class WaybillImportController extends Controller
                 fn () => (int) Upload::where('type', 'waybill')->sum('success_rows')
             ),
             'pending_uploads' => Upload::where('type', 'waybill')
-                ->whereIn('status', ['pending', 'processing'])
+                ->whereIn('status', [
+                    Upload::STATUS_PENDING,
+                    Upload::STATUS_QUEUED,
+                    Upload::STATUS_VALIDATING,
+                    Upload::STATUS_READY_TO_PROCESS,
+                    Upload::STATUS_PROCESSING,
+                ])
                 ->count(),
             'recent_errors' => Upload::where('type', 'waybill')
                 ->where('status', 'failed')
@@ -51,12 +57,10 @@ class WaybillImportController extends Controller
         $request->validate([
             'file'        => 'required|file|mimes:xlsx,xls,csv|max:102400',
             'courier'     => 'required|string|in:jnt,flash',
-            'import_type' => 'required|string|in:new_waybill,status_update,cod_update,full_update',
         ]);
 
         $file       = $request->file('file');
         $courier    = $request->input('courier');
-        $importType = $request->input('import_type');
 
         $filename = time() . '_' . $file->getClientOriginalName();
         $path     = $file->storeAs('uploads/waybills', $filename, 'local');
@@ -68,7 +72,7 @@ class WaybillImportController extends Controller
             'original_filename' => $file->getClientOriginalName(),
             'type'              => 'waybill',
             'courier'           => $courier,
-            'import_type'       => $importType,
+            'import_type'       => 'auto_sync',
             'file_hash'         => $fileHash,
             'status'            => Upload::STATUS_QUEUED,
             'uploaded_by'       => $request->user()->id,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
 use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Lead;
@@ -271,7 +272,13 @@ class DesktopApiController extends Controller
             'total_uploads' => Upload::where('type', 'waybill')->count(),
             'total_imported' => Waybill::whereNotNull('upload_id')->count(),
             'pending_uploads' => Upload::where('type', 'waybill')
-                ->whereIn('status', ['pending', 'processing'])
+                ->whereIn('status', [
+                    Upload::STATUS_PENDING,
+                    Upload::STATUS_QUEUED,
+                    Upload::STATUS_VALIDATING,
+                    Upload::STATUS_READY_TO_PROCESS,
+                    Upload::STATUS_PROCESSING,
+                ])
                 ->count(),
             'recent_errors' => Upload::where('type', 'waybill')
                 ->where('status', 'failed')
@@ -287,7 +294,12 @@ class DesktopApiController extends Controller
                 'total_rows' => $u->total_rows ?? 0,
                 'processed_rows' => $u->processed_rows ?? 0,
                 'success_rows' => $u->success_rows ?? 0,
+                'inserted_rows' => $u->inserted_rows ?? 0,
+                'updated_rows' => $u->updated_rows ?? 0,
+                'skipped_rows' => $u->skipped_rows ?? 0,
                 'error_rows' => $u->error_rows ?? 0,
+                'courier' => $u->courier,
+                'import_type' => $u->import_type,
                 'status' => $u->status,
                 'errors' => $u->errors,
                 'uploaded_by' => $u->uploadedBy ? ['name' => $u->uploadedBy->name] : null,
@@ -317,8 +329,12 @@ class DesktopApiController extends Controller
             'filename' => $filename,
             'original_filename' => $file->getClientOriginalName(),
             'type' => 'waybill',
+            'courier' => $courier,
+            'import_type' => 'auto_sync',
+            'file_hash' => hash_file('sha256', storage_path('app/' . $path)),
             'status' => 'processing',
             'uploaded_by' => $request->user()->id,
+            'started_at' => now(),
         ]);
 
         try {
@@ -328,24 +344,32 @@ class DesktopApiController extends Controller
             });
             $upload->update(['total_rows' => $rowCount]);
 
-            if ($courier === 'jnt') {
-                $import = new JntWaybillFastImport($upload, $request->user()->id);
-                $import->import(storage_path('app/' . $path));
+            $import = $courier === 'jnt'
+                ? new JntWaybillFastImport($upload, $request->user()->id)
+                : new FlashWaybillFastImport($upload, $request->user()->id);
 
-                $upload->update([
-                    'status' => 'completed',
-                    'errors' => $import->getErrors(),
-                ]);
+            $import->import(storage_path('app/' . $path));
 
-                GenerateLeadsFromUpload::dispatch($upload->id);
+            $upload->update([
+                'status' => $import->getErrorCount() > 0
+                    ? Upload::STATUS_COMPLETED_WITH_ERRORS
+                    : Upload::STATUS_COMPLETED,
+                'errors' => $import->getErrors(),
+                'completed_at' => now(),
+            ]);
 
-                return response()->json([
-                    'message' => sprintf('%d waybills imported, %d errors', $import->getSuccessCount(), $import->getErrorCount()),
-                    'upload_id' => $upload->id,
-                ]);
-            }
+            GenerateLeadsFromUpload::dispatch($upload->id);
 
-            return response()->json(['message' => 'Import completed', 'upload_id' => $upload->id]);
+            return response()->json([
+                'message' => sprintf(
+                    '%d inserted, %d updated, %d skipped, %d failed',
+                    $import->getInsertedCount(),
+                    $import->getUpdatedCount(),
+                    $import->getSkippedCount(),
+                    $import->getErrorCount()
+                ),
+                'upload_id' => $upload->id,
+            ]);
 
         } catch (\Exception $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);
@@ -364,8 +388,14 @@ class DesktopApiController extends Controller
             'filename' => $upload->filename,
             'original_filename' => $upload->original_filename,
             'total_rows' => $upload->total_rows ?? 0,
+            'processed_rows' => $upload->processed_rows ?? 0,
             'success_rows' => $upload->success_rows ?? 0,
+            'inserted_rows' => $upload->inserted_rows ?? 0,
+            'updated_rows' => $upload->updated_rows ?? 0,
+            'skipped_rows' => $upload->skipped_rows ?? 0,
             'error_rows' => $upload->error_rows ?? 0,
+            'courier' => $upload->courier,
+            'import_type' => $upload->import_type,
             'status' => $upload->status,
             'errors' => $upload->errors,
             'created_at' => $upload->created_at->toISOString(),
@@ -389,25 +419,42 @@ class DesktopApiController extends Controller
 
         $upload->update([
             'status' => 'processing',
+            'started_at' => now(),
+            'completed_at' => null,
+            'total_rows' => 0,
             'processed_rows' => 0,
             'success_rows' => 0,
+            'inserted_rows' => 0,
+            'updated_rows' => 0,
+            'skipped_rows' => 0,
             'error_rows' => 0,
             'errors' => null,
         ]);
 
         try {
-            $import = new JntWaybillFastImport($upload, $upload->uploaded_by);
+            $import = $upload->courier === 'flash'
+                ? new FlashWaybillFastImport($upload, $upload->uploaded_by)
+                : new JntWaybillFastImport($upload, $upload->uploaded_by);
             $import->import(storage_path('app/' . $path));
 
             $upload->update([
-                'status' => 'completed',
+                'status' => $import->getErrorCount() > 0
+                    ? Upload::STATUS_COMPLETED_WITH_ERRORS
+                    : Upload::STATUS_COMPLETED,
                 'errors' => $import->getErrors(),
+                'completed_at' => now(),
             ]);
 
             GenerateLeadsFromUpload::dispatch($upload->id);
 
             return response()->json([
-                'message' => sprintf('Retry completed: %d imported, %d errors', $import->getSuccessCount(), $import->getErrorCount()),
+                'message' => sprintf(
+                    'Retry completed: %d inserted, %d updated, %d skipped, %d failed',
+                    $import->getInsertedCount(),
+                    $import->getUpdatedCount(),
+                    $import->getSkippedCount(),
+                    $import->getErrorCount()
+                ),
             ]);
 
         } catch (\Exception $e) {

@@ -90,6 +90,7 @@ type UploadPhase = 'idle' | 'uploading' | 'validating' | 'preview' | 'starting' 
 
 const formatImportType = (type: string | null) => {
   if (!type) return '';
+  if (type === 'auto_sync') return 'Auto Sync';
   return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 };
 
@@ -100,7 +101,6 @@ export default function WaybillImport({ uploads, stats }: Props) {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCourier, setSelectedCourier] = useState<string>('jnt');
-  const [selectedImportType, setSelectedImportType] = useState<string>('new_waybill');
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [transferPct, setTransferPct] = useState<number | null>(null);
@@ -179,7 +179,6 @@ export default function WaybillImport({ uploads, stats }: Props) {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('courier', selectedCourier);
-    formData.append('import_type', selectedImportType);
 
     let uploadId: number;
     try {
@@ -355,7 +354,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Import Waybills</h1>
             <p className="text-muted-foreground">
-              Upload Excel files from J&T or Flash courier to import waybill data
+              Upload courier file. Existing waybills will be updated automatically; new waybills will be added.
             </p>
           </div>
           <Button variant="outline" asChild>
@@ -410,7 +409,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
             <Card>
               <CardHeader>
                 <CardTitle>Upload File</CardTitle>
-                <CardDescription>Select courier, import type, and upload Excel file</CardDescription>
+                <CardDescription>Select courier and upload Excel file</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -423,21 +422,6 @@ export default function WaybillImport({ uploads, stats }: Props) {
                       <SelectContent>
                         <SelectItem value="jnt">J&T Express</SelectItem>
                         <SelectItem value="flash">Flash Express</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Import Type</label>
-                    <Select value={selectedImportType} onValueChange={setSelectedImportType} disabled={isFormDisabled}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select import type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new_waybill">New Waybill Import</SelectItem>
-                        <SelectItem value="status_update">Status Update</SelectItem>
-                        <SelectItem value="cod_update">COD Update</SelectItem>
-                        <SelectItem value="full_update">Full Data Update</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -525,10 +509,13 @@ export default function WaybillImport({ uploads, stats }: Props) {
                       {isUploading ? (
                         <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading {transferPct}%</>
                       ) : (
-                        <><Upload className="mr-2 h-4 w-4" />Upload File</>
+                        <><Upload className="mr-2 h-4 w-4" />Upload &amp; Validate</>
                       )}
                     </Button>
                   ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Existing waybills will be updated automatically. New waybills will be added.
+                  </p>
                 </form>
               </CardContent>
             </Card>

@@ -41,6 +41,8 @@ interface Upload {
   errors: Array<{ row: number; error: string }> | null;
   uploaded_by: { name: string } | null;
   created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
 }
 
 interface Props {
@@ -53,6 +55,7 @@ interface Props {
 
 const formatImportType = (type: string | null) => {
   if (!type) return '';
+  if (type === 'auto_sync') return 'Auto Sync';
   return type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 };
 
@@ -98,12 +101,44 @@ export default function ImportDetail({ upload, waybills }: Props) {
                   <Badge variant="secondary" className="capitalize">{upload.courier.toUpperCase()}</Badge>
                 )}
                 {upload.import_type && (
-                  <Badge variant="outline">{formatImportType(upload.import_type)}</Badge>
+                  <Badge variant="outline">Import Mode: {formatImportType(upload.import_type)}</Badge>
                 )}
               </div>
             )}
           </div>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Import Metadata</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-muted-foreground">Courier Provider</p>
+              <p className="font-medium">{upload.courier ? upload.courier.toUpperCase() : '-'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Import Mode</p>
+              <p className="font-medium">{formatImportType(upload.import_type) || 'Auto Sync'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Status</p>
+              <p className="font-medium capitalize">{upload.status.replace(/_/g, ' ')}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Uploaded At</p>
+              <p className="font-medium">{formatDateTime(upload.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Started At</p>
+              <p className="font-medium">{upload.started_at ? formatDateTime(upload.started_at) : '-'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Completed At</p>
+              <p className="font-medium">{upload.completed_at ? formatDateTime(upload.completed_at) : '-'}</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-5">
