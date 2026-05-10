@@ -17,7 +17,9 @@ use RuntimeException;
  * - All HTTP failures bubble up to QboSyncJob for retry
  *
  * Configure via .env:
- *   QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_ENVIRONMENT (sandbox|production)
+ *   QBO_PRODUCTION_CLIENT_ID / QBO_PRODUCTION_CLIENT_SECRET or
+ *   QBO_SANDBOX_CLIENT_ID / QBO_SANDBOX_CLIENT_SECRET.
+ *   QBO_CLIENT_ID / QBO_CLIENT_SECRET are kept as legacy fallbacks.
  */
 class QboClient
 {
@@ -48,8 +50,9 @@ class QboClient
     {
         if (! $this->connection->expiresWithinMinutes(10)) return;
 
-        $clientId     = (string) config('services.qbo.client_id');
-        $clientSecret = (string) config('services.qbo.client_secret');
+        $environment = $this->connection->environment === 'PRODUCTION' ? 'production' : 'sandbox';
+        $clientId = (string) config("services.qbo.{$environment}.client_id");
+        $clientSecret = (string) config("services.qbo.{$environment}.client_secret");
 
         $resp = Http::asForm()
             ->withBasicAuth($clientId, $clientSecret)

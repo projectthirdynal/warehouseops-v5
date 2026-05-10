@@ -40,6 +40,14 @@ return [
         'client_id'     => env('QBO_CLIENT_ID'),
         'client_secret' => env('QBO_CLIENT_SECRET'),
         'environment'   => env('QBO_ENVIRONMENT', 'sandbox'),
+        'sandbox'       => [
+            'client_id'     => env('QBO_SANDBOX_CLIENT_ID', env('QBO_CLIENT_ID')),
+            'client_secret' => env('QBO_SANDBOX_CLIENT_SECRET', env('QBO_CLIENT_SECRET')),
+        ],
+        'production'    => [
+            'client_id'     => env('QBO_PRODUCTION_CLIENT_ID', env('QBO_CLIENT_ID')),
+            'client_secret' => env('QBO_PRODUCTION_CLIENT_SECRET', env('QBO_CLIENT_SECRET')),
+        ],
     ],
 
     'couriers' => [

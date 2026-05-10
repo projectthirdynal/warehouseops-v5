@@ -20,6 +20,16 @@ class QuickBooksController extends Controller
     private const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
     private const SCOPE     = 'com.intuit.quickbooks.accounting';
 
+    private function qboCredentials(string $environment): array
+    {
+        $environment = strtolower($environment) === 'production' ? 'production' : 'sandbox';
+
+        return [
+            'client_id'     => (string) config("services.qbo.{$environment}.client_id"),
+            'client_secret' => (string) config("services.qbo.{$environment}.client_secret"),
+        ];
+    }
+
     public function dashboard()
     {
         $connection = QboConnection::active();
@@ -41,8 +51,8 @@ class QuickBooksController extends Controller
             $mappingStatus[$key] = $mappings->get($key)?->qbo_account_name;
         }
 
-        $clientId     = (string) config('services.qbo.client_id');
-        $clientSecret = (string) config('services.qbo.client_secret');
+        $sandboxCredentials = $this->qboCredentials('sandbox');
+        $productionCredentials = $this->qboCredentials('production');
 
         return Inertia::render('Finance/QuickBooks/Dashboard', [
             'connection'     => $connection ? [
@@ -55,19 +65,27 @@ class QuickBooksController extends Controller
             'stats'          => $stats,
             'recent'         => $recent,
             'mapping_status' => $mappingStatus,
-            'credentials_configured' => $clientId !== '' && $clientSecret !== '',
+            'credentials_configured' => (
+                $sandboxCredentials['client_id'] !== '' && $sandboxCredentials['client_secret'] !== ''
+            ) || (
+                $productionCredentials['client_id'] !== '' && $productionCredentials['client_secret'] !== ''
+            ),
             'redirect_uri'   => url('/finance/quickbooks/callback'),
         ]);
     }
 
     public function connect(Request $request)
     {
-        $clientId    = (string) config('services.qbo.client_id');
         $redirectUri = url('/finance/quickbooks/callback');
-        $environment = $request->query('env', 'sandbox');
+        $environment = strtolower((string) $request->query('env', 'sandbox')) === 'production'
+            ? 'production'
+            : 'sandbox';
+        $credentials = $this->qboCredentials($environment);
+        $clientId = $credentials['client_id'];
 
         if (! $clientId) {
-            return back()->with('error', 'QBO_CLIENT_ID not configured. Add QuickBooks credentials to .env.');
+            $envKey = $environment === 'production' ? 'QBO_PRODUCTION_CLIENT_ID' : 'QBO_SANDBOX_CLIENT_ID';
+            return back()->with('error', "{$envKey} not configured. Add the {$environment} QuickBooks credentials to .env.");
         }
 
         $state = Str::uuid()->toString();
@@ -95,8 +113,12 @@ class QuickBooksController extends Controller
             return redirect('/finance/quickbooks')->with('error', 'Missing code or realmId from QuickBooks.');
         }
 
-        $clientId     = (string) config('services.qbo.client_id');
-        $clientSecret = (string) config('services.qbo.client_secret');
+        $environment = strtolower((string) (session('qbo_oauth_env') ?? 'sandbox')) === 'production'
+            ? 'production'
+            : 'sandbox';
+        $credentials = $this->qboCredentials($environment);
+        $clientId = $credentials['client_id'];
+        $clientSecret = $credentials['client_secret'];
         $redirectUri  = url('/finance/quickbooks/callback');
 
         $resp = Http::asForm()
@@ -119,7 +141,7 @@ class QuickBooksController extends Controller
             'access_token'  => $data['access_token'],
             'refresh_token' => $data['refresh_token'],
             'expires_at'    => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
-            'environment'   => strtoupper((string) (session('qbo_oauth_env') ?? 'sandbox')),
+            'environment'   => strtoupper($environment),
             'connected_by'  => $request->user()->id,
             'connected_at'  => now(),
             'is_active'     => true,
