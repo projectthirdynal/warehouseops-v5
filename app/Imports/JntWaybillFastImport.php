@@ -17,6 +17,9 @@ class JntWaybillFastImport
     protected array $errors = [];
     protected int $successCount = 0;
     protected int $errorCount = 0;
+    protected int $insertedCount = 0;
+    protected int $updatedCount = 0;
+    protected int $skippedCount = 0;
     // PostgreSQL has a 65535 bind parameter limit per query.
     // ALL_COLUMNS has 36 fields → 65535 / 36 ≈ 1820 max rows per upsert.
     // Use 1500 to leave headroom and still get good throughput.
@@ -87,8 +90,8 @@ class JntWaybillFastImport
         $this->statusMapper = app(\App\Domain\Courier\Services\StatusMapper::class);
 
         // Trade durability for speed during bulk import: WAL fsync deferred per commit.
-        // If the DB crashes mid-import the upload can be retried; data integrity is preserved.
-        DB::statement('SET LOCAL synchronous_commit = OFF');
+        // SET (not SET LOCAL) applies session-wide; SET LOCAL would revert immediately in autocommit.
+        DB::statement('SET synchronous_commit = OFF');
 
         (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
             $rowNumber++;
@@ -116,13 +119,16 @@ class JntWaybillFastImport
                 }
 
                 $flushed = count($batch);
-                $this->bulkUpsert($batch);
+                $counts = $this->bulkUpsert($batch);
                 $batch = [];
 
-                // Single combined write — 3 increments collapsed to 1 UPDATE
+                // Single combined write — increments collapsed to 1 UPDATE
                 DB::table('uploads')->where('id', $this->upload->id)->update([
                     'success_rows'   => DB::raw("success_rows + {$flushed}"),
                     'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                    'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
+                    'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
+                    'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
                     'total_rows'     => $rowNumber,
                 ]);
             }
@@ -130,10 +136,13 @@ class JntWaybillFastImport
 
         if (!empty($batch)) {
             $flushed = count($batch);
-            $this->bulkUpsert($batch);
+            $counts = $this->bulkUpsert($batch);
             DB::table('uploads')->where('id', $this->upload->id)->update([
                 'success_rows'   => DB::raw("success_rows + {$flushed}"),
                 'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
+                'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
+                'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
                 'total_rows'     => $this->successCount + $this->errorCount,
             ]);
         }
@@ -258,7 +267,7 @@ class JntWaybillFastImport
         return $phone;
     }
 
-    protected function bulkUpsert(array $data): void
+    protected function bulkUpsert(array $data): array
     {
         $columns = self::ALL_COLUMNS;
         $colList = implode(', ', $columns);
@@ -277,16 +286,37 @@ class JntWaybillFastImport
             }
         }
 
+        // Pre-query to identify existing waybill numbers so we can reliably count
+        // inserts vs updates. xmax=0 is unreliable for ON CONFLICT DO UPDATE rows.
+        $waybillNumbers = array_column($data, 'waybill_number');
+        $existing = DB::table('waybills')
+            ->whereIn('waybill_number', $waybillNumbers)
+            ->pluck('waybill_number')
+            ->flip()
+            ->all();
+
         // Skip the update entirely when status and dates are unchanged — avoids
         // writing ~20 columns worth of WAL for rows that haven't moved.
-        DB::statement("
+        $rows = DB::select("
             INSERT INTO waybills ({$colList})
             VALUES {$valuesList}
             ON CONFLICT (waybill_number) DO UPDATE SET
                 {$updateSet}
             WHERE (waybills.status, waybills.signed_at, waybills.delivered_at, waybills.returned_at)
                   IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.signed_at, EXCLUDED.delivered_at, EXCLUDED.returned_at)
+            RETURNING waybill_number
         ", $bindings);
+
+        $returnedNumbers = array_map(fn($r) => $r->waybill_number, $rows);
+        $batchInserted = count(array_filter($returnedNumbers, fn($n) => !isset($existing[$n])));
+        $batchUpdated  = count(array_filter($returnedNumbers, fn($n) => isset($existing[$n])));
+        $batchSkipped  = count($data) - count($returnedNumbers);
+
+        $this->insertedCount += $batchInserted;
+        $this->updatedCount  += $batchUpdated;
+        $this->skippedCount  += $batchSkipped;
+
+        return ['inserted' => $batchInserted, 'updated' => $batchUpdated, 'skipped' => $batchSkipped];
     }
 
     public function getSuccessCount(): int
@@ -302,5 +332,20 @@ class JntWaybillFastImport
     public function getErrors(): array
     {
         return array_slice($this->errors, 0, 100);
+    }
+
+    public function getInsertedCount(): int
+    {
+        return $this->insertedCount;
+    }
+
+    public function getUpdatedCount(): int
+    {
+        return $this->updatedCount;
+    }
+
+    public function getSkippedCount(): int
+    {
+        return $this->skippedCount;
     }
 }

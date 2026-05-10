@@ -4,9 +4,9 @@ import {
   ArrowLeft,
   CheckCircle,
   XCircle,
-  Clock,
   Package,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,14 @@ interface Waybill {
 interface Upload {
   id: number;
   original_filename: string;
+  courier: string | null;
+  import_type: string | null;
   total_rows: number;
   processed_rows: number;
   success_rows: number;
+  inserted_rows: number;
+  updated_rows: number;
+  skipped_rows: number;
   error_rows: number;
   status: string;
   errors: Array<{ row: number; error: string }> | null;
@@ -45,6 +50,11 @@ interface Props {
     links: Array<{ url: string | null; label: string; active: boolean }>;
   };
 }
+
+const formatImportType = (type: string | null) => {
+  if (!type) return '';
+  return type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+};
 
 export default function ImportDetail({ upload, waybills }: Props) {
   const getStatusBadge = (status: string) => {
@@ -82,11 +92,21 @@ export default function ImportDetail({ upload, waybills }: Props) {
               Uploaded {formatDateTime(upload.created_at)}
               {upload.uploaded_by && ` by ${upload.uploaded_by.name}`}
             </p>
+            {(upload.courier || upload.import_type) && (
+              <div className="flex gap-2 mt-1">
+                {upload.courier && (
+                  <Badge variant="secondary" className="capitalize">{upload.courier.toUpperCase()}</Badge>
+                )}
+                {upload.import_type && (
+                  <Badge variant="outline">{formatImportType(upload.import_type)}</Badge>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Rows</CardTitle>
@@ -98,30 +118,34 @@ export default function ImportDetail({ upload, waybills }: Props) {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Processed</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{upload.processed_rows}</div>
-              <p className="text-xs text-muted-foreground">
-                {upload.total_rows > 0
-                  ? Math.round((upload.processed_rows / upload.total_rows) * 100)
-                  : 0}% complete
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Success</CardTitle>
+              <CardTitle className="text-sm font-medium">Inserted</CardTitle>
               <CheckCircle className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{upload.success_rows}</div>
+              <div className="text-2xl font-bold text-green-600">{upload.inserted_rows}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Errors</CardTitle>
+              <CardTitle className="text-sm font-medium">Updated</CardTitle>
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{upload.updated_rows}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Skipped</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-muted-foreground">{upload.skipped_rows}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Failed</CardTitle>
               <XCircle className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
@@ -131,30 +155,48 @@ export default function ImportDetail({ upload, waybills }: Props) {
         </div>
 
         {/* Errors */}
-        {upload.errors && upload.errors.length > 0 && (
+        {upload.error_rows > 0 && (
           <Card className="border-red-200">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
-                Import Errors
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Import Errors ({upload.error_rows} rows)
+                </CardTitle>
+                {upload.error_rows > 0 && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/waybills/import/${upload.id}/errors/download`}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Download CSV
+                    </a>
+                  </Button>
+                )}
+              </div>
               <CardDescription>
                 The following rows had errors during import
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {upload.errors.map((error, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 p-2 bg-red-50 rounded-lg text-sm"
-                  >
-                    <span className="font-mono text-red-600">Row {error.row}</span>
-                    <span className="text-red-700">{error.error}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
+            {upload.errors && upload.errors.length > 0 ? (
+              <CardContent>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {upload.errors.map((error, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 p-2 bg-red-50 rounded-lg text-sm"
+                    >
+                      <span className="font-mono text-red-600">Row {error.row}</span>
+                      <span className="text-red-700">{error.error}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            ) : (
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  {upload.error_rows} rows failed. Download the error report for details.
+                </p>
+              </CardContent>
+            )}
           </Card>
         )}
 

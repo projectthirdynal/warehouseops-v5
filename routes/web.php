@@ -101,6 +101,10 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::post('/import', [WaybillImportController::class, 'store'])->name('import.store');
         Route::get('/import/template', [WaybillImportController::class, 'template'])->name('import.template');
         Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
+        Route::post('/import/{upload}/validate', [WaybillImportController::class, 'validateUpload'])->name('import.validate');
+        Route::post('/import/{upload}/start', [WaybillImportController::class, 'start'])->name('import.start');
+        Route::get('/import/{upload}/preview', [WaybillImportController::class, 'preview'])->name('import.preview');
+        Route::get('/import/{upload}/errors/download', [WaybillImportController::class, 'errorsDownload'])->name('import.errors.download');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');

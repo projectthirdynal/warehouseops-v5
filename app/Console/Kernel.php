@@ -5,6 +5,7 @@ namespace App\Console;
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;
+use App\Models\Upload;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -20,6 +21,15 @@ class Kernel extends ConsoleKernel
         $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
             ->withoutOverlapping()
             ->onOneServer();
+
+        // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
+        $schedule->call(function () {
+            Upload::where('type', 'waybill')
+                ->where('status', 'processing')
+                ->where('processed_rows', 0)
+                ->where('created_at', '<', now()->subMinutes(15))
+                ->each(fn ($u) => $u->markAsFailed(['message' => 'Job did not start — retried automatically. Please retry.']));
+        })->everyFifteenMinutes();
     }
 
     /**

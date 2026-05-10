@@ -22,11 +22,11 @@ class FraudDetectionService
     {
         $flags = collect();
 
-        $suspicious = LeadCycle::select('assigned_agent_id', 'outcome', DB::raw('COUNT(*) as count'))
+        $suspicious = LeadCycle::select('assigned_agent_id', 'outcome', DB::raw('COUNT(*) as cycle_count'))
             ->where('closed_at', '>=', now()->subMinutes($minutes))
             ->whereNotNull('outcome')
             ->groupBy('assigned_agent_id', 'outcome')
-            ->having('count', '>=', $threshold)
+            ->havingRaw('COUNT(*) >= ?', [$threshold])
             ->get();
 
         foreach ($suspicious as $record) {
@@ -42,7 +42,7 @@ class FraudDetectionService
                     'severity' => 'WARNING',
                     'details' => [
                         'outcome' => $record->outcome,
-                        'count' => $record->count,
+                        'count' => $record->cycle_count,
                         'period_minutes' => $minutes,
                     ],
                 ]);
