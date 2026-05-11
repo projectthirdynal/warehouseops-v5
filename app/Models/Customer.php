@@ -13,8 +13,17 @@ class Customer extends Model
 
     protected $fillable = [
         'phone',
+        'normalized_phone',
         'name',
+        'facebook_name',
         'canonical_address',
+        'landmark',
+        'barangay',
+        'city_municipality',
+        'province',
+        'region',
+        'last_page_ordered_from',
+        'last_order_date',
         'total_orders',
         'successful_orders',
         'returned_orders',
@@ -31,6 +40,7 @@ class Customer extends Model
         'total_revenue' => 'decimal:2',
         'is_blacklisted' => 'boolean',
         'blacklisted_at' => 'datetime',
+        'last_order_date' => 'datetime',
     ];
 
     public function leads(): HasMany

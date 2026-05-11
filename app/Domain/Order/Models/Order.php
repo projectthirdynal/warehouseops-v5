@@ -22,10 +22,13 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'lead_id',
+        'conversation_id',
+        'facebook_page_id',
         'customer_id',
         'product_id',
         'variant_id',
         'assigned_agent_id',
+        'encoder_id',
         'status',
         'courier_code',
         'waybill_id',
@@ -41,12 +44,17 @@ class Order extends Model
         'state',
         'barangay',
         'postal_code',
+        'address_mapping_id',
+        'source_channel',
+        'address_confidence',
+        'export_status',
         'notes',
         'rejection_reason',
         'confirmed_at',
         'dispatched_at',
         'delivered_at',
         'returned_at',
+        'encoded_at',
     ];
 
     protected $casts = [
@@ -55,10 +63,12 @@ class Order extends Model
         'total_amount'  => 'decimal:2',
         'cod_amount'    => 'decimal:2',
         'shipping_cost' => 'decimal:2',
+        'address_confidence' => 'decimal:2',
         'confirmed_at'  => 'datetime',
         'dispatched_at' => 'datetime',
         'delivered_at'  => 'datetime',
         'returned_at'   => 'datetime',
+        'encoded_at'    => 'datetime',
     ];
 
     // Relationships
