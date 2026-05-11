@@ -56,6 +56,7 @@ return [
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         'graph_version' => env('META_GRAPH_VERSION', 'v20.0'),
         'redirect_uri' => env('META_REDIRECT_URI', env('APP_URL') . '/shop/facebook/callback'),
+        'login_config_id' => env('META_LOGIN_CONFIG_ID'),
     ],
 
     'couriers' => [

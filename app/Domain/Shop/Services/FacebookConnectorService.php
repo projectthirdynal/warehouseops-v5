@@ -14,7 +14,7 @@ class FacebookConnectorService
 {
     public function authorizationUrl(): string
     {
-        $query = http_build_query([
+        $parameters = [
             'client_id' => config('services.meta.app_id'),
             'redirect_uri' => config('services.meta.redirect_uri'),
             'state' => csrf_token(),
@@ -23,9 +23,17 @@ class FacebookConnectorService
                 'pages_manage_metadata',
                 'pages_messaging',
                 'pages_read_engagement',
+                'pages_manage_engagement',
+                'business_management',
             ]),
             'response_type' => 'code',
-        ]);
+        ];
+
+        if (filled(config('services.meta.login_config_id'))) {
+            $parameters['config_id'] = config('services.meta.login_config_id');
+        }
+
+        $query = http_build_query($parameters);
 
         return "https://www.facebook.com/" . config('services.meta.graph_version') . "/dialog/oauth?{$query}";
     }
