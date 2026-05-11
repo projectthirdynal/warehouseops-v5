@@ -29,6 +29,7 @@ import {
   PackageCheck,
   Building2,
   TrendingUp,
+  Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 
 const navigation: NavEntry[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Shop', href: '/shop', icon: Store, permission: 'accounts' },
   {
     name: 'Waybills',
     icon: Truck,

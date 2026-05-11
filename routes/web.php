@@ -31,6 +31,7 @@ use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\SalesTrackingController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\CostOfGoodsController;
+use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,6 +71,9 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Shop / Facebook POS
+    Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {
