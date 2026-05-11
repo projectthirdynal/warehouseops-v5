@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
+use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopOrderItem;
-use App\Models\Customer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,12 @@ use Inertia\Response;
 
 class ShopController extends Controller
 {
+    public function __construct(
+        private readonly PhoneDetectionService $phones,
+        private readonly CustomerIdentityService $customerIdentities,
+        private readonly AddressMappingService $addressMappings,
+    ) {}
+
     public function index(): Response
     {
         return Inertia::render('Shop/Index', [
@@ -30,9 +38,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Facebook Connector',
-                    'status' => 'Planned',
-                    'description' => 'Connect Meta accounts, list Pages, store encrypted Page tokens, and subscribe webhooks.',
-                    'items' => ['Login with Facebook', 'Fetch Pages', 'Page token vault', 'Webhook subscription'],
+                    'status' => 'Webhook Ready',
+                    'description' => 'Meta configuration, encrypted Page token columns, webhook verification, and raw event capture foundation.',
+                    'items' => ['Meta config', 'Page token vault', 'Webhook verification', 'Raw event capture'],
                 ],
                 [
                     'name' => 'Multi-page Inbox',
@@ -44,13 +52,13 @@ class ShopController extends Controller
                     'name' => 'Order Desk',
                     'status' => 'MVP Entry',
                     'description' => 'Create structured orders from conversations with products, COD amount, remarks, and customer details.',
-                    'items' => ['Manual order form', 'Customer matching', 'Order items', 'Agent remarks'],
+                    'items' => ['Manual order form', 'Phone matching', 'Address matching', 'Agent remarks'],
                 ],
                 [
                     'name' => 'Encoder & Export',
-                    'status' => 'Planned',
+                    'status' => 'Mapping Ready',
                     'description' => 'Validate addresses, map regions, and export courier-ready sheets for J&T, Flash, and other COD couriers.',
-                    'items' => ['Address confidence', 'Encoder queue', 'Courier batches', 'CSV/XLSX export'],
+                    'items' => ['Address confidence', 'PH reference seed', 'Courier batches', 'CSV/XLSX export'],
                 ],
             ],
             'workflow' => [
@@ -63,10 +71,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add phone normalization and customer identity matching services.',
-                'Seed Philippine address mapping references for province, city, barangay, and courier zone.',
-                'Add Meta app configuration and encrypted Page token storage.',
-                'Implement webhook verification and raw event capture.',
+                'Build the multi-page inbox list backed by conversations and messages.',
+                'Process raw Meta webhook events into conversations and messages.',
+                'Add Facebook OAuth login and Page list selection.',
+                'Build encoder queue and courier export file generation.',
             ],
         ]);
     }
@@ -118,7 +126,13 @@ class ShopController extends Controller
         $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
         $lineTotal = $quantity * $unitPrice;
         $totalAmount = $lineTotal + $shippingFee;
-        $normalizedPhone = $this->normalizePhilippinePhone($validated['phone']);
+        $normalizedPhone = $this->phones->normalize($validated['phone']);
+        $addressMatch = $this->addressMappings->match([
+            'province' => $validated['province'] ?? null,
+            'city_municipality' => $validated['city_municipality'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'address' => $validated['complete_address'],
+        ]);
 
         $order = DB::transaction(function () use (
             $validated,
@@ -129,32 +143,19 @@ class ShopController extends Controller
             $shippingFee,
             $lineTotal,
             $totalAmount,
-            $normalizedPhone
+            $normalizedPhone,
+            $addressMatch
         ) {
-            $customer = Customer::query()
-                ->where('normalized_phone', $normalizedPhone)
-                ->orWhere('phone', $validated['phone'])
-                ->first();
-
-            if (! $customer) {
-                $customer = new Customer([
-                    'phone' => $validated['phone'],
-                    'normalized_phone' => $normalizedPhone,
-                    'name' => $validated['customer_name'],
-                    'risk_level' => 'LOW',
-                ]);
-            }
-
-            $customer->fill([
+            $customer = $this->customerIdentities->firstOrCreateFromPhone([
                 'name' => $validated['customer_name'],
-                'normalized_phone' => $normalizedPhone,
-                'canonical_address' => $validated['complete_address'],
+                'phone' => $validated['phone'],
+                'address' => $validated['complete_address'],
                 'landmark' => $validated['landmark'] ?? null,
                 'barangay' => $validated['barangay'] ?? null,
                 'city_municipality' => $validated['city_municipality'] ?? null,
                 'province' => $validated['province'] ?? null,
-                'last_order_date' => now(),
-            ])->save();
+                'region' => $addressMatch['mapping']?->region,
+            ]);
 
             $order = Order::query()->create([
                 'order_number' => Order::generateOrderNumber(),
@@ -175,7 +176,9 @@ class ShopController extends Controller
                 'city' => $validated['city_municipality'] ?? null,
                 'state' => $validated['province'] ?? null,
                 'barangay' => $validated['barangay'] ?? null,
+                'address_mapping_id' => $addressMatch['mapping']?->id,
                 'source_channel' => 'manual_shop',
+                'address_confidence' => $addressMatch['confidence'],
                 'export_status' => 'pending',
                 'confirmed_at' => now(),
                 'notes' => $validated['remarks'] ?? null,
@@ -246,18 +249,4 @@ class ShopController extends Controller
         return (int) $callback();
     }
 
-    private function normalizePhilippinePhone(string $phone): string
-    {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-
-        if (str_starts_with($digits, '63') && strlen($digits) === 12) {
-            return '0' . substr($digits, 2);
-        }
-
-        if (str_starts_with($digits, '9') && strlen($digits) === 10) {
-            return '0' . $digits;
-        }
-
-        return $digits;
-    }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Courier\Http\Controllers\CourierWebhookController;
+use App\Domain\Shop\Http\Controllers\MetaWebhookController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\DesktopApiController;
 use Illuminate\Http\Request;
@@ -102,4 +103,14 @@ Route::prefix('webhooks/courier')->group(function () {
         ->defaults('courier', 'JNT')
         ->middleware('courier.webhook:JNT')
         ->name('webhook.courier.jnt');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Meta Webhook Routes (public, signature-recorded)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('webhooks/meta')->name('webhook.meta.')->group(function () {
+    Route::get('/', [MetaWebhookController::class, 'verify'])->name('verify');
+    Route::post('/', [MetaWebhookController::class, 'receive'])->name('receive');
 });

@@ -50,6 +50,14 @@ return [
         ],
     ],
 
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+        'graph_version' => env('META_GRAPH_VERSION', 'v20.0'),
+        'redirect_uri' => env('META_REDIRECT_URI', env('APP_URL') . '/shop/facebook/callback'),
+    ],
+
     'couriers' => [
         'flash' => [
             'base_url'       => env('FLASH_API_URL', 'https://open-api.flashexpress.com'),
