@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Http\Controllers;
 
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
+use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,8 @@ use Illuminate\Http\Response;
 
 class MetaWebhookController extends Controller
 {
+    public function __construct(private readonly MetaConversationIngestor $ingestor) {}
+
     public function verify(Request $request): Response|JsonResponse
     {
         $mode = $request->query('hub_mode') ?? $request->query('hub.mode');
@@ -53,7 +56,7 @@ class MetaWebhookController extends Controller
             ?? $event['postback']['mid']
             ?? hash('sha256', json_encode($event, JSON_UNESCAPED_SLASHES) ?: serialize($event));
 
-        FacebookWebhookEvent::query()->firstOrCreate(
+        $webhookEvent = FacebookWebhookEvent::query()->firstOrCreate(
             ['event_id' => $eventId],
             [
                 'facebook_page_id' => $page?->id,
@@ -65,6 +68,10 @@ class MetaWebhookController extends Controller
                 'signature_valid' => $signatureValid,
             ]
         );
+
+        if ($type === 'messaging') {
+            $this->ingestor->process($webhookEvent);
+        }
     }
 
     private function signatureIsValid(string $payload, string $signatureHeader): bool

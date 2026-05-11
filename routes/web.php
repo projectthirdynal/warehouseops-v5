@@ -74,8 +74,14 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::get('/shop/inbox', [ShopController::class, 'inbox'])->name('shop.inbox');
+    Route::get('/shop/encoder', [ShopController::class, 'encoder'])->name('shop.encoder');
+    Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
+    Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
+    Route::get('/shop/facebook/connect', [ShopController::class, 'connectFacebook'])->name('shop.facebook.connect');
+    Route::get('/shop/facebook/callback', [ShopController::class, 'facebookCallback'])->name('shop.facebook.callback');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {

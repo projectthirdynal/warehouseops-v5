@@ -5,8 +5,13 @@ namespace App\Http\Controllers;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\CourierExportBatch;
+use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -16,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShopController extends Controller
 {
@@ -23,6 +29,8 @@ class ShopController extends Controller
         private readonly PhoneDetectionService $phones,
         private readonly CustomerIdentityService $customerIdentities,
         private readonly AddressMappingService $addressMappings,
+        private readonly FacebookConnectorService $facebookConnector,
+        private readonly CourierExportService $courierExports,
     ) {}
 
     public function index(): Response
@@ -38,15 +46,15 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Facebook Connector',
-                    'status' => 'Webhook Ready',
-                    'description' => 'Meta configuration, encrypted Page token columns, webhook verification, and raw event capture foundation.',
-                    'items' => ['Meta config', 'Page token vault', 'Webhook verification', 'Raw event capture'],
+                    'status' => 'OAuth Ready',
+                    'description' => 'Meta OAuth redirect, Page token storage, webhook verification, and raw event capture foundation.',
+                    'items' => ['OAuth connect', 'Page list sync', 'Webhook verification', 'Raw event capture'],
                 ],
                 [
                     'name' => 'Multi-page Inbox',
-                    'status' => 'Planned',
+                    'status' => 'MVP List',
                     'description' => 'Central inbox for Messenger messages and Page comments across connected selling Pages.',
-                    'items' => ['Page filters', 'Unread queue', 'Agent assignment', 'Conversation history'],
+                    'items' => ['Page filters', 'Unread queue', 'Conversation list', 'Message preview'],
                 ],
                 [
                     'name' => 'Order Desk',
@@ -56,9 +64,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Encoder & Export',
-                    'status' => 'Mapping Ready',
+                    'status' => 'CSV Ready',
                     'description' => 'Validate addresses, map regions, and export courier-ready sheets for J&T, Flash, and other COD couriers.',
-                    'items' => ['Address confidence', 'PH reference seed', 'Courier batches', 'CSV/XLSX export'],
+                    'items' => ['Encoder queue', 'PH reference seed', 'Courier batches', 'CSV export'],
                 ],
             ],
             'workflow' => [
@@ -71,12 +79,112 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Build the multi-page inbox list backed by conversations and messages.',
-                'Process raw Meta webhook events into conversations and messages.',
-                'Add Facebook OAuth login and Page list selection.',
-                'Build encoder queue and courier export file generation.',
+                'Add conversation detail view with reply box.',
+                'Subscribe connected Pages to Meta webhook fields.',
+                'Add encoder address correction workflow.',
+                'Add courier-specific export format adapters.',
             ],
         ]);
+    }
+
+    public function inbox(Request $request): Response
+    {
+        $query = Conversation::query()
+            ->with(['facebookPage:id,page_name,page_id', 'customer:id,name,phone,normalized_phone', 'identity:id,display_name,phone_detected'])
+            ->withCount('messages')
+            ->latest('last_message_at');
+
+        if ($request->filled('page_id')) {
+            $query->where('facebook_page_id', $request->integer('page_id'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        return Inertia::render('Shop/Inbox', [
+            'conversations' => $query->paginate(20)->withQueryString(),
+            'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
+            'filters' => $request->only(['page_id', 'status']),
+        ]);
+    }
+
+    public function encoder(): Response
+    {
+        return Inertia::render('Shop/Encoder', [
+            'orders' => Order::query()
+                ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku'])
+                ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+                ->whereNull('encoded_at')
+                ->latest()
+                ->paginate(25),
+            'recent_batches' => CourierExportBatch::query()
+                ->latest()
+                ->limit(10)
+                ->get(['id', 'batch_number', 'courier_code', 'row_count', 'file_path', 'created_at']),
+        ]);
+    }
+
+    public function exportCourier(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with('product:id,name,sku')
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->when(! empty($validated['order_ids']), fn ($query) => $query->whereIn('id', $validated['order_ids']))
+            ->limit(500)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return back()->with('error', 'No encoder-ready orders found for export.');
+        }
+
+        $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());
+
+        return redirect()
+            ->route('shop.encoder')
+            ->with('success', "Export batch {$batch->batch_number} created.");
+    }
+
+    public function downloadExport(CourierExportBatch $batch): BinaryFileResponse
+    {
+        abort_unless($batch->file_path && file_exists(storage_path("app/{$batch->file_path}")), 404);
+
+        return response()->download(storage_path("app/{$batch->file_path}"));
+    }
+
+    public function connectFacebook(): RedirectResponse
+    {
+        if (! $this->facebookConnector->isConfigured()) {
+            return back()->with('error', 'Meta app credentials are not configured yet.');
+        }
+
+        return redirect()->away($this->facebookConnector->authorizationUrl());
+    }
+
+    public function facebookCallback(Request $request): RedirectResponse
+    {
+        if ($request->filled('error')) {
+            return redirect()->route('shop.index')->with('error', (string) $request->query('error_description', 'Facebook connection cancelled.'));
+        }
+
+        $request->validate(['code' => ['required', 'string']]);
+
+        if ($request->filled('state') && ! hash_equals(csrf_token(), (string) $request->query('state'))) {
+            return redirect()->route('shop.index')->with('error', 'Facebook connection state check failed.');
+        }
+
+        $pageCount = $this->facebookConnector->connectFromCallback($request->user(), (string) $request->query('code'));
+
+        return redirect()
+            ->route('shop.index')
+            ->with('success', "Facebook connected. {$pageCount} Pages synced.");
     }
 
     public function createOrder(): Response

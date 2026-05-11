@@ -86,6 +86,9 @@ function statusVariant(status: string) {
   if (status === 'MVP Entry') return 'bg-blue-100 text-blue-800 border-blue-200';
   if (status === 'Webhook Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
   if (status === 'Mapping Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'OAuth Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
+  if (status === 'MVP List') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (status === 'CSV Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
@@ -101,9 +104,23 @@ export default function ShopIndex({ stats, modules, workflow, next_actions }: Pr
             <p className="text-muted-foreground">Facebook order processing and POS workspace</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button disabled variant="outline">
-              <Store className="mr-2 h-4 w-4" />
-              Connect Page
+            <Button asChild variant="outline">
+              <Link href="/shop/inbox">
+                <Inbox className="mr-2 h-4 w-4" />
+                Inbox
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/encoder">
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Encoder
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/facebook/connect">
+                <Store className="mr-2 h-4 w-4" />
+                Connect Page
+              </Link>
             </Button>
             <Button asChild>
               <Link href="/shop/orders/create">
