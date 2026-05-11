@@ -37,6 +37,16 @@ interface Props {
   modules: ShopModule[];
   workflow: string[];
   next_actions: string[];
+  facebook_pages: FacebookPage[];
+}
+
+interface FacebookPage {
+  id: number;
+  page_id: string;
+  page_name: string;
+  connected_status: string;
+  webhook_status: string;
+  last_sync_at: string | null;
 }
 
 const statCards = [
@@ -89,10 +99,13 @@ function statusVariant(status: string) {
   if (status === 'OAuth Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
   if (status === 'MVP List') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   if (status === 'CSV Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'Subscribe Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
+  if (status === 'Detail Ready') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (status === 'Correction Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
-export default function ShopIndex({ stats, modules, workflow, next_actions }: Props) {
+export default function ShopIndex({ stats, modules, workflow, next_actions, facebook_pages }: Props) {
   return (
     <AppLayout>
       <Head title="Shop" />
@@ -227,6 +240,34 @@ export default function ShopIndex({ stats, modules, workflow, next_actions }: Pr
                     </div>
                   );
                 })}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Connected Pages</CardTitle>
+                <CardDescription>Subscribe Pages after OAuth sync</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {facebook_pages.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No Facebook Pages connected yet.</p>
+                ) : (
+                  facebook_pages.map((page) => (
+                    <div key={page.id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{page.page_name}</p>
+                          <p className="text-xs text-muted-foreground">{page.connected_status} / {page.webhook_status}</p>
+                        </div>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/shop/facebook/pages/${page.id}/subscribe`} method="post" as="button">
+                            Subscribe
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
 

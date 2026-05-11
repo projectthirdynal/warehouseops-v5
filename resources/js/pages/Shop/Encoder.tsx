@@ -1,9 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import { Download, FileSpreadsheet, PackageCheck, Truck } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Order {
   id: number;
@@ -35,13 +38,57 @@ interface Paginated<T> {
 interface Props {
   orders: Paginated<Order>;
   recent_batches: Batch[];
+  couriers: { value: string; label: string }[];
 }
 
 function money(value: string | number) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value));
 }
 
-export default function ShopEncoder({ orders, recent_batches }: Props) {
+function AddressEditor({ order }: { order: Order }) {
+  const [form, setForm] = useState({
+    receiver_address: order.receiver_address ?? '',
+    barangay: order.barangay ?? '',
+    city: order.city ?? '',
+    state: order.state ?? '',
+    notes: '',
+  });
+
+  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <Textarea
+        value={form.receiver_address}
+        onChange={(event) => update('receiver_address', event.target.value)}
+        placeholder="Complete address"
+      />
+      <div className="grid gap-2 md:grid-cols-3">
+        <Input value={form.barangay} onChange={(event) => update('barangay', event.target.value)} placeholder="Barangay" />
+        <Input value={form.city} onChange={(event) => update('city', event.target.value)} placeholder="City / Municipality" />
+        <Input value={form.state} onChange={(event) => update('state', event.target.value)} placeholder="Province" />
+      </div>
+      <Input value={form.notes} onChange={(event) => update('notes', event.target.value)} placeholder="Encoder remarks" />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => router.patch(`/shop/encoder/orders/${order.id}/address`, form, { preserveScroll: true })}
+        >
+          Save Address
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => router.post(`/shop/encoder/orders/${order.id}/encoded`, {}, { preserveScroll: true })}
+        >
+          Mark Encoded
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
   const exportCourier = (courierCode: string) => {
     router.post('/shop/exports', { courier_code: courierCode });
   };
@@ -57,14 +104,16 @@ export default function ShopEncoder({ orders, recent_batches }: Props) {
             <p className="text-muted-foreground">Confirmed orders ready for address review and courier export</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => exportCourier('JNT')}>
-              <Truck className="mr-2 h-4 w-4" />
-              Export J&T
-            </Button>
-            <Button onClick={() => exportCourier('FLASH')}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Export Flash
-            </Button>
+            {couriers.map((courier) => (
+              <Button
+                key={courier.value}
+                variant={courier.value === 'FLASH' ? 'default' : 'outline'}
+                onClick={() => exportCourier(courier.value)}
+              >
+                {courier.value === 'JNT' ? <Truck className="mr-2 h-4 w-4" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                Export {courier.label}
+              </Button>
+            ))}
           </div>
         </div>
 
@@ -99,6 +148,7 @@ export default function ShopEncoder({ orders, recent_batches }: Props) {
                       {[order.barangay, order.city, order.state].filter(Boolean).join(', ') || 'No structured location'}
                     </p>
                     <p className="text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                    <AddressEditor order={order} />
                   </CardContent>
                 </Card>
               ))

@@ -8,6 +8,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
+use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerIdentityService;
@@ -37,6 +38,10 @@ class ShopController extends Controller
     {
         return Inertia::render('Shop/Index', [
             'stats' => $this->stats(),
+            'facebook_pages' => FacebookPage::query()
+                ->latest('last_sync_at')
+                ->limit(8)
+                ->get(['id', 'page_id', 'page_name', 'connected_status', 'webhook_status', 'last_sync_at']),
             'modules' => [
                 [
                     'name' => 'POS Core Schema',
@@ -46,15 +51,15 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Facebook Connector',
-                    'status' => 'OAuth Ready',
-                    'description' => 'Meta OAuth redirect, Page token storage, webhook verification, and raw event capture foundation.',
-                    'items' => ['OAuth connect', 'Page list sync', 'Webhook verification', 'Raw event capture'],
+                    'status' => 'Subscribe Ready',
+                    'description' => 'Meta OAuth redirect, Page token storage, webhook verification, Page subscription, and raw event capture foundation.',
+                    'items' => ['OAuth connect', 'Page list sync', 'Webhook subscribe', 'Raw event capture'],
                 ],
                 [
                     'name' => 'Multi-page Inbox',
-                    'status' => 'MVP List',
+                    'status' => 'Detail Ready',
                     'description' => 'Central inbox for Messenger messages and Page comments across connected selling Pages.',
-                    'items' => ['Page filters', 'Unread queue', 'Conversation list', 'Message preview'],
+                    'items' => ['Page filters', 'Conversation detail', 'Reply logging', 'Message preview'],
                 ],
                 [
                     'name' => 'Order Desk',
@@ -64,9 +69,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Encoder & Export',
-                    'status' => 'CSV Ready',
+                    'status' => 'Correction Ready',
                     'description' => 'Validate addresses, map regions, and export courier-ready sheets for J&T, Flash, and other COD couriers.',
-                    'items' => ['Encoder queue', 'PH reference seed', 'Courier batches', 'CSV export'],
+                    'items' => ['Address correction', 'PH reference seed', 'Courier batches', 'Courier CSV adapters'],
                 ],
             ],
             'workflow' => [
@@ -79,10 +84,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add conversation detail view with reply box.',
-                'Subscribe connected Pages to Meta webhook fields.',
-                'Add encoder address correction workflow.',
-                'Add courier-specific export format adapters.',
+                'Add live Send API error/status indicators in conversation detail.',
+                'Add Page subscription health checks and resubscribe retries.',
+                'Add bulk encoder selection before export.',
+                'Add courier-specific required field validation.',
             ],
         ]);
     }
@@ -109,6 +114,69 @@ class ShopController extends Controller
         ]);
     }
 
+    public function conversation(Conversation $conversation): Response
+    {
+        $conversation->load([
+            'facebookPage:id,page_id,page_name,webhook_status',
+            'customer:id,name,phone,normalized_phone,canonical_address',
+            'identity:id,display_name,provider_user_id,phone_detected',
+            'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
+        ]);
+
+        $conversation->forceFill(['unread_count' => 0])->save();
+
+        return Inertia::render('Shop/Conversation', [
+            'conversation' => $conversation,
+        ]);
+    }
+
+    public function sendReply(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $conversation->load(['facebookPage', 'identity']);
+        $delivery = ['status' => 'logged'];
+
+        if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
+            try {
+                $delivery = $this->facebookConnector->sendMessage(
+                    $conversation->facebookPage,
+                    $conversation->identity->provider_user_id,
+                    $validated['body']
+                );
+                $delivery['status'] = 'sent';
+            } catch (\Throwable $exception) {
+                $delivery = [
+                    'status' => 'failed',
+                    'error' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        Message::query()->create([
+            'conversation_id' => $conversation->id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'customer_identity_id' => $conversation->customer_identity_id,
+            'external_message_id' => 'local-' . str()->uuid(),
+            'direction' => 'outbound',
+            'message_type' => 'text',
+            'body' => $validated['body'],
+            'raw_payload' => $delivery,
+            'sent_at' => now(),
+        ]);
+
+        $conversation->forceFill([
+            'last_message_preview' => $validated['body'],
+            'last_message_at' => now(),
+        ])->save();
+
+        return back()->with($delivery['status'] === 'failed' ? 'error' : 'success', $delivery['status'] === 'failed'
+            ? 'Reply saved locally, but Meta send failed.'
+            : 'Reply saved.');
+    }
+
     public function encoder(): Response
     {
         return Inertia::render('Shop/Encoder', [
@@ -122,6 +190,11 @@ class ShopController extends Controller
                 ->latest()
                 ->limit(10)
                 ->get(['id', 'batch_number', 'courier_code', 'row_count', 'file_path', 'created_at']),
+            'couriers' => [
+                ['value' => 'JNT', 'label' => 'J&T Express'],
+                ['value' => 'FLASH', 'label' => 'Flash Express'],
+                ['value' => 'GENERIC', 'label' => 'Generic CSV'],
+            ],
         ]);
     }
 
@@ -150,6 +223,48 @@ class ShopController extends Controller
         return redirect()
             ->route('shop.encoder')
             ->with('success', "Export batch {$batch->batch_number} created.");
+    }
+
+    public function updateOrderAddress(Request $request, Order $order): RedirectResponse
+    {
+        $validated = $request->validate([
+            'receiver_address' => ['required', 'string', 'max:2000'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'state' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $addressMatch = $this->addressMappings->match([
+            'province' => $validated['state'] ?? null,
+            'city_municipality' => $validated['city'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'address' => $validated['receiver_address'],
+        ]);
+
+        $order->forceFill([
+            'receiver_address' => $validated['receiver_address'],
+            'barangay' => $validated['barangay'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'state' => $validated['state'] ?? null,
+            'postal_code' => $validated['postal_code'] ?? null,
+            'notes' => $validated['notes'] ?? $order->notes,
+            'address_mapping_id' => $addressMatch['mapping']?->id,
+            'address_confidence' => $addressMatch['confidence'],
+        ])->save();
+
+        return back()->with('success', "Address updated for {$order->order_number}.");
+    }
+
+    public function markEncoded(Order $order): RedirectResponse
+    {
+        $order->forceFill([
+            'encoded_at' => now(),
+            'export_status' => 'ready',
+        ])->save();
+
+        return back()->with('success', "{$order->order_number} marked encoded.");
     }
 
     public function downloadExport(CourierExportBatch $batch): BinaryFileResponse
@@ -185,6 +300,17 @@ class ShopController extends Controller
         return redirect()
             ->route('shop.index')
             ->with('success', "Facebook connected. {$pageCount} Pages synced.");
+    }
+
+    public function subscribeFacebookPage(FacebookPage $page): RedirectResponse
+    {
+        try {
+            $this->facebookConnector->subscribePage($page);
+        } catch (\Throwable $exception) {
+            return back()->with('error', "Page subscription failed: {$exception->getMessage()}");
+        }
+
+        return back()->with('success', "{$page->page_name} subscribed to Meta webhook fields.");
     }
 
     public function createOrder(): Response

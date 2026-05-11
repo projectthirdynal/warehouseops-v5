@@ -88,6 +88,37 @@ class FacebookConnectorService
         return count($pages);
     }
 
+    public function subscribePage(FacebookPage $page): void
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        Http::post("{$baseUrl}/{$page->page_id}/subscribed_apps", [
+            'access_token' => $page->page_access_token,
+            'subscribed_fields' => implode(',', ['messages', 'messaging_postbacks', 'feed']),
+        ])->throw();
+
+        $metadata = $page->metadata ?? [];
+        $metadata['subscribed_fields'] = ['messages', 'messaging_postbacks', 'feed'];
+        $metadata['subscribed_at'] = now()->toIso8601String();
+
+        $page->forceFill([
+            'webhook_status' => 'subscribed',
+            'metadata' => $metadata,
+        ])->save();
+    }
+
+    public function sendMessage(FacebookPage $page, string $recipientPsid, string $body): array
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        return Http::post("{$baseUrl}/me/messages", [
+            'access_token' => $page->page_access_token,
+            'recipient' => ['id' => $recipientPsid],
+            'message' => ['text' => $body],
+            'messaging_type' => 'RESPONSE',
+        ])->throw()->json();
+    }
+
     public function isConfigured(): bool
     {
         return filled(config('services.meta.app_id'))

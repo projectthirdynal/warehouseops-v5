@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Inbox, MessageSquare, Phone, Store, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -93,7 +93,8 @@ export default function ShopInbox({ conversations, pages, filters }: Props) {
         ) : (
           <div className="grid gap-3">
             {conversations.data.map((conversation) => (
-              <Card key={conversation.id}>
+              <Link key={conversation.id} href={`/shop/inbox/${conversation.id}`}>
+                <Card className="transition-colors hover:bg-accent/30">
                 <CardHeader className="pb-3">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -125,6 +126,7 @@ export default function ShopInbox({ conversations, pages, filters }: Props) {
                   <div className="text-muted-foreground">{formatDate(conversation.last_message_at)}</div>
                 </CardContent>
               </Card>
+              </Link>
             ))}
           </div>
         )}

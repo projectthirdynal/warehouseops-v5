@@ -57,7 +57,7 @@ class CourierExportService
             });
 
             $path = "exports/shop/{$batch->batch_number}.csv";
-            Storage::put($path, $this->csv($rows));
+            Storage::put($path, $this->csv($rows, $courierCode));
             $batch->forceFill(['file_path' => $path])->save();
 
             return $batch;
@@ -67,24 +67,13 @@ class CourierExportService
     /**
      * @param Collection<int, CourierExportRow> $rows
      */
-    private function csv(Collection $rows): string
+    private function csv(Collection $rows, string $courierCode): string
     {
         $handle = fopen('php://temp', 'r+');
-        fputcsv($handle, [
-            'Receiver Name',
-            'Phone Number',
-            'Complete Address',
-            'Province',
-            'City',
-            'Barangay',
-            'Product Name',
-            'Quantity',
-            'COD Amount',
-            'Remarks',
-        ]);
+        fputcsv($handle, $this->headers($courierCode));
 
         foreach ($rows as $row) {
-            fputcsv($handle, [
+            $values = [
                 $row->receiver_name,
                 $row->phone_number,
                 $row->complete_address,
@@ -95,7 +84,9 @@ class CourierExportService
                 $row->quantity,
                 $row->cod_amount,
                 $row->remarks,
-            ]);
+            ];
+
+            fputcsv($handle, $values);
         }
 
         rewind($handle);
@@ -106,5 +97,50 @@ class CourierExportService
     private function batchNumber(string $courierCode): string
     {
         return sprintf('SHOP-%s-%s-%04d', strtoupper($courierCode), now()->format('Ymd'), CourierExportBatch::whereDate('created_at', today())->count() + 1);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function headers(string $courierCode): array
+    {
+        return match (strtoupper($courierCode)) {
+            'JNT' => [
+                'Receiver Name',
+                'Receiver Mobile',
+                'Receiver Address',
+                'Province',
+                'City',
+                'Barangay',
+                'Item Name',
+                'Quantity',
+                'COD Amount',
+                'Remark',
+            ],
+            'FLASH' => [
+                'consignee_name',
+                'consignee_mobile',
+                'consignee_address',
+                'province',
+                'city',
+                'barangay',
+                'goods_name',
+                'quantity',
+                'cod_amount',
+                'remark',
+            ],
+            default => [
+                'Receiver Name',
+                'Phone Number',
+                'Complete Address',
+                'Province',
+                'City',
+                'Barangay',
+                'Product Name',
+                'Quantity',
+                'COD Amount',
+                'Remarks',
+            ],
+        };
     }
 }
