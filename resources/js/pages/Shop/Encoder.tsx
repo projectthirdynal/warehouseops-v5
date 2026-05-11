@@ -89,8 +89,23 @@ function AddressEditor({ order }: { order: Order }) {
 }
 
 export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
+  const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+
+  const toggleOrder = (orderId: number) => {
+    setSelectedOrderIds((current) =>
+      current.includes(orderId) ? current.filter((id) => id !== orderId) : [...current, orderId]
+    );
+  };
+
+  const toggleAll = () => {
+    setSelectedOrderIds((current) => current.length === orders.data.length ? [] : orders.data.map((order) => order.id));
+  };
+
   const exportCourier = (courierCode: string) => {
-    router.post('/shop/exports', { courier_code: courierCode });
+    router.post('/shop/exports', {
+      courier_code: courierCode,
+      order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+    });
   };
 
   return (
@@ -104,6 +119,11 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
             <p className="text-muted-foreground">Confirmed orders ready for address review and courier export</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {orders.data.length > 0 && (
+              <Button variant="outline" onClick={toggleAll}>
+                {selectedOrderIds.length === orders.data.length ? 'Clear Selection' : 'Select All'}
+              </Button>
+            )}
             {couriers.map((courier) => (
               <Button
                 key={courier.value}
@@ -116,6 +136,14 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
             ))}
           </div>
         </div>
+
+        {orders.data.length > 0 && (
+          <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            {selectedOrderIds.length > 0
+              ? `${selectedOrderIds.length} selected for the next export.`
+              : 'No orders selected. Export buttons will include all encoder-ready orders.'}
+          </div>
+        )}
 
         <div className="grid gap-6 xl:grid-cols-3">
           <div className="space-y-3 xl:col-span-2">
@@ -132,9 +160,18 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 <Card key={order.id}>
                   <CardHeader className="pb-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <CardTitle className="text-base">{order.order_number}</CardTitle>
-                        <CardDescription>{order.receiver_name} - {order.receiver_phone}</CardDescription>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-muted-foreground/40"
+                          checked={selectedOrderIds.includes(order.id)}
+                          onChange={() => toggleOrder(order.id)}
+                          aria-label={`Select ${order.order_number} for export`}
+                        />
+                        <div>
+                          <CardTitle className="text-base">{order.order_number}</CardTitle>
+                          <CardDescription>{order.receiver_name} - {order.receiver_phone}</CardDescription>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline">{money(order.total_amount)}</Badge>

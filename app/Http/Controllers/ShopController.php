@@ -313,6 +313,21 @@ class ShopController extends Controller
         return back()->with('success', "{$page->page_name} subscribed to Meta webhook fields.");
     }
 
+    public function checkFacebookPageSubscription(FacebookPage $page): RedirectResponse
+    {
+        try {
+            $result = $this->facebookConnector->checkPageSubscription($page);
+        } catch (\Throwable $exception) {
+            return back()->with('error', "Page subscription health check failed: {$exception->getMessage()}");
+        }
+
+        if ($result['status'] !== 'subscribed') {
+            return back()->with('error', "{$page->page_name} needs resubscribe. Missing: " . implode(', ', $result['missing_fields']));
+        }
+
+        return back()->with('success', "{$page->page_name} subscription is healthy.");
+    }
+
     public function createOrder(): Response
     {
         return Inertia::render('Shop/CreateOrder', [

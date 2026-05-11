@@ -1,6 +1,6 @@
 import { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Send, Store, User } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Send, Store, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,23 @@ interface Props {
 function time(value: string | null) {
   if (!value) return '';
   return new Date(value).toLocaleString();
+}
+
+function deliveryStatus(message: Message) {
+  if (message.direction !== 'outbound') return null;
+
+  const status = typeof message.raw_payload?.status === 'string' ? message.raw_payload.status : 'unknown';
+  const error = typeof message.raw_payload?.error === 'string' ? message.raw_payload.error : null;
+
+  if (status === 'sent') {
+    return { label: 'Sent to Meta', detail: null, className: 'text-emerald-600', icon: CheckCircle2 };
+  }
+
+  if (status === 'failed') {
+    return { label: 'Send failed', detail: error, className: 'text-destructive', icon: AlertCircle };
+  }
+
+  return { label: 'Logged locally', detail: status === 'logged' ? null : status, className: 'text-muted-foreground', icon: Clock };
 }
 
 export default function ShopConversation({ conversation }: Props) {
@@ -84,23 +101,37 @@ export default function ShopConversation({ conversation }: Props) {
               {conversation.messages.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
               ) : (
-                conversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                  >
+                conversation.messages.map((message) => {
+                  const status = deliveryStatus(message);
+                  const StatusIcon = status?.icon;
+
+                  return (
                     <div
-                      className={`max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
-                        message.direction === 'outbound' ? 'bg-primary text-primary-foreground' : 'bg-muted/40'
-                      }`}
+                      key={message.id}
+                      className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <p>{message.body ?? 'Attachment or unsupported message'}</p>
-                      <p className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                        {time(message.sent_at)}
-                      </p>
+                      <div
+                        className={`max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
+                          message.direction === 'outbound' ? 'bg-primary text-primary-foreground' : 'bg-muted/40'
+                        }`}
+                      >
+                        <p>{message.body ?? 'Attachment or unsupported message'}</p>
+                        <p className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          {time(message.sent_at)}
+                        </p>
+                        {status && StatusIcon && (
+                          <div className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}>
+                            <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span>
+                              {status.label}
+                              {status.detail ? `: ${status.detail}` : ''}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
 
               <form onSubmit={submit} className="space-y-3 border-t pt-4">

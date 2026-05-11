@@ -107,6 +107,44 @@ class FacebookConnectorService
         ])->save();
     }
 
+    public function checkPageSubscription(FacebookPage $page): array
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        $apps = Http::get("{$baseUrl}/{$page->page_id}/subscribed_apps", [
+            'access_token' => $page->page_access_token,
+        ])->throw()->json('data') ?? [];
+
+        $appId = (string) config('services.meta.app_id');
+        $subscription = collect($apps)->first(fn (array $app) => (string) ($app['id'] ?? '') === $appId);
+        $subscribedFields = is_array($subscription) ? ($subscription['subscribed_fields'] ?? []) : [];
+        $fields = collect($subscribedFields)
+            ->map(fn ($field) => is_array($field) ? ($field['name'] ?? null) : $field)
+            ->filter()
+            ->values()
+            ->all();
+        $requiredFields = ['messages', 'messaging_postbacks', 'feed'];
+        $missingFields = array_values(array_diff($requiredFields, $fields));
+
+        $metadata = $page->metadata ?? [];
+        $metadata['subscription_checked_at'] = now()->toIso8601String();
+        $metadata['subscription_fields'] = $fields;
+        $metadata['subscription_missing_fields'] = $missingFields;
+
+        $status = $subscription && empty($missingFields) ? 'subscribed' : 'needs_retry';
+
+        $page->forceFill([
+            'webhook_status' => $status,
+            'metadata' => $metadata,
+        ])->save();
+
+        return [
+            'status' => $status,
+            'fields' => $fields,
+            'missing_fields' => $missingFields,
+        ];
+    }
+
     public function sendMessage(FacebookPage $page, string $recipientPsid, string $body): array
     {
         $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');

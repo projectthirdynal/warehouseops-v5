@@ -10,6 +10,7 @@ use App\Domain\Shop\Models\CourierExportRow;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class CourierExportService
 {
@@ -18,6 +19,8 @@ class CourierExportService
      */
     public function createBatch(Collection $orders, string $courierCode, ?int $userId): CourierExportBatch
     {
+        $this->validateOrders($orders, $courierCode);
+
         return DB::transaction(function () use ($orders, $courierCode, $userId) {
             $batch = CourierExportBatch::query()->create([
                 'batch_number' => $this->batchNumber($courierCode),
@@ -97,6 +100,76 @@ class CourierExportService
     private function batchNumber(string $courierCode): string
     {
         return sprintf('SHOP-%s-%s-%04d', strtoupper($courierCode), now()->format('Ymd'), CourierExportBatch::whereDate('created_at', today())->count() + 1);
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
+     */
+    private function validateOrders(Collection $orders, string $courierCode): void
+    {
+        $required = $this->requiredFields($courierCode);
+        $errors = [];
+
+        foreach ($orders as $order) {
+            $missing = [];
+
+            foreach ($required as $field => $label) {
+                $value = match ($field) {
+                    'receiver_name' => $order->receiver_name,
+                    'phone_number' => $order->receiver_phone,
+                    'complete_address' => $order->receiver_address,
+                    'province' => $order->state,
+                    'city' => $order->city,
+                    'barangay' => $order->barangay,
+                    'product_name' => $order->product?->name,
+                    'quantity' => $order->quantity,
+                    'cod_amount' => $order->cod_amount,
+                    default => null,
+                };
+
+                if (blank($value) || (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount')) {
+                    $missing[] = $label;
+                }
+            }
+
+            if ($missing !== []) {
+                $errors[] = "{$order->order_number}: " . implode(', ', $missing);
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages([
+                'orders' => 'Courier export blocked. Missing required fields: ' . implode(' | ', $errors),
+            ]);
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function requiredFields(string $courierCode): array
+    {
+        return match (strtoupper($courierCode)) {
+            'JNT', 'FLASH' => [
+                'receiver_name' => 'receiver name',
+                'phone_number' => 'phone number',
+                'complete_address' => 'complete address',
+                'province' => 'province',
+                'city' => 'city',
+                'barangay' => 'barangay',
+                'product_name' => 'product',
+                'quantity' => 'quantity',
+                'cod_amount' => 'COD amount',
+            ],
+            default => [
+                'receiver_name' => 'receiver name',
+                'phone_number' => 'phone number',
+                'complete_address' => 'complete address',
+                'product_name' => 'product',
+                'quantity' => 'quantity',
+                'cod_amount' => 'COD amount',
+            ],
+        };
     }
 
     /**

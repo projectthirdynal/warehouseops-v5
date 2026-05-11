@@ -259,11 +259,18 @@ export default function ShopIndex({ stats, modules, workflow, next_actions, face
                           <p className="text-sm font-medium">{page.page_name}</p>
                           <p className="text-xs text-muted-foreground">{page.connected_status} / {page.webhook_status}</p>
                         </div>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/shop/facebook/pages/${page.id}/subscribe`} method="post" as="button">
-                            Subscribe
-                          </Link>
-                        </Button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/shop/facebook/pages/${page.id}/check`} method="post" as="button">
+                              Check
+                            </Link>
+                          </Button>
+                          <Button asChild size="sm" variant={page.webhook_status === 'subscribed' ? 'outline' : 'default'}>
+                            <Link href={`/shop/facebook/pages/${page.id}/subscribe`} method="post" as="button">
+                              {page.webhook_status === 'subscribed' ? 'Resubscribe' : 'Subscribe'}
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))
