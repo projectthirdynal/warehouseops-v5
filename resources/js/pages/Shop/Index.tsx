@@ -130,10 +130,10 @@ export default function ShopIndex({ stats, modules, workflow, next_actions, face
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/shop/facebook/connect">
+              <a href="/shop/facebook/connect">
                 <Store className="mr-2 h-4 w-4" />
                 Connect Page
-              </Link>
+              </a>
             </Button>
             <Button asChild>
               <Link href="/shop/orders/create">
