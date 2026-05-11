@@ -74,6 +74,8 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
+    Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {

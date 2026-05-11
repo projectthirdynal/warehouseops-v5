@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -83,6 +83,7 @@ const risks = [
 function statusVariant(status: string) {
   if (status === 'Foundation') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   if (status === 'Schema Ready') return 'bg-blue-100 text-blue-800 border-blue-200';
+  if (status === 'MVP Entry') return 'bg-blue-100 text-blue-800 border-blue-200';
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
@@ -102,9 +103,11 @@ export default function ShopIndex({ stats, modules, workflow, next_actions }: Pr
               <Store className="mr-2 h-4 w-4" />
               Connect Page
             </Button>
-            <Button disabled>
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              Create Order
+            <Button asChild>
+              <Link href="/shop/orders/create">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Create Order
+              </Link>
             </Button>
           </div>
         </div>
