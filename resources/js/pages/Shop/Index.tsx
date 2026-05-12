@@ -5,6 +5,7 @@ import {
   ClipboardList,
   FileSpreadsheet,
   Inbox,
+  Radio,
   MapPinned,
   MessageSquare,
   PackageCheck,
@@ -121,6 +122,12 @@ export default function ShopIndex({ stats, modules, workflow, next_actions, face
               <Link href="/shop/inbox">
                 <Inbox className="mr-2 h-4 w-4" />
                 Inbox
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/webhooks">
+                <Radio className="mr-2 h-4 w-4" />
+                Webhooks
               </Link>
             </Button>
             <Button asChild variant="outline">

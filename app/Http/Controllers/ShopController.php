@@ -8,11 +8,13 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
+use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\FacebookConnectorService;
+use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -20,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -32,6 +35,7 @@ class ShopController extends Controller
         private readonly AddressMappingService $addressMappings,
         private readonly FacebookConnectorService $facebookConnector,
         private readonly CourierExportService $courierExports,
+        private readonly MetaConversationIngestor $metaIngestor,
     ) {}
 
     public function index(): Response
@@ -84,12 +88,74 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add live Send API error/status indicators in conversation detail.',
-                'Add Page subscription health checks and resubscribe retries.',
-                'Add bulk encoder selection before export.',
-                'Add courier-specific required field validation.',
+                'Use Webhook Diagnostics to confirm Meta POST delivery and event processing.',
+                'Create orders directly from Shop conversations.',
+                'Add customer profile panel with previous order history.',
+                'Add agent assignment and conversation status workflow.',
             ],
         ]);
+    }
+
+    public function webhooks(): Response
+    {
+        return Inertia::render('Shop/Webhooks', [
+            'stats' => [
+                'events' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')->count()),
+                'processed' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')->whereNotNull('processed_at')->count()),
+                'failed' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')->whereNotNull('error_message')->count()),
+                'conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')->count()),
+            ],
+            'pages' => FacebookPage::query()
+                ->orderBy('page_name')
+                ->get(['id', 'page_id', 'page_name', 'connected_status', 'webhook_status', 'last_sync_at']),
+            'events' => FacebookWebhookEvent::query()
+                ->with('facebookPage:id,page_name,page_id')
+                ->latest()
+                ->limit(30)
+                ->get(['id', 'facebook_page_id', 'event_id', 'event_type', 'sender_psid', 'recipient_id', 'signature_valid', 'processed_at', 'error_message', 'created_at']),
+            'callback_url' => url('/api/webhooks/meta'),
+            'verify_token' => config('services.meta.webhook_verify_token'),
+        ]);
+    }
+
+    public function simulateWebhook(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'sender_psid' => ['nullable', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $page = FacebookPage::query()->findOrFail($validated['facebook_page_id']);
+        $senderPsid = $validated['sender_psid'] ?: 'manual-test-' . Str::lower(Str::random(10));
+        $eventId = 'manual-' . str()->uuid();
+
+        $payload = [
+            'sender' => ['id' => $senderPsid],
+            'recipient' => ['id' => $page->page_id],
+            'timestamp' => now()->getTimestampMs(),
+            'message' => [
+                'mid' => $eventId,
+                'text' => $validated['body'],
+            ],
+        ];
+
+        $event = FacebookWebhookEvent::query()->create([
+            'facebook_page_id' => $page->id,
+            'event_id' => $eventId,
+            'object' => 'page',
+            'event_type' => 'messaging',
+            'sender_psid' => $senderPsid,
+            'recipient_id' => $page->page_id,
+            'payload' => $payload,
+            'signature_valid' => false,
+        ]);
+
+        $this->metaIngestor->process($event);
+
+        return redirect()
+            ->route('shop.inbox')
+            ->with('success', 'Simulated inbound message processed. Check the Shop inbox.');
     }
 
     public function inbox(Request $request): Response
