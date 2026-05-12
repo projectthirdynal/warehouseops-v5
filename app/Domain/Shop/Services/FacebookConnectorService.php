@@ -22,8 +22,6 @@ class FacebookConnectorService
                 'pages_show_list',
                 'pages_manage_metadata',
                 'pages_messaging',
-                'pages_read_engagement',
-                'pages_manage_engagement',
                 'business_management',
             ]),
             'response_type' => 'code',
