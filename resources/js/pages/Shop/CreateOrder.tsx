@@ -31,6 +31,7 @@ interface Courier {
 interface Props {
   products: Product[];
   couriers: Courier[];
+  prefill?: Partial<OrderForm> | null;
 }
 
 interface OrderForm {
@@ -48,6 +49,7 @@ interface OrderForm {
   shipping_fee: string;
   courier_code: string;
   remarks: string;
+  conversation_id: string;
 }
 
 function money(value: number) {
@@ -63,11 +65,11 @@ function numeric(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export default function CreateShopOrder({ products, couriers }: Props) {
+export default function CreateShopOrder({ products, couriers, prefill }: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
-    customer_name: '',
-    phone: '',
-    complete_address: '',
+    customer_name: prefill?.customer_name ?? '',
+    phone: prefill?.phone ?? '',
+    complete_address: prefill?.complete_address ?? '',
     landmark: '',
     barangay: '',
     city_municipality: '',
@@ -78,7 +80,8 @@ export default function CreateShopOrder({ products, couriers }: Props) {
     unit_price: '',
     shipping_fee: '0',
     courier_code: 'MANUAL',
-    remarks: '',
+    remarks: prefill?.remarks ?? '',
+    conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
   });
 
   const selectedProduct = useMemo(
@@ -137,7 +140,9 @@ export default function CreateShopOrder({ products, couriers }: Props) {
               </Link>
             </Button>
             <h1 className="text-3xl font-bold tracking-tight">Create Shop Order</h1>
-            <p className="text-muted-foreground">Manual POS entry for Facebook, chat, and phone orders</p>
+            <p className="text-muted-foreground">
+              {data.conversation_id ? `From Shop conversation #${data.conversation_id}` : 'Manual POS entry for Facebook, chat, and phone orders'}
+            </p>
           </div>
           <Button type="submit" disabled={processing}>
             <Save className="mr-2 h-4 w-4" />

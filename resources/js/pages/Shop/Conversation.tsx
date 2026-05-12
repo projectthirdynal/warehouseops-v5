@@ -1,6 +1,6 @@
 import { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Send, Store, User } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Send, ShoppingCart, Store, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,12 @@ export default function ShopConversation({ conversation }: Props) {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Create Order
+                </Link>
+              </Button>
               <Badge variant="outline">{conversation.status}</Badge>
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
             </div>
@@ -161,6 +167,9 @@ export default function ShopConversation({ conversation }: Props) {
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>{conversation.customer?.name ?? 'No matched customer'}</p>
+                <p className="text-muted-foreground">
+                  {conversation.customer?.normalized_phone ?? conversation.identity?.phone_detected ?? 'No phone detected'}
+                </p>
                 <p className="text-muted-foreground">{conversation.customer?.canonical_address ?? 'No saved address'}</p>
               </CardContent>
             </Card>

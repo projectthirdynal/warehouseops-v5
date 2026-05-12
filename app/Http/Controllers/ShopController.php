@@ -394,8 +394,21 @@ class ShopController extends Controller
         return back()->with('success', "{$page->page_name} subscription is healthy.");
     }
 
-    public function createOrder(): Response
+    public function createOrder(Request $request): Response
     {
+        $conversation = null;
+
+        if ($request->filled('conversation_id')) {
+            $conversation = Conversation::query()
+                ->with([
+                    'facebookPage:id,page_name,page_id',
+                    'customer:id,name,phone,normalized_phone,canonical_address',
+                    'identity:id,display_name,provider_user_id,phone_detected',
+                    'messages' => fn ($query) => $query->latest('sent_at')->limit(5),
+                ])
+                ->find($request->integer('conversation_id'));
+        }
+
         return Inertia::render('Shop/CreateOrder', [
             'products' => Product::query()
                 ->with(['activeVariants:id,product_id,sku,variant_name,selling_price'])
@@ -407,6 +420,22 @@ class ShopController extends Controller
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
             ],
+            'prefill' => $conversation ? [
+                'conversation_id' => $conversation->id,
+                'customer_name' => $conversation->customer?->name
+                    ?? $conversation->identity?->display_name
+                    ?? 'Facebook Customer',
+                'phone' => $conversation->customer?->normalized_phone
+                    ?? $conversation->customer?->phone
+                    ?? $conversation->identity?->phone_detected
+                    ?? '',
+                'complete_address' => $conversation->customer?->canonical_address ?? '',
+                'remarks' => trim(implode("\n", array_filter([
+                    "Conversation #{$conversation->id}",
+                    $conversation->facebookPage ? "Page: {$conversation->facebookPage->page_name}" : null,
+                    $conversation->last_message_preview ? "Last message: {$conversation->last_message_preview}" : null,
+                ]))),
+            ] : null,
         ]);
     }
 
@@ -427,6 +456,7 @@ class ShopController extends Controller
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
         ]);
 
         $product = Product::query()->findOrFail($validated['product_id']);
@@ -461,6 +491,10 @@ class ShopController extends Controller
             $normalizedPhone,
             $addressMatch
         ) {
+            $conversation = ! empty($validated['conversation_id'])
+                ? Conversation::query()->find($validated['conversation_id'])
+                : null;
+
             $customer = $this->customerIdentities->firstOrCreateFromPhone([
                 'name' => $validated['customer_name'],
                 'phone' => $validated['phone'],
@@ -492,7 +526,7 @@ class ShopController extends Controller
                 'state' => $validated['province'] ?? null,
                 'barangay' => $validated['barangay'] ?? null,
                 'address_mapping_id' => $addressMatch['mapping']?->id,
-                'source_channel' => 'manual_shop',
+                'source_channel' => $conversation ? 'facebook_shop' : 'manual_shop',
                 'address_confidence' => $addressMatch['confidence'],
                 'export_status' => 'pending',
                 'confirmed_at' => now(),
@@ -517,6 +551,29 @@ class ShopController extends Controller
                     'type' => 'agent_note',
                     'body' => $validated['remarks'],
                 ]);
+            }
+
+            if ($conversation) {
+                OrderRemark::query()->create([
+                    'order_id' => $order->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'conversation_source',
+                    'body' => "Created from Shop conversation #{$conversation->id}.",
+                    'metadata' => [
+                        'conversation_id' => $conversation->id,
+                        'facebook_page_id' => $conversation->facebook_page_id,
+                        'customer_identity_id' => $conversation->customer_identity_id,
+                    ],
+                ]);
+
+                $conversation->forceFill([
+                    'customer_id' => $customer->id,
+                    'status' => 'converted',
+                    'metadata' => array_merge($conversation->metadata ?? [], [
+                        'latest_order_id' => $order->id,
+                        'converted_at' => now()->toIso8601String(),
+                    ]),
+                ])->save();
             }
 
             return $order;
