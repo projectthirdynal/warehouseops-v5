@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Inbox, MessageSquare, Phone, Store, User } from 'lucide-react';
+import { Inbox, MessageSquare, Phone, Store, User, UserCheck } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ interface Conversation {
   facebook_page?: Page | null;
   customer?: { id: number; name: string; phone: string; normalized_phone?: string | null } | null;
   identity?: { id: number; display_name?: string | null; phone_detected?: string | null } | null;
+  assigned_agent?: { id: number; name: string } | null;
 }
 
 interface Paginated<T> {
@@ -33,9 +34,12 @@ interface Paginated<T> {
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
+  agents: { id: number; name: string; role: string }[];
+  statuses: string[];
   filters: {
     page_id?: string;
     status?: string;
+    assigned_agent_id?: string;
   };
 }
 
@@ -44,7 +48,11 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString();
 }
 
-export default function ShopInbox({ conversations, pages, filters }: Props) {
+function label(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export default function ShopInbox({ conversations, pages, agents, statuses, filters }: Props) {
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
   };
@@ -76,8 +84,20 @@ export default function ShopInbox({ conversations, pages, filters }: Props) {
               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">All Statuses</option>
-              <option value="open">Open</option>
-              <option value="closed">Closed</option>
+              {statuses.map((status) => (
+                <option key={status} value={status}>{label(status)}</option>
+              ))}
+            </select>
+            <select
+              value={filters.assigned_agent_id ?? ''}
+              onChange={(event) => updateFilter({ assigned_agent_id: event.target.value || undefined })}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">All Agents</option>
+              <option value="unassigned">Unassigned</option>
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>{agent.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -110,7 +130,7 @@ export default function ShopInbox({ conversations, pages, filters }: Props) {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="grid gap-3 text-sm md:grid-cols-4">
+                <CardContent className="grid gap-3 text-sm md:grid-cols-5">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Store className="h-4 w-4" />
                     {conversation.facebook_page?.page_name ?? 'Unknown Page'}
@@ -122,6 +142,10 @@ export default function ShopInbox({ conversations, pages, filters }: Props) {
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MessageSquare className="h-4 w-4" />
                     {conversation.messages_count} messages
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <UserCheck className="h-4 w-4" />
+                    {conversation.assigned_agent?.name ?? 'Unassigned'}
                   </div>
                   <div className="text-muted-foreground">{formatDate(conversation.last_message_at)}</div>
                 </CardContent>

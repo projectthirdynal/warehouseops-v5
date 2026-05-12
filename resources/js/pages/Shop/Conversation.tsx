@@ -1,6 +1,6 @@
 import { FormEvent } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, History, MapPin, PackageCheck, Send, ShoppingCart, User } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, History, MapPin, PackageCheck, Send, ShoppingCart, User, UserCheck } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ interface Message {
 interface Conversation {
   id: number;
   status: string;
+  assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
   customer?: {
@@ -59,6 +60,8 @@ interface RecentOrder {
 interface Props {
   conversation: Conversation;
   recent_orders: RecentOrder[];
+  agents: { id: number; name: string; role: string }[];
+  statuses: string[];
 }
 
 function time(value: string | null) {
@@ -96,8 +99,22 @@ function customerAddress(conversation: Conversation) {
     || 'No saved address';
 }
 
-export default function ShopConversation({ conversation, recent_orders }: Props) {
+function label(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export default function ShopConversation({ conversation, recent_orders, agents, statuses }: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
+
+  const updateAssignment = (assignedAgentId: string) => {
+    router.patch(`/shop/inbox/${conversation.id}/assignment`, {
+      assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
+    }, { preserveScroll: true });
+  };
+
+  const updateStatus = (status: string) => {
+    router.patch(`/shop/inbox/${conversation.id}/status`, { status }, { preserveScroll: true });
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -202,6 +219,37 @@ export default function ShopConversation({ conversation, recent_orders }: Props)
           </Card>
 
           <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5" />
+                  Workflow
+                </CardTitle>
+                <CardDescription>Owner and sales desk status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <select
+                  value={conversation.assigned_agent?.id ?? ''}
+                  onChange={(event) => updateAssignment(event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Unassigned</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
+                  ))}
+                </select>
+                <select
+                  value={conversation.status}
+                  onChange={(event) => updateStatus(event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>{label(status)}</option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

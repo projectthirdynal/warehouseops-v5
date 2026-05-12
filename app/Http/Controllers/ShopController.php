@@ -18,6 +18,7 @@ use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -161,7 +162,12 @@ class ShopController extends Controller
     public function inbox(Request $request): Response
     {
         $query = Conversation::query()
-            ->with(['facebookPage:id,page_name,page_id', 'customer:id,name,phone,normalized_phone', 'identity:id,display_name,phone_detected'])
+            ->with([
+                'facebookPage:id,page_name,page_id',
+                'customer:id,name,phone,normalized_phone',
+                'identity:id,display_name,phone_detected',
+                'assignedAgent:id,name',
+            ])
             ->withCount('messages')
             ->latest('last_message_at');
 
@@ -173,10 +179,18 @@ class ShopController extends Controller
             $query->where('status', $request->string('status'));
         }
 
+        if ($request->filled('assigned_agent_id')) {
+            $request->string('assigned_agent_id')->toString() === 'unassigned'
+                ? $query->whereNull('assigned_agent_id')
+                : $query->where('assigned_agent_id', $request->integer('assigned_agent_id'));
+        }
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
-            'filters' => $request->only(['page_id', 'status']),
+            'agents' => $this->shopAgents(),
+            'statuses' => $this->conversationStatuses(),
+            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id']),
         ]);
     }
 
@@ -186,6 +200,7 @@ class ShopController extends Controller
             'facebookPage:id,page_id,page_name,webhook_status',
             'customer:id,name,phone,normalized_phone,canonical_address,landmark,barangay,city_municipality,province,region,last_order_date,total_orders,successful_orders,returned_orders,success_rate,total_revenue,risk_level,is_blacklisted,blacklist_reason',
             'identity:id,display_name,provider_user_id,phone_detected',
+            'assignedAgent:id,name',
             'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
 
@@ -201,7 +216,35 @@ class ShopController extends Controller
                     ->limit(5)
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
+            'agents' => $this->shopAgents(),
+            'statuses' => $this->conversationStatuses(),
         ]);
+    }
+
+    public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $conversation->forceFill([
+            'assigned_agent_id' => $validated['assigned_agent_id'] ?? null,
+        ])->save();
+
+        return back()->with('success', 'Conversation assignment updated.');
+    }
+
+    public function updateConversationStatus(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
+        ]);
+
+        $conversation->forceFill([
+            'status' => $validated['status'],
+        ])->save();
+
+        return back()->with('success', 'Conversation status updated.');
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse
@@ -627,6 +670,23 @@ class ShopController extends Controller
         }
 
         return (int) $callback();
+    }
+
+    private function shopAgents(): \Illuminate\Support\Collection
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function conversationStatuses(): array
+    {
+        return ['open', 'pending_details', 'for_confirmation', 'confirmed', 'converted', 'closed'];
     }
 
 }
