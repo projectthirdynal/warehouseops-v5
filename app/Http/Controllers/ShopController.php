@@ -43,6 +43,7 @@ class ShopController extends Controller
     {
         return Inertia::render('Shop/Index', [
             'stats' => $this->stats(),
+            'work_queues' => $this->workQueues(),
             'facebook_pages' => FacebookPage::query()
                 ->latest('last_sync_at')
                 ->limit(8)
@@ -50,33 +51,39 @@ class ShopController extends Controller
             'modules' => [
                 [
                     'name' => 'POS Core Schema',
-                    'status' => 'Foundation',
+                    'status' => 'Live',
                     'description' => 'Database foundation for Facebook identities, conversations, messages, order items, remarks, address mapping, and courier exports.',
                     'items' => ['Customer identities', 'Conversations', 'Messages', 'Export batches'],
                 ],
                 [
                     'name' => 'Facebook Connector',
-                    'status' => 'Subscribe Ready',
-                    'description' => 'Meta OAuth redirect, Page token storage, webhook verification, Page subscription, and raw event capture foundation.',
-                    'items' => ['OAuth connect', 'Page list sync', 'Webhook subscribe', 'Raw event capture'],
+                    'status' => 'Live',
+                    'description' => 'Meta OAuth, Page token storage, webhook verification, Page subscription, raw event capture, and diagnostics.',
+                    'items' => ['OAuth connect', 'Page list sync', 'Webhook subscribe', 'Webhook diagnostics'],
                 ],
                 [
                     'name' => 'Multi-page Inbox',
-                    'status' => 'Detail Ready',
+                    'status' => 'Live',
                     'description' => 'Central inbox for Messenger messages and Page comments across connected selling Pages.',
-                    'items' => ['Page filters', 'Conversation detail', 'Reply logging', 'Message preview'],
+                    'items' => ['Page filters', 'Agent filters', 'Status workflow', 'Conversation detail'],
                 ],
                 [
                     'name' => 'Order Desk',
-                    'status' => 'MVP Entry',
+                    'status' => 'Live',
                     'description' => 'Create structured orders from conversations with products, COD amount, remarks, and customer details.',
-                    'items' => ['Manual order form', 'Phone matching', 'Address matching', 'Agent remarks'],
+                    'items' => ['Manual order form', 'Conversation to order', 'Customer profile', 'Agent remarks'],
                 ],
                 [
                     'name' => 'Encoder & Export',
-                    'status' => 'Correction Ready',
+                    'status' => 'Ready',
                     'description' => 'Validate addresses, map regions, and export courier-ready sheets for J&T, Flash, and other COD couriers.',
-                    'items' => ['Address correction', 'PH reference seed', 'Courier batches', 'Courier CSV adapters'],
+                    'items' => ['Address correction', 'Bulk selection', 'Courier batches', 'Courier CSV validation'],
+                ],
+                [
+                    'name' => 'Reports & Automation',
+                    'status' => 'Next',
+                    'description' => 'Operational reporting and AI assistance for sales performance, duplicate checks, and reply suggestions.',
+                    'items' => ['Sales dashboard', 'Agent performance', 'Duplicate warnings', 'Reply suggestions'],
                 ],
             ],
             'workflow' => [
@@ -85,14 +92,15 @@ class ShopController extends Controller
                 'Detect Phone',
                 'Match Customer',
                 'Create Order',
+                'Assign Agent',
                 'Validate Address',
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Use Webhook Diagnostics to confirm Meta POST delivery and event processing.',
-                'Create orders directly from Shop conversations.',
-                'Add customer profile panel with previous order history.',
-                'Add agent assignment and conversation status workflow.',
+                'Build Shop sales reporting for Page, agent, product, and status movement.',
+                'Add duplicate order detection using phone, product, and recent order window.',
+                'Add quick replies and incomplete-address prompts in conversation detail.',
+                'Add customer edit/update actions from the profile panel.',
             ],
         ]);
     }
@@ -648,6 +656,22 @@ class ShopController extends Controller
                 ->whereDate('created_at', today())
                 ->count()),
             'for_encoding' => $this->forEncodingCount(),
+        ];
+    }
+
+    private function workQueues(): array
+    {
+        return [
+            'inbox' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
+                ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                ->count()),
+            'phone_detected' => $this->countWhenReady('customer_identities', fn () => DB::table('customer_identities')
+                ->whereNotNull('phone_detected')
+                ->count()),
+            'ready_orders' => $this->forEncodingCount(),
+            'courier_export' => $this->countWhenReady('courier_export_batches', fn () => DB::table('courier_export_batches')
+                ->whereDate('created_at', today())
+                ->count()),
         ];
     }
 

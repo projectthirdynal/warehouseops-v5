@@ -35,6 +35,12 @@ interface ShopModule {
 
 interface Props {
   stats: ShopStats;
+  work_queues: {
+    inbox: number;
+    phone_detected: number;
+    ready_orders: number;
+    courier_export: number;
+  };
   modules: ShopModule[];
   workflow: string[];
   next_actions: string[];
@@ -77,13 +83,6 @@ const statCards = [
   },
 ] as const;
 
-const workQueues = [
-  { name: 'Inbox', value: 0, icon: Inbox, color: 'text-blue-600' },
-  { name: 'Phone Detected', value: 0, icon: Phone, color: 'text-emerald-600' },
-  { name: 'Ready Orders', value: 0, icon: PackageCheck, color: 'text-violet-600' },
-  { name: 'Courier Export', value: 0, icon: FileSpreadsheet, color: 'text-amber-600' },
-];
-
 const risks = [
   'Meta App Review and Page permissions',
   'Webhook subscription and event deduplication',
@@ -92,6 +91,9 @@ const risks = [
 ];
 
 function statusVariant(status: string) {
+  if (status === 'Live') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (status === 'Ready') return 'bg-blue-100 text-blue-800 border-blue-200';
+  if (status === 'Next') return 'bg-slate-100 text-slate-700 border-slate-200';
   if (status === 'Foundation') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   if (status === 'Schema Ready') return 'bg-blue-100 text-blue-800 border-blue-200';
   if (status === 'MVP Entry') return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -106,7 +108,14 @@ function statusVariant(status: string) {
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
-export default function ShopIndex({ stats, modules, workflow, next_actions, facebook_pages }: Props) {
+export default function ShopIndex({ stats, work_queues, modules, workflow, next_actions, facebook_pages }: Props) {
+  const workQueues = [
+    { name: 'Inbox', value: work_queues.inbox, icon: Inbox, color: 'text-blue-600', href: '/shop/inbox' },
+    { name: 'Phone Detected', value: work_queues.phone_detected, icon: Phone, color: 'text-emerald-600', href: '/shop/inbox' },
+    { name: 'Ready Orders', value: work_queues.ready_orders, icon: PackageCheck, color: 'text-violet-600', href: '/shop/encoder' },
+    { name: 'Courier Export', value: work_queues.courier_export, icon: FileSpreadsheet, color: 'text-amber-600', href: '/shop/encoder' },
+  ];
+
   return (
     <AppLayout>
       <Head title="Shop" />
@@ -164,7 +173,7 @@ export default function ShopIndex({ stats, modules, workflow, next_actions, face
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats[item.key].toLocaleString()}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">No live Facebook data connected yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Live Shop operational count</p>
                 </CardContent>
               </Card>
             );
@@ -238,13 +247,13 @@ export default function ShopIndex({ stats, modules, workflow, next_actions, face
                 {workQueues.map((queue) => {
                   const Icon = queue.icon;
                   return (
-                    <div key={queue.name} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <Link key={queue.name} href={queue.href} className="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-accent/30">
                       <div className="flex items-center gap-3">
                         <Icon className={`h-4 w-4 ${queue.color}`} />
                         <span className="text-sm font-medium">{queue.name}</span>
                       </div>
-                      <span className="text-sm font-semibold">{queue.value}</span>
-                    </div>
+                      <span className="text-sm font-semibold">{queue.value.toLocaleString()}</span>
+                    </Link>
                   );
                 })}
               </CardContent>
