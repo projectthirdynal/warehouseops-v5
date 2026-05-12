@@ -1,7 +1,8 @@
 import { FormEvent, useMemo } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Calculator, MapPinned, PackagePlus, Phone, Save, User } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calculator, MapPinned, PackagePlus, Phone, Save, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,16 @@ interface Props {
   products: Product[];
   couriers: Courier[];
   prefill?: Partial<OrderForm> | null;
+  duplicate_warnings: DuplicateWarning[];
+}
+
+interface DuplicateWarning {
+  id: number;
+  order_number: string;
+  status: string;
+  total_amount: string | number;
+  created_at: string;
+  product?: { id: number; name: string; sku: string } | null;
 }
 
 interface OrderForm {
@@ -65,7 +76,7 @@ function numeric(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export default function CreateShopOrder({ products, couriers, prefill }: Props) {
+export default function CreateShopOrder({ products, couriers, prefill, duplicate_warnings }: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
@@ -332,6 +343,35 @@ export default function CreateShopOrder({ products, couriers, prefill }: Props) 
           </div>
 
           <div className="space-y-6">
+            {duplicate_warnings.length > 0 && (
+              <Card className="border-amber-200 bg-amber-50/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-900">
+                    <AlertTriangle className="h-5 w-5" />
+                    Possible Duplicates
+                  </CardTitle>
+                  <CardDescription>Recent Shop orders found for this phone number</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {duplicate_warnings.map((order) => (
+                    <Link key={order.id} href={`/orders/${order.id}`} className="block rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-accent/30">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{order.order_number}</p>
+                          <p className="text-xs text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                        </div>
+                        <Badge variant="outline">{order.status}</Badge>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{new Date(order.created_at).toLocaleString()}</span>
+                        <span>{money(Number(order.total_amount ?? 0))}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

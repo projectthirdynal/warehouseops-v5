@@ -5,6 +5,8 @@ import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Message {
@@ -60,6 +62,7 @@ interface RecentOrder {
 interface Props {
   conversation: Conversation;
   recent_orders: RecentOrder[];
+  quick_replies: { label: string; body: string }[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
 }
@@ -103,8 +106,17 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-export default function ShopConversation({ conversation, recent_orders, agents, statuses }: Props) {
+export default function ShopConversation({ conversation, recent_orders, quick_replies, agents, statuses }: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
+  const customerForm = useForm({
+    name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
+    phone: conversation.customer?.normalized_phone ?? conversation.customer?.phone ?? conversation.identity?.phone_detected ?? '',
+    canonical_address: conversation.customer?.canonical_address ?? '',
+    landmark: conversation.customer?.landmark ?? '',
+    barangay: conversation.customer?.barangay ?? '',
+    city_municipality: conversation.customer?.city_municipality ?? '',
+    province: conversation.customer?.province ?? '',
+  });
 
   const updateAssignment = (assignedAgentId: string) => {
     router.patch(`/shop/inbox/${conversation.id}/assignment`, {
@@ -122,6 +134,13 @@ export default function ShopConversation({ conversation, recent_orders, agents, 
       preserveScroll: true,
       onSuccess: () => reset('body'),
     });
+  };
+
+  const updateCustomer = (event: FormEvent) => {
+    event.preventDefault();
+    if (!conversation.customer) return;
+
+    customerForm.patch(`/shop/customers/${conversation.customer.id}`, { preserveScroll: true });
   };
 
   return (
@@ -165,6 +184,22 @@ export default function ShopConversation({ conversation, recent_orders, agents, 
               <CardDescription>Inbound Meta messages and locally logged replies</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {quick_replies.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {quick_replies.map((reply) => (
+                    <Button
+                      key={reply.label}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setData('body', reply.body)}
+                    >
+                      {reply.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
               {conversation.messages.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
               ) : (
@@ -249,6 +284,86 @@ export default function ShopConversation({ conversation, recent_orders, agents, 
                 </select>
               </CardContent>
             </Card>
+
+            {conversation.customer && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Update Customer</CardTitle>
+                  <CardDescription>Save corrected details for future phone matching and same-address orders</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={updateCustomer} className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_name">Name</Label>
+                        <Input
+                          id="customer_name"
+                          value={customerForm.data.name}
+                          onChange={(event) => customerForm.setData('name', event.target.value)}
+                        />
+                        {customerForm.errors.name && <p className="text-xs text-destructive">{customerForm.errors.name}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_phone">Phone</Label>
+                        <Input
+                          id="customer_phone"
+                          value={customerForm.data.phone}
+                          onChange={(event) => customerForm.setData('phone', event.target.value)}
+                        />
+                        {customerForm.errors.phone && <p className="text-xs text-destructive">{customerForm.errors.phone}</p>}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customer_address">Complete address</Label>
+                      <Textarea
+                        id="customer_address"
+                        value={customerForm.data.canonical_address}
+                        onChange={(event) => customerForm.setData('canonical_address', event.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_landmark">Landmark</Label>
+                        <Input
+                          id="customer_landmark"
+                          value={customerForm.data.landmark}
+                          onChange={(event) => customerForm.setData('landmark', event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_barangay">Barangay</Label>
+                        <Input
+                          id="customer_barangay"
+                          value={customerForm.data.barangay}
+                          onChange={(event) => customerForm.setData('barangay', event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_city">City / Municipality</Label>
+                        <Input
+                          id="customer_city"
+                          value={customerForm.data.city_municipality}
+                          onChange={(event) => customerForm.setData('city_municipality', event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customer_province">Province</Label>
+                        <Input
+                          id="customer_province"
+                          value={customerForm.data.province}
+                          onChange={(event) => customerForm.setData('province', event.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={customerForm.processing}>
+                        Save Customer
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>

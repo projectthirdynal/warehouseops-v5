@@ -18,6 +18,7 @@ use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -81,9 +82,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Reports & Automation',
-                    'status' => 'Reporting Ready',
-                    'description' => 'Operational reporting for sales performance, Page conversion, agent output, and status movement.',
-                    'items' => ['Sales dashboard', 'Page performance', 'Agent performance', 'Product movement'],
+                    'status' => 'CRM Ready',
+                    'description' => 'Operational reporting, duplicate checks, quick replies, and customer profile updates.',
+                    'items' => ['Sales dashboard', 'Duplicate warnings', 'Quick replies', 'Customer profile edits'],
                 ],
             ],
             'workflow' => [
@@ -97,10 +98,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add duplicate order detection using phone, product, and recent order window.',
-                'Add quick replies and incomplete-address prompts in conversation detail.',
-                'Add customer edit/update actions from the profile panel.',
-                'Add exportable sales report filters by date, Page, and agent.',
+                'Add multi-item cart support for Shop order creation.',
+                'Add structured quick-reply library with team-managed templates.',
+                'Add duplicate resolution actions: ignore, merge, cancel, or continue.',
+                'Add exportable filtered reports for daily operations.',
             ],
         ]);
     }
@@ -127,18 +128,23 @@ class ShopController extends Controller
         ]);
     }
 
-    public function reports(): Response
+    public function reports(Request $request): Response
     {
+        $filters = [
+            'date_from' => $request->string('date_from')->toString() ?: today()->subDays(6)->toDateString(),
+            'date_to' => $request->string('date_to')->toString() ?: today()->toDateString(),
+            'page_id' => $request->string('page_id')->toString(),
+            'agent_id' => $request->string('agent_id')->toString(),
+        ];
+
         return Inertia::render('Shop/Reports', [
             'summary' => [
-                'shop_orders' => $this->shopOrderQuery()->count(),
+                'shop_orders' => $this->filteredShopOrderQuery($filters)->count(),
                 'sales_today' => $this->shopOrderQuery()
                     ->whereDate('created_at', today())
                     ->sum('total_amount'),
-                'orders_today' => $this->shopOrderQuery()
-                    ->whereDate('created_at', today())
-                    ->count(),
-                'confirmed_orders' => $this->shopOrderQuery()
+                'orders_today' => $this->filteredShopOrderQuery($filters)->count(),
+                'confirmed_orders' => $this->filteredShopOrderQuery($filters)
                     ->whereIn('status', [OrderStatus::CONFIRMED->value, OrderStatus::QA_APPROVED->value])
                     ->count(),
                 'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
@@ -148,12 +154,15 @@ class ShopController extends Controller
                     ->whereDate('created_at', today())
                     ->count()),
             ],
-            'page_performance' => $this->pagePerformanceReport(),
-            'agent_performance' => $this->agentPerformanceReport(),
-            'conversation_statuses' => $this->conversationStatusReport(),
-            'order_statuses' => $this->orderStatusReport(),
-            'top_products' => $this->topProductReport(),
-            'daily_sales' => $this->dailySalesReport(),
+            'page_performance' => $this->pagePerformanceReport($filters),
+            'agent_performance' => $this->agentPerformanceReport($filters),
+            'conversation_statuses' => $this->conversationStatusReport($filters),
+            'order_statuses' => $this->orderStatusReport($filters),
+            'top_products' => $this->topProductReport($filters),
+            'daily_sales' => $this->dailySalesReport($filters),
+            'filters' => $filters,
+            'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_name']),
+            'agents' => $this->shopAgents(),
         ]);
     }
 
@@ -254,9 +263,44 @@ class ShopController extends Controller
                     ->limit(5)
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
+            'quick_replies' => $this->quickRepliesForConversation($conversation),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
         ]);
+    }
+
+    public function updateCustomer(Request $request, Customer $customer): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'canonical_address' => ['nullable', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $addressMatch = $this->addressMappings->match([
+            'province' => $validated['province'] ?? null,
+            'city_municipality' => $validated['city_municipality'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'address' => $validated['canonical_address'] ?? '',
+        ]);
+
+        $customer->forceFill([
+            'name' => $validated['name'],
+            'phone' => $validated['phone'],
+            'normalized_phone' => $this->phones->normalize($validated['phone']),
+            'canonical_address' => $validated['canonical_address'] ?? null,
+            'landmark' => $validated['landmark'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'city_municipality' => $validated['city_municipality'] ?? null,
+            'province' => $validated['province'] ?? null,
+            'region' => $addressMatch['mapping']?->region ?? $customer->region,
+        ])->save();
+
+        return back()->with('success', 'Customer profile updated.');
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
@@ -525,6 +569,11 @@ class ShopController extends Controller
                     $conversation->last_message_preview ? "Last message: {$conversation->last_message_preview}" : null,
                 ]))),
             ] : null,
+            'duplicate_warnings' => $this->duplicateWarningsForPhone(
+                $conversation?->customer?->normalized_phone
+                    ?? $conversation?->customer?->phone
+                    ?? $conversation?->identity?->phone_detected
+            ),
         ]);
     }
 
@@ -561,6 +610,7 @@ class ShopController extends Controller
         $lineTotal = $quantity * $unitPrice;
         $totalAmount = $lineTotal + $shippingFee;
         $normalizedPhone = $this->phones->normalize($validated['phone']);
+        $possibleDuplicate = $this->possibleDuplicateOrder($normalizedPhone ?: $validated['phone'], (int) $validated['product_id']);
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['province'] ?? null,
             'city_municipality' => $validated['city_municipality'] ?? null,
@@ -578,6 +628,7 @@ class ShopController extends Controller
             $lineTotal,
             $totalAmount,
             $normalizedPhone,
+            $possibleDuplicate,
             $addressMatch
         ) {
             $conversation = ! empty($validated['conversation_id'])
@@ -644,6 +695,19 @@ class ShopController extends Controller
                 ]);
             }
 
+            if ($possibleDuplicate) {
+                OrderRemark::query()->create([
+                    'order_id' => $order->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'duplicate_warning',
+                    'body' => "Possible duplicate of {$possibleDuplicate->order_number} from {$possibleDuplicate->created_at->format('M j, Y g:i A')}.",
+                    'metadata' => [
+                        'duplicate_order_id' => $possibleDuplicate->id,
+                        'duplicate_order_number' => $possibleDuplicate->order_number,
+                    ],
+                ]);
+            }
+
             if ($conversation) {
                 OrderRemark::query()->create([
                     'order_id' => $order->id,
@@ -672,7 +736,12 @@ class ShopController extends Controller
 
         return redirect()
             ->route('orders.show', $order)
-            ->with('success', "Shop order {$order->order_number} created.");
+            ->with(
+                $possibleDuplicate ? 'warning' : 'success',
+                $possibleDuplicate
+                    ? "Shop order {$order->order_number} created. Possible duplicate found: {$possibleDuplicate->order_number}."
+                    : "Shop order {$order->order_number} created."
+            );
     }
 
     private function stats(): array
@@ -743,88 +812,155 @@ class ShopController extends Controller
         return $query;
     }
 
-    private function pagePerformanceReport(): \Illuminate\Support\Collection
+    private function filteredShopOrderQuery(array $filters): \Illuminate\Database\Query\Builder
+    {
+        return $this->applyReportOrderFilters($this->shopOrderQuery(), $filters);
+    }
+
+    private function applyReportOrderFilters(\Illuminate\Database\Query\Builder $query, array $filters): \Illuminate\Database\Query\Builder
+    {
+        if (! empty($filters['date_from'])) {
+            $query->whereDate('orders.created_at', '>=', $filters['date_from']);
+        }
+
+        if (! empty($filters['date_to'])) {
+            $query->whereDate('orders.created_at', '<=', $filters['date_to']);
+        }
+
+        if (! empty($filters['page_id'])) {
+            $query->where('orders.facebook_page_id', (int) $filters['page_id']);
+        }
+
+        if (! empty($filters['agent_id'])) {
+            $query->where('orders.assigned_agent_id', (int) $filters['agent_id']);
+        }
+
+        return $query;
+    }
+
+    private function applyReportConversationFilters(\Illuminate\Database\Query\Builder $query, array $filters): \Illuminate\Database\Query\Builder
+    {
+        if (! empty($filters['date_from'])) {
+            $query->whereDate('conversations.created_at', '>=', $filters['date_from']);
+        }
+
+        if (! empty($filters['date_to'])) {
+            $query->whereDate('conversations.created_at', '<=', $filters['date_to']);
+        }
+
+        if (! empty($filters['page_id'])) {
+            $query->where('conversations.facebook_page_id', (int) $filters['page_id']);
+        }
+
+        if (! empty($filters['agent_id'])) {
+            $query->where('conversations.assigned_agent_id', (int) $filters['agent_id']);
+        }
+
+        return $query;
+    }
+
+    private function pagePerformanceReport(array $filters): \Illuminate\Support\Collection
     {
         if (! Schema::hasTable('facebook_pages') || ! Schema::hasTable('conversations')) {
             return collect();
         }
 
         return DB::table('facebook_pages')
+            ->when(! empty($filters['page_id']), fn ($query) => $query->where('facebook_pages.id', (int) $filters['page_id']))
             ->select([
                 'facebook_pages.id',
                 'facebook_pages.page_name',
                 'facebook_pages.connected_status',
                 'facebook_pages.webhook_status',
             ])
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id');
+
+                $this->applyReportConversationFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'conversations_count')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id')
                     ->where('conversations.status', 'converted');
+
+                $this->applyReportConversationFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'converted_count')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('messages')
                     ->join('conversations', 'conversations.id', '=', 'messages.conversation_id')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id');
+
+                $this->applyReportConversationFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'messages_count')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('orders')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('orders.facebook_page_id', 'facebook_pages.id')
                     ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+
+                $this->applyReportOrderFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'orders_count')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('orders')
                     ->selectRaw('COALESCE(SUM(orders.total_amount), 0)')
                     ->whereColumn('orders.facebook_page_id', 'facebook_pages.id')
                     ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+
+                $this->applyReportOrderFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'sales_total')
             ->orderByDesc('conversations_count')
             ->limit(12)
             ->get();
     }
 
-    private function agentPerformanceReport(): \Illuminate\Support\Collection
+    private function agentPerformanceReport(array $filters): \Illuminate\Support\Collection
     {
         if (! Schema::hasTable('users')) {
             return collect();
         }
 
         return DB::table('users')
+            ->when(! empty($filters['agent_id']), fn ($query) => $query->where('users.id', (int) $filters['agent_id']))
             ->whereIn('users.role', ['agent', 'supervisor', 'admin', 'superadmin'])
             ->select([
                 'users.id',
                 'users.name',
                 'users.role',
             ])
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.assigned_agent_id', 'users.id');
+
+                $this->applyReportConversationFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'assigned_conversations')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.assigned_agent_id', 'users.id')
                     ->where('conversations.status', 'converted');
+
+                $this->applyReportConversationFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'converted_conversations')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('orders')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('orders.assigned_agent_id', 'users.id')
                     ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+
+                $this->applyReportOrderFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'orders_count')
-            ->selectSub(function ($query) {
+            ->selectSub(function ($query) use ($filters) {
                 $query->from('orders')
                     ->selectRaw('COALESCE(SUM(orders.total_amount), 0)')
                     ->whereColumn('orders.assigned_agent_id', 'users.id')
                     ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+
+                $this->applyReportOrderFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'sales_total')
             ->orderByDesc('orders_count')
             ->get()
@@ -833,37 +969,41 @@ class ShopController extends Controller
             ->values();
     }
 
-    private function conversationStatusReport(): \Illuminate\Support\Collection
+    private function conversationStatusReport(array $filters): \Illuminate\Support\Collection
     {
         if (! Schema::hasTable('conversations')) {
             return collect();
         }
 
-        return DB::table('conversations')
+        return $this->applyReportConversationFilters(DB::table('conversations'), $filters)
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
             ->orderByDesc('total')
             ->get();
     }
 
-    private function orderStatusReport(): \Illuminate\Support\Collection
+    private function orderStatusReport(array $filters): \Illuminate\Support\Collection
     {
-        return $this->shopOrderQuery()
+        return $this->filteredShopOrderQuery($filters)
             ->select('status', DB::raw('COUNT(*) as total'), DB::raw('COALESCE(SUM(total_amount), 0) as sales_total'))
             ->groupBy('status')
             ->orderByDesc('total')
             ->get();
     }
 
-    private function topProductReport(): \Illuminate\Support\Collection
+    private function topProductReport(array $filters): \Illuminate\Support\Collection
     {
         if (! Schema::hasTable('shop_order_items')) {
             return collect();
         }
 
-        return DB::table('shop_order_items')
+        $query = DB::table('shop_order_items')
             ->join('orders', 'orders.id', '=', 'shop_order_items.order_id')
-            ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop'])
+            ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+
+        $this->applyReportOrderFilters($query, $filters);
+
+        return $query
             ->select([
                 'shop_order_items.product_name',
                 DB::raw('SUM(shop_order_items.quantity) as quantity_sold'),
@@ -876,24 +1016,93 @@ class ShopController extends Controller
             ->get();
     }
 
-    private function dailySalesReport(): array
+    private function dailySalesReport(array $filters): array
     {
-        return collect(range(6, 0))
-            ->map(function (int $daysAgo) {
-                $date = today()->subDays($daysAgo);
-                $query = $this->shopOrderQuery()->whereDate('created_at', $date);
+        $from = \Carbon\Carbon::parse($filters['date_from'] ?? today()->subDays(6)->toDateString())->startOfDay();
+        $to = \Carbon\Carbon::parse($filters['date_to'] ?? today()->toDateString())->startOfDay();
+        $days = (int) min(31, $from->diffInDays($to));
+
+        return collect(range($days, 0))
+            ->map(function (int $daysAgo) use ($to, $filters) {
+                $date = $to->copy()->subDays($daysAgo);
+                $query = $this->filteredShopOrderQuery($filters)->whereDate('orders.created_at', $date);
 
                 return [
                     'date' => $date->toDateString(),
                     'label' => $date->format('M j'),
                     'orders_count' => $query->count(),
-                    'sales_total' => $this->shopOrderQuery()
-                        ->whereDate('created_at', $date)
+                    'sales_total' => $this->filteredShopOrderQuery($filters)
+                        ->whereDate('orders.created_at', $date)
                         ->sum('total_amount'),
                 ];
             })
             ->values()
             ->all();
+    }
+
+    private function duplicateWarningsForPhone(?string $phone): \Illuminate\Support\Collection
+    {
+        $normalizedPhone = $phone ? $this->phones->normalize($phone) : null;
+
+        if (! $normalizedPhone || ! Schema::hasTable('orders')) {
+            return collect();
+        }
+
+        return Order::query()
+            ->with('product:id,name,sku')
+            ->where('receiver_phone', $normalizedPhone)
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->where('created_at', '>=', now()->subDays(30))
+            ->latest()
+            ->limit(5)
+            ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at']);
+    }
+
+    private function possibleDuplicateOrder(string $phone, int $productId): ?Order
+    {
+        $normalizedPhone = $this->phones->normalize($phone) ?: $phone;
+
+        return Order::query()
+            ->where('receiver_phone', $normalizedPhone)
+            ->where('product_id', $productId)
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->where('created_at', '>=', now()->subDays(14))
+            ->latest()
+            ->first(['id', 'order_number', 'created_at']);
+    }
+
+    private function quickRepliesForConversation(Conversation $conversation): array
+    {
+        $address = $conversation->customer?->canonical_address
+            ?: collect([
+                $conversation->customer?->barangay,
+                $conversation->customer?->city_municipality,
+                $conversation->customer?->province,
+            ])->filter()->implode(', ');
+
+        $replies = [
+            [
+                'label' => 'Ask complete details',
+                'body' => 'Hello po, paki-send po complete name, complete address, landmark, and active phone number para ma-process po ang order ninyo.',
+            ],
+            [
+                'label' => 'Confirm order',
+                'body' => 'Confirm ko lang po ang order ninyo. Paki-check po kung tama ang product, quantity, complete address, and COD amount bago namin i-process.',
+            ],
+            [
+                'label' => 'Ask active phone',
+                'body' => 'May active contact number po ba kayo na reachable for courier delivery?',
+            ],
+        ];
+
+        if ($address) {
+            array_unshift($replies, [
+                'label' => 'Same address?',
+                'body' => "Hello po, same address pa rin po ba ito?\n{$address}",
+            ]);
+        }
+
+        return $replies;
     }
 
     private function shopAgents(): \Illuminate\Support\Collection

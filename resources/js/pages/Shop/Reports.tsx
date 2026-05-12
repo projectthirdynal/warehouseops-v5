@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
+  Filter,
   Inbox,
   Radio,
   ShoppingCart,
@@ -14,6 +15,8 @@ import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Summary {
   shop_orders: number;
@@ -74,6 +77,14 @@ interface Props {
   order_statuses: StatusTotal[];
   top_products: TopProduct[];
   daily_sales: DailySale[];
+  filters: {
+    date_from: string;
+    date_to: string;
+    page_id: string;
+    agent_id: string;
+  };
+  pages: { id: number; page_name: string }[];
+  agents: { id: number; name: string; role: string }[];
 }
 
 const money = new Intl.NumberFormat('en-PH', {
@@ -102,19 +113,22 @@ export default function ShopReports({
   order_statuses,
   top_products,
   daily_sales,
+  filters,
+  pages,
+  agents,
 }: Props) {
   const summaryCards = [
     {
       label: 'Sales Today',
       value: formatMoney(summary.sales_today),
-      detail: `${formatNumber(summary.orders_today)} orders today`,
+      detail: `${formatNumber(summary.orders_today)} orders in selected range`,
       icon: ShoppingCart,
       color: 'text-violet-600',
     },
     {
       label: 'Shop Orders',
       value: formatNumber(summary.shop_orders),
-      detail: `${formatNumber(summary.confirmed_orders)} confirmed or QA approved`,
+      detail: `${formatNumber(summary.confirmed_orders)} confirmed or QA approved in range`,
       icon: ClipboardList,
       color: 'text-blue-600',
     },
@@ -171,6 +185,59 @@ export default function ShopReports({
             </Button>
           </div>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filters
+            </CardTitle>
+            <CardDescription>Limit reports by date range, Page, or assigned agent</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form method="get" action="/shop/reports" className="grid gap-4 md:grid-cols-5">
+              <div className="space-y-2">
+                <Label htmlFor="date_from">From</Label>
+                <Input id="date_from" name="date_from" type="date" defaultValue={filters.date_from} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date_to">To</Label>
+                <Input id="date_to" name="date_to" type="date" defaultValue={filters.date_to} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="page_id">Page</Label>
+                <select
+                  id="page_id"
+                  name="page_id"
+                  defaultValue={filters.page_id}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">All Pages</option>
+                  {pages.map((page) => (
+                    <option key={page.id} value={page.id}>{page.page_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agent_id">Agent</Label>
+                <select
+                  id="agent_id"
+                  name="agent_id"
+                  defaultValue={filters.agent_id}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">All Agents</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>{agent.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <Button type="submit" className="w-full">Apply</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => {
