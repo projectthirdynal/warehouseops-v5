@@ -1,6 +1,6 @@
 import { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Send, ShoppingCart, Store, User } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, History, MapPin, PackageCheck, Send, ShoppingCart, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,44 @@ interface Conversation {
   status: string;
   last_message_at: string | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
-  customer?: { id: number; name: string; phone: string; normalized_phone?: string | null; canonical_address?: string | null } | null;
+  customer?: {
+    id: number;
+    name: string;
+    phone: string;
+    normalized_phone?: string | null;
+    canonical_address?: string | null;
+    landmark?: string | null;
+    barangay?: string | null;
+    city_municipality?: string | null;
+    province?: string | null;
+    region?: string | null;
+    last_order_date?: string | null;
+    total_orders?: number | null;
+    successful_orders?: number | null;
+    returned_orders?: number | null;
+    success_rate?: string | number | null;
+    total_revenue?: string | number | null;
+    risk_level?: string | null;
+    is_blacklisted?: boolean;
+    blacklist_reason?: string | null;
+  } | null;
   identity?: { id: number; display_name?: string | null; provider_user_id: string; phone_detected?: string | null } | null;
   messages: Message[];
 }
 
+interface RecentOrder {
+  id: number;
+  order_number: string;
+  status: string;
+  total_amount: string | number;
+  receiver_address: string | null;
+  created_at: string;
+  product?: { id: number; name: string; sku: string } | null;
+}
+
 interface Props {
   conversation: Conversation;
+  recent_orders: RecentOrder[];
 }
 
 function time(value: string | null) {
@@ -52,7 +83,20 @@ function deliveryStatus(message: Message) {
   return { label: 'Logged locally', detail: status === 'logged' ? null : status, className: 'text-muted-foreground', icon: Clock };
 }
 
-export default function ShopConversation({ conversation }: Props) {
+function money(value: string | number | null | undefined) {
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value ?? 0));
+}
+
+function customerAddress(conversation: Conversation) {
+  const customer = conversation.customer;
+  if (!customer) return 'No saved address';
+
+  return customer.canonical_address
+    || [customer.barangay, customer.city_municipality, customer.province].filter(Boolean).join(', ')
+    || 'No saved address';
+}
+
+export default function ShopConversation({ conversation, recent_orders }: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
 
   const submit = (event: FormEvent) => {
@@ -162,22 +206,109 @@ export default function ShopConversation({ conversation }: Props) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  Customer
+                  Customer Profile
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>{conversation.customer?.name ?? 'No matched customer'}</p>
-                <p className="text-muted-foreground">
-                  {conversation.customer?.normalized_phone ?? conversation.identity?.phone_detected ?? 'No phone detected'}
-                </p>
-                <p className="text-muted-foreground">{conversation.customer?.canonical_address ?? 'No saved address'}</p>
+              <CardContent className="space-y-4 text-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium">{conversation.customer?.name ?? conversation.identity?.display_name ?? 'No matched customer'}</p>
+                    {conversation.customer?.is_blacklisted ? (
+                      <Badge variant="destructive">Blacklisted</Badge>
+                    ) : conversation.customer?.risk_level ? (
+                      <Badge variant="outline">{conversation.customer.risk_level}</Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-muted-foreground">
+                    {conversation.customer?.normalized_phone ?? conversation.identity?.phone_detected ?? 'No phone detected'}
+                  </p>
+                  <p className="text-muted-foreground">PSID: {conversation.identity?.provider_user_id ?? 'unknown'}</p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border p-2">
+                    <p className="text-xs text-muted-foreground">Orders</p>
+                    <p className="font-semibold">{conversation.customer?.total_orders ?? recent_orders.length}</p>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <p className="text-xs text-muted-foreground">Success</p>
+                    <p className="font-semibold">{conversation.customer?.success_rate ?? 0}%</p>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <p className="text-xs text-muted-foreground">Revenue</p>
+                    <p className="font-semibold">{money(conversation.customer?.total_revenue)}</p>
+                  </div>
+                </div>
+
+                {conversation.customer?.blacklist_reason && (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                    {conversation.customer.blacklist_reason}
+                  </p>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Store className="h-5 w-5" />
+                  <MapPin className="h-5 w-5" />
+                  Saved Address
+                </CardTitle>
+                <CardDescription>{conversation.customer?.region ?? 'Region not mapped'}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p>{customerAddress(conversation)}</p>
+                {conversation.customer?.landmark && <p className="text-muted-foreground">Landmark: {conversation.customer.landmark}</p>}
+                <div className="grid gap-2">
+                  <Button asChild size="sm">
+                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      Use Same Address
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                      Update Address in Order
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Recent Orders
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recent_orders.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No previous orders found.</p>
+                ) : (
+                  recent_orders.map((order) => (
+                    <Link key={order.id} href={`/orders/${order.id}`} className="block rounded-lg border p-3 transition-colors hover:bg-accent/30">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{order.order_number}</p>
+                          <p className="text-xs text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                        </div>
+                        <Badge variant="outline">{order.status}</Badge>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{time(order.created_at)}</span>
+                        <span>{money(order.total_amount)}</span>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <PackageCheck className="h-5 w-5" />
                   Page
                 </CardTitle>
               </CardHeader>

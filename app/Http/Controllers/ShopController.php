@@ -184,7 +184,7 @@ class ShopController extends Controller
     {
         $conversation->load([
             'facebookPage:id,page_id,page_name,webhook_status',
-            'customer:id,name,phone,normalized_phone,canonical_address',
+            'customer:id,name,phone,normalized_phone,canonical_address,landmark,barangay,city_municipality,province,region,last_order_date,total_orders,successful_orders,returned_orders,success_rate,total_revenue,risk_level,is_blacklisted,blacklist_reason',
             'identity:id,display_name,provider_user_id,phone_detected',
             'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
@@ -193,6 +193,14 @@ class ShopController extends Controller
 
         return Inertia::render('Shop/Conversation', [
             'conversation' => $conversation,
+            'recent_orders' => $conversation->customer_id
+                ? Order::query()
+                    ->with('product:id,name,sku')
+                    ->where('customer_id', $conversation->customer_id)
+                    ->latest()
+                    ->limit(5)
+                    ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
+                : [],
         ]);
     }
 
