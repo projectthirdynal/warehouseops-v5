@@ -63,6 +63,7 @@ interface Props {
   conversation: Conversation;
   recent_orders: RecentOrder[];
   quick_replies: { label: string; body: string }[];
+  saved_templates: { id: number; name: string; category?: string | null; body: string; variables?: string[] }[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
 }
@@ -106,7 +107,7 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-export default function ShopConversation({ conversation, recent_orders, quick_replies, agents, statuses }: Props) {
+export default function ShopConversation({ conversation, recent_orders, quick_replies, saved_templates, agents, statuses }: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
@@ -180,23 +181,52 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
         <div className="grid gap-6 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader>
-              <CardTitle>Messages</CardTitle>
-              <CardDescription>Inbound Meta messages and locally logged replies</CardDescription>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Messages</CardTitle>
+                  <CardDescription>Inbound Meta messages and locally logged replies</CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/shop/templates">Templates</Link>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {quick_replies.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {quick_replies.map((reply) => (
-                    <Button
-                      key={reply.label}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setData('body', reply.body)}
-                    >
-                      {reply.label}
-                    </Button>
-                  ))}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Context Suggestions</p>
+                  <div className="flex flex-wrap gap-2">
+                    {quick_replies.map((reply) => (
+                      <Button
+                        key={reply.label}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setData('body', reply.body)}
+                      >
+                        {reply.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {saved_templates.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Saved Templates</p>
+                  <div className="flex flex-wrap gap-2">
+                    {saved_templates.map((template) => (
+                      <Button
+                        key={template.id}
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setData('body', template.body)}
+                      >
+                        {template.name}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               )}
 

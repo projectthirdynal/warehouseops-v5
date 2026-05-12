@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BarChart3,
   ClipboardList,
+  FileText,
   FileSpreadsheet,
   Inbox,
   Radio,
@@ -108,6 +109,7 @@ function statusVariant(status: string) {
   if (status === 'Correction Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
   if (status === 'Reporting Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   if (status === 'CRM Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
+  if (status === 'Automation Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
@@ -146,6 +148,12 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               <Link href="/shop/reports">
                 <BarChart3 className="mr-2 h-4 w-4" />
                 Reports
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/templates">
+                <FileText className="mr-2 h-4 w-4" />
+                Templates
               </Link>
             </Button>
             <Button asChild variant="outline">

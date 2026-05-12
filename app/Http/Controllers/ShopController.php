@@ -17,6 +17,7 @@ use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Models\Customer;
 use App\Models\User;
@@ -82,9 +83,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Reports & Automation',
-                    'status' => 'CRM Ready',
-                    'description' => 'Operational reporting, duplicate checks, quick replies, and customer profile updates.',
-                    'items' => ['Sales dashboard', 'Duplicate warnings', 'Quick replies', 'Customer profile edits'],
+                    'status' => 'Automation Ready',
+                    'description' => 'Operational reporting, duplicate checks, saved reply templates, and customer profile updates.',
+                    'items' => ['Sales dashboard', 'Duplicate warnings', 'Reply template library', 'Customer profile edits'],
                 ],
             ],
             'workflow' => [
@@ -98,10 +99,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add structured quick-reply library with team-managed templates.',
                 'Add duplicate resolution actions: ignore, merge, cancel, or continue.',
                 'Add exportable filtered reports for daily operations.',
                 'Add stock-aware validation before Shop order confirmation.',
+                'Add message labels and follow-up reminders per conversation.',
             ],
         ]);
     }
@@ -164,6 +165,49 @@ class ShopController extends Controller
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_name']),
             'agents' => $this->shopAgents(),
         ]);
+    }
+
+    public function templates(): Response
+    {
+        return Inertia::render('Shop/Templates', [
+            'templates' => ShopReplyTemplate::query()
+                ->with('creator:id,name')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->paginate(24),
+        ]);
+    }
+
+    public function storeTemplate(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string', 'max:2000'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        preg_match_all('/\{(\w+)\}/', $validated['message'], $matches);
+
+        ShopReplyTemplate::query()->create([
+            'name' => $validated['name'],
+            'message' => $validated['message'],
+            'category' => $validated['category'] ?? null,
+            'variables' => $matches[0] ?? [],
+            'sort_order' => $validated['sort_order'] ?? 0,
+            'is_active' => $validated['is_active'] ?? true,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Shop reply template created.');
+    }
+
+    public function destroyTemplate(ShopReplyTemplate $template): RedirectResponse
+    {
+        $template->delete();
+
+        return back()->with('success', 'Shop reply template deleted.');
     }
 
     public function simulateWebhook(Request $request): RedirectResponse
@@ -264,6 +308,7 @@ class ShopController extends Controller
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
             'quick_replies' => $this->quickRepliesForConversation($conversation),
+            'saved_templates' => $this->savedTemplatesForConversation($conversation),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
         ]);
@@ -1133,6 +1178,53 @@ class ShopController extends Controller
         }
 
         return $replies;
+    }
+
+    private function savedTemplatesForConversation(Conversation $conversation): array
+    {
+        if (! Schema::hasTable('shop_reply_templates')) {
+            return [];
+        }
+
+        return ShopReplyTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'message', 'category', 'variables'])
+            ->map(fn (ShopReplyTemplate $template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'category' => $template->category,
+                'body' => $this->renderReplyTemplate($template->message, $conversation),
+                'variables' => $template->variables ?? [],
+            ])
+            ->all();
+    }
+
+    private function renderReplyTemplate(string $message, Conversation $conversation): string
+    {
+        $address = $conversation->customer?->canonical_address
+            ?: collect([
+                $conversation->customer?->barangay,
+                $conversation->customer?->city_municipality,
+                $conversation->customer?->province,
+            ])->filter()->implode(', ');
+
+        $replacements = [
+            '{customer_name}' => $conversation->customer?->name
+                ?? $conversation->identity?->display_name
+                ?? 'Customer',
+            '{phone}' => $conversation->customer?->normalized_phone
+                ?? $conversation->customer?->phone
+                ?? $conversation->identity?->phone_detected
+                ?? '',
+            '{address}' => $address,
+            '{page_name}' => $conversation->facebookPage?->page_name ?? 'our Page',
+            '{status}' => $conversation->status,
+            '{last_message}' => $conversation->last_message_preview ?? '',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $message);
     }
 
     private function shopAgents(): \Illuminate\Support\Collection
