@@ -79,6 +79,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
     Route::post('/shop/inbox/{conversation}/reply', [ShopController::class, 'sendReply'])->name('shop.conversation.reply');
     Route::patch('/shop/inbox/{conversation}/assignment', [ShopController::class, 'updateConversationAssignment'])->name('shop.conversation.assignment');
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
+    Route::get('/shop/reports', [ShopController::class, 'reports'])->name('shop.reports');
     Route::get('/shop/webhooks', [ShopController::class, 'webhooks'])->name('shop.webhooks');
     Route::post('/shop/webhooks/simulate', [ShopController::class, 'simulateWebhook'])->name('shop.webhooks.simulate');
     Route::get('/shop/encoder', [ShopController::class, 'encoder'])->name('shop.encoder');

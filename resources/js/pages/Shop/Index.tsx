@@ -2,6 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import {
   AlertTriangle,
   ArrowRight,
+  BarChart3,
   ClipboardList,
   FileSpreadsheet,
   Inbox,
@@ -105,6 +106,7 @@ function statusVariant(status: string) {
   if (status === 'Subscribe Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
   if (status === 'Detail Ready') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   if (status === 'Correction Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'Reporting Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
@@ -137,6 +139,12 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               <Link href="/shop/webhooks">
                 <Radio className="mr-2 h-4 w-4" />
                 Webhooks
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/reports">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Reports
               </Link>
             </Button>
             <Button asChild variant="outline">

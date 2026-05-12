@@ -81,9 +81,9 @@ class ShopController extends Controller
                 ],
                 [
                     'name' => 'Reports & Automation',
-                    'status' => 'Next',
-                    'description' => 'Operational reporting and AI assistance for sales performance, duplicate checks, and reply suggestions.',
-                    'items' => ['Sales dashboard', 'Agent performance', 'Duplicate warnings', 'Reply suggestions'],
+                    'status' => 'Reporting Ready',
+                    'description' => 'Operational reporting for sales performance, Page conversion, agent output, and status movement.',
+                    'items' => ['Sales dashboard', 'Page performance', 'Agent performance', 'Product movement'],
                 ],
             ],
             'workflow' => [
@@ -97,10 +97,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Build Shop sales reporting for Page, agent, product, and status movement.',
                 'Add duplicate order detection using phone, product, and recent order window.',
                 'Add quick replies and incomplete-address prompts in conversation detail.',
                 'Add customer edit/update actions from the profile panel.',
+                'Add exportable sales report filters by date, Page, and agent.',
             ],
         ]);
     }
@@ -124,6 +124,36 @@ class ShopController extends Controller
                 ->get(['id', 'facebook_page_id', 'event_id', 'event_type', 'sender_psid', 'recipient_id', 'signature_valid', 'processed_at', 'error_message', 'created_at']),
             'callback_url' => url('/api/webhooks/meta'),
             'verify_token' => config('services.meta.webhook_verify_token'),
+        ]);
+    }
+
+    public function reports(): Response
+    {
+        return Inertia::render('Shop/Reports', [
+            'summary' => [
+                'shop_orders' => $this->shopOrderQuery()->count(),
+                'sales_today' => $this->shopOrderQuery()
+                    ->whereDate('created_at', today())
+                    ->sum('total_amount'),
+                'orders_today' => $this->shopOrderQuery()
+                    ->whereDate('created_at', today())
+                    ->count(),
+                'confirmed_orders' => $this->shopOrderQuery()
+                    ->whereIn('status', [OrderStatus::CONFIRMED->value, OrderStatus::QA_APPROVED->value])
+                    ->count(),
+                'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
+                    ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                    ->count()),
+                'webhook_events_today' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')
+                    ->whereDate('created_at', today())
+                    ->count()),
+            ],
+            'page_performance' => $this->pagePerformanceReport(),
+            'agent_performance' => $this->agentPerformanceReport(),
+            'conversation_statuses' => $this->conversationStatusReport(),
+            'order_statuses' => $this->orderStatusReport(),
+            'top_products' => $this->topProductReport(),
+            'daily_sales' => $this->dailySalesReport(),
         ]);
     }
 
@@ -567,6 +597,8 @@ class ShopController extends Controller
 
             $order = Order::query()->create([
                 'order_number' => Order::generateOrderNumber(),
+                'conversation_id' => $conversation?->id,
+                'facebook_page_id' => $conversation?->facebook_page_id,
                 'customer_id' => $customer->id,
                 'product_id' => $product->id,
                 'variant_id' => $variant?->id,
@@ -694,6 +726,174 @@ class ShopController extends Controller
         }
 
         return (int) $callback();
+    }
+
+    private function shopOrderQuery(): \Illuminate\Database\Query\Builder
+    {
+        if (! Schema::hasTable('orders')) {
+            return DB::table('orders')->whereRaw('1 = 0');
+        }
+
+        $query = DB::table('orders')->whereIn('source_channel', ['manual_shop', 'facebook_shop']);
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('deleted_at');
+        }
+
+        return $query;
+    }
+
+    private function pagePerformanceReport(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('facebook_pages') || ! Schema::hasTable('conversations')) {
+            return collect();
+        }
+
+        return DB::table('facebook_pages')
+            ->select([
+                'facebook_pages.id',
+                'facebook_pages.page_name',
+                'facebook_pages.connected_status',
+                'facebook_pages.webhook_status',
+            ])
+            ->selectSub(function ($query) {
+                $query->from('conversations')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id');
+            }, 'conversations_count')
+            ->selectSub(function ($query) {
+                $query->from('conversations')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id')
+                    ->where('conversations.status', 'converted');
+            }, 'converted_count')
+            ->selectSub(function ($query) {
+                $query->from('messages')
+                    ->join('conversations', 'conversations.id', '=', 'messages.conversation_id')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id');
+            }, 'messages_count')
+            ->selectSub(function ($query) {
+                $query->from('orders')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('orders.facebook_page_id', 'facebook_pages.id')
+                    ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+            }, 'orders_count')
+            ->selectSub(function ($query) {
+                $query->from('orders')
+                    ->selectRaw('COALESCE(SUM(orders.total_amount), 0)')
+                    ->whereColumn('orders.facebook_page_id', 'facebook_pages.id')
+                    ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+            }, 'sales_total')
+            ->orderByDesc('conversations_count')
+            ->limit(12)
+            ->get();
+    }
+
+    private function agentPerformanceReport(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        return DB::table('users')
+            ->whereIn('users.role', ['agent', 'supervisor', 'admin', 'superadmin'])
+            ->select([
+                'users.id',
+                'users.name',
+                'users.role',
+            ])
+            ->selectSub(function ($query) {
+                $query->from('conversations')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('conversations.assigned_agent_id', 'users.id');
+            }, 'assigned_conversations')
+            ->selectSub(function ($query) {
+                $query->from('conversations')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('conversations.assigned_agent_id', 'users.id')
+                    ->where('conversations.status', 'converted');
+            }, 'converted_conversations')
+            ->selectSub(function ($query) {
+                $query->from('orders')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('orders.assigned_agent_id', 'users.id')
+                    ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+            }, 'orders_count')
+            ->selectSub(function ($query) {
+                $query->from('orders')
+                    ->selectRaw('COALESCE(SUM(orders.total_amount), 0)')
+                    ->whereColumn('orders.assigned_agent_id', 'users.id')
+                    ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop']);
+            }, 'sales_total')
+            ->orderByDesc('orders_count')
+            ->get()
+            ->filter(fn ($agent) => (int) $agent->assigned_conversations > 0 || (int) $agent->orders_count > 0)
+            ->take(12)
+            ->values();
+    }
+
+    private function conversationStatusReport(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('conversations')) {
+            return collect();
+        }
+
+        return DB::table('conversations')
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->orderByDesc('total')
+            ->get();
+    }
+
+    private function orderStatusReport(): \Illuminate\Support\Collection
+    {
+        return $this->shopOrderQuery()
+            ->select('status', DB::raw('COUNT(*) as total'), DB::raw('COALESCE(SUM(total_amount), 0) as sales_total'))
+            ->groupBy('status')
+            ->orderByDesc('total')
+            ->get();
+    }
+
+    private function topProductReport(): \Illuminate\Support\Collection
+    {
+        if (! Schema::hasTable('shop_order_items')) {
+            return collect();
+        }
+
+        return DB::table('shop_order_items')
+            ->join('orders', 'orders.id', '=', 'shop_order_items.order_id')
+            ->whereIn('orders.source_channel', ['manual_shop', 'facebook_shop'])
+            ->select([
+                'shop_order_items.product_name',
+                DB::raw('SUM(shop_order_items.quantity) as quantity_sold'),
+                DB::raw('COUNT(DISTINCT orders.id) as orders_count'),
+                DB::raw('COALESCE(SUM(shop_order_items.line_total), 0) as sales_total'),
+            ])
+            ->groupBy('shop_order_items.product_name')
+            ->orderByDesc('quantity_sold')
+            ->limit(10)
+            ->get();
+    }
+
+    private function dailySalesReport(): array
+    {
+        return collect(range(6, 0))
+            ->map(function (int $daysAgo) {
+                $date = today()->subDays($daysAgo);
+                $query = $this->shopOrderQuery()->whereDate('created_at', $date);
+
+                return [
+                    'date' => $date->toDateString(),
+                    'label' => $date->format('M j'),
+                    'orders_count' => $query->count(),
+                    'sales_total' => $this->shopOrderQuery()
+                        ->whereDate('created_at', $date)
+                        ->sum('total_amount'),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function shopAgents(): \Illuminate\Support\Collection
