@@ -1,6 +1,6 @@
-import { FormEvent, useMemo } from 'react';
+import { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Calculator, MapPinned, PackagePlus, Phone, Save, User } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calculator, MapPinned, PackagePlus, Phone, Plus, Save, Trash2, User } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,13 +29,6 @@ interface Courier {
   label: string;
 }
 
-interface Props {
-  products: Product[];
-  couriers: Courier[];
-  prefill?: Partial<OrderForm> | null;
-  duplicate_warnings: DuplicateWarning[];
-}
-
 interface DuplicateWarning {
   id: number;
   order_number: string;
@@ -43,6 +36,13 @@ interface DuplicateWarning {
   total_amount: string | number;
   created_at: string;
   product?: { id: number; name: string; sku: string } | null;
+}
+
+interface CartItemForm {
+  product_id: string;
+  variant_id: string;
+  quantity: string;
+  unit_price: string;
 }
 
 interface OrderForm {
@@ -53,14 +53,18 @@ interface OrderForm {
   barangay: string;
   city_municipality: string;
   province: string;
-  product_id: string;
-  variant_id: string;
-  quantity: string;
-  unit_price: string;
+  items: CartItemForm[];
   shipping_fee: string;
   courier_code: string;
   remarks: string;
   conversation_id: string;
+}
+
+interface Props {
+  products: Product[];
+  couriers: Courier[];
+  prefill?: Partial<OrderForm> | null;
+  duplicate_warnings: DuplicateWarning[];
 }
 
 function money(value: number) {
@@ -76,6 +80,15 @@ function numeric(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function createEmptyItem(): CartItemForm {
+  return {
+    product_id: '',
+    variant_id: '',
+    quantity: '1',
+    unit_price: '',
+  };
+}
+
 export default function CreateShopOrder({ products, couriers, prefill, duplicate_warnings }: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
@@ -85,52 +98,69 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
     barangay: '',
     city_municipality: '',
     province: '',
-    product_id: '',
-    variant_id: '',
-    quantity: '1',
-    unit_price: '',
+    items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
     shipping_fee: '0',
     courier_code: 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
   });
 
-  const selectedProduct = useMemo(
-    () => products.find((product) => String(product.id) === data.product_id),
-    [data.product_id, products]
-  );
+  const itemError = (index: number, field: string) => {
+    const key = `items.${index}.${field}` as keyof typeof errors;
+    return errors[key];
+  };
 
-  const selectedVariant = useMemo(
-    () => selectedProduct?.active_variants.find((variant) => String(variant.id) === data.variant_id),
-    [data.variant_id, selectedProduct]
-  );
+  const updateItem = (index: number, field: keyof CartItemForm, value: string) => {
+    setData('items', data.items.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, [field]: value } : item
+    )));
+  };
 
-  const quantity = Math.max(1, Number(data.quantity || 1));
-  const unitPrice = numeric(data.unit_price);
-  const shippingFee = numeric(data.shipping_fee);
-  const subtotal = quantity * unitPrice;
-  const total = subtotal + shippingFee;
-
-  const chooseProduct = (productId: string) => {
+  const chooseProduct = (index: number, productId: string) => {
     const product = products.find((item) => String(item.id) === productId);
 
-    setData((current) => ({
-      ...current,
-      product_id: productId,
-      variant_id: '',
-      unit_price: product ? String(product.selling_price) : '',
-    }));
+    setData('items', data.items.map((item, itemIndex) => (
+      itemIndex === index
+        ? {
+            ...item,
+            product_id: productId,
+            variant_id: '',
+            unit_price: product ? String(product.selling_price) : '',
+          }
+        : item
+    )));
   };
 
-  const chooseVariant = (variantId: string) => {
+  const chooseVariant = (index: number, variantId: string) => {
+    const currentItem = data.items[index];
+    const selectedProduct = products.find((product) => String(product.id) === currentItem.product_id);
     const variant = selectedProduct?.active_variants.find((item) => String(item.id) === variantId);
 
-    setData((current) => ({
-      ...current,
-      variant_id: variantId,
-      unit_price: variant?.selling_price ? String(variant.selling_price) : current.unit_price,
-    }));
+    setData('items', data.items.map((item, itemIndex) => (
+      itemIndex === index
+        ? {
+            ...item,
+            variant_id: variantId,
+            unit_price: variant?.selling_price ? String(variant.selling_price) : item.unit_price,
+          }
+        : item
+    )));
   };
+
+  const addItem = () => {
+    setData('items', [...data.items, createEmptyItem()]);
+  };
+
+  const removeItem = (index: number) => {
+    setData('items', data.items.length === 1 ? [createEmptyItem()] : data.items.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const subtotal = data.items.reduce((total, item) => (
+    total + Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price)
+  ), 0);
+  const totalQuantity = data.items.reduce((total, item) => total + Math.max(1, Number(item.quantity || 1)), 0);
+  const shippingFee = numeric(data.shipping_fee);
+  const total = subtotal + shippingFee;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -257,87 +287,122 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PackagePlus className="h-5 w-5" />
-                  Product
-                </CardTitle>
-                <CardDescription>Select one product for this first POS order version</CardDescription>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <PackagePlus className="h-5 w-5" />
+                      Cart Items
+                    </CardTitle>
+                    <CardDescription>Build one Shop order with multiple products and variants</CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" onClick={addItem}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Item
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="product_id">Product</Label>
-                  <select
-                    id="product_id"
-                    value={data.product_id}
-                    onChange={(event) => chooseProduct(event.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Select product</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.product_id && <p className="text-xs text-destructive">{errors.product_id}</p>}
-                </div>
+              <CardContent className="space-y-4">
+                {data.items.map((item, index) => {
+                  const selectedProduct = products.find((product) => String(product.id) === item.product_id);
+                  const selectedVariant = selectedProduct?.active_variants.find((variant) => String(variant.id) === item.variant_id);
+                  const quantity = Math.max(1, Number(item.quantity || 1));
+                  const lineTotal = quantity * numeric(item.unit_price);
 
-                <div className="space-y-2">
-                  <Label htmlFor="variant_id">Variant</Label>
-                  <select
-                    id="variant_id"
-                    value={data.variant_id}
-                    onChange={(event) => chooseVariant(event.target.value)}
-                    disabled={!selectedProduct || selectedProduct.active_variants.length === 0}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
-                  >
-                    <option value="">Default</option>
-                    {selectedProduct?.active_variants.map((variant) => (
-                      <option key={variant.id} value={variant.id}>
-                        {variant.variant_name} ({variant.sku})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.variant_id && <p className="text-xs text-destructive">{errors.variant_id}</p>}
-                </div>
+                  return (
+                    <div key={index} className="rounded-lg border p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Item {index + 1}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedVariant?.variant_name ?? selectedProduct?.name ?? 'Select a product'}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeItem(index)}
+                          disabled={data.items.length === 1}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={data.quantity}
-                    onChange={(event) => setData('quantity', event.target.value)}
-                  />
-                  {errors.quantity && <p className="text-xs text-destructive">{errors.quantity}</p>}
-                </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor={`product_id_${index}`}>Product</Label>
+                          <select
+                            id={`product_id_${index}`}
+                            value={item.product_id}
+                            onChange={(event) => chooseProduct(index, event.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="">Select product</option>
+                            {products.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name} ({product.sku})
+                              </option>
+                            ))}
+                          </select>
+                          {itemError(index, 'product_id') && <p className="text-xs text-destructive">{itemError(index, 'product_id')}</p>}
+                        </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="unit_price">Unit price</Label>
-                  <Input
-                    id="unit_price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={data.unit_price}
-                    onChange={(event) => setData('unit_price', event.target.value)}
-                  />
-                  {errors.unit_price && <p className="text-xs text-destructive">{errors.unit_price}</p>}
-                </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`variant_id_${index}`}>Variant</Label>
+                          <select
+                            id={`variant_id_${index}`}
+                            value={item.variant_id}
+                            onChange={(event) => chooseVariant(index, event.target.value)}
+                            disabled={!selectedProduct || selectedProduct.active_variants.length === 0}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                          >
+                            <option value="">Default</option>
+                            {selectedProduct?.active_variants.map((variant) => (
+                              <option key={variant.id} value={variant.id}>
+                                {variant.variant_name} ({variant.sku})
+                              </option>
+                            ))}
+                          </select>
+                          {itemError(index, 'variant_id') && <p className="text-xs text-destructive">{itemError(index, 'variant_id')}</p>}
+                        </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="shipping_fee">Shipping fee</Label>
-                  <Input
-                    id="shipping_fee"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={data.shipping_fee}
-                    onChange={(event) => setData('shipping_fee', event.target.value)}
-                  />
-                  {errors.shipping_fee && <p className="text-xs text-destructive">{errors.shipping_fee}</p>}
-                </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`quantity_${index}`}>Quantity</Label>
+                          <Input
+                            id={`quantity_${index}`}
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(event) => updateItem(index, 'quantity', event.target.value)}
+                          />
+                          {itemError(index, 'quantity') && <p className="text-xs text-destructive">{itemError(index, 'quantity')}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`unit_price_${index}`}>Unit price</Label>
+                          <Input
+                            id={`unit_price_${index}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(event) => updateItem(index, 'unit_price', event.target.value)}
+                          />
+                          {itemError(index, 'unit_price') && <p className="text-xs text-destructive">{itemError(index, 'unit_price')}</p>}
+                        </div>
+
+                        <div className="flex items-end">
+                          <div className="w-full rounded-lg bg-muted px-3 py-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Line total</span>
+                              <span className="font-medium">{money(lineTotal)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </div>
@@ -378,16 +443,36 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                   <Calculator className="h-5 w-5" />
                   Order Summary
                 </CardTitle>
-                <CardDescription>COD amount preview</CardDescription>
+                <CardDescription>COD amount preview for the full cart</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="rounded-lg border p-3">
-                  <p className="text-sm font-medium">{selectedVariant?.variant_name ?? selectedProduct?.name ?? 'No product selected'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedVariant?.sku ?? selectedProduct?.sku ?? 'Select an item to continue'}
-                  </p>
+                <div className="space-y-2">
+                  {data.items.map((item, index) => {
+                    const selectedProduct = products.find((product) => String(product.id) === item.product_id);
+                    const selectedVariant = selectedProduct?.active_variants.find((variant) => String(variant.id) === item.variant_id);
+                    const quantity = Math.max(1, Number(item.quantity || 1));
+                    const lineTotal = quantity * numeric(item.unit_price);
+
+                    return (
+                      <div key={index} className="rounded-lg border p-3">
+                        <div className="flex justify-between gap-3 text-sm">
+                          <div>
+                            <p className="font-medium">{selectedVariant?.variant_name ?? selectedProduct?.name ?? `Item ${index + 1}`}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedVariant?.sku ?? selectedProduct?.sku ?? 'No SKU'} x {quantity}
+                            </p>
+                          </div>
+                          <span className="font-medium">{money(lineTotal)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total items</span>
+                    <span>{totalQuantity}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>{money(subtotal)}</span>
@@ -413,6 +498,18 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                 <CardDescription>Initial order status is Confirmed</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="shipping_fee">Shipping fee</Label>
+                  <Input
+                    id="shipping_fee"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.shipping_fee}
+                    onChange={(event) => setData('shipping_fee', event.target.value)}
+                  />
+                  {errors.shipping_fee && <p className="text-xs text-destructive">{errors.shipping_fee}</p>}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="courier_code">Courier</Label>
                   <select

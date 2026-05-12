@@ -7,12 +7,14 @@ namespace App\Domain\Order\Models;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
+use App\Domain\Shop\Models\ShopOrderItem;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\User;
 use App\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
@@ -101,6 +103,11 @@ class Order extends Model
     public function waybill(): BelongsTo
     {
         return $this->belongsTo(Waybill::class);
+    }
+
+    public function shopItems(): HasMany
+    {
+        return $this->hasMany(ShopOrderItem::class);
     }
 
     // Scopes

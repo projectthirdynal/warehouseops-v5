@@ -141,13 +141,43 @@ export default function OrderShow({ order }: Props) {
             <Card>
               <CardHeader><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
+                {order.shop_items && order.shop_items.length > 0 ? (
+                  <div className="space-y-3">
+                    {order.shop_items.map((item) => (
+                      <div key={item.id} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{item.product_name}</p>
+                            <p className="text-xs text-muted-foreground">{item.sku ?? item.product?.sku ?? 'No SKU'}</p>
+                          </div>
+                          <span className="font-medium">{formatCurrency(item.line_total)}</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-3 text-xs text-muted-foreground">
+                          <div>
+                            <span>Quantity</span>
+                            <p className="font-medium text-foreground">{item.quantity}</p>
+                          </div>
+                          <div>
+                            <span>Unit Price</span>
+                            <p className="font-medium text-foreground">{formatCurrency(item.unit_price)}</p>
+                          </div>
+                          <div>
+                            <span>Discount</span>
+                            <p className="font-medium text-foreground">{formatCurrency(item.discount_amount ?? 0)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-muted-foreground">Product</span>
+                    <span className="text-muted-foreground">Primary Product</span>
                     <p className="font-medium">{order.product?.name ?? 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Quantity</span>
+                    <span className="text-muted-foreground">Total Quantity</span>
                     <p className="font-medium">{order.quantity}</p>
                   </div>
                   <div>

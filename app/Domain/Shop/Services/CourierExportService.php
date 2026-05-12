@@ -33,6 +33,8 @@ class CourierExportService
             ]);
 
             $rows = $orders->values()->map(function (Order $order, int $index) use ($batch) {
+                [$productName, $quantity] = $this->orderLineSummary($order);
+
                 $row = CourierExportRow::query()->create([
                     'courier_export_batch_id' => $batch->id,
                     'order_id' => $order->id,
@@ -44,9 +46,9 @@ class CourierExportService
                     'province' => $order->state,
                     'city' => $order->city,
                     'barangay' => $order->barangay,
-                    'product_name' => $order->product?->name,
+                    'product_name' => $productName,
                     'cod_amount' => $order->cod_amount,
-                    'quantity' => $order->quantity,
+                    'quantity' => $quantity,
                     'remarks' => $order->notes,
                     'exported_at' => now(),
                 ]);
@@ -121,8 +123,8 @@ class CourierExportService
                     'province' => $order->state,
                     'city' => $order->city,
                     'barangay' => $order->barangay,
-                    'product_name' => $order->product?->name,
-                    'quantity' => $order->quantity,
+                    'product_name' => $this->orderLineSummary($order)[0],
+                    'quantity' => $this->orderLineSummary($order)[1],
                     'cod_amount' => $order->cod_amount,
                     default => null,
                 };
@@ -215,5 +217,22 @@ class CourierExportService
                 'Remarks',
             ],
         };
+    }
+
+    /**
+     * @return array{0: string|null, 1: int}
+     */
+    private function orderLineSummary(Order $order): array
+    {
+        $items = $order->relationLoaded('shopItems') ? $order->shopItems : collect();
+
+        if ($items->isNotEmpty()) {
+            return [
+                $items->map(fn ($item) => "{$item->product_name} x{$item->quantity}")->implode(', '),
+                (int) $items->sum('quantity'),
+            ];
+        }
+
+        return [$order->product?->name, (int) $order->quantity];
     }
 }

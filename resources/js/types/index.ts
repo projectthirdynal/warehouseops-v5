@@ -314,10 +314,26 @@ export interface Order {
   returned_at: string | null;
   created_at: string;
   product?: Product;
+  shop_items?: ShopOrderItem[];
   agent?: User;
   customer?: Customer;
   lead?: Lead;
   waybill?: Waybill;
+}
+
+export interface ShopOrderItem {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  variant_id: number | null;
+  sku: string | null;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+  line_total: number;
+  product?: Product;
+  variant?: ProductVariant;
 }
 
 export interface DashboardStats {

@@ -20,6 +20,7 @@ interface Order {
   total_amount: string | number;
   address_confidence?: string | number | null;
   product?: { id: number; name: string; sku: string } | null;
+  shop_items?: { order_id: number; product_name: string; quantity: number }[];
 }
 
 interface Batch {
@@ -43,6 +44,14 @@ interface Props {
 
 function money(value: string | number) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value));
+}
+
+function orderSummary(order: Order) {
+  if (order.shop_items && order.shop_items.length > 0) {
+    return order.shop_items.map((item) => `${item.product_name} x${item.quantity}`).join(', ');
+  }
+
+  return order.product?.name ?? 'No product';
 }
 
 function AddressEditor({ order }: { order: Order }) {
@@ -184,7 +193,7 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                     <p className="text-muted-foreground">
                       {[order.barangay, order.city, order.state].filter(Boolean).join(', ') || 'No structured location'}
                     </p>
-                    <p className="text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                    <p className="text-muted-foreground">{orderSummary(order)}</p>
                     <AddressEditor order={order} />
                   </CardContent>
                 </Card>

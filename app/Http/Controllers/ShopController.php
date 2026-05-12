@@ -72,7 +72,7 @@ class ShopController extends Controller
                     'name' => 'Order Desk',
                     'status' => 'Live',
                     'description' => 'Create structured orders from conversations with products, COD amount, remarks, and customer details.',
-                    'items' => ['Manual order form', 'Conversation to order', 'Customer profile', 'Agent remarks'],
+                    'items' => ['Multi-item cart', 'Conversation to order', 'Customer profile', 'Agent remarks'],
                 ],
                 [
                     'name' => 'Encoder & Export',
@@ -98,10 +98,10 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add multi-item cart support for Shop order creation.',
                 'Add structured quick-reply library with team-managed templates.',
                 'Add duplicate resolution actions: ignore, merge, cancel, or continue.',
                 'Add exportable filtered reports for daily operations.',
+                'Add stock-aware validation before Shop order confirmation.',
             ],
         ]);
     }
@@ -380,7 +380,7 @@ class ShopController extends Controller
     {
         return Inertia::render('Shop/Encoder', [
             'orders' => Order::query()
-                ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku'])
+                ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
                 ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
                 ->whereNull('encoded_at')
                 ->latest()
@@ -406,7 +406,7 @@ class ShopController extends Controller
         ]);
 
         $orders = Order::query()
-            ->with('product:id,name,sku')
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
             ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
             ->whereNull('encoded_at')
             ->when(! empty($validated['order_ids']), fn ($query) => $query->whereIn('id', $validated['order_ids']))
@@ -587,30 +587,60 @@ class ShopController extends Controller
             'barangay' => ['nullable', 'string', 'max:255'],
             'city_municipality' => ['nullable', 'string', 'max:255'],
             'province' => ['nullable', 'string', 'max:255'],
-            'product_id' => ['required', 'exists:products,id'],
-            'variant_id' => ['nullable', 'exists:product_variants,id'],
-            'quantity' => ['required', 'integer', 'min:1', 'max:999'],
-            'unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
         ]);
 
-        $product = Product::query()->findOrFail($validated['product_id']);
-        $variant = null;
+        $products = Product::query()
+            ->with('variants:id,product_id,sku,variant_name,selling_price')
+            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
+            ->get()
+            ->keyBy('id');
 
-        if (! empty($validated['variant_id'])) {
-            $variant = $product->variants()->whereKey($validated['variant_id'])->firstOrFail();
-        }
+        $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
+            /** @var Product $product */
+            $product = $products->get((int) $item['product_id']);
+            abort_unless($product, 422, 'Selected product was not found.');
 
-        $quantity = (int) $validated['quantity'];
-        $unitPrice = (float) $validated['unit_price'];
+            $variant = null;
+
+            if (! empty($item['variant_id'])) {
+                $variant = $product->variants->firstWhere('id', (int) $item['variant_id']);
+                abort_unless($variant, 422, 'Selected variant does not belong to the product.');
+            }
+
+            $quantity = (int) $item['quantity'];
+            $unitPrice = (float) $item['unit_price'];
+            $lineTotal = $quantity * $unitPrice;
+
+            return [
+                'product' => $product,
+                'variant' => $variant,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'line_total' => $lineTotal,
+                'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
+                'sku' => $variant?->sku ?? $product->sku,
+            ];
+        })->values();
+
+        $primaryItem = $preparedItems->first();
+        abort_unless($primaryItem, 422, 'At least one cart item is required.');
         $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
-        $lineTotal = $quantity * $unitPrice;
-        $totalAmount = $lineTotal + $shippingFee;
+        $totalQuantity = (int) $preparedItems->sum('quantity');
+        $totalAmount = (float) $preparedItems->sum('line_total') + $shippingFee;
         $normalizedPhone = $this->phones->normalize($validated['phone']);
-        $possibleDuplicate = $this->possibleDuplicateOrder($normalizedPhone ?: $validated['phone'], (int) $validated['product_id']);
+        $possibleDuplicates = $this->possibleDuplicateOrders(
+            $normalizedPhone ?: $validated['phone'],
+            $preparedItems->pluck('product.id')->map(fn ($id) => (int) $id)->all()
+        );
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['province'] ?? null,
             'city_municipality' => $validated['city_municipality'] ?? null,
@@ -620,15 +650,13 @@ class ShopController extends Controller
 
         $order = DB::transaction(function () use (
             $validated,
-            $product,
-            $variant,
-            $quantity,
-            $unitPrice,
+            $preparedItems,
+            $primaryItem,
             $shippingFee,
-            $lineTotal,
+            $totalQuantity,
             $totalAmount,
             $normalizedPhone,
-            $possibleDuplicate,
+            $possibleDuplicates,
             $addressMatch
         ) {
             $conversation = ! empty($validated['conversation_id'])
@@ -651,13 +679,13 @@ class ShopController extends Controller
                 'conversation_id' => $conversation?->id,
                 'facebook_page_id' => $conversation?->facebook_page_id,
                 'customer_id' => $customer->id,
-                'product_id' => $product->id,
-                'variant_id' => $variant?->id,
+                'product_id' => $primaryItem['product']->id,
+                'variant_id' => $primaryItem['variant']?->id,
                 'assigned_agent_id' => auth()->id(),
                 'status' => OrderStatus::CONFIRMED,
                 'courier_code' => $validated['courier_code'] ?? 'MANUAL',
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
+                'quantity' => $totalQuantity,
+                'unit_price' => $primaryItem['unit_price'],
                 'total_amount' => $totalAmount,
                 'cod_amount' => $totalAmount,
                 'shipping_cost' => $shippingFee,
@@ -675,16 +703,18 @@ class ShopController extends Controller
                 'notes' => $validated['remarks'] ?? null,
             ]);
 
-            ShopOrderItem::query()->create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'variant_id' => $variant?->id,
-                'sku' => $variant?->sku ?? $product->sku,
-                'product_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'line_total' => $lineTotal,
-            ]);
+            foreach ($preparedItems as $item) {
+                ShopOrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product']->id,
+                    'variant_id' => $item['variant']?->id,
+                    'sku' => $item['sku'],
+                    'product_name' => $item['display_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'line_total' => $item['line_total'],
+                ]);
+            }
 
             if (! empty($validated['remarks'])) {
                 OrderRemark::query()->create([
@@ -695,7 +725,7 @@ class ShopController extends Controller
                 ]);
             }
 
-            if ($possibleDuplicate) {
+            foreach ($possibleDuplicates as $possibleDuplicate) {
                 OrderRemark::query()->create([
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
@@ -737,9 +767,9 @@ class ShopController extends Controller
         return redirect()
             ->route('orders.show', $order)
             ->with(
-                $possibleDuplicate ? 'warning' : 'success',
-                $possibleDuplicate
-                    ? "Shop order {$order->order_number} created. Possible duplicate found: {$possibleDuplicate->order_number}."
+                $possibleDuplicates->isNotEmpty() ? 'warning' : 'success',
+                $possibleDuplicates->isNotEmpty()
+                    ? "Shop order {$order->order_number} created. Possible duplicates found: {$possibleDuplicates->pluck('order_number')->implode(', ')}."
                     : "Shop order {$order->order_number} created."
             );
     }
@@ -1058,17 +1088,17 @@ class ShopController extends Controller
             ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at']);
     }
 
-    private function possibleDuplicateOrder(string $phone, int $productId): ?Order
+    private function possibleDuplicateOrders(string $phone, array $productIds): \Illuminate\Support\Collection
     {
         $normalizedPhone = $this->phones->normalize($phone) ?: $phone;
 
         return Order::query()
             ->where('receiver_phone', $normalizedPhone)
-            ->where('product_id', $productId)
+            ->whereIn('product_id', $productIds)
             ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
             ->where('created_at', '>=', now()->subDays(14))
             ->latest()
-            ->first(['id', 'order_number', 'created_at']);
+            ->get(['id', 'order_number', 'created_at']);
     }
 
     private function quickRepliesForConversation(Conversation $conversation): array
