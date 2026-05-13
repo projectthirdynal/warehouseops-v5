@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle,
   XCircle,
@@ -17,10 +18,11 @@ import {
   Ban,
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import type { Order } from '@/types';
+import type { Order, OrderDuplicateWarning } from '@/types';
 
 interface Props {
   order: Order;
+  duplicate_warnings: OrderDuplicateWarning[];
 }
 
 const statusColors: Record<string, string> = {
@@ -36,9 +38,17 @@ const statusColors: Record<string, string> = {
   CANCELLED: 'bg-gray-100 text-gray-600',
 };
 
-export default function OrderShow({ order }: Props) {
+const resolutionLabels: Record<OrderDuplicateWarning['resolution_status'], string> = {
+  pending: 'Pending review',
+  continue: 'Kept new order',
+  use_existing: 'Kept existing order',
+  cancel_new: 'Cancelled new order',
+};
+
+export default function OrderShow({ order, duplicate_warnings }: Props) {
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
 
   const handleApprove = () => {
     router.post(`/orders/${order.id}/approve`, {}, { preserveScroll: true });
@@ -57,6 +67,31 @@ export default function OrderShow({ order }: Props) {
 
   const handleRetryCourier = () => {
     router.post(`/orders/${order.id}/retry-courier`, {}, { preserveScroll: true });
+  };
+
+  const resolveDuplicateWarning = (warning: OrderDuplicateWarning, decision: OrderDuplicateWarning['resolution_status']) => {
+    if (decision === 'pending') {
+      return;
+    }
+
+    const confirmations: Partial<Record<Exclude<OrderDuplicateWarning['resolution_status'], 'pending'>, string>> = {
+      use_existing: 'Keep the existing order and cancel this new order?',
+      cancel_new: 'Cancel this new order as a duplicate?',
+    };
+
+    if (confirmations[decision] && !confirm(confirmations[decision]!)) {
+      return;
+    }
+
+    setResolvingId(warning.id);
+    router.post(
+      `/orders/${order.id}/duplicate-warnings/${warning.id}/resolve`,
+      { decision },
+      {
+        preserveScroll: true,
+        onFinish: () => setResolvingId(null),
+      }
+    );
   };
 
   const waybill = order.waybill;
@@ -130,6 +165,88 @@ export default function OrderShow({ order }: Props) {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="p-4 text-sm text-red-800">
               <strong>Rejection reason:</strong> {order.rejection_reason}
+            </CardContent>
+          </Card>
+        )}
+
+        {duplicate_warnings.length > 0 && (
+          <Card className="border-amber-200 bg-amber-50/70">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-amber-950">
+                <AlertTriangle className="h-4 w-4" />
+                Duplicate Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {duplicate_warnings.map((warning) => {
+                const duplicateOrder = warning.duplicate_order;
+                const isPending = warning.resolution_status === 'pending';
+                const isWorking = resolvingId === warning.id;
+
+                return (
+                  <div key={warning.id} className="rounded-lg border border-amber-200 bg-white p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className={isPending ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}>
+                            {resolutionLabels[warning.resolution_status]}
+                          </Badge>
+                          {duplicateOrder && (
+                            <>
+                              <Badge variant="outline" className={statusColors[duplicateOrder.status]}>
+                                {duplicateOrder.status.replace('_', ' ')}
+                              </Badge>
+                              <Link href={`/orders/${duplicateOrder.id}`} className="text-sm font-medium text-primary hover:underline">
+                                {duplicateOrder.order_number}
+                              </Link>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-700">{warning.body}</p>
+                        {duplicateOrder && (
+                          <p className="text-xs text-muted-foreground">
+                            Existing order for {duplicateOrder.receiver_name}, created {warning.duplicate_order?.created_at ? formatDateTime(warning.duplicate_order.created_at) : 'earlier'}.
+                          </p>
+                        )}
+                        {!duplicateOrder && warning.duplicate_order_number && (
+                          <p className="text-xs text-muted-foreground">
+                            Existing order reference: {warning.duplicate_order_number}
+                          </p>
+                        )}
+                        {!isPending && (
+                          <p className="text-xs text-muted-foreground">
+                            Reviewed {warning.resolved_at ? formatDateTime(warning.resolved_at) : ''}{warning.resolved_by ? ` by ${warning.resolved_by.name}` : ''}.
+                          </p>
+                        )}
+                      </div>
+
+                      {isPending && (
+                        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                          <Button size="sm" onClick={() => resolveDuplicateWarning(warning, 'continue')} disabled={isWorking}>
+                            Keep New Order
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => resolveDuplicateWarning(warning, 'use_existing')}
+                            disabled={isWorking || !duplicateOrder}
+                          >
+                            Use Existing Order
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => resolveDuplicateWarning(warning, 'cancel_new')}
+                            disabled={isWorking}
+                          >
+                            Cancel New Order
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}

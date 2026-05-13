@@ -321,6 +321,27 @@ export interface Order {
   waybill?: Waybill;
 }
 
+export interface OrderDuplicateWarning {
+  id: number;
+  body: string;
+  created_at: string | null;
+  duplicate_order_id: number | null;
+  duplicate_order_number: string | null;
+  duplicate_order?: {
+    id: number;
+    order_number: string;
+    status: OrderStatus;
+    created_at: string | null;
+    receiver_name: string;
+  } | null;
+  resolution_status: 'pending' | 'continue' | 'use_existing' | 'cancel_new';
+  resolved_at: string | null;
+  resolved_by?: {
+    id: number;
+    name: string;
+  } | null;
+}
+
 export interface ShopOrderItem {
   id: number;
   order_id: number;

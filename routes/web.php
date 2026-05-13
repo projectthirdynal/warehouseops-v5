@@ -173,6 +173,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
         Route::post('/{order}/approve', [OrderController::class, 'approve'])->name('approve');
         Route::post('/{order}/reject', [OrderController::class, 'reject'])->name('reject');
         Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->name('cancel');
+        Route::post('/{order}/duplicate-warnings/{remark}/resolve', [OrderController::class, 'resolveDuplicateWarning'])->name('resolve-duplicate-warning');
         Route::post('/{order}/retry-courier', [OrderController::class, 'retryCourier'])->name('retry-courier');
     });
 
