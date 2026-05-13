@@ -51,6 +51,19 @@ interface RecentEvent {
   } | null;
 }
 
+interface PermissionJustification {
+  scope: string;
+  purpose: string;
+  usage: string;
+  review_evidence: string;
+}
+
+interface ScreencastStep {
+  title: string;
+  detail: string;
+  target: string;
+}
+
 interface Props {
   config: {
     app_id_configured: boolean;
@@ -77,6 +90,8 @@ interface Props {
   pages: PageReadiness[];
   recent_events: RecentEvent[];
   review_items: ReviewItem[];
+  permission_justifications: PermissionJustification[];
+  screencast_steps: ScreencastStep[];
   docs: { label: string; url: string }[];
 }
 
@@ -92,7 +107,16 @@ function itemBadge(status: ReviewItem['status']) {
     : 'bg-amber-100 text-amber-900 border-amber-200';
 }
 
-export default function ShopMetaReadiness({ config, summary, pages, recent_events, review_items, docs }: Props) {
+export default function ShopMetaReadiness({
+  config,
+  summary,
+  pages,
+  recent_events,
+  review_items,
+  permission_justifications,
+  screencast_steps,
+  docs,
+}: Props) {
   const [copied, setCopied] = useState<string | null>(null);
 
   const copy = async (label: string, value: string) => {
@@ -102,6 +126,9 @@ export default function ShopMetaReadiness({ config, summary, pages, recent_event
   };
 
   const readyItems = review_items.filter((item) => item.status === 'ready').length;
+  const permissionCopy = permission_justifications
+    .map((item) => `${item.scope}\nPurpose: ${item.purpose}\nUsage: ${item.usage}\nReview evidence: ${item.review_evidence}`)
+    .join('\n\n');
 
   return (
     <AppLayout>
@@ -319,6 +346,81 @@ export default function ShopMetaReadiness({ config, summary, pages, recent_event
                     </div>
                   ))
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <CardTitle>Permission Justifications</CardTitle>
+                    <CardDescription>Copy-ready explanations for the permissions requested during Meta App Review</CardDescription>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => copy('permission-copy', permissionCopy)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {copied === 'permission-copy' ? 'Copied' : 'Copy All'}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {permission_justifications.map((item) => (
+                  <div key={item.scope} className="rounded-lg border p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="space-y-2">
+                        <Badge variant="outline">{item.scope}</Badge>
+                        <div className="grid gap-2 text-sm">
+                          <div>
+                            <p className="font-medium">Purpose</p>
+                            <p className="text-muted-foreground">{item.purpose}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Usage</p>
+                            <p className="text-muted-foreground">{item.usage}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Review Evidence</p>
+                            <p className="text-muted-foreground">{item.review_evidence}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copy(item.scope, `${item.scope}\nPurpose: ${item.purpose}\nUsage: ${item.usage}\nReview evidence: ${item.review_evidence}`)}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        {copied === item.scope ? 'Copied' : 'Copy'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Screencast Steps</CardTitle>
+                <CardDescription>Use this sequence when recording the Meta App Review demo video</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {screencast_steps.map((step, index) => (
+                  <div key={step.title} className="rounded-lg border p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="flex gap-3">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium">{step.title}</p>
+                          <p className="text-sm text-muted-foreground">{step.detail}</p>
+                        </div>
+                      </div>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={step.target}>Open</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>

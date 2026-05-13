@@ -230,6 +230,63 @@ class ShopController extends Controller
                         : 'Create one live or simulated conversation before recording the review flow.',
                 ],
             ],
+            'permission_justifications' => [
+                [
+                    'scope' => 'pages_show_list',
+                    'purpose' => 'List Facebook Pages the authenticated user can manage.',
+                    'usage' => 'WarehouseOps calls /me/accounts after Facebook Login so an admin can select which selling Page to connect to the Shop inbox.',
+                    'review_evidence' => 'Show Connect Facebook, complete login, then show the connected Page list in Shop.',
+                ],
+                [
+                    'scope' => 'pages_manage_metadata',
+                    'purpose' => 'Subscribe selected Pages to webhook events and maintain Page connection status.',
+                    'usage' => 'WarehouseOps calls /{page-id}/subscribed_apps to subscribe messages, postbacks, and feed events for the selected Page.',
+                    'review_evidence' => 'Show a connected Page, click Subscribe or Resubscribe, then show webhook status as subscribed.',
+                ],
+                [
+                    'scope' => 'pages_messaging',
+                    'purpose' => 'Read and reply to Messenger conversations from connected Facebook Pages.',
+                    'usage' => 'WarehouseOps receives Page messages through Meta webhooks and sends manual agent replies through the Send API.',
+                    'review_evidence' => 'Send a test message to the Page, show it in Shop Inbox, then reply from WarehouseOps.',
+                ],
+            ],
+            'screencast_steps' => [
+                [
+                    'title' => 'Open Shop Meta Readiness',
+                    'detail' => 'Start at /shop/meta-readiness and show that app credentials, compliance URLs, redirect URI, and webhook callback are configured.',
+                    'target' => route('shop.meta-readiness'),
+                ],
+                [
+                    'title' => 'Connect Facebook',
+                    'detail' => 'Click Connect Facebook and authorize the app using a Facebook user that has access to the test Page.',
+                    'target' => route('shop.facebook.connect'),
+                ],
+                [
+                    'title' => 'Confirm Page Sync',
+                    'detail' => 'Return to Shop and show the connected Page row with connected status and Page ID.',
+                    'target' => route('shop.index'),
+                ],
+                [
+                    'title' => 'Subscribe Webhooks',
+                    'detail' => 'Open Shop Webhooks or Meta Readiness, subscribe the Page, and show required fields are present.',
+                    'target' => route('shop.webhooks'),
+                ],
+                [
+                    'title' => 'Receive Message',
+                    'detail' => 'Send a Messenger message to the connected Page from a tester account and show the message appears in Shop Inbox.',
+                    'target' => route('shop.inbox'),
+                ],
+                [
+                    'title' => 'Reply From WarehouseOps',
+                    'detail' => 'Open the conversation, send a manual reply, and show the outbound message or send status in the conversation detail.',
+                    'target' => route('shop.inbox'),
+                ],
+                [
+                    'title' => 'Create Order From Conversation',
+                    'detail' => 'Show the customer profile and Create Order workflow to demonstrate why the messages are used for order processing.',
+                    'target' => route('shop.orders.create'),
+                ],
+            ],
             'docs' => [
                 [
                     'label' => 'Meta App Review',
