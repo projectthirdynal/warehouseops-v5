@@ -92,6 +92,7 @@ Route::middleware(['auth', 'role:supervisor,admin,superadmin'])->group(function 
     Route::delete('/shop/templates/{template}', [ShopController::class, 'destroyTemplate'])->name('shop.templates.destroy');
     Route::get('/shop/reports', [ShopController::class, 'reports'])->name('shop.reports');
     Route::get('/shop/webhooks', [ShopController::class, 'webhooks'])->name('shop.webhooks');
+    Route::get('/shop/meta-readiness', [ShopController::class, 'metaReadiness'])->name('shop.meta-readiness');
     Route::post('/shop/webhooks/simulate', [ShopController::class, 'simulateWebhook'])->name('shop.webhooks.simulate');
     Route::get('/shop/encoder', [ShopController::class, 'encoder'])->name('shop.encoder');
     Route::patch('/shop/encoder/orders/{order}/address', [ShopController::class, 'updateOrderAddress'])->name('shop.encoder.address');

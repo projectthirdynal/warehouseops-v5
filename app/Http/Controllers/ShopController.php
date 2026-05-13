@@ -99,10 +99,154 @@ class ShopController extends Controller
                 'Export Courier File',
             ],
             'next_actions' => [
-                'Add duplicate resolution actions: ignore, merge, cancel, or continue.',
-                'Add exportable filtered reports for daily operations.',
+                'Finalize Meta production checklist and App Review screencast.',
+                'Set live Meta support contact and confirm policy URLs.',
                 'Add stock-aware validation before Shop order confirmation.',
                 'Add message labels and follow-up reminders per conversation.',
+            ],
+        ]);
+    }
+
+    public function metaReadiness(): Response
+    {
+        $pages = FacebookPage::query()
+            ->latest('last_sync_at')
+            ->get(['id', 'page_id', 'page_name', 'connected_status', 'webhook_status', 'last_sync_at', 'metadata']);
+
+        $webhookEventsReady = Schema::hasTable('facebook_webhook_events');
+        $conversationsReady = Schema::hasTable('conversations');
+
+        return Inertia::render('Shop/MetaReadiness', [
+            'config' => [
+                'app_id_configured' => filled(config('services.meta.app_id')),
+                'app_secret_configured' => filled(config('services.meta.app_secret')),
+                'login_config_id' => config('services.meta.login_config_id'),
+                'redirect_uri' => config('services.meta.redirect_uri'),
+                'requested_scopes' => $this->facebookConnector->requestedScopes(),
+                'required_webhook_fields' => $this->facebookConnector->requiredWebhookFields(),
+                'callback_url' => url('/api/webhooks/meta'),
+                'verify_token' => config('services.meta.webhook_verify_token'),
+                'privacy_url' => route('meta.privacy'),
+                'terms_url' => route('meta.terms'),
+                'data_deletion_url' => route('meta.data-deletion.handle'),
+                'support_email' => config('services.meta.support_email'),
+            ],
+            'summary' => [
+                'connected_pages' => $pages->where('connected_status', 'connected')->count(),
+                'subscribed_pages' => $pages->where('webhook_status', 'subscribed')->count(),
+                'pages_needing_retry' => $pages->where('webhook_status', 'needs_retry')->count(),
+                'webhook_events' => $webhookEventsReady ? FacebookWebhookEvent::query()->count() : 0,
+                'processed_events' => $webhookEventsReady ? FacebookWebhookEvent::query()->whereNotNull('processed_at')->count() : 0,
+                'conversations' => $conversationsReady ? Conversation::query()->count() : 0,
+            ],
+            'pages' => $pages->map(function (FacebookPage $page) {
+                $metadata = $page->metadata ?? [];
+
+                return [
+                    'id' => $page->id,
+                    'page_id' => $page->page_id,
+                    'page_name' => $page->page_name,
+                    'connected_status' => $page->connected_status,
+                    'webhook_status' => $page->webhook_status,
+                    'last_sync_at' => optional($page->last_sync_at)?->toIso8601String(),
+                    'tasks' => $metadata['tasks'] ?? [],
+                    'subscribed_fields' => $metadata['subscribed_fields'] ?? [],
+                    'subscription_fields' => $metadata['subscription_fields'] ?? [],
+                    'subscription_missing_fields' => $metadata['subscription_missing_fields'] ?? [],
+                    'subscription_checked_at' => $metadata['subscription_checked_at'] ?? null,
+                ];
+            })->values(),
+            'recent_events' => $webhookEventsReady
+                ? FacebookWebhookEvent::query()
+                    ->with('facebookPage:id,page_name,page_id')
+                    ->latest()
+                    ->limit(10)
+                    ->get(['id', 'facebook_page_id', 'event_id', 'event_type', 'sender_psid', 'signature_valid', 'processed_at', 'error_message', 'created_at'])
+                    ->map(fn (FacebookWebhookEvent $event) => [
+                        'id' => $event->id,
+                        'event_id' => $event->event_id,
+                        'event_type' => $event->event_type,
+                        'sender_psid' => $event->sender_psid,
+                        'signature_valid' => $event->signature_valid,
+                        'processed_at' => optional($event->processed_at)?->toIso8601String(),
+                        'error_message' => $event->error_message,
+                        'created_at' => optional($event->created_at)?->toIso8601String(),
+                        'facebook_page' => $event->facebookPage ? [
+                            'id' => $event->facebookPage->id,
+                            'page_id' => $event->facebookPage->page_id,
+                            'page_name' => $event->facebookPage->page_name,
+                        ] : null,
+                    ])->values()
+                : [],
+            'review_items' => [
+                [
+                    'label' => 'App credentials configured',
+                    'status' => filled(config('services.meta.app_id')) && filled(config('services.meta.app_secret')) ? 'ready' : 'needs_action',
+                    'detail' => 'META_APP_ID and META_APP_SECRET must be set on production.',
+                ],
+                [
+                    'label' => 'Facebook Login redirect URI',
+                    'status' => filled(config('services.meta.redirect_uri')) ? 'ready' : 'needs_action',
+                    'detail' => (string) config('services.meta.redirect_uri'),
+                ],
+                [
+                    'label' => 'Compliance URLs live',
+                    'status' => 'ready',
+                    'detail' => 'Privacy policy, terms, and data deletion callback are public.',
+                ],
+                [
+                    'label' => 'Meta support contact set',
+                    'status' => filled(config('services.meta.support_email')) ? 'ready' : 'needs_action',
+                    'detail' => filled(config('services.meta.support_email'))
+                        ? (string) config('services.meta.support_email')
+                        : 'Set META_SUPPORT_EMAIL to a monitored inbox before App Review.',
+                ],
+                [
+                    'label' => 'At least one Page connected',
+                    'status' => $pages->where('connected_status', 'connected')->isNotEmpty() ? 'ready' : 'needs_action',
+                    'detail' => $pages->where('connected_status', 'connected')->isNotEmpty()
+                        ? 'A Shop Page is connected and available for review.'
+                        : 'Connect a Facebook Page through Shop before App Review.',
+                ],
+                [
+                    'label' => 'At least one Page subscribed',
+                    'status' => $pages->where('webhook_status', 'subscribed')->isNotEmpty() ? 'ready' : 'needs_action',
+                    'detail' => $pages->where('webhook_status', 'subscribed')->isNotEmpty()
+                        ? 'Webhook subscription is active for at least one Page.'
+                        : 'Subscribe at least one Page to webhook fields before review.',
+                ],
+                [
+                    'label' => 'Webhook processing demonstrated',
+                    'status' => $webhookEventsReady && FacebookWebhookEvent::query()->whereNotNull('processed_at')->exists() ? 'ready' : 'needs_action',
+                    'detail' => $webhookEventsReady && FacebookWebhookEvent::query()->whereNotNull('processed_at')->exists()
+                        ? 'Processed webhook events exist in production.'
+                        : 'Send a real test message or use diagnostics to generate a processed event.',
+                ],
+                [
+                    'label' => 'Inbox conversation available for screencast',
+                    'status' => $conversationsReady && Conversation::query()->exists() ? 'ready' : 'needs_action',
+                    'detail' => $conversationsReady && Conversation::query()->exists()
+                        ? 'Inbox has at least one conversation for review demo.'
+                        : 'Create one live or simulated conversation before recording the review flow.',
+                ],
+            ],
+            'docs' => [
+                [
+                    'label' => 'Meta App Review',
+                    'url' => 'https://developers.facebook.com/docs/app-review/',
+                ],
+                [
+                    'label' => 'Facebook Login Permissions',
+                    'url' => 'https://developers.facebook.com/docs/facebook-login/permissions/',
+                ],
+                [
+                    'label' => 'Meta Webhooks',
+                    'url' => 'https://developers.facebook.com/docs/graph-api/webhooks/',
+                ],
+                [
+                    'label' => 'Data Deletion Callback',
+                    'url' => 'https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback/',
+                ],
             ],
         ]);
     }

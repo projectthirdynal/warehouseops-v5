@@ -12,17 +12,31 @@ use Illuminate\Support\Str;
 
 class FacebookConnectorService
 {
+    public function requestedScopes(): array
+    {
+        return [
+            'pages_show_list',
+            'pages_manage_metadata',
+            'pages_messaging',
+        ];
+    }
+
+    public function requiredWebhookFields(): array
+    {
+        return [
+            'messages',
+            'messaging_postbacks',
+            'feed',
+        ];
+    }
+
     public function authorizationUrl(): string
     {
         $parameters = [
             'client_id' => config('services.meta.app_id'),
             'redirect_uri' => config('services.meta.redirect_uri'),
             'state' => csrf_token(),
-            'scope' => implode(',', [
-                'pages_show_list',
-                'pages_manage_metadata',
-                'pages_messaging',
-            ]),
+            'scope' => implode(',', $this->requestedScopes()),
             'response_type' => 'code',
         ];
 
@@ -99,11 +113,11 @@ class FacebookConnectorService
 
         Http::post("{$baseUrl}/{$page->page_id}/subscribed_apps", [
             'access_token' => $page->page_access_token,
-            'subscribed_fields' => implode(',', ['messages', 'messaging_postbacks', 'feed']),
+            'subscribed_fields' => implode(',', $this->requiredWebhookFields()),
         ])->throw();
 
         $metadata = $page->metadata ?? [];
-        $metadata['subscribed_fields'] = ['messages', 'messaging_postbacks', 'feed'];
+        $metadata['subscribed_fields'] = $this->requiredWebhookFields();
         $metadata['subscribed_at'] = now()->toIso8601String();
 
         $page->forceFill([
@@ -128,7 +142,7 @@ class FacebookConnectorService
             ->filter()
             ->values()
             ->all();
-        $requiredFields = ['messages', 'messaging_postbacks', 'feed'];
+        $requiredFields = $this->requiredWebhookFields();
         $missingFields = array_values(array_diff($requiredFields, $fields));
 
         $metadata = $page->metadata ?? [];

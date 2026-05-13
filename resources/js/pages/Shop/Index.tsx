@@ -12,6 +12,7 @@ import {
   MessageSquare,
   PackageCheck,
   Phone,
+  Shield,
   ShieldCheck,
   ShoppingCart,
   Store,
@@ -142,6 +143,12 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               <Link href="/shop/webhooks">
                 <Radio className="mr-2 h-4 w-4" />
                 Webhooks
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/shop/meta-readiness">
+                <Shield className="mr-2 h-4 w-4" />
+                Meta Ready
               </Link>
             </Button>
             <Button asChild variant="outline">
