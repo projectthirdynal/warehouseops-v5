@@ -57,6 +57,7 @@ return [
         'graph_version' => env('META_GRAPH_VERSION', 'v20.0'),
         'redirect_uri' => env('META_REDIRECT_URI', env('APP_URL') . '/shop/facebook/callback'),
         'login_config_id' => env('META_LOGIN_CONFIG_ID'),
+        'support_email' => env('META_SUPPORT_EMAIL', env('MAIL_FROM_ADDRESS', 'support@warehouseops.local')),
     ],
 
     'couriers' => [

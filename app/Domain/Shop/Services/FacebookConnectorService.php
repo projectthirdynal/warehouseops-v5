@@ -22,7 +22,6 @@ class FacebookConnectorService
                 'pages_show_list',
                 'pages_manage_metadata',
                 'pages_messaging',
-                'business_management',
             ]),
             'response_type' => 'code',
         ];

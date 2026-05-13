@@ -262,7 +262,7 @@ class MetaComplianceController extends Controller
         return [
             'appName' => config('app.name', 'WarehouseOps'),
             'appUrl' => rtrim((string) config('app.url'), '/'),
-            'supportEmail' => config('mail.from.address', 'support@warehouseops.local'),
+            'supportEmail' => config('services.meta.support_email', config('mail.from.address', 'support@warehouseops.local')),
         ];
     }
 }
