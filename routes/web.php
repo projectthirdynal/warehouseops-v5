@@ -31,6 +31,7 @@ use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\SalesTrackingController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\CostOfGoodsController;
+use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,6 +48,12 @@ Route::middleware('guest')->group(function () {
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
+
+Route::get('/meta/privacy', [MetaComplianceController::class, 'privacy'])->name('meta.privacy');
+Route::get('/meta/terms', [MetaComplianceController::class, 'terms'])->name('meta.terms');
+Route::get('/meta/data-deletion', [MetaComplianceController::class, 'dataDeletionInfo'])->name('meta.data-deletion.info');
+Route::post('/meta/data-deletion', [MetaComplianceController::class, 'handleDataDeletion'])->name('meta.data-deletion.handle');
+Route::get('/meta/data-deletion/status/{confirmationCode}', [MetaComplianceController::class, 'dataDeletionStatus'])->name('meta.data-deletion.status');
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
