@@ -1,0 +1,181 @@
+services:
+  # ===================
+  # APPLICATION
+  # ===================
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./docker/app/zz-fpm.conf:/usr/local/etc/php-fpm.d/zz-custom.conf
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD:-devpassword00}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+      - app_bridge
+      - infra
+
+  # ===================
+  # NGINX
+  # ===================
+  nginx:
+    image: nginx:alpine
+    container_name: warehouseops-nginx
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - warehouseops
+
+  # ===================
+  # HORIZON (QUEUE WORKER)
+  # ===================
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-horizon
+    restart: unless-stopped
+    command: php artisan horizon
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD:-devpassword00}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+      - app_bridge
+      - infra
+
+  # ===================
+  # SCHEDULER
+  # ===================
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: warehouseops-scheduler
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction;
+        sleep 60;
+      done"
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/app/php.prod.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-warehouseops}
+      - DB_USERNAME=${DB_USERNAME:-devuser}
+      - DB_PASSWORD=${DB_PASSWORD:-devpassword00}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+      - app_bridge
+      - infra
+
+  # ===================
+  # REDIS
+  # ===================
+  redis:
+    image: redis:7-alpine
+    container_name: warehouseops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+  # ===================
+  # MAILPIT (Local mail testing)
+  # ===================
+  mailpit:
+    image: axllent/mailpit
+    container_name: warehouseops-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - warehouseops
+
+networks:
+  warehouseops:
+    driver: bridge
+  app_bridge:
+    external: true
+    name: warehouseops_app
+  infra:
+    external: true
+    name: infra_internal
+
+volumes:
+  redis-data:
