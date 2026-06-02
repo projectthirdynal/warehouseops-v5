@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   User,
@@ -11,6 +11,15 @@ import {
   Save,
   Key,
   CheckCircle,
+  Plus,
+  Pencil,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  X,
+  UserCog,
+  RotateCcw,
+  Printer,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -35,9 +44,23 @@ interface UserData {
   timezone: string;
 }
 
+interface ManagedUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  is_active: boolean;
+  last_login_at: string | null;
+  created_at: string;
+}
+
 interface Props {
   settings: Record<string, string | boolean | number>;
+  printer_settings: Record<string, string | boolean | number>;
   user: UserData;
+  can_manage_users?: boolean;
+  users?: ManagedUser[];
 }
 
 function SuccessBanner({ message }: { message: string }) {
@@ -300,17 +323,698 @@ function AppearanceTab({ user }: { user: UserData }) {
   );
 }
 
-export default function SettingsIndex({ user, settings }: Props) {
+const ROLE_OPTIONS = [
+  { value: 'superadmin',  label: 'IT Administrator' },
+  { value: 'admin',       label: 'Admin / Manager' },
+  { value: 'supervisor',  label: 'Supervisor' },
+  { value: 'finance',     label: 'Finance' },
+  { value: 'accounting',  label: 'Accounting' },
+  { value: 'warehouse',   label: 'Warehouse Staff' },
+  { value: 'agent',       label: 'Sales Agent' },
+];
+
+const ROLE_COLORS: Record<string, string> = {
+  superadmin: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  admin:      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  supervisor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+  finance:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  accounting: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  warehouse:  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  agent:      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const label = ROLE_OPTIONS.find(r => r.value === role)?.label ?? role;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-700'}`}>
+      {label}
+    </span>
+  );
+}
+
+function UserFormModal({
+  open,
+  onClose,
+  editUser,
+}: {
+  open: boolean;
+  onClose: () => void;
+  editUser: ManagedUser | null;
+}) {
+  const isEdit = !!editUser;
+  const { data, setData, post, patch, processing, errors, reset } = useForm({
+    name:     editUser?.name     ?? '',
+    email:    editUser?.email    ?? '',
+    phone:    editUser?.phone    ?? '',
+    role:     editUser?.role     ?? 'agent',
+    password: '',
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isEdit) {
+      patch(`/settings/users/${editUser!.id}`, {
+        onSuccess: () => { reset(); onClose(); },
+      });
+    } else {
+      post('/settings/users', {
+        onSuccess: () => { reset(); onClose(); },
+      });
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-lg font-semibold">
+            {isEdit ? 'Edit User' : 'Create New User'}
+          </h2>
+          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4 px-6 py-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Full Name *</label>
+              <input
+                type="text"
+                value={data.name}
+                onChange={e => setData('name', e.target.value)}
+                placeholder="Juan dela Cruz"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Phone</label>
+              <input
+                type="tel"
+                value={data.phone}
+                onChange={e => setData('phone', e.target.value)}
+                placeholder="+63 9XX XXX XXXX"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Email *</label>
+            <input
+              type="email"
+              value={data.email}
+              onChange={e => setData('email', e.target.value)}
+              placeholder="user@company.com"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Role *</label>
+            <Select value={data.role} onValueChange={v => setData('role', v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map(r => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.role && <p className="text-xs text-destructive">{errors.role}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">
+              {isEdit ? 'New Password' : 'Password *'}
+              {isEdit && <span className="text-xs text-muted-foreground ml-1">(leave blank to keep current)</span>}
+            </label>
+            <input
+              type="password"
+              value={data.password}
+              onChange={e => setData('password', e.target.value)}
+              placeholder={isEdit ? '••••••••' : 'Min. 8 characters'}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={processing}>
+              {processing ? 'Saving…' : isEdit ? 'Save Changes' : 'Create User'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PasswordResetModal({
+  open,
+  onClose,
+  user,
+}: {
+  open: boolean;
+  onClose: () => void;
+  user: ManagedUser | null;
+}) {
+  const { data, setData, post, processing, errors, reset } = useForm({
+    password: '',
+    password_confirmation: '',
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    post(`/settings/users/${user.id}/reset-password`, {
+      onSuccess: () => {
+        reset();
+        onClose();
+      },
+    });
+  };
+
+  if (!open || !user) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-lg font-semibold">Reset Password</h2>
+          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        <div className="px-6 py-4">
+          <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+            <strong>Resetting password for:</strong>
+            <div className="font-medium">{user.name}</div>
+            <div className="text-xs">{user.email}</div>
+            <div className="mt-2 text-xs">User will need to use the new password to login.</div>
+          </div>
+
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">New Password *</label>
+              <input
+                type="password"
+                value={data.password}
+                onChange={e => setData('password', e.target.value)}
+                placeholder="Min. 8 characters"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                required
+              />
+              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Confirm New Password *</label>
+              <input
+                type="password"
+                value={data.password_confirmation}
+                onChange={e => setData('password_confirmation', e.target.value)}
+                placeholder="Confirm new password"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                required
+              />
+              {errors.password_confirmation && <p className="text-xs text-destructive">{errors.password_confirmation}</p>}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={processing}>
+                {processing ? 'Resetting…' : 'Reset Password'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserManagementTab({ users = [], currentUserId }: { users: ManagedUser[]; currentUserId: number }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editUser, setEditUser] = useState<ManagedUser | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<ManagedUser | null>(null);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+
+  const filtered = users.filter(u => {
+    const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const openCreate = () => { setEditUser(null); setModalOpen(true); };
+  const openEdit   = (u: ManagedUser) => { setEditUser(u); setModalOpen(true); };
+
+  const handleToggle = (u: ManagedUser) => {
+    router.post(`/settings/users/${u.id}/toggle`, {}, { preserveScroll: true });
+  };
+
+  const handleDelete = (u: ManagedUser) => {
+    if (!confirm(`Delete user "${u.name}"? This cannot be undone.`)) return;
+    router.delete(`/settings/users/${u.id}`, { preserveScroll: true });
+  };
+
+  const handleResetPassword = (u: ManagedUser) => {
+    if (!confirm(`Reset password for "${u.name}"? They will need to use the new password to login.`)) return;
+    setResetPasswordUser(u);
+  };
+
+  const roleCounts = ROLE_OPTIONS.map(r => ({
+    ...r,
+    count: users.filter(u => u.role === r.value).length,
+  })).filter(r => r.count > 0);
+
+  return (
+    <>
+      <UserFormModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editUser={editUser}
+      />
+
+      <PasswordResetModal
+        open={!!resetPasswordUser}
+        onClose={() => setResetPasswordUser(null)}
+        user={resetPasswordUser}
+      />
+
+      <div className="space-y-4">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Total Users</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <div className="text-2xl font-bold text-green-600">{users.filter(u => u.is_active).length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Active</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <div className="text-2xl font-bold text-red-500">{users.filter(u => !u.is_active).length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Inactive</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <div className="text-2xl font-bold text-blue-600">{roleCounts.length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Roles in Use</div>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="h-5 w-5" />
+                  User Management
+                </CardTitle>
+                <CardDescription>Create, edit, activate or deactivate system users</CardDescription>
+              </div>
+              <Button onClick={openCreate} size="sm">
+                <Plus className="mr-1.5 h-4 w-4" /> New User
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                placeholder="Search by name or email…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  {ROLE_OPTIONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* User table */}
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">User</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Role</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Last Login</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                        No users found.
+                      </td>
+                    </tr>
+                  ) : filtered.map(u => (
+                    <tr key={u.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase">
+                            {u.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{u.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                            {u.phone && <div className="text-xs text-muted-foreground">{u.phone}</div>}
+                          </div>
+                        </div>
+                        <div className="mt-1 md:hidden">
+                          <RoleBadge role={u.role} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <RoleBadge role={u.role} />
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">
+                        {u.last_login_at
+                          ? new Date(u.last_login_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })
+                          : <span className="italic">Never</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          u.is_active
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                            : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${u.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                          {u.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8"
+                            title="Edit user"
+                            onClick={() => openEdit(u)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8"
+                            title="Reset password"
+                            onClick={() => handleResetPassword(u)}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8"
+                            title={u.is_active ? 'Deactivate' : 'Activate'}
+                            onClick={() => handleToggle(u)}
+                            disabled={u.id === currentUserId}
+                          >
+                            {u.is_active
+                              ? <ToggleRight className="h-4 w-4 text-green-600" />
+                              : <ToggleLeft className="h-4 w-4 text-muted-foreground" />}
+                          </Button>
+                          {u.id !== currentUserId && (
+                            <Button
+                              variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                              title="Delete user"
+                              onClick={() => handleDelete(u)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Role legend */}
+            {roleCounts.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {roleCounts.map(r => (
+                  <button
+                    key={r.value}
+                    onClick={() => setRoleFilter(roleFilter === r.value ? 'all' : r.value)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                      roleFilter === r.value ? 'border-primary bg-primary/10' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${ROLE_COLORS[r.value]?.split(' ')[0]}`} />
+                    {r.label}
+                    <span className="font-semibold">{r.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function PrinterTab({ settings }: { settings: Record<string, string | boolean | number> }) {
+  const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    printer_model: (settings.printer_model as string) ?? 'Zebra ZD410',
+    connection_type: (settings.connection_type as string) ?? 'usb',
+    label_width_mm: (settings.label_width_mm as number) ?? 38,
+    label_height_mm: (settings.label_height_mm as number) ?? 25,
+    dpi: (settings.dpi as number) ?? 300,
+    barcode_format: (settings.barcode_format as string) ?? 'qr_code',
+    is_active: (settings.is_active as boolean) ?? false,
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    post('/settings/printer');
+  };
+
+  const printerModels = [
+    'Zebra ZD410',
+    'Zebra ZD620',
+    'Zebra ZT411',
+    'Brother QL-800',
+    'Brother QL-1100',
+    'Brother QL-820NWB',
+    'Dymo LabelWriter 450',
+    'Dymo LabelWriter 550',
+    'Rollo X1038',
+    'Munbyn ITPP129',
+    'Other',
+  ];
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Printer className="h-5 w-5" />
+            Label Printer Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure your warehouse label printer for barcode and QR code printing.
+            For small items, use high-DPI printers (300+) with compact label sizes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {recentlySuccessful && (
+            <SuccessBanner message="Printer settings saved successfully." />
+          )}
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <div className="font-medium">Printer Enabled</div>
+              <div className="text-sm text-muted-foreground">
+                Enable label printing from the inventory system
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={data.is_active as boolean}
+                onChange={e => setData('is_active', e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Printer Model</label>
+            <Select
+              value={data.printer_model as string}
+              onValueChange={v => setData('printer_model', v)}
+            >
+              <SelectTrigger className="w-full md:w-[320px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {printerModels.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.printer_model && <p className="text-xs text-destructive">{errors.printer_model}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Connection Type</label>
+            <Select
+              value={data.connection_type as string}
+              onValueChange={v => setData('connection_type', v)}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usb">USB (Wired)</SelectItem>
+                <SelectItem value="bluetooth">Bluetooth</SelectItem>
+                <SelectItem value="wifi">Wi-Fi</SelectItem>
+                <SelectItem value="ethernet">Ethernet</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.connection_type && <p className="text-xs text-destructive">{errors.connection_type}</p>}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Label Width (mm)</label>
+              <input
+                type="number"
+                min={10}
+                max={150}
+                value={data.label_width_mm}
+                onChange={e => setData('label_width_mm', parseInt(e.target.value) || 38)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                For small items: 25–38mm. Standard: 50–100mm.
+              </p>
+              {errors.label_width_mm && <p className="text-xs text-destructive">{errors.label_width_mm}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Label Height (mm)</label>
+              <input
+                type="number"
+                min={5}
+                max={150}
+                value={data.label_height_mm}
+                onChange={e => setData('label_height_mm', parseInt(e.target.value) || 25)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                For small items: 13–25mm. Standard: 25–50mm.
+              </p>
+              {errors.label_height_mm && <p className="text-xs text-destructive">{errors.label_height_mm}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Print Resolution (DPI)</label>
+            <Select
+              value={String(data.dpi)}
+              onValueChange={v => setData('dpi', parseInt(v))}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="203">203 DPI (Standard)</SelectItem>
+                <SelectItem value="300">300 DPI (High — recommended for small items)</SelectItem>
+                <SelectItem value="600">600 DPI (Ultra — tiny labels & Data Matrix)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Higher DPI = sharper barcodes on small labels. 300+ recommended for items under 20mm.
+            </p>
+            {errors.dpi && <p className="text-xs text-destructive">{errors.dpi}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Default Barcode Format</label>
+            <Select
+              value={data.barcode_format as string}
+              onValueChange={v => setData('barcode_format', v)}
+            >
+              <SelectTrigger className="w-full md:w-[280px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="code128">Code 128 (Linear — standard boxes)</SelectItem>
+                <SelectItem value="ean13">EAN-13 (Retail — 13-digit products)</SelectItem>
+                <SelectItem value="qr_code">QR Code (2D — recommended for small items)</SelectItem>
+                <SelectItem value="data_matrix">Data Matrix (2D — tiny components)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              <strong>Small items:</strong> Use QR Code or Data Matrix. <strong>Standard:</strong> Code 128 or EAN-13.
+            </p>
+            {errors.barcode_format && <p className="text-xs text-destructive">{errors.barcode_format}</p>}
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <h4 className="text-sm font-semibold mb-2">Small Item Recommendations</h4>
+            <div className="grid gap-2 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">&lt;5mm</span>
+                <span>Data Matrix @ 600 DPI on 10×10mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">5–20mm</span>
+                <span>QR Code (ECC H) @ 300 DPI on 20×20mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">20–50mm</span>
+                <span>Code 128 or QR @ 203 DPI on 38×25mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">&gt;50mm</span>
+                <span>Code 128 / EAN-13 @ 203 DPI on standard label</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" disabled={processing}>
+              <Save className="mr-2 h-4 w-4" />
+              {processing ? 'Saving…' : 'Save Printer Settings'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </form>
+  );
+}
+
+export default function SettingsIndex({ user, settings, printer_settings = {}, can_manage_users = false, users = [] }: Props) {
   const [activeTab, setActiveTab] = useState('appearance');
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'courier', label: 'Courier Config', icon: Truck },
-    { id: 'team', label: 'Team Settings', icon: Users },
-    { id: 'system', label: 'System', icon: Database },
+    { id: 'profile',      label: 'Profile',       icon: User },
+    { id: 'security',     label: 'Security',       icon: Shield },
+    { id: 'appearance',   label: 'Appearance',     icon: Palette },
+    { id: 'notifications',label: 'Notifications',  icon: Bell },
+    { id: 'courier',      label: 'Courier Config', icon: Truck },
+    { id: 'printer',      label: 'Label Printer',  icon: Printer },
+    { id: 'team',         label: 'Team Settings',  icon: Users },
+    { id: 'system',       label: 'System',         icon: Database },
+    ...(can_manage_users ? [{ id: 'users', label: 'User Management', icon: UserCog }] : []),
   ];
 
   return (
@@ -420,6 +1124,8 @@ export default function SettingsIndex({ user, settings }: Props) {
               </Card>
             )}
 
+            {activeTab === 'printer' && <PrinterTab settings={printer_settings} />}
+
             {activeTab === 'team' && (
               <Card>
                 <CardHeader>
@@ -506,6 +1212,10 @@ export default function SettingsIndex({ user, settings }: Props) {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {activeTab === 'users' && can_manage_users && (
+              <UserManagementTab users={users} currentUserId={user.id} />
             )}
           </div>
         </div>

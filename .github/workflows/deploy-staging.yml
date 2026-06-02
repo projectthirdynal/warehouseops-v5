@@ -1,0 +1,75 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to Staging
+    needs: ci
+    runs-on: self-hosted
+    timeout-minutes: 15
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Back up current staging
+        run: |
+          APP_DIR=/opt/warehouseops-staging
+          BACKUP_DIR=/opt/warehouseops-backups/staging-$(date +%Y%m%d%H%M%S)
+          sudo mkdir -p "$BACKUP_DIR"
+          if [ -d "$APP_DIR" ]; then
+            sudo cp -a "$APP_DIR/app" "$BACKUP_DIR/app" 2>/dev/null || true
+            sudo cp -a "$APP_DIR/database" "$BACKUP_DIR/database" 2>/dev/null || true
+            sudo cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources" 2>/dev/null || true
+            sudo cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build" 2>/dev/null || true
+          fi
+
+      - name: Sync code to staging
+        run: |
+          APP_DIR=/opt/warehouseops-staging
+          sudo mkdir -p "$APP_DIR"
+          sudo rsync -a --delete \
+            --exclude='.env' \
+            --exclude='storage/' \
+            --exclude='vendor/' \
+            --exclude='node_modules/' \
+            --exclude='.git/' \
+            ./ "$APP_DIR"/
+
+      - name: Install dependencies & migrate
+        run: |
+          APP_DIR=/opt/warehouseops-staging
+          sudo docker run --rm -v "$APP_DIR":/var/www/html -w /var/www/html warehouseops-app:latest \
+            sh -lc 'composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader && php artisan optimize:clear && php artisan migrate --force && php artisan optimize'
+
+      - name: Restart staging containers
+        run: |
+          sudo docker restart warehouseops-staging-app 2>/dev/null || true
+
+      - name: Health check
+        run: |
+          sleep 5
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8103/login 2>/dev/null || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FAIL: Staging health check returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Staging health check passed: HTTP $HTTP_CODE"
