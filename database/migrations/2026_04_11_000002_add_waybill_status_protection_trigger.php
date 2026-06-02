@@ -17,6 +17,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::unprepared("
             CREATE OR REPLACE FUNCTION protect_waybill_terminal_status()
             RETURNS TRIGGER AS \$\$
@@ -58,6 +62,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::unprepared("
             DROP TRIGGER IF EXISTS waybill_protect_terminal ON waybills;
             DROP FUNCTION IF EXISTS protect_waybill_terminal_status();
