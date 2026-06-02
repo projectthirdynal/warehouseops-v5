@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs tracked as GitHub issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context repo with 9 bounded contexts (Lead, Waybill, Courier, Inventory, Product, Procurement, Shop, Order, Finance). See `docs/agents/domain.md`.
+
 ## Build & Development Commands
 
 ```bash
@@ -30,16 +44,19 @@ composer format      # Laravel Pint code formatter
 
 ### Domain-Driven Design
 
-Business logic lives in `app/Domain/` with six bounded contexts:
+Business logic lives in `app/Domain/` with nine bounded contexts:
 
 | Domain | Purpose |
 |--------|---------|
 | `Lead` | Lead lifecycle: pool status, cycles, distribution, recycling, outcomes |
 | `Waybill` | Courier shipment tracking, status transitions, batch imports |
-| `Agent` | Agent profiles, product skills, performance metrics |
-| `Customer` | Customer records (deduplicated by phone), risk scoring, blacklisting |
 | `Courier` | J&T Express / Flash courier integrations |
-| `Notification` | Telegram operational alerts |
+| `Inventory` | Products, stock, warehouses, stock movements, adjustments |
+| `Product` | Product catalog, variants, aliases, pricing |
+| `Procurement` | Suppliers, purchase requests, purchase orders, receiving |
+| `Shop` | Meta/Facebook Shop: OAuth, Messenger inbox, CRM, POS register, encoder |
+| `Order` | Shared order model, fulfillment, reservations |
+| `Finance` | COGS, QuickBooks sync |
 
 Each domain may contain: `Models/`, `Enums/`, `Actions/`, `Repositories/`.
 
@@ -114,7 +131,7 @@ Defined in `resources/js/types/index.ts` and `types/lead-pool.ts`. The `AgentLea
 
 ## Deployment
 
-**Production**: Docker containers (app, nginx, redis) at `/opt/warehouseops/`.
+**Production**: Docker containers at `/opt/warehouseops/` — `warehouseops-app`, `warehouseops-nginx-final`, `warehouseops-scheduler`, `warehouseops-horizon`, `warehouseops-redis`, `redis-exporter-warehouseops`.
 
 **CI/CD**: GitHub Actions self-hosted runner deploys on push to `main` — `npm ci && npm run build → rsync → composer install --no-dev → migrate → cache rebuild → horizon:terminate`.
 

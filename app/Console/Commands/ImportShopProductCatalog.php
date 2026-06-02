@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 class ImportShopProductCatalog extends Command
 {
     protected $signature = 'shop:import-product-catalog
-        {path : CSV path with PAGES, BRAND NAME, and REMARKS columns}
+        {path : CSV path with PAGES, BRAND NAME, REMARKS, and optional SKU columns}
         {--dry-run : Parse and validate without saving changes}';
 
     protected $description = 'Import Auto Encode page-name/SKU catalog into WarehouseOps products and Shop page mappings.';

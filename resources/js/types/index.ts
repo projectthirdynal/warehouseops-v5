@@ -220,6 +220,7 @@ export interface Product {
   barcode?: string | null;
   qr_code?: string | null;
   name: string;
+  catalog_remarks?: string | null;
   brand: string | null;
   category: string | null;
   uom_id?: number | null;
@@ -238,8 +239,20 @@ export interface Product {
   is_low_stock?: boolean;
   stock?: ProductStock;
   variants?: ProductVariant[];
+  page_mappings?: ShopPageProductMapping[];
   created_at: string;
   updated_at: string;
+}
+
+export interface ShopPageProductMapping {
+  id: number;
+  page_name: string;
+  normalized_page_name: string;
+  brand_name: string | null;
+  remarks: string;
+  product_id: number | null;
+  variant_id: number | null;
+  is_active: boolean;
 }
 
 export interface ProductVariant {

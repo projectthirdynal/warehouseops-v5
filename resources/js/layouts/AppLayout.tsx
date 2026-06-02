@@ -73,6 +73,8 @@ const _NAV_VERSION = '2.0.0'; void _NAV_VERSION;
 const OPS_ROLES:       Role[] = ['superadmin', 'admin', 'supervisor'];
 const FINANCE_ROLES:   Role[] = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'];
 const WAREHOUSE_ROLES: Role[] = ['superadmin', 'admin', 'supervisor', 'warehouse'];
+const INVENTORY_READ_ROLES: Role[] = [...WAREHOUSE_ROLES, 'finance', 'accounting'];
+const MATERIAL_ADJUSTMENT_ROLES: Role[] = [...WAREHOUSE_ROLES, 'accounting'];
 const ALL_STAFF:       Role[] = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting', 'warehouse'];
 
 const navigation: NavEntry[] = [
@@ -131,18 +133,18 @@ const navigation: NavEntry[] = [
   {
     name: 'Inventory',
     icon: WarehouseIcon,
-    roles: [...WAREHOUSE_ROLES, 'finance' as Role, 'accounting' as Role],
+    roles: INVENTORY_READ_ROLES,
     children: [
-      { name: 'Dashboard',         href: '/inventory',               icon: BarChart3 },
-      { name: 'Movements',         href: '/inventory/movements',     icon: Recycle },
-      { name: 'Products',          href: '/products',                icon: Package },
-      { name: 'Materials',         href: '/inventory/supplies',      icon: PackageCheck },
-      { name: 'Adjustments',       href: '/inventory/adjustments',   icon: SlidersHorizontal },
-      { name: 'Warehouses',        href: '/warehouses',              icon: Building2 },
-      { name: 'Suppliers',         href: '/procurement/suppliers',   icon: Building2 },
-      { name: 'Purchase Requests', href: '/procurement/requests',    icon: FileText },
-      { name: 'Purchase Orders',   href: '/procurement/orders',      icon: ShoppingCart },
-      { name: 'Receiving (GRN)',   href: '/procurement/receiving',   icon: PackageCheck },
+      { name: 'Dashboard',         href: '/inventory',               icon: BarChart3, roles: INVENTORY_READ_ROLES },
+      { name: 'Movements',         href: '/inventory/movements',     icon: Recycle, roles: INVENTORY_READ_ROLES },
+      { name: 'Products',          href: '/products',                icon: Package, roles: WAREHOUSE_ROLES },
+      { name: 'Materials',         href: '/inventory/supplies',      icon: PackageCheck, roles: MATERIAL_ADJUSTMENT_ROLES },
+      { name: 'Adjustments',       href: '/inventory/adjustments',   icon: SlidersHorizontal, roles: MATERIAL_ADJUSTMENT_ROLES },
+      { name: 'Warehouses',        href: '/warehouses',              icon: Building2, roles: WAREHOUSE_ROLES },
+      { name: 'Suppliers',         href: '/procurement/suppliers',   icon: Building2, roles: WAREHOUSE_ROLES },
+      { name: 'Purchase Requests', href: '/procurement/requests',    icon: FileText, roles: WAREHOUSE_ROLES },
+      { name: 'Purchase Orders',   href: '/procurement/orders',      icon: ShoppingCart, roles: WAREHOUSE_ROLES },
+      { name: 'Receiving (GRN)',   href: '/procurement/receiving',   icon: PackageCheck, roles: WAREHOUSE_ROLES },
     ],
   },
   { name: 'Couriers', href: '/couriers', icon: Truck,      roles: OPS_ROLES },
@@ -203,7 +205,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   };
 
   const isGroupActive = (group: NavGroup) =>
-    group.children.some((child) => isActive(child.href));
+    group.children.filter(canSee).some((child) => isActive(child.href));
 
   const toggleGroup = (name: string) =>
     setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -264,6 +266,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
     const Icon = group.icon;
     const active = isGroupActive(group);
     const open = openGroups[group.name] ?? false;
+    const visibleChildren = group.children.filter(canSee);
+
+    if (visibleChildren.length === 0) return null;
 
     if (collapsed) {
       // Show group icon as a tooltip trigger, clicking navigates to first child
@@ -271,7 +276,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
         <Tooltip key={group.name}>
           <TooltipTrigger asChild>
             <Link
-              href={group.children[0]?.href ?? '/'}
+              href={visibleChildren[0]?.href ?? '/'}
               className={cn(
                 'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
@@ -308,7 +313,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </button>
         {open && (
           <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-            {group.children.map((child) => {
+            {visibleChildren.map((child) => {
               const ChildIcon = child.icon;
               const childActive = isActive(child.href);
               return (

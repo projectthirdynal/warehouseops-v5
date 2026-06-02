@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Product\Models;
 
+use App\Domain\Shop\Models\ShopPageProductMapping;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,6 +20,7 @@ class Product extends Model
         'barcode',
         'qr_code',
         'name',
+        'catalog_remarks',
         'brand',
         'category',
         'uom_id',
@@ -70,6 +72,11 @@ class Product extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function pageMappings(): HasMany
+    {
+        return $this->hasMany(ShopPageProductMapping::class);
     }
 
     // Scopes

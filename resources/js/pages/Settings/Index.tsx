@@ -19,6 +19,7 @@ import {
   X,
   UserCog,
   RotateCcw,
+  Printer,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ interface ManagedUser {
 
 interface Props {
   settings: Record<string, string | boolean | number>;
+  printer_settings: Record<string, string | boolean | number>;
   user: UserData;
   can_manage_users?: boolean;
   users?: ManagedUser[];
@@ -787,7 +789,220 @@ function UserManagementTab({ users = [], currentUserId }: { users: ManagedUser[]
   );
 }
 
-export default function SettingsIndex({ user, settings, can_manage_users = false, users = [] }: Props) {
+function PrinterTab({ settings }: { settings: Record<string, string | boolean | number> }) {
+  const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    printer_model: (settings.printer_model as string) ?? 'Zebra ZD410',
+    connection_type: (settings.connection_type as string) ?? 'usb',
+    label_width_mm: (settings.label_width_mm as number) ?? 38,
+    label_height_mm: (settings.label_height_mm as number) ?? 25,
+    dpi: (settings.dpi as number) ?? 300,
+    barcode_format: (settings.barcode_format as string) ?? 'qr_code',
+    is_active: (settings.is_active as boolean) ?? false,
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    post('/settings/printer');
+  };
+
+  const printerModels = [
+    'Zebra ZD410',
+    'Zebra ZD620',
+    'Zebra ZT411',
+    'Brother QL-800',
+    'Brother QL-1100',
+    'Brother QL-820NWB',
+    'Dymo LabelWriter 450',
+    'Dymo LabelWriter 550',
+    'Rollo X1038',
+    'Munbyn ITPP129',
+    'Other',
+  ];
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Printer className="h-5 w-5" />
+            Label Printer Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure your warehouse label printer for barcode and QR code printing.
+            For small items, use high-DPI printers (300+) with compact label sizes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {recentlySuccessful && (
+            <SuccessBanner message="Printer settings saved successfully." />
+          )}
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <div className="font-medium">Printer Enabled</div>
+              <div className="text-sm text-muted-foreground">
+                Enable label printing from the inventory system
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={data.is_active as boolean}
+                onChange={e => setData('is_active', e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Printer Model</label>
+            <Select
+              value={data.printer_model as string}
+              onValueChange={v => setData('printer_model', v)}
+            >
+              <SelectTrigger className="w-full md:w-[320px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {printerModels.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.printer_model && <p className="text-xs text-destructive">{errors.printer_model}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Connection Type</label>
+            <Select
+              value={data.connection_type as string}
+              onValueChange={v => setData('connection_type', v)}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usb">USB (Wired)</SelectItem>
+                <SelectItem value="bluetooth">Bluetooth</SelectItem>
+                <SelectItem value="wifi">Wi-Fi</SelectItem>
+                <SelectItem value="ethernet">Ethernet</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.connection_type && <p className="text-xs text-destructive">{errors.connection_type}</p>}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Label Width (mm)</label>
+              <input
+                type="number"
+                min={10}
+                max={150}
+                value={data.label_width_mm}
+                onChange={e => setData('label_width_mm', parseInt(e.target.value) || 38)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                For small items: 25–38mm. Standard: 50–100mm.
+              </p>
+              {errors.label_width_mm && <p className="text-xs text-destructive">{errors.label_width_mm}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Label Height (mm)</label>
+              <input
+                type="number"
+                min={5}
+                max={150}
+                value={data.label_height_mm}
+                onChange={e => setData('label_height_mm', parseInt(e.target.value) || 25)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                For small items: 13–25mm. Standard: 25–50mm.
+              </p>
+              {errors.label_height_mm && <p className="text-xs text-destructive">{errors.label_height_mm}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Print Resolution (DPI)</label>
+            <Select
+              value={String(data.dpi)}
+              onValueChange={v => setData('dpi', parseInt(v))}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="203">203 DPI (Standard)</SelectItem>
+                <SelectItem value="300">300 DPI (High — recommended for small items)</SelectItem>
+                <SelectItem value="600">600 DPI (Ultra — tiny labels & Data Matrix)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Higher DPI = sharper barcodes on small labels. 300+ recommended for items under 20mm.
+            </p>
+            {errors.dpi && <p className="text-xs text-destructive">{errors.dpi}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Default Barcode Format</label>
+            <Select
+              value={data.barcode_format as string}
+              onValueChange={v => setData('barcode_format', v)}
+            >
+              <SelectTrigger className="w-full md:w-[280px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="code128">Code 128 (Linear — standard boxes)</SelectItem>
+                <SelectItem value="ean13">EAN-13 (Retail — 13-digit products)</SelectItem>
+                <SelectItem value="qr_code">QR Code (2D — recommended for small items)</SelectItem>
+                <SelectItem value="data_matrix">Data Matrix (2D — tiny components)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              <strong>Small items:</strong> Use QR Code or Data Matrix. <strong>Standard:</strong> Code 128 or EAN-13.
+            </p>
+            {errors.barcode_format && <p className="text-xs text-destructive">{errors.barcode_format}</p>}
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <h4 className="text-sm font-semibold mb-2">Small Item Recommendations</h4>
+            <div className="grid gap-2 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">&lt;5mm</span>
+                <span>Data Matrix @ 600 DPI on 10×10mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">5–20mm</span>
+                <span>QR Code (ECC H) @ 300 DPI on 20×20mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">20–50mm</span>
+                <span>Code 128 or QR @ 203 DPI on 38×25mm label</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono bg-muted px-1 rounded shrink-0">&gt;50mm</span>
+                <span>Code 128 / EAN-13 @ 203 DPI on standard label</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" disabled={processing}>
+              <Save className="mr-2 h-4 w-4" />
+              {processing ? 'Saving…' : 'Save Printer Settings'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </form>
+  );
+}
+
+export default function SettingsIndex({ user, settings, printer_settings = {}, can_manage_users = false, users = [] }: Props) {
   const [activeTab, setActiveTab] = useState('appearance');
 
   const tabs = [
@@ -796,6 +1011,7 @@ export default function SettingsIndex({ user, settings, can_manage_users = false
     { id: 'appearance',   label: 'Appearance',     icon: Palette },
     { id: 'notifications',label: 'Notifications',  icon: Bell },
     { id: 'courier',      label: 'Courier Config', icon: Truck },
+    { id: 'printer',      label: 'Label Printer',  icon: Printer },
     { id: 'team',         label: 'Team Settings',  icon: Users },
     { id: 'system',       label: 'System',         icon: Database },
     ...(can_manage_users ? [{ id: 'users', label: 'User Management', icon: UserCog }] : []),
@@ -907,6 +1123,8 @@ export default function SettingsIndex({ user, settings, can_manage_users = false
                 </CardContent>
               </Card>
             )}
+
+            {activeTab === 'printer' && <PrinterTab settings={printer_settings} />}
 
             {activeTab === 'team' && (
               <Card>

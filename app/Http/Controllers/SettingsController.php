@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -22,6 +23,7 @@ class SettingsController extends Controller
                 'recycle_attempts'      => 3,
                 'callback_expiry_hours' => 24,
             ],
+            'printer_settings' => SystemSetting::getGroup('printer'),
             'user' => $authUser->only([
                 'id', 'name', 'email', 'phone', 'role',
                 'theme', 'language', 'timezone',
@@ -201,5 +203,32 @@ class SettingsController extends Controller
         );
 
         return back()->with('success', "Password reset for {$user->name}. They have been notified by email.");
+    }
+
+    public function savePrinterSettings(Request $request)
+    {
+        if (! in_array($request->user()?->role, ['superadmin', 'admin', 'supervisor'], true)) {
+            abort(403, 'Only supervisors and admins can manage printer settings.');
+        }
+
+        $data = $request->validate([
+            'printer_model' => ['required', 'string', 'max:100'],
+            'connection_type' => ['required', 'in:usb,bluetooth,wifi,ethernet'],
+            'label_width_mm' => ['required', 'numeric', 'min:10', 'max:150'],
+            'label_height_mm' => ['required', 'numeric', 'min:5', 'max:150'],
+            'dpi' => ['required', 'integer', 'in:203,300,600'],
+            'barcode_format' => ['required', 'in:code128,ean13,qr_code,data_matrix'],
+            'is_active' => ['boolean'],
+        ]);
+
+        SystemSetting::set('printer_model', $data['printer_model'], 'printer', 'string', 'Label printer model');
+        SystemSetting::set('connection_type', $data['connection_type'], 'printer', 'string', 'Connection type');
+        SystemSetting::set('label_width_mm', $data['label_width_mm'], 'printer', 'int', 'Label width in mm');
+        SystemSetting::set('label_height_mm', $data['label_height_mm'], 'printer', 'int', 'Label height in mm');
+        SystemSetting::set('dpi', $data['dpi'], 'printer', 'int', 'Print resolution DPI');
+        SystemSetting::set('barcode_format', $data['barcode_format'], 'printer', 'string', 'Default barcode format');
+        SystemSetting::set('is_active', $data['is_active'] ?? false, 'printer', 'bool', 'Printer enabled');
+
+        return redirect()->back(303)->with('success', 'Printer settings saved.');
     }
 }

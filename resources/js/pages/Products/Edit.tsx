@@ -15,6 +15,7 @@ interface Props {
 interface ProductForm {
   sku: string;
   name: string;
+  catalog_remarks: string;
   brand: string;
   category: string;
   selling_price: string;
@@ -28,6 +29,7 @@ interface ProductForm {
   description: string;
   is_active: boolean;
   requires_qa: boolean;
+  page_names: string;
 }
 
 const inputClass = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20';
@@ -41,6 +43,7 @@ export default function ProductEdit({ product, categories, brands }: Props) {
   const [form, setForm] = useState<ProductForm>({
     sku: value(product.sku),
     name: value(product.name),
+    catalog_remarks: value(product.catalog_remarks),
     brand: value(product.brand),
     category: value(product.category),
     selling_price: value(product.selling_price),
@@ -54,6 +57,7 @@ export default function ProductEdit({ product, categories, brands }: Props) {
     description: value(product.description),
     is_active: Boolean(product.is_active),
     requires_qa: Boolean(product.requires_qa),
+    page_names: (product.page_mappings ?? []).filter((mapping) => mapping.is_active).map((mapping) => mapping.page_name).join('\n'),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +113,10 @@ export default function ProductEdit({ product, categories, brands }: Props) {
                 </Field>
               </div>
 
+              <Field label="SKU / Remarks" error={errors.catalog_remarks}>
+                <input className={inputClass} value={form.catalog_remarks} onChange={(event) => updateField('catalog_remarks', event.target.value)} />
+              </Field>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Brand" error={errors.brand}>
                   <input className={inputClass} list="brands" value={form.brand} onChange={(event) => updateField('brand', event.target.value)} />
@@ -122,6 +130,17 @@ export default function ProductEdit({ product, categories, brands }: Props) {
 
               <Field label="Description" error={errors.description}>
                 <textarea className={inputClass} rows={3} value={form.description} onChange={(event) => updateField('description', event.target.value)} />
+              </Field>
+
+              <Field label="Facebook Pages" error={errors.page_names}>
+                <textarea
+                  className={inputClass}
+                  rows={5}
+                  value={form.page_names}
+                  onChange={(event) => updateField('page_names', event.target.value)}
+                  placeholder="One page name per line"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">Product pages are the source for upload and message SKU matching.</p>
               </Field>
             </CardContent>
           </Card>
@@ -203,4 +222,3 @@ function Field({ label, error, children }: { label: string; error?: string; chil
     </div>
   );
 }
-

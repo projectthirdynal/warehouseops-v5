@@ -6,6 +6,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
+use App\Domain\Shop\Services\ProductPageMappingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -15,11 +16,14 @@ use RuntimeException;
 
 class ProductController extends Controller
 {
-    public function __construct(private StockService $stockService) {}
+    public function __construct(
+        private StockService $stockService,
+        private ProductPageMappingService $productPageMappingService,
+    ) {}
 
     public function index(Request $request)
     {
-        $query = Product::with(['stock', 'activeVariants.stock']);
+        $query = Product::with(['stock', 'activeVariants.stock', 'pageMappings']);
 
         if ($request->filled('search')) {
             $query->search($request->search);
@@ -70,9 +74,12 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge(['page_names' => $this->pageNames($request->input('page_names'))]);
+
         $validated = $request->validate([
             'sku'            => ['required', 'string', 'max:50', 'unique:products,sku'],
             'name'           => ['required', 'string', 'max:255'],
+            'catalog_remarks' => ['nullable', 'string', 'max:255'],
             'brand'          => ['nullable', 'string', 'max:100'],
             'category'       => ['nullable', 'string', 'max:100'],
             'selling_price'  => ['required', 'numeric', 'min:0'],
@@ -94,11 +101,13 @@ class ProductController extends Controller
             'variants.*.selling_price'  => ['nullable', 'numeric', 'min:0'],
             'variants.*.cost_price'     => ['nullable', 'numeric', 'min:0'],
             'variants.*.weight_grams'   => ['nullable', 'integer', 'min:0'],
+            'page_names'      => ['nullable'],
+            'page_names.*'    => ['string', 'max:255'],
         ]);
 
         try {
             $product = DB::transaction(function () use ($validated) {
-                $product = Product::create(Arr::except($validated, ['initial_stock', 'reorder_point', 'variants']));
+                $product = Product::create(Arr::except($validated, ['initial_stock', 'reorder_point', 'variants', 'page_names']));
 
                 // Create variants
                 if (!empty($validated['variants'])) {
@@ -145,6 +154,12 @@ class ProductController extends Controller
                     $stock->save();
                 }
 
+                $this->productPageMappingService->sync(
+                    $product,
+                    $this->pageNames($validated['page_names'] ?? []),
+                    source: 'product_section'
+                );
+
                 return $product;
             });
         } catch (RuntimeException $e) {
@@ -156,7 +171,7 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product->load(['variants.stock', 'stock']);
+        $product->load(['variants.stock', 'stock', 'pageMappings']);
 
         $movements = $product->movements()
             ->with('performer')
@@ -171,7 +186,7 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     {
-        $product->load('variants');
+        $product->load(['variants', 'pageMappings']);
         $categories = Product::distinct()->pluck('category')->filter()->values();
         $brands = Product::distinct()->pluck('brand')->filter()->values();
 
@@ -184,9 +199,12 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
+        $request->merge(['page_names' => $this->pageNames($request->input('page_names'))]);
+
         $validated = $request->validate([
             'sku'            => ['required', 'string', 'max:50', 'unique:products,sku,' . $product->id],
             'name'           => ['required', 'string', 'max:255'],
+            'catalog_remarks' => ['nullable', 'string', 'max:255'],
             'brand'          => ['nullable', 'string', 'max:100'],
             'category'       => ['nullable', 'string', 'max:100'],
             'selling_price'  => ['required', 'numeric', 'min:0'],
@@ -200,9 +218,19 @@ class ProductController extends Controller
             'description'    => ['nullable', 'string'],
             'is_active'      => ['boolean'],
             'requires_qa'    => ['boolean'],
+            'page_names'      => ['nullable'],
+            'page_names.*'    => ['string', 'max:255'],
         ]);
 
-        $product->update($validated);
+        DB::transaction(function () use ($product, $validated) {
+            $product->update(Arr::except($validated, ['page_names']));
+
+            $this->productPageMappingService->sync(
+                $product,
+                $this->pageNames($validated['page_names'] ?? []),
+                source: 'product_section'
+            );
+        });
 
         return redirect()->route('products.show', $product)->with('success', 'Product updated successfully.');
     }
@@ -280,5 +308,22 @@ class ProductController extends Controller
         }
 
         return $warehouse;
+    }
+
+    /**
+     * @param array<int, string>|string|null $value
+     * @return array<int, string>
+     */
+    private function pageNames(array|string|null $value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/\r\n|\r|\n|,/', $value) ?: [];
+        }
+
+        return collect($value ?? [])
+            ->map(fn ($pageName) => trim((string) $pageName))
+            ->filter()
+            ->values()
+            ->all();
     }
 }

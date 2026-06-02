@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\Supply;
+use App\Domain\Inventory\Models\SupplyMovement;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Procurement\Enums\PoStatus;
 use App\Domain\Procurement\Enums\PrStatus;
@@ -58,6 +59,11 @@ class InventoryDashboardController extends Controller
             ->latest()
             ->limit(20)
             ->get(['id', 'product_id', 'warehouse_id', 'type', 'quantity', 'created_at', 'notes']);
+
+        $recentSupplyMovements = SupplyMovement::with(['supply:id,sku,name', 'warehouse:id,name'])
+            ->latest()
+            ->limit(20)
+            ->get(['id', 'supply_id', 'warehouse_id', 'type', 'quantity', 'created_at', 'notes']);
 
         $lowStock = ProductStock::with(['product:id,sku,name', 'warehouse:id,name'])
             ->whereRaw('(current_stock - reserved_stock) <= reorder_point')
@@ -114,14 +120,28 @@ class InventoryDashboardController extends Controller
             ->orderByRaw('DATE(created_at)')
             ->get();
 
+        $supplyMovementTrend = DB::table('supply_movements')
+            ->select([
+                DB::raw("DATE(created_at) as date"),
+                DB::raw("SUM(CASE WHEN type = 'STOCK_IN' THEN quantity ELSE 0 END) as stock_in"),
+                DB::raw("SUM(CASE WHEN type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out"),
+                DB::raw("SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments"),
+            ])
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
+            ->get();
+
         return Inertia::render('Inventory/Dashboard', [
             'stats'                  => $stats,
             'recent_movements'       => $recentMovements,
+            'recent_supply_movements' => $recentSupplyMovements,
             'low_stock'              => $lowStock,
             'supply_low_stock'       => $supplyLowStock,
             'expiring_lots'          => $expiringLots,
             'warehouse_stock_summary' => $warehouseStockSummary,
             'movement_trend'         => $movementTrend,
+            'supply_movement_trend'  => $supplyMovementTrend,
         ]);
     }
 

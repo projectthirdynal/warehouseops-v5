@@ -35,6 +35,8 @@ use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\InventoryScannerController;
+use App\Http\Controllers\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -106,6 +108,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/profile', [SettingsController::class, 'updateProfile'])->name('profile.update');
         Route::patch('/appearance', [SettingsController::class, 'updateAppearance'])->name('appearance.update');
         Route::patch('/password', [SettingsController::class, 'updatePassword'])->name('password.update');
+        Route::post('/printer', [SettingsController::class, 'savePrinterSettings'])->name('printer.save');
 
         Route::post('/users',                      [SettingsController::class, 'storeUser'])->name('users.store');
         Route::patch('/users/{user}',              [SettingsController::class, 'updateUser'])->name('users.update');
@@ -115,24 +118,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
     });
 });
 
-// ── INVENTORY + PROCUREMENT: warehouse staff, supervisors, admins ─────────────
-Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse'])->group(function () {
-    // Products
-    Route::prefix('products')->name('products.')->group(function () {
-        Route::get('/', [ProductController::class, 'index'])->name('index');
-        Route::get('/create', [ProductController::class, 'create'])->name('create');
-        Route::post('/', [ProductController::class, 'store'])->name('store');
-        Route::get('/{product}', [ProductController::class, 'show'])->name('show');
-        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
-        Route::put('/{product}', [ProductController::class, 'update'])->name('update');
-        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
-        Route::post('/{product}/stock', [ProductController::class, 'adjustStock'])->name('stock.adjust');
-    });
+// ── INVENTORY READ-ONLY: finance/accounting can audit stock without managing it
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,accounting'])->group(function () {
+    Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
+    Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
+});
 
-    // Inventory dashboard + movements + supplies + adjustments
+// ── INVENTORY MATERIALS + ADJUSTMENTS: accounting can participate in controls
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/',          [InventoryDashboardController::class, 'index'])->name('dashboard');
-        Route::get('/movements', [InventoryDashboardController::class, 'movements'])->name('movements');
         Route::get('/supplies',  [SupplyController::class, 'index'])->name('supplies.index');
         Route::post('/supplies', [SupplyController::class, 'store'])->name('supplies.store');
         Route::put('/supplies/{supply}', [SupplyController::class, 'update'])->name('supplies.update');
@@ -147,6 +141,29 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse'])->group
             Route::post('/{id}/approve', [StockAdjustmentController::class, 'approve'])->name('approve');
             Route::post('/{id}/reject',  [StockAdjustmentController::class, 'reject'])->name('reject');
         });
+
+        Route::post('/scan', [InventoryScannerController::class, 'scan'])->name('scan');
+        Route::post('/scan/adjust', [InventoryScannerController::class, 'quickAdjust'])->name('scan.adjust');
+    });
+});
+
+// ── INVENTORY SCANNER AUTO-ADJUST: supervisors/admins only ───────────────────
+Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function () {
+    Route::post('/inventory/scan/auto-adjust', [InventoryScannerController::class, 'autoAdjust'])->name('scan.auto-adjust');
+});
+
+// ── INVENTORY + PROCUREMENT: warehouse staff, supervisors, admins ─────────────
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse'])->group(function () {
+    // Products
+    Route::prefix('products')->name('products.')->group(function () {
+        Route::get('/', [ProductController::class, 'index'])->name('index');
+        Route::get('/create', [ProductController::class, 'create'])->name('create');
+        Route::post('/', [ProductController::class, 'store'])->name('store');
+        Route::get('/{product}', [ProductController::class, 'show'])->name('show');
+        Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
+        Route::put('/{product}', [ProductController::class, 'update'])->name('update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+        Route::post('/{product}/stock', [ProductController::class, 'adjustStock'])->name('stock.adjust');
     });
 
     // Warehouses + locations
@@ -226,10 +243,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('/download', [ReportController::class, 'download'])->name('download');
     });
-
-    // Inventory dashboard read-only (finance can view stock value)
-    Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
-    Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
 });
 
 // ── OPS / ADMIN: supervisors, admins — sales, leads, shop, waybills ──────────

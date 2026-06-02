@@ -11,6 +11,8 @@ use RuntimeException;
 
 class ProductCatalogImportService
 {
+    public function __construct(private ProductPageMappingService $productPageMappingService) {}
+
     /**
      * @return array{rows:int, products:int, mappings:int, skipped:int}
      */
@@ -46,6 +48,7 @@ class ProductCatalogImportService
                 $pageName = $this->value($row, $columns, 'pages');
                 $brandName = $this->value($row, $columns, 'brand_name');
                 $remarks = $this->value($row, $columns, 'remarks');
+                $uploadedSku = $this->value($row, $columns, 'sku');
 
                 if ($pageName === '' || $remarks === '') {
                     $summary['skipped']++;
@@ -53,8 +56,11 @@ class ProductCatalogImportService
                     continue;
                 }
 
-                $sku = $this->skuFromRemarks($remarks);
-                $product = Product::query()->firstOrNew(['sku' => $sku]);
+                $sku = $uploadedSku !== '' ? $uploadedSku : $this->skuFromRemarks($remarks);
+                $product = Product::query()
+                    ->where('sku', $sku)
+                    ->orWhere('catalog_remarks', $remarks)
+                    ->first() ?? new Product(['sku' => $sku]);
 
                 if (! $product->exists) {
                     $product->selling_price = 0;
@@ -64,7 +70,9 @@ class ProductCatalogImportService
                 }
 
                 $product->fill([
+                    'sku' => $sku,
                     'name' => $remarks,
+                    'catalog_remarks' => $remarks,
                     'brand' => $brandName !== '' ? $brandName : null,
                     'category' => 'Shop Catalog',
                     'description' => "Imported from Auto Encode product catalog.\nRemarks: {$remarks}",
@@ -76,20 +84,11 @@ class ProductCatalogImportService
 
                 $normalizedPageName = ShopPageProductMapping::normalizePageName($pageName);
 
-                ShopPageProductMapping::query()->updateOrCreate(
-                    ['normalized_page_name' => $normalizedPageName],
-                    [
-                        'page_name' => $pageName,
-                        'brand_name' => $brandName !== '' ? $brandName : null,
-                        'remarks' => $remarks,
-                        'product_id' => $product->id,
-                        'variant_id' => null,
-                        'is_active' => true,
-                        'metadata' => [
-                            'source' => 'auto_encode_page_name_sku_csv',
-                            'catalog_sku' => $sku,
-                        ],
-                    ]
+                $this->productPageMappingService->sync(
+                    $product,
+                    array_merge($product->pageMappings()->where('is_active', true)->pluck('page_name')->all(), [$pageName]),
+                    $brandName !== '' ? $brandName : null,
+                    'auto_encode_page_name_sku_csv'
                 );
 
                 $mappingsSeen[$normalizedPageName] = true;
@@ -120,7 +119,7 @@ class ProductCatalogImportService
 
     /**
      * @param array<int, string|null> $header
-     * @return array{pages:int, brand_name:int, remarks:int}
+     * @return array{pages:int, brand_name:int, remarks:int, sku?:int}
      */
     private function columnMap(array $header): array
     {
@@ -142,15 +141,20 @@ class ProductCatalogImportService
             'pages' => $normalized['pages'],
             'brand_name' => $normalized['brand_name'],
             'remarks' => $normalized['remarks'],
+            ...array_key_exists('sku', $normalized) ? ['sku' => $normalized['sku']] : [],
         ];
     }
 
     /**
      * @param array<int, string|null> $row
-     * @param array{pages:int, brand_name:int, remarks:int} $columns
+     * @param array{pages:int, brand_name:int, remarks:int, sku?:int} $columns
      */
     private function value(array $row, array $columns, string $column): string
     {
+        if (! array_key_exists($column, $columns)) {
+            return '';
+        }
+
         return trim((string) ($row[$columns[$column]] ?? ''));
     }
 

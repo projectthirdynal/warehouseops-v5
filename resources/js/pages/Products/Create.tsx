@@ -24,6 +24,7 @@ export default function ProductCreate({ categories, brands }: Props) {
   const [form, setForm] = useState({
     sku: '',
     name: '',
+    catalog_remarks: '',
     brand: '',
     category: '',
     selling_price: '',
@@ -34,6 +35,7 @@ export default function ProductCreate({ categories, brands }: Props) {
     requires_qa: true,
     initial_stock: '',
     reorder_point: '10',
+    page_names: '',
   });
 
   const [variants, setVariants] = useState<VariantForm[]>([]);
@@ -123,6 +125,17 @@ export default function ProductCreate({ categories, brands }: Props) {
                 </div>
               </div>
 
+              <div>
+                <label className={labelClass}>SKU / Remarks</label>
+                <input
+                  className={inputClass}
+                  value={form.catalog_remarks}
+                  onChange={(e) => updateField('catalog_remarks', e.target.value)}
+                  placeholder="e.g. AKARUICOFFEE 1 SET B1T2"
+                />
+                {errors.catalog_remarks && <p className="text-xs text-red-500 mt-1">{errors.catalog_remarks}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Brand</label>
@@ -139,6 +152,19 @@ export default function ProductCreate({ categories, brands }: Props) {
               <div>
                 <label className={labelClass}>Description</label>
                 <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => updateField('description', e.target.value)} placeholder="Product description..." />
+              </div>
+
+              <div>
+                <label className={labelClass}>Facebook Pages</label>
+                <textarea
+                  className={inputClass}
+                  rows={4}
+                  value={form.page_names}
+                  onChange={(e) => updateField('page_names', e.target.value)}
+                  placeholder="One page name per line"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">These pages map to this product during client uploads and message ingestion.</p>
+                {errors.page_names && <p className="text-xs text-red-500 mt-1">{errors.page_names}</p>}
               </div>
             </CardContent>
           </Card>

@@ -211,8 +211,12 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                             <span className="font-mono">{product.sku}</span>
+                            {product.catalog_remarks && <span>{product.catalog_remarks}</span>}
                             {product.brand && <span>{product.brand}</span>}
                             {product.category && <Badge variant="outline" className="text-[10px]">{product.category}</Badge>}
+                            {(product.page_mappings?.filter((mapping) => mapping.is_active).length ?? 0) > 0 && (
+                              <span>{product.page_mappings!.filter((mapping) => mapping.is_active).length} pages</span>
+                            )}
                           </div>
                         </div>
 

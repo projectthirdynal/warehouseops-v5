@@ -218,6 +218,10 @@ export default function ProductShow({ product, movements }: Props) {
                   <span className="text-muted-foreground">Cost Price</span>
                   <span>{formatCurrency(product.cost_price)}</span>
                 </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">SKU / Remarks</span>
+                  <span className="text-right">{product.catalog_remarks || product.name}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Weight</span>
                   <span>{product.weight_grams}g</span>
@@ -233,6 +237,24 @@ export default function ProductShow({ product, movements }: Props) {
                 {product.description && (
                   <div className="pt-2 border-t">
                     <p className="text-muted-foreground">{product.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="text-base">Facebook Pages</CardTitle></CardHeader>
+              <CardContent>
+                {(product.page_mappings?.filter((mapping) => mapping.is_active).length ?? 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">No pages configured.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {product.page_mappings!.filter((mapping) => mapping.is_active).map((mapping) => (
+                      <div key={mapping.id} className="rounded-lg border px-3 py-2 text-sm">
+                        <p className="font-medium">{mapping.page_name}</p>
+                        <p className="text-xs text-muted-foreground">{mapping.remarks}</p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
