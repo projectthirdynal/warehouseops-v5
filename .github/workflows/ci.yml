@@ -40,32 +40,18 @@ jobs:
       - name: Prepare test environment
         run: |
           cp .env.example .env
+          sed -i 's/DB_CONNECTION=pgsql/DB_CONNECTION=sqlite/' .env
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=database\/database.sqlite/' .env
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env
+          sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
           php artisan key:generate --ansi
-          cat > .env.testing << 'EOF'
-          APP_NAME=WarehouseOps
-          APP_ENV=testing
-          APP_KEY=
-          APP_DEBUG=true
-          APP_URL=http://localhost
-
-          LOG_CHANNEL=stack
-          LOG_LEVEL=debug
-
-          DB_CONNECTION=sqlite
-          DB_DATABASE=:memory:
-
-          BROADCAST_DRIVER=log
-          CACHE_STORE=array
-          FILESYSTEM_DISK=local
-          QUEUE_CONNECTION=sync
-          SESSION_DRIVER=array
-
-          MAIL_MAILER=array
-          EOF
-          php artisan key:generate --env=testing --ansi
+          touch database/database.sqlite
+          php artisan migrate --force
 
       - name: Run tests
-        run: php artisan test --env=testing
+        run: php artisan test
 
       - name: Run static analysis
         run: composer analyse -- --no-progress --error-format=github
