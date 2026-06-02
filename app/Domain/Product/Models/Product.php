@@ -19,6 +19,8 @@ class Product extends Model
         'name',
         'brand',
         'category',
+        'barcode',
+        'qr_code',
         'selling_price',
         'cost_price',
         'weight_grams',
