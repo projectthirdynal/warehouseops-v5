@@ -41,12 +41,15 @@ return new class extends Migration
 
     private function addIndexIfNotExists(string $table, string $indexName, array $columns): void
     {
-        $exists = DB::select("SELECT 1 FROM pg_indexes WHERE tablename = ? AND indexname = ?", [$table, $indexName]);
-
-        if (empty($exists)) {
+        try {
             Schema::table($table, function (Blueprint $table) use ($columns) {
                 $table->index($columns);
             });
+        } catch (\Illuminate\Database\QueryException $e) {
+            if (str_contains($e->getMessage(), 'already exists')) {
+                return;
+            }
+            throw $e;
         }
     }
 
