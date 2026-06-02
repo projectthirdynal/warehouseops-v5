@@ -1,0 +1,130 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rollback:
+        description: "Rollback to previous backup timestamp (leave empty for normal deploy)"
+        required: false
+        type: string
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to Production
+    needs: ci
+    runs-on: self-hosted
+    timeout-minutes: 20
+    environment: production
+
+    steps:
+      - name: Checkout code
+        if: github.event.inputs.rollback == ''
+        uses: actions/checkout@v4
+
+      - name: Build frontend assets
+        if: github.event.inputs.rollback == ''
+        run: |
+          npm ci
+          npm run build
+
+      - name: Back up current production
+        run: |
+          APP_DIR=/opt/warehouseops
+          BACKUP_DIR=/opt/warehouseops-backups/$(date +%Y%m%d%H%M%S)
+          sudo mkdir -p "$BACKUP_DIR"
+          sudo cp -a "$APP_DIR/app" "$BACKUP_DIR/app"
+          sudo cp -a "$APP_DIR/config" "$BACKUP_DIR/config"
+          sudo cp -a "$APP_DIR/database" "$BACKUP_DIR/database"
+          sudo cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources"
+          sudo cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build"
+          echo "BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
+
+      - name: Rollback (if triggered)
+        if: github.event.inputs.rollback != ''
+        run: |
+          ROLLBACK_DIR=/opt/warehouseops-backups/${{ github.event.inputs.rollback }}
+          if [ ! -d "$ROLLBACK_DIR" ]; then
+            echo "ERROR: Backup directory not found: $ROLLBACK_DIR"
+            exit 1
+          fi
+          sudo rsync -a --delete "$ROLLBACK_DIR/app/" /opt/warehouseops/app/
+          sudo rsync -a --delete "$ROLLBACK_DIR/config/" /opt/warehouseops/config/
+          sudo rsync -a --delete "$ROLLBACK_DIR/database/" /opt/warehouseops/database/
+          sudo rsync -a --delete "$ROLLBACK_DIR/resources/" /opt/warehouseops/resources/
+          sudo rsync -a --delete "$ROLLBACK_DIR/build/" /opt/warehouseops/public/build/
+          echo "Rollback completed from $ROLLBACK_DIR"
+
+      - name: Sync code to production
+        if: github.event.inputs.rollback == ''
+        run: |
+          APP_DIR=/opt/warehouseops
+          sudo rsync -a --delete \
+            --exclude='.env' \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='storage/app/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            ./ "$APP_DIR"/
+
+      - name: Copy build to container
+        if: github.event.inputs.rollback == ''
+        run: |
+          sudo docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
+
+      - name: Install Composer dependencies
+        run: |
+          sudo docker exec warehouseops-app composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction
+
+      - name: Run database migrations
+        run: sudo docker exec warehouseops-app php artisan migrate --force
+
+      - name: Rebuild caches
+        run: |
+          sudo docker exec warehouseops-app php artisan optimize:clear
+          sudo docker exec warehouseops-app php artisan config:cache
+          sudo docker exec warehouseops-app php artisan route:cache
+          sudo docker exec warehouseops-app php artisan view:cache
+          sudo docker exec warehouseops-app php artisan optimize
+
+      - name: Reload services
+        run: |
+          sudo docker exec warehouseops-app kill -USR2 1 || true
+          sudo docker exec warehouseops-app php artisan horizon:terminate || true
+          sleep 3
+          sudo docker exec -d warehouseops-app php artisan horizon
+
+      - name: Health check
+        run: |
+          for container in warehouseops-app warehouseops-nginx warehouseops-redis; do
+            status=$(sudo docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
+            if [ "$status" != "running" ]; then
+              echo "FAIL: $container is $status"
+              exit 1
+            fi
+          done
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8102/login)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FAIL: Login page returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "All health checks passed."
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Production deployment failed. Backup available at: $BACKUP_DIR"
