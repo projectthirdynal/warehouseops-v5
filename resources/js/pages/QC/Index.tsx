@@ -57,7 +57,7 @@ export default function QCIndex({ queue, stats }: Props) {
     setIsProcessing(false);
   };
 
-  const handleReject = async (_reason: string) => {
+  const handleReject = async () => {
     if (!currentItem || isProcessing) return;
     setIsProcessing(true);
 
@@ -228,7 +228,7 @@ export default function QCIndex({ queue, stats }: Props) {
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={() => handleReject('quality_issue')}
+                    onClick={handleReject}
                     disabled={isProcessing}
                   >
                     <XCircle className="mr-2 h-4 w-4" />

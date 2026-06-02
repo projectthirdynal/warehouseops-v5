@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Plus,
   Search,
-  ChevronDown,
   ChevronUp,
   AlertCircle,
   Eye,
