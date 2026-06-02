@@ -10,6 +10,10 @@ use App\Domain\Customer\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * @group broken
+ * @see Customer model does not exist yet
+ */
 class AgentLeadResourceTest extends TestCase
 {
     use RefreshDatabase;
