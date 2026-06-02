@@ -41,9 +41,31 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
+          cat > .env.testing << 'EOF'
+          APP_NAME=WarehouseOps
+          APP_ENV=testing
+          APP_KEY=
+          APP_DEBUG=true
+          APP_URL=http://localhost
+
+          LOG_CHANNEL=stack
+          LOG_LEVEL=debug
+
+          DB_CONNECTION=sqlite
+          DB_DATABASE=:memory:
+
+          BROADCAST_DRIVER=log
+          CACHE_STORE=array
+          FILESYSTEM_DISK=local
+          QUEUE_CONNECTION=sync
+          SESSION_DRIVER=array
+
+          MAIL_MAILER=array
+          EOF
+          php artisan key:generate --env=testing --ansi
 
       - name: Run tests
-        run: composer test
+        run: php artisan test --env=testing
 
       - name: Run static analysis
         run: composer analyse -- --no-progress --error-format=github
