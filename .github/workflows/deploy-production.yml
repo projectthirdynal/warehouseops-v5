@@ -40,7 +40,10 @@ jobs:
           # public/index.php is not tracked in git — restore from /opt/warehouseops/public/
           # The nginx container mounts this workspace as /var/www/html, so index.php
           # must exist here or nginx returns 403 (directory listing forbidden).
-          rsync -a --exclude='build/' /opt/warehouseops/public/ public/
+          mkdir -p public
+          cp -f /opt/warehouseops/public/index.php public/index.php
+          cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
+          cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
           echo "public/ after restore:"
           ls -la public/
 
