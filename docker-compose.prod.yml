@@ -45,8 +45,8 @@ services:
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
-      - ./docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+      - /opt/warehouseops:/var/www/html
+      - /opt/warehouseops/docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=${APP_DEBUG:-false}

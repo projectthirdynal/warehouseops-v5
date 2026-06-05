@@ -26,15 +26,10 @@ jobs:
       - name: Build frontend assets
         run: |
           npm run build
-          # Copy the Vite build output to /opt/warehouseops/public/build/
-          # (app container mounts /opt/warehouseops so no docker cp needed)
+          # Copy build output to /opt/warehouseops/public/build/
+          # Nginx mounts /opt/warehouseops directly — no workspace hacks needed.
           sudo cp -rf public/build/ /opt/warehouseops/public/build/
-          # Also copy into workspace so nginx container (which mounts workspace) can serve them
-          # public/index.php is not in git — copy from stable /opt/warehouseops/public/
-          cp -f /opt/warehouseops/public/index.php public/index.php
-          cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
-          cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
-          echo 'public/ after restore:' && ls -la public/
+          echo 'Build complete.'
 
       # Sync checked-out code + built assets to the live app directory.
       # Excludes .env (managed on server) and build artifacts managed by Docker.
@@ -53,12 +48,6 @@ jobs:
             --exclude='public/robots.txt' \
             --exclude='public/images/' \
             ./ /opt/warehouseops/
-
-      - name: Reload build in nginx
-        run: |
-          # Ensure nginx workspace public/ has index.php (in case it was lost)
-          cp -f /opt/warehouseops/public/index.php $GITHUB_WORKSPACE/public/index.php
-          ls -la $GITHUB_WORKSPACE/public/
 
       - name: Install Composer dependencies
         run: |
