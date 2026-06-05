@@ -20,6 +20,7 @@ import {
   Upload,
   MessageSquare,
   ShieldAlert,
+  Shield,
   AlertOctagon,
   ScanLine,
   HelpCircle,
@@ -30,6 +31,7 @@ import {
   Building2,
   TrendingUp,
   Store,
+  BookUser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,18 +46,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { PageProps } from '@/types';
 
+/* ─── Role-based navigation ─── */
+const ALL_STAFF = ['superadmin','admin','supervisor','finance','accounting','warehouse','agent'];
+const ADMIN_ONLY = ['superadmin','admin'];
+const OPS_ROLES = ['superadmin','admin','supervisor','warehouse'];
+const AGENT_ONLY = ['agent'];
+
 interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
-  permission?: string;
+  roles?: string[];
+  divider?: boolean;
 }
 
 interface NavGroup {
   name: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: string;
+  roles?: string[];
   children: NavItem[];
 }
 
@@ -66,12 +75,12 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const navigation: NavEntry[] = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Shop', href: '/shop', icon: Store, permission: 'accounts' },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ALL_STAFF },
+  { name: 'Shop', href: '/shop', icon: Store, roles: ADMIN_ONLY },
   {
     name: 'Waybills',
     icon: Truck,
-    permission: 'accounts',
+    roles: ADMIN_ONLY,
     children: [
       { name: 'All Waybills', href: '/waybills', icon: Truck },
       { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine },
@@ -81,55 +90,58 @@ const navigation: NavEntry[] = [
       { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle },
     ],
   },
-  { name: 'My Leads', href: '/agent/leads', icon: Phone },
-  { name: 'Leads', href: '/leads', icon: Users, permission: 'leads_view' },
-  { name: 'QC Review', href: '/qc', icon: ClipboardCheck, permission: 'qc' },
-  { name: 'Recycling', href: '/recycling/pool', icon: Recycle, permission: 'leads_manage' },
-  { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, permission: 'leads_manage' },
-  { name: 'Sales', href: '/sales', icon: TrendingUp, permission: 'leads_manage' },
-  { name: 'Agents', href: '/agents/governance', icon: UserCog, permission: 'leads_manage' },
-  { name: 'SMS', href: '/sms', icon: MessageSquare, permission: 'accounts' },
-  { name: 'Orders', href: '/orders', icon: ClipboardCheck, permission: 'accounts' },
+  { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
+  { name: 'Leads', href: '/leads', icon: Users, roles: ADMIN_ONLY },
   {
-    name: 'Finance',
-    icon: BarChart3,
-    permission: 'accounts',
+    name: 'CRM',
+    icon: BookUser,
+    roles: ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'],
     children: [
-      { name: 'Dashboard',     href: '/finance',                icon: BarChart3 },
-      { name: 'QuickBooks',    href: '/finance/quickbooks',     icon: Building2 },
-      { name: 'Cost of Goods', href: '/finance/cost-of-goods',  icon: Package },
-      { name: 'Mappings',      href: '/finance/quickbooks/mappings', icon: Settings },
+      { name: 'All Contacts',  href: '/crm/contacts',         icon: BookUser },
+      { name: 'Customers',     href: '/crm/contacts?type=customer',  icon: Users },
+      { name: 'Suppliers',     href: '/crm/contacts?type=supplier',  icon: Building2 },
+      { name: 'Prospects',     href: '/crm/contacts?type=prospect',  icon: TrendingUp },
     ],
   },
-  { name: 'Reports', href: '/reports', icon: ClipboardCheck, permission: 'accounts' },
+  { name: 'QC Review', href: '/qc', icon: ClipboardCheck, roles: OPS_ROLES },
+  { name: 'Recycling', href: '/recycling/pool', icon: Recycle, roles: ADMIN_ONLY },
+  { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, roles: ADMIN_ONLY },
+  { name: 'Sales', href: '/sales', icon: TrendingUp, roles: ADMIN_ONLY },
+  { name: 'Agents', href: '/agents/governance', icon: UserCog, roles: ADMIN_ONLY },
+  { name: 'SMS', href: '/sms', icon: MessageSquare, roles: ADMIN_ONLY },
+  { name: 'Orders', href: '/orders', icon: ClipboardCheck, roles: OPS_ROLES },
+  { name: 'Reports', href: '/reports', icon: ClipboardCheck, roles: ADMIN_ONLY },
+  { name: 'Admin', href: '/admin', icon: Shield, roles: ADMIN_ONLY },
   {
     name: 'Inventory',
     icon: WarehouseIcon,
-    permission: 'accounts',
+    roles: OPS_ROLES,
     children: [
-      { name: 'Dashboard',  href: '/inventory',           icon: BarChart3 },
-      { name: 'Movements',  href: '/inventory/movements', icon: Recycle },
-      { name: 'Products',   href: '/products',            icon: Package },
-      { name: 'Warehouses', href: '/warehouses',          icon: Building2 },
+      { name: 'Stock', divider: true, href: '', icon: () => null },
+      { name: 'Dashboard',         href: '/inventory',              icon: BarChart3 },
+      { name: 'Movements',         href: '/inventory/movements',    icon: Recycle },
+      { name: 'Stock Adjustments', href: '/inventory/adjustments',  icon: ClipboardCheck },
+      { name: 'Supplies',          href: '/inventory/supplies',     icon: Package },
+      { name: 'Catalog', divider: true, href: '', icon: () => null },
+      { name: 'Products',          href: '/products',               icon: Package },
+      { name: 'Warehouses',        href: '/warehouses',             icon: Building2 },
+      { name: 'Procurement', divider: true, href: '', icon: () => null },
+      { name: 'Suppliers',         href: '/procurement/suppliers',  icon: Building2 },
+      { name: 'Purchase Requests', href: '/procurement/requests',   icon: FileText },
+      { name: 'Purchase Orders',   href: '/procurement/orders',     icon: ShoppingCart },
+      { name: 'Receiving (Goods Receipt)', href: '/procurement/receiving', icon: PackageCheck },
+      { name: 'Finance', divider: true, href: '', icon: () => null },
+      { name: 'Finance Overview',  href: '/finance',                icon: BarChart3 },
+      { name: 'QuickBooks',        href: '/finance/quickbooks',     icon: Building2 },
+      { name: 'Cost of Goods',     href: '/finance/cost-of-goods',  icon: Package },
     ],
   },
-  {
-    name: 'Procurement',
-    icon: ShoppingCart,
-    permission: 'accounts',
-    children: [
-      { name: 'Suppliers',         href: '/procurement/suppliers', icon: Building2 },
-      { name: 'Purchase Requests', href: '/procurement/requests',  icon: FileText },
-      { name: 'Purchase Orders',   href: '/procurement/orders',    icon: ShoppingCart },
-      { name: 'Receiving (GRN)',   href: '/procurement/receiving', icon: PackageCheck },
-    ],
-  },
-  { name: 'Couriers', href: '/couriers', icon: Truck, permission: 'accounts' },
-  { name: 'Tickets', href: '/tickets', icon: Headphones },
+  { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ROLES },
+  { name: 'Tickets', href: '/tickets', icon: Headphones, roles: ALL_STAFF },
 ];
 
 const bottomNav: NavItem[] = [
-  { name: 'Settings', href: '/settings', icon: Settings, permission: 'settings' },
+  { name: 'Settings', href: '/settings', icon: Settings, roles: ALL_STAFF },
 ];
 
 export default function AppLayout({ children }: PropsWithChildren) {
@@ -165,7 +177,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
     }
   }, [auth?.user?.theme]);
 
-  const isAgent = auth?.user?.role === 'agent';
+  const userRole = auth?.user?.role ?? 'agent';
+
+  const canSee = (entry: NavEntry) => {
+    const allowed = isNavGroup(entry) ? entry.roles : entry.roles;
+    if (!allowed || allowed.length === 0) return true;
+    return allowed.includes(userRole);
+  };
 
   const isActive = (href: string) => {
     if (href === '/') return currentPath === '/';
@@ -280,6 +298,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
         {open && (
           <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
             {group.children.map((child) => {
+              if (child.divider) {
+                return (
+                  <div key={child.name} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    {child.name}
+                  </div>
+                );
+              }
               const ChildIcon = child.icon;
               const childActive = isActive(child.href);
               return (
@@ -354,7 +379,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
           {/* Navigation */}
           <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
             {navigation
-              .filter((entry) => !isAgent || !(isNavGroup(entry) ? entry.permission : entry.permission))
+              .filter((entry) => canSee(entry))
               .map((entry) =>
                 isNavGroup(entry)
                   ? renderNavGroup(entry)
@@ -478,3 +503,4 @@ export default function AppLayout({ children }: PropsWithChildren) {
     </TooltipProvider>
   );
 }
+// cache-bust-1780475631

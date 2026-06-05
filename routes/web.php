@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WaybillController;
@@ -108,7 +109,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/profile', [SettingsController::class, 'updateProfile'])->name('profile.update');
         Route::patch('/appearance', [SettingsController::class, 'updateAppearance'])->name('appearance.update');
         Route::patch('/password', [SettingsController::class, 'updatePassword'])->name('password.update');
-        Route::post('/printer', [SettingsController::class, 'savePrinterSettings'])->name('printer.save');
+        Route::patch('/system', [SettingsController::class, 'updateSystemSettings'])->name('system.update');
+        Route::post('/roles/permissions', [SettingsController::class, 'updateRolePermissions'])->name('roles.permissions');
 
         Route::post('/users',                      [SettingsController::class, 'storeUser'])->name('users.store');
         Route::patch('/users/{user}',              [SettingsController::class, 'updateUser'])->name('users.update');
@@ -409,4 +411,27 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
     });
+});
+
+// ── CRM ─────────────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'])->prefix('crm')->name('crm.')->group(function () {
+    Route::prefix('contacts')->name('contacts.')->group(function () {
+        Route::get('/',                                    [ThirdPartyController::class, 'index'])->name('index');
+        Route::get('/create',                              [ThirdPartyController::class, 'create'])->name('create');
+        Route::post('/',                                   [ThirdPartyController::class, 'store'])->name('store');
+        Route::get('/{thirdParty}',                        [ThirdPartyController::class, 'show'])->name('show');
+        Route::get('/{thirdParty}/edit',                   [ThirdPartyController::class, 'edit'])->name('edit');
+        Route::patch('/{thirdParty}',                      [ThirdPartyController::class, 'update'])->name('update');
+        Route::delete('/{thirdParty}',                     [ThirdPartyController::class, 'destroy'])->name('destroy');
+        Route::post('/{thirdParty}/contacts',              [ThirdPartyController::class, 'storeContact'])->name('contacts.store');
+        Route::post('/{thirdParty}/addresses',             [ThirdPartyController::class, 'storeAddress'])->name('addresses.store');
+    });
+});
+
+// Admin Dashboard
+Route::middleware(['auth', 'role:superadmin,admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\AdminController::class, 'index'])->name('dashboard');
+    Route::post('/roles/permissions', [\App\Http\Controllers\AdminController::class, 'updateRolePermissions'])->name('roles.permissions');
+    Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleUser'])->name('users.toggle');
+    Route::patch('/users/{user}/role', [\App\Http\Controllers\AdminController::class, 'updateUserRole'])->name('users.role');
 });
