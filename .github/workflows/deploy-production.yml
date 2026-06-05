@@ -35,17 +35,12 @@ jobs:
       - name: Build frontend assets
         if: github.event.inputs.rollback == ''
         run: |
-          # Save public static files before Vite build wipes public/build/
-          # (laravel-vite-plugin clears public/build/ on each build)
-          cp public/index.php /tmp/index.php.bak
-          cp public/robots.txt /tmp/robots.txt.bak 2>/dev/null || true
-          cp public/favicon.ico /tmp/favicon.ico.bak 2>/dev/null || true
           npm ci
           npm run build
-          # Restore static files so nginx (which mounts this workspace) can serve them
-          cp /tmp/index.php.bak public/index.php
-          cp /tmp/robots.txt.bak public/robots.txt 2>/dev/null || true
-          cp /tmp/favicon.ico.bak public/favicon.ico 2>/dev/null || true
+          # public/index.php is not tracked in git — restore from /opt/warehouseops/public/
+          # The nginx container mounts this workspace as /var/www/html, so index.php
+          # must exist here or nginx returns 403 (directory listing forbidden).
+          rsync -a --exclude='build/' /opt/warehouseops/public/ public/
           echo "public/ after restore:"
           ls -la public/
 
