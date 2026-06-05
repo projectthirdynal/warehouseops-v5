@@ -17,6 +17,11 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Fix workspace permissions
+        run: |
+          # GitHub Actions checkout fails if root-owned files exist from prior sudo/docker cp
+          sudo chown -R $(whoami):$(whoami) $GITHUB_WORKSPACE 2>/dev/null || true
+
       - name: Checkout code
         uses: actions/checkout@v4
 
