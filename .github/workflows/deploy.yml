@@ -26,10 +26,11 @@ jobs:
       - name: Build frontend assets
         run: |
           npm run build
-          # public/index.php is not in git — copy from /opt/warehouseops/public/ (the stable source).
-          # The nginx container mounts this workspace as /var/www/html; without index.php
-          # nginx returns 403 (directory listing forbidden).
-          mkdir -p public
+          # Copy the Vite build output to /opt/warehouseops/public/build/
+          # (app container mounts /opt/warehouseops so no docker cp needed)
+          sudo cp -rf public/build/ /opt/warehouseops/public/build/
+          # Also copy into workspace so nginx container (which mounts workspace) can serve them
+          # public/index.php is not in git — copy from stable /opt/warehouseops/public/
           cp -f /opt/warehouseops/public/index.php public/index.php
           cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
           cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
@@ -52,6 +53,12 @@ jobs:
             --exclude='public/robots.txt' \
             --exclude='public/images/' \
             ./ /opt/warehouseops/
+
+      - name: Reload build in nginx
+        run: |
+          # Ensure nginx workspace public/ has index.php (in case it was lost)
+          cp -f /opt/warehouseops/public/index.php $GITHUB_WORKSPACE/public/index.php
+          ls -la $GITHUB_WORKSPACE/public/
 
       - name: Install Composer dependencies
         run: |
