@@ -134,6 +134,8 @@ const navigation: NavEntry[] = [
       { name: 'Finance Overview',  href: '/finance',                icon: BarChart3 },
       { name: 'QuickBooks',        href: '/finance/quickbooks',     icon: Building2 },
       { name: 'Cost of Goods',     href: '/finance/cost-of-goods',  icon: Package },
+      { name: 'Invoices',            href: '/finance/invoices',       icon: FileText },
+      { name: 'Supplier Invoices',   href: '/finance/supplier-invoices', icon: Building2 },
     ],
   },
   { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ROLES },

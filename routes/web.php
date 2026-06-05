@@ -20,6 +20,8 @@ use App\Http\Controllers\ReturnReceiptController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\Finance\InvoiceController;
+use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
@@ -235,6 +237,34 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::get('/accounts',            [QuickBooksController::class, 'accounts'])->name('accounts');
             Route::get('/mappings',            [QuickBooksController::class, 'mappings'])->name('mappings.index');
             Route::post('/mappings',           [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
+        });
+
+        // Invoices
+        Route::prefix('invoices')->name('invoices.')->group(function () {
+            Route::get('/',                          [InvoiceController::class, 'index'])->name('index');
+            Route::get('/create',                    [InvoiceController::class, 'create'])->name('create');
+            Route::post('/',                         [InvoiceController::class, 'store'])->name('store');
+            Route::get('/{invoice}',                 [InvoiceController::class, 'show'])->name('show');
+            Route::patch('/{invoice}',               [InvoiceController::class, 'update'])->name('update');
+            Route::post('/{invoice}/validate',       [InvoiceController::class, 'validateInvoice'])->name('validate');
+            Route::post('/{invoice}/send',          [InvoiceController::class, 'send'])->name('send');
+            Route::post('/{invoice}/cancel',        [InvoiceController::class, 'cancel'])->name('cancel');
+
+            // Lines
+            Route::post('/{invoice}/lines',          [InvoiceController::class, 'storeLine'])->name('lines.store');
+            Route::delete('/{invoice}/lines/{line}', [InvoiceController::class, 'destroyLine'])->name('lines.destroy');
+
+            // Payments
+            Route::post('/{invoice}/payments',       [InvoiceController::class, 'storePayment'])->name('payments.store');
+        });
+
+        // Supplier Invoices
+        Route::prefix('supplier-invoices')->name('supplier-invoices.')->group(function () {
+            Route::get('/',                                  [SupplierInvoiceController::class, 'index'])->name('index');
+            Route::post('/',                                 [SupplierInvoiceController::class, 'store'])->name('store');
+            Route::get('/{invoice}',                         [SupplierInvoiceController::class, 'show'])->name('show');
+            Route::post('/{invoice}/validate',              [SupplierInvoiceController::class, 'validateInvoice'])->name('validate');
+            Route::post('/{invoice}/cancel',                [SupplierInvoiceController::class, 'cancel'])->name('cancel');
         });
 
         Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
