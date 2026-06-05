@@ -107,7 +107,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
                 $batchData[] = $data;
                 $this->successCount++;
 
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->errors[] = [
                     'row' => $index + 2,
                     'error' => $e->getMessage(),

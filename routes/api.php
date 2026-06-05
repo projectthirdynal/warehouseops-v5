@@ -4,6 +4,7 @@ use App\Domain\Courier\Http\Controllers\CourierWebhookController;
 use App\Domain\Shop\Http\Controllers\MetaWebhookController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\DesktopApiController;
+use App\Http\Controllers\WaybillStreamingImportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('leads/{lead}', [AgentLeadController::class, 'show']);
         Route::post('leads/{lead}/call', [AgentLeadController::class, 'call']);
         Route::post('leads/{lead}/outcome', [AgentLeadController::class, 'outcome']);
+    });
+
+    // Streaming waybill import routes
+    Route::prefix('waybills/streaming')->group(function () {
+        Route::post('initiate', [WaybillStreamingImportController::class, 'initiate']);
+        Route::post('{upload}/chunk', [WaybillStreamingImportController::class, 'uploadChunk']);
+        Route::get('{upload}/progress', [WaybillStreamingImportController::class, 'progress']);
+        Route::post('{upload}/cancel', [WaybillStreamingImportController::class, 'cancel']);
     });
 });
 

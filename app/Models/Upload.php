@@ -12,11 +12,14 @@ class Upload extends Model
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'filename',
         'original_filename',
+        'file_path',
         'type',
         'courier',
         'import_type',
+        'auto_import',
         'total_rows',
         'processed_rows',
         'success_rows',
@@ -24,8 +27,11 @@ class Upload extends Model
         'inserted_rows',
         'updated_rows',
         'skipped_rows',
+        'total_chunks',
+        'processed_chunks',
         'status',
         'errors',
+        'metadata',
         'file_hash',
         'uploaded_by',
         'started_at',
@@ -34,6 +40,8 @@ class Upload extends Model
 
     protected $casts = [
         'errors' => 'array',
+        'metadata' => 'array',
+        'auto_import' => 'boolean',
         'total_rows' => 'integer',
         'processed_rows' => 'integer',
         'success_rows' => 'integer',
@@ -41,6 +49,8 @@ class Upload extends Model
         'inserted_rows' => 'integer',
         'updated_rows' => 'integer',
         'skipped_rows' => 'integer',
+        'total_chunks' => 'integer',
+        'processed_chunks' => 'integer',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
@@ -52,6 +62,10 @@ class Upload extends Model
     public const STATUS_QUEUED = 'queued';
     public const STATUS_VALIDATING = 'validating';
     public const STATUS_VALIDATION_FAILED = 'validation_failed';
+    public const STATUS_VALIDATED = 'validated';
+    public const STATUS_TRANSFORMING = 'transforming';
+    public const STATUS_READY_TO_IMPORT = 'ready_to_import';
+    public const STATUS_IMPORTING = 'importing';
     public const STATUS_READY_TO_PROCESS = 'ready_to_process';
     public const STATUS_COMPLETED_WITH_ERRORS = 'completed_with_errors';
     public const STATUS_CANCELLED = 'cancelled';
@@ -64,6 +78,11 @@ class Upload extends Model
     public function waybills(): HasMany
     {
         return $this->hasMany(Waybill::class);
+    }
+
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(ImportChunk::class);
     }
 
     public function markAsProcessing(): void

@@ -20,12 +20,13 @@ class JntWaybillFastImport
     protected int $insertedCount = 0;
     protected int $updatedCount = 0;
     protected int $skippedCount = 0;
-    // PostgreSQL has a 65535 bind parameter limit per query.
-    // ALL_COLUMNS has 36 fields → 65535 / 36 ≈ 1820 max rows per upsert.
-    // Use 1500 to leave headroom and still get good throughput.
-    protected int $batchSize = 1500;
+    protected int $batchSize;
     protected int $batchCount = 0; // batches flushed so far
     protected ?\App\Domain\Courier\Services\StatusMapper $statusMapper = null;
+    
+    // Limit error collection to prevent memory exhaustion on large files with many errors
+    protected const MAX_ERRORS_COLLECTED = 1000;
+    protected const MAX_ERRORS_RETURNED = 100;
 
     protected const COLUMN_MAP = [
         'waybill_number' => ['waybill_number', 'waybill number', 'Waybill Number'],
@@ -79,6 +80,11 @@ class JntWaybillFastImport
     {
         $this->upload = $upload;
         $this->userId = $userId;
+        
+        // PostgreSQL has a 65535 bind parameter limit per query.
+        // Calculate safe batch size: 65000 / column_count, leaving 535 params as safety margin
+        $columnCount = count(self::ALL_COLUMNS);
+        $this->batchSize = (int) floor(65000 / $columnCount);
     }
 
     public function import(string $filePath): void
@@ -104,7 +110,10 @@ class JntWaybillFastImport
                     $this->successCount++;
                 }
             } catch (\Throwable $e) {
-                $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+                // Limit error collection to prevent memory exhaustion
+                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                    $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+                }
                 $this->errorCount++;
             }
 
@@ -130,7 +139,7 @@ class JntWaybillFastImport
                     'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
                     'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
                     'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                    'total_rows'     => $rowNumber,
+                    'total_rows'     => DB::raw("GREATEST(total_rows, {$rowNumber})"),
                 ]);
             }
         });
@@ -138,21 +147,23 @@ class JntWaybillFastImport
         if (!empty($batch)) {
             $flushed = count($batch);
             $counts = $this->bulkUpsert($batch);
+            $totalRows = $this->successCount + $this->errorCount;
             DB::table('uploads')->where('id', $this->upload->id)->update([
                 'success_rows'   => DB::raw("success_rows + {$flushed}"),
                 'processed_rows' => DB::raw("processed_rows + {$flushed}"),
                 'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
                 'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
                 'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                'total_rows'     => $this->successCount + $this->errorCount,
+                'total_rows'     => DB::raw("GREATEST(total_rows, {$totalRows})"),
             ]);
         }
 
         // Final totals
+        $finalTotal = $this->successCount + $this->errorCount;
         DB::table('uploads')->where('id', $this->upload->id)->update([
             'error_rows'     => $this->errorCount,
-            'processed_rows' => $this->successCount + $this->errorCount,
-            'total_rows'     => $this->successCount + $this->errorCount,
+            'processed_rows' => DB::raw("GREATEST(processed_rows, {$finalTotal})"),
+            'total_rows'     => DB::raw("GREATEST(total_rows, {$finalTotal})"),
         ]);
     }
 
@@ -352,7 +363,7 @@ class JntWaybillFastImport
 
     public function getErrors(): array
     {
-        return array_slice($this->errors, 0, 100);
+        return array_slice($this->errors, 0, self::MAX_ERRORS_RETURNED);
     }
 
     public function getInsertedCount(): int

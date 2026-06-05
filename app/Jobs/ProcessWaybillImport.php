@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
+use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Upload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
