@@ -12,9 +12,14 @@ class EnsureRole
     {
         $user = $request->user();
 
-        if (!$user || !in_array($user->role, $roles)) {
+        // No user at all — let the auth middleware handle the redirect to /login
+        if (!$user) {
+            return $next($request);
+        }
+
+        if (!in_array($user->role, $roles)) {
             // Redirect agents to their portal instead of showing 403
-            if ($user && $user->role === 'agent') {
+            if ($user->role === 'agent') {
                 return redirect()->route('agent.leads');
             }
 
