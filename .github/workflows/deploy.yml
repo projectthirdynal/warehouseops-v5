@@ -24,7 +24,18 @@ jobs:
         run: npm ci
 
       - name: Build frontend assets
-        run: npm run build
+        run: |
+          # Backup public static files — npm build wipes public/build/ but
+          # the nginx container mounts this workspace so index.php must persist
+          cp public/index.php /tmp/index.php.bak
+          cp public/robots.txt /tmp/robots.txt.bak 2>/dev/null || true
+          cp public/favicon.ico /tmp/favicon.ico.bak 2>/dev/null || true
+          npm run build
+          # Restore static files immediately after build
+          cp /tmp/index.php.bak public/index.php
+          cp /tmp/robots.txt.bak public/robots.txt 2>/dev/null || true
+          cp /tmp/favicon.ico.bak public/favicon.ico 2>/dev/null || true
+          echo 'public/ after restore:' && ls -la public/
 
       # Sync checked-out code + built assets to the live app directory.
       # Excludes .env (managed on server) and build artifacts managed by Docker.
@@ -38,6 +49,10 @@ jobs:
             --exclude='storage/app/' \
             --exclude='storage/logs/' \
             --exclude='storage/framework/' \
+            --exclude='public/index.php' \
+            --exclude='public/favicon.ico' \
+            --exclude='public/robots.txt' \
+            --exclude='public/images/' \
             ./ /opt/warehouseops/
 
       - name: Install Composer dependencies

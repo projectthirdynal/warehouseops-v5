@@ -1,9 +1,9 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   ArrowLeft, Pencil, Plus, MapPin, Phone, Mail, Globe,
   Building2, ShieldAlert, Users, Package, CreditCard, FileText,
-  Star, Trash2,
+  Star,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { useForm } from '@inertiajs/react';
 
 interface Contact {
