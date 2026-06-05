@@ -79,9 +79,18 @@ jobs:
             --exclude='storage/framework/' \
             ./ "$APP_DIR"/
 
-      - name: Copy build to container
+      - name: Copy public assets to containers
         if: github.event.inputs.rollback == ''
         run: |
+          # The nginx container mounts $GITHUB_WORKSPACE as /var/www/html.
+          # After `npm run build`, public/ only contains build/ — index.php and other
+          # static files are wiped. Restore them from /opt/warehouseops.
+          sudo rsync -a \
+            --exclude='build/' \
+            /opt/warehouseops/public/ "$GITHUB_WORKSPACE/public/"
+          echo "public/ contents:"
+          ls -la "$GITHUB_WORKSPACE/public/"
+          # Also copy the build/ output into the app container for completeness
           sudo docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
 
       - name: Install Composer dependencies
