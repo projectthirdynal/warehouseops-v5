@@ -35,8 +35,19 @@ jobs:
       - name: Build frontend assets
         if: github.event.inputs.rollback == ''
         run: |
+          # Save public static files before Vite build wipes public/build/
+          # (laravel-vite-plugin clears public/build/ on each build)
+          cp public/index.php /tmp/index.php.bak
+          cp public/robots.txt /tmp/robots.txt.bak 2>/dev/null || true
+          cp public/favicon.ico /tmp/favicon.ico.bak 2>/dev/null || true
           npm ci
           npm run build
+          # Restore static files so nginx (which mounts this workspace) can serve them
+          cp /tmp/index.php.bak public/index.php
+          cp /tmp/robots.txt.bak public/robots.txt 2>/dev/null || true
+          cp /tmp/favicon.ico.bak public/favicon.ico 2>/dev/null || true
+          echo "public/ after restore:"
+          ls -la public/
 
       - name: Back up current production
         run: |
@@ -77,21 +88,20 @@ jobs:
             --exclude='storage/app/' \
             --exclude='storage/logs/' \
             --exclude='storage/framework/' \
+            --exclude='public/index.php' \
+            --exclude='public/favicon.ico' \
+            --exclude='public/robots.txt' \
+            --exclude='public/images/' \
             ./ "$APP_DIR"/
 
-      - name: Copy public assets to containers
+      - name: Copy build to app container
         if: github.event.inputs.rollback == ''
         run: |
-          # The nginx container mounts $GITHUB_WORKSPACE as /var/www/html.
-          # After `npm run build`, public/ only contains build/ — index.php and other
-          # static files are wiped. Restore them from /opt/warehouseops.
-          sudo rsync -a \
-            --exclude='build/' \
-            /opt/warehouseops/public/ "$GITHUB_WORKSPACE/public/"
-          echo "public/ contents:"
-          ls -la "$GITHUB_WORKSPACE/public/"
-          # Also copy the build/ output into the app container for completeness
+          # public/index.php already restored in "Build frontend assets" step above.
+          # Copy the compiled build/ into the app container as well.
           sudo docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
+          echo "public/ final state (served by nginx):"
+          ls -la "$GITHUB_WORKSPACE/public/"
 
       - name: Install Composer dependencies
         run: |
