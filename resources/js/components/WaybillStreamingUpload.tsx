@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { read, utils } from 'xlsx';
 import { router } from '@inertiajs/react';
 
@@ -13,8 +13,6 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [uploadId, setUploadId] = useState<number | null>(null);
-
-  const CHUNK_SIZE = 1000; // Rows per chunk
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
