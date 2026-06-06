@@ -438,6 +438,7 @@ export interface PaginatedResponse<T> {
   total: number;
   from: number;
   to: number;
+  links: { url: string | null; label: string; active: boolean }[];
 }
 
 export interface PageProps {
