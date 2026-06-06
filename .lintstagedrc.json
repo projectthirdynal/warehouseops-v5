@@ -1,0 +1,5 @@
+{
+  "resources/js/**/*.{ts,tsx}": ["prettier --write", "eslint --fix"],
+  "app/**/*.php": ["php -l"],
+  "*.{md,yml,yaml,json}": ["prettier --write"]
+}

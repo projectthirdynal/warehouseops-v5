@@ -7,7 +7,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
-    "format": "prettier --write \"resources/js/**/*.{ts,tsx}\""
+    "format": "prettier --write \"resources/js/**/*.{ts,tsx}\"",
+    "prepare": "husky"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -63,9 +64,11 @@
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "husky": "^9.1.7",
     "laravel-vite-plugin": "^1.0.2",
+    "lint-staged": "^17.0.7",
     "postcss": "^8.4.35",
-    "prettier": "^3.2.5",
+    "prettier": "^3.8.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
     "vite": "^5.1.4"
