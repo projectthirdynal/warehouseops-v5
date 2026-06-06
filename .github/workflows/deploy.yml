@@ -40,7 +40,9 @@ jobs:
       # Excludes .env (managed on server) and build artifacts managed by Docker.
       - name: Sync code to app directory
         run: |
-          rsync -av --delete \
+          # Ensure the destination is writable by the runner (fixes root-owned files from Docker)
+          sudo chown -R $(whoami):$(whoami) /opt/warehouseops 2>/dev/null || true
+          sudo rsync -av --delete \
             --exclude='.env' \
             --exclude='.git/' \
             --exclude='node_modules/' \
