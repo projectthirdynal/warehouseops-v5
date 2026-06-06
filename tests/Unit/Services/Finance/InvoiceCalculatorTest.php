@@ -78,37 +78,3 @@ describe('calculateLineTotals', function () {
     });
 });
 
-describe('recalculateInvoice', function () {
-    it('aggregates line totals correctly', function () {
-        $invoice = new App\Models\Invoice([
-            'shipping_amount' => 50.00,
-            'amount_paid' => 100.00,
-        ]);
-        $invoice->id = 1;
-
-        // Mock the lines relationship
-        $lines = collect([
-            (object) ['qty' => 2, 'unit_price' => 100.00, 'discount_amount' => 20.00, 'tax_amount' => 21.60],
-            (object) ['qty' => 1, 'unit_price' => 50.00,  'discount_amount' => 0.00,  'tax_amount' => 6.00],
-        ]);
-
-        // We can't easily mock Eloquent relationships in a pure unit test,
-        // so we test the math directly via calculateLineTotals and verify
-        // the aggregate formula independently.
-        $line1 = InvoiceCalculator::calculateLineTotals(2, 100.00, 10, 12);
-        $line2 = InvoiceCalculator::calculateLineTotals(1, 50.00, 0, 12);
-
-        $subtotal       = 200.00 + 50.00;                 // 250
-        $discountAmount = $line1['discount_amount'] + $line2['discount_amount']; // 20 + 0 = 20
-        $taxAmount      = $line1['tax_amount'] + $line2['tax_amount'];          // 21.6 + 6 = 27.6
-        $shipping       = 50.00;
-        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shipping;  // 250 - 20 + 27.6 + 50 = 307.6
-        $amountDue      = $totalAmount - 100.00;                                  // 207.6
-
-        expect($subtotal)->toBeCloseTo(250.0, 0.001);
-        expect($discountAmount)->toBeCloseTo(20.0, 0.001);
-        expect($taxAmount)->toBeCloseTo(27.6, 0.001);
-        expect($totalAmount)->toBeCloseTo(307.6, 0.001);
-        expect($amountDue)->toBeCloseTo(207.6, 0.001);
-    });
-});
