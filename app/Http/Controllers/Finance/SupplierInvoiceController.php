@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\SupplierInvoice;
 use App\Models\ThirdParty;
+use App\Services\Finance\SupplierInvoiceCalculator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -61,9 +62,11 @@ class SupplierInvoiceController extends Controller
             ? ThirdParty::find($validated['third_party_id'])
             : null;
 
-        $taxRate  = (float) ($validated['tax_rate'] ?? 0);
-        $subtotal = (float) $validated['total_amount'] / (1 + $taxRate / 100);
-        $taxAmount = (float) $validated['total_amount'] - $subtotal;
+        $taxRate = (float) ($validated['tax_rate'] ?? 0);
+        $derived = SupplierInvoiceCalculator::deriveFromTotal(
+            (float) $validated['total_amount'],
+            $taxRate,
+        );
 
         $invoice = SupplierInvoice::create([
             'ref'           => SupplierInvoice::generateRef(),
@@ -76,9 +79,9 @@ class SupplierInvoiceController extends Controller
             'date_invoice'  => $validated['date_invoice'],
             'date_due'      => $validated['date_due'],
             'total_amount'  => $validated['total_amount'],
-            'subtotal'      => $subtotal,
+            'subtotal'      => $derived['subtotal'],
             'tax_rate'      => $taxRate,
-            'tax_amount'    => $taxAmount,
+            'tax_amount'    => $derived['tax_amount'],
             'amount_due'    => $validated['total_amount'],
             'notes'         => $validated['notes'] ?? null,
             'created_by'    => $request->user()->id,
