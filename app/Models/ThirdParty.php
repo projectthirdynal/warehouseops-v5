@@ -149,12 +149,28 @@ class ThirdParty extends Model
 
     public function scopeSearch($query, string $term)
     {
-        return $query->where(function ($q) use ($term) {
-            $q->where('name', 'ilike', "%{$term}%")
-              ->orWhere('alias', 'ilike', "%{$term}%")
-              ->orWhere('phone', 'ilike', "%{$term}%")
-              ->orWhere('email', 'ilike', "%{$term}%")
-              ->orWhere('ref', 'ilike', "%{$term}%");
+        $like = '%' . mb_strtolower($term) . '%';
+
+        return $query->where(function ($q) use ($like) {
+            $q->whereRaw('LOWER(name) LIKE ?', [$like])
+              ->orWhereRaw('LOWER(alias) LIKE ?', [$like])
+              ->orWhereRaw('LOWER(phone) LIKE ?', [$like])
+              ->orWhereRaw('LOWER(email) LIKE ?', [$like])
+              ->orWhereRaw('LOWER(ref) LIKE ?', [$like]);
         });
+    }
+
+    public function getFullAddressAttribute(): ?string
+    {
+        $parts = array_filter([
+            $this->street,
+            $this->barangay,
+            $this->city,
+            $this->state,
+            $this->postal_code,
+            $this->country,
+        ]);
+
+        return $parts ? implode(', ', $parts) : null;
     }
 }

@@ -85,10 +85,12 @@ class Invoice extends Model
 
     public function scopeSearch($q, string $term)
     {
-        return $q->where(function ($sq) use ($term) {
-            $sq->where('ref', 'ilike', "%{$term}%")
-               ->orWhere('client_name', 'ilike', "%{$term}%")
-               ->orWhere('client_email', 'ilike', "%{$term}%");
+        $like = '%' . mb_strtolower($term) . '%';
+
+        return $q->where(function ($sq) use ($like) {
+            $sq->whereRaw('LOWER(ref) LIKE ?', [$like])
+               ->orWhereRaw('LOWER(client_name) LIKE ?', [$like])
+               ->orWhereRaw('LOWER(client_email) LIKE ?', [$like]);
         });
     }
 

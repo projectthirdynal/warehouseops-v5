@@ -77,9 +77,11 @@ class SupplierInvoice extends Model
 
     public function scopeSearch($q, string $term)
     {
-        return $q->where(function ($sq) use ($term) {
-            $sq->where('ref', 'ilike', "%{$term}%")
-               ->orWhere('supplier_name', 'ilike', "%{$term}%");
+        $like = '%' . mb_strtolower($term) . '%';
+
+        return $q->where(function ($sq) use ($like) {
+            $sq->whereRaw('LOWER(ref) LIKE ?', [$like])
+               ->orWhereRaw('LOWER(supplier_name) LIKE ?', [$like]);
         });
     }
 
