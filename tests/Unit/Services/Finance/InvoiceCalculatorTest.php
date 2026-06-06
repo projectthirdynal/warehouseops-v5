@@ -88,7 +88,7 @@ describe('recalculateInvoice', function () {
 
         // Mock the lines relationship
         $lines = collect([
-            (object) ['qty' => 2, 'unit_price' => 100.00, 'discount_amount' => 20.00, 'tax_amount' => 19.20],
+            (object) ['qty' => 2, 'unit_price' => 100.00, 'discount_amount' => 20.00, 'tax_amount' => 21.60],
             (object) ['qty' => 1, 'unit_price' => 50.00,  'discount_amount' => 0.00,  'tax_amount' => 6.00],
         ]);
 
@@ -100,15 +100,15 @@ describe('recalculateInvoice', function () {
 
         $subtotal       = 200.00 + 50.00;                 // 250
         $discountAmount = $line1['discount_amount'] + $line2['discount_amount']; // 20 + 0 = 20
-        $taxAmount      = $line1['tax_amount'] + $line2['tax_amount'];          // 19.2 + 6 = 25.2
+        $taxAmount      = $line1['tax_amount'] + $line2['tax_amount'];          // 21.6 + 6 = 27.6
         $shipping       = 50.00;
-        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shipping;  // 250 - 20 + 25.2 + 50 = 305.2
-        $amountDue      = $totalAmount - 100.00;                                  // 205.2
+        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shipping;  // 250 - 20 + 27.6 + 50 = 307.6
+        $amountDue      = $totalAmount - 100.00;                                  // 207.6
 
         expect($subtotal)->toBe(250.0);
         expect($discountAmount)->toBe(20.0);
-        expect($taxAmount)->toBe(25.2);
-        expect($totalAmount)->toBe(305.2);
-        expect($amountDue)->toBe(205.2);
+        expect($taxAmount)->toBe(27.6);
+        expect($totalAmount)->toBe(307.6);
+        expect($amountDue)->toBe(207.6);
     });
 });
