@@ -1,16 +1,14 @@
-import { Head, useForm, router, usePage } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import type { PageProps } from '@/types';
 import {
-  User, Bell, Shield, Users, Save, Key,
+  User, Bell, Shield, Save, Key,
   CheckCircle,
-  Activity, Mail,
+  Mail,
   Globe, Smartphone, ChevronRight,
-  Sliders, ShieldCheck, Plug,
-  CheckSquare, Square, Clock,
+  Sliders, Plug,
+  CheckSquare, Square,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
-import UserManagementSection from '@/components/admin/UserManagementSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,33 +30,6 @@ interface UserData {
   timezone: string;
 }
 
-interface ManagedUser {
-  id: number;
-  name: string;
-  email: string;
-  phone: string | null;
-  role: string;
-  is_active: boolean;
-  last_login_at: string | null;
-  created_at: string;
-}
-
-interface Permission {
-  id: number;
-  section: string;
-  action: string;
-  label: string;
-  description: string;
-}
-
-interface ActivityLogItem {
-  id: number;
-  user_name: string;
-  action: string;
-  target: string;
-  details: Record<string, unknown> | null;
-  created_at: string;
-}
 
 interface Integration {
   name: string;
@@ -70,11 +41,6 @@ interface Integration {
 interface Props {
   settings: Record<string, string | boolean | number>;
   user: UserData;
-  users?: ManagedUser[];
-  roles?: { value: string; label: string }[];
-  permissions?: Permission[];
-  role_permissions?: Record<string, number>;
-  activity_logs?: ActivityLogItem[];
   system_settings?: Record<string, string>;
   integrations?: Integration[];
 }
@@ -401,78 +367,17 @@ function IntegrationsSection({ integrations = [] }: { integrations?: Integration
   );
 }
 
-/* ─── Activity Log Section ─── */
-function ActivityLogSection({ logs = [] }: { logs?: ActivityLogItem[] }) {
-  const actionColors: Record<string, string> = {
-    create_user: 'bg-blue-100 text-blue-700',
-    update_user: 'bg-amber-100 text-amber-700',
-    toggle_user: 'bg-purple-100 text-purple-700',
-    delete_user: 'bg-red-100 text-red-700',
-    reset_password: 'bg-orange-100 text-orange-700',
-    update_role_permissions: 'bg-cyan-100 text-cyan-700',
-    update_system_settings: 'bg-green-100 text-green-700',
-    update_profile: 'bg-gray-100 text-gray-700',
-    update_password: 'bg-gray-100 text-gray-700',
-  };
-
-  return (
-    <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Recent Activity</CardTitle></CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-3">
-            {logs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No recent activity</div>
-            ) : logs.map(log => (
-              <div key={log.id} className="flex items-start gap-3 rounded-lg border p-3">
-                <div className={cn('mt-0.5 rounded-full p-1.5', actionColors[log.action] ?? 'bg-gray-100 text-gray-700')}>
-                  <Activity className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{log.user_name}</span>
-                    <span className="text-xs text-muted-foreground">{log.action.replace(/_/g, ' ')}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {log.target} · {new Date(log.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
-  );
-}
-
 /* ─── Main Settings Page ─── */
 export default function SettingsPage({
   user,
-  users = [],
-  roles = [],
-  permissions = [],
-  role_permissions = {},
-  activity_logs = [],
   system_settings = {},
   integrations = [],
 }: Props) {
-  const { auth } = usePage<PageProps>().props;
   const [activeTab, setActiveTab] = useState('profile');
-  const [_modalOpen, setModalOpen] = useState(false);
-  const [_editUser, setEditUser] = useState<ManagedUser | null>(null);
-  const [_resetPasswordUser, setResetPasswordUser] = useState<ManagedUser | null>(null);
-
-  const isAdmin = ['superadmin', 'admin'].includes(auth?.user?.role ?? 'agent');
 
   const navItems = [
     { id: 'profile', label: 'Profile', icon: User, desc: 'Personal information' },
     { id: 'security', label: 'Security', icon: Shield, desc: 'Password & policy' },
-    ...(isAdmin ? [
-      { id: 'users', label: 'User Management', icon: Users, desc: 'Users & access' },
-      { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck, desc: 'Access control' },
-      { id: 'activity', label: 'Activity Log', icon: Clock, desc: 'Audit trail' },
-    ] : []),
     { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'Email & SMS' },
     { id: 'system', label: 'System', icon: Sliders, desc: 'General settings' },
     { id: 'integrations', label: 'Integrations', icon: Plug, desc: 'Connected apps' },
@@ -539,24 +444,6 @@ export default function SettingsPage({
 
             {activeTab === 'profile' && <ProfileSection user={user} />}
             {activeTab === 'security' && <SecuritySection />}
-            {activeTab === 'users' && isAdmin && (
-              <>
-                <UserManagementSection
-                  users={users}
-                  currentUserId={user.id}
-                  onCreate={() => { setEditUser(null); setModalOpen(true); }}
-                  onEdit={(u) => { setEditUser(u); setModalOpen(true); }}
-                  onResetPassword={(u) => { if (confirm(`Reset password for "${u.name}"?`)) setResetPasswordUser(u); }}
-                />
-                {/* Modals would go here */}
-              </>
-            )}
-            {activeTab === 'roles' && isAdmin && (
-              <RolesPermissionsSection roles={roles} permissions={permissions} rolePermissions={role_permissions} />
-            )}
-            {activeTab === 'activity' && isAdmin && (
-              <ActivityLogSection logs={activity_logs} />
-            )}
             {activeTab === 'notifications' && <NotificationsSection />}
             {activeTab === 'system' && <SystemSection system_settings={system_settings} />}
             {activeTab === 'integrations' && <IntegrationsSection integrations={integrations} />}

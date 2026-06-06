@@ -17,7 +17,6 @@ class SettingsController extends Controller
     public function index(Request $request)
     {
         $currentUser = $request->user();
-        $canManageUsers = in_array($currentUser->role, ['superadmin', 'admin']);
 
         return Inertia::render('Settings/Index', [
             'settings' => [
@@ -29,35 +28,6 @@ class SettingsController extends Controller
                 'id', 'name', 'email', 'phone', 'role',
                 'theme', 'language', 'timezone',
             ]),
-            'can_manage_users' => $canManageUsers,
-            'users' => $canManageUsers ? User::select('id', 'name', 'email', 'phone', 'role', 'is_active', 'last_login_at', 'created_at')
-                ->orderBy('name')
-                ->get() : [],
-            'roles' => [
-                ['value' => 'superadmin', 'label' => 'Super Admin'],
-                ['value' => 'admin', 'label' => 'Admin'],
-                ['value' => 'supervisor', 'label' => 'Supervisor'],
-                ['value' => 'finance', 'label' => 'Finance'],
-                ['value' => 'accounting', 'label' => 'Accounting'],
-                ['value' => 'warehouse', 'label' => 'Warehouse'],
-                ['value' => 'agent', 'label' => 'Agent'],
-            ],
-            'permissions' => $canManageUsers ? Permission::orderBy('section')->orderBy('key')->get() : [],
-            'role_permissions' => $canManageUsers
-                ? RolePermission::all()->mapWithKeys(fn ($rp) => [
-                    "{$rp->role}_{$rp->permission_id}" => true,
-                ])->toArray()
-                : [],
-            'activity_logs' => $canManageUsers
-                ? ActivityLog::with('user:id,name')->latest()->limit(50)->get()->map(fn ($log) => [
-                    'id' => $log->id,
-                    'user_name' => $log->user?->name ?? 'System',
-                    'action' => $log->action,
-                    'target' => $log->entity_type,
-                    'details' => $log->metadata,
-                    'created_at' => $log->created_at->toIso8601String(),
-                ])
-                : [],
             'system_settings' => [
                 'company_name' => 'TECS Warehouse Operations',
                 'timezone' => 'Asia/Manila',
