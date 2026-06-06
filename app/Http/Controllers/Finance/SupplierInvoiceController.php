@@ -88,22 +88,30 @@ class SupplierInvoiceController extends Controller
             ->with('success', 'Supplier invoice created.');
     }
 
-    public function validateInvoice(SupplierInvoice $invoice)
+    public function validateInvoice(Request $request, SupplierInvoice $invoice)
     {
         if ($invoice->status !== 'DRAFT') {
             return back()->with('error', 'Only drafts can be validated.');
         }
 
-        $invoice->update(['status' => 'VALIDATED']);
+        $invoice->update([
+            'status' => 'VALIDATED',
+            'updated_by' => $request->user()->id,
+        ]);
         return back()->with('success', 'Validated.');
     }
 
     public function cancel(Request $request, SupplierInvoice $invoice)
     {
+        if (in_array($invoice->status, ['PAID', 'PARTIAL'])) {
+            return back()->with('error', 'Cannot cancel a paid or partially paid supplier invoice.');
+        }
+
         $invoice->update([
             'status'        => 'CANCELLED',
             'cancel_reason' => $request->input('reason'),
             'cancelled_at'  => now(),
+            'updated_by'    => $request->user()->id,
         ]);
 
         return redirect()->route('finance.supplier-invoices.index')

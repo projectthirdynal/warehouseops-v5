@@ -147,38 +147,46 @@ class InvoiceController extends Controller
             ->with('success', 'Invoice updated.');
     }
 
-    public function validateInvoice(Invoice $invoice)
+    public function validateInvoice(Request $request, Invoice $invoice)
     {
         if ($invoice->status !== 'DRAFT') {
             return back()->with('error', 'Only draft invoices can be validated.');
         }
 
-        $invoice->update(['status' => 'VALIDATED']);
+        $invoice->update([
+            'status' => 'VALIDATED',
+            'updated_by' => $request->user()->id,
+        ]);
 
         return back()->with('success', 'Invoice validated.');
     }
 
-    public function send(Invoice $invoice)
+    public function send(Request $request, Invoice $invoice)
     {
         if ($invoice->status !== 'VALIDATED') {
             return back()->with('error', 'Invoice must be validated before sending.');
         }
 
-        $invoice->update(['status' => 'SENT', 'date_sent' => now()]);
+        $invoice->update([
+            'status' => 'SENT',
+            'date_sent' => now(),
+            'updated_by' => $request->user()->id,
+        ]);
 
         return back()->with('success', 'Invoice marked as sent.');
     }
 
     public function cancel(Request $request, Invoice $invoice)
     {
-        if ($invoice->status === 'PAID') {
-            return back()->with('error', 'Cannot cancel a fully paid invoice.');
+        if (in_array($invoice->status, ['PAID', 'PARTIAL'])) {
+            return back()->with('error', 'Cannot cancel a paid or partially paid invoice.');
         }
 
         $invoice->update([
             'status'        => 'CANCELLED',
             'cancel_reason' => $request->input('reason'),
             'cancelled_at'  => now(),
+            'updated_by'    => $request->user()->id,
         ]);
 
         return redirect()->route('finance.invoices.index')
@@ -204,14 +212,29 @@ class InvoiceController extends Controller
 
         $position = $validated['position'] ?? ($invoice->lines()->max('position') + 1);
 
+        $qty          = (float) $validated['qty'];
+        $unitPrice    = (float) $validated['unit_price'];
+        $discountPct  = (float) ($validated['discount_pct'] ?? 0);
+        $taxRate      = (float) ($validated['tax_rate'] ?? 0);
+
+        $subtotal       = $qty * $unitPrice;
+        $discountAmount = $subtotal * ($discountPct / 100);
+        $totalHt        = $subtotal - $discountAmount;
+        $taxAmount      = $totalHt * ($taxRate / 100);
+        $totalTtc       = $totalHt + $taxAmount;
+
         InvoiceLine::create([
-            'invoice_id'   => $invoice->id,
-            'position'     => $position,
-            'description'  => $validated['description'],
-            'qty'          => $validated['qty'],
-            'unit_price'   => $validated['unit_price'],
-            'tax_rate'     => $validated['tax_rate'] ?? 0,
-            'discount_pct' => $validated['discount_pct'] ?? 0,
+            'invoice_id'      => $invoice->id,
+            'position'        => $position,
+            'description'     => $validated['description'],
+            'qty'             => $validated['qty'],
+            'unit_price'      => $validated['unit_price'],
+            'tax_rate'        => $taxRate,
+            'discount_pct'    => $discountPct,
+            'discount_amount' => $discountAmount,
+            'tax_amount'      => $taxAmount,
+            'total_ht'        => $totalHt,
+            'total_ttc'       => $totalTtc,
         ]);
 
         $this->recalculate($invoice);
@@ -298,10 +321,12 @@ class InvoiceController extends Controller
     {
         $lines = $invoice->lines()->get();
 
-        $subtotal       = $lines->sum('total_ht');
+        // subtotal = pre-discount sum of qty * unit_price
+        $subtotal = $lines->sum(fn ($line) => (float) $line->qty * (float) $line->unit_price);
         $discountAmount = $lines->sum('discount_amount');
         $taxAmount      = $lines->sum('tax_amount');
-        $totalAmount    = $lines->sum('total_ttc');
+        $shippingAmount = (float) $invoice->shipping_amount;
+        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shippingAmount;
 
         $invoice->update([
             'subtotal'        => $subtotal,
