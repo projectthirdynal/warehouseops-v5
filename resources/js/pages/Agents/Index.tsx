@@ -1,14 +1,12 @@
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import {
   Users,
-  UserPlus,
   Search,
   MoreHorizontal,
   Edit,
   Eye,
   UserX,
-  Trash2,
   UserCheck,
   TrendingUp,
   Clock,
@@ -60,99 +58,6 @@ interface Props {
     inactive: number;
     avg_performance: number;
   };
-}
-
-function AddAgentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data, setData, post, processing, errors, reset } = useForm({
-    name: '',
-    email: '',
-    password: '',
-    phone: '',
-  });
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    post('/agents', {
-      onSuccess: () => {
-        reset();
-        onClose();
-      },
-    });
-  }
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Create Agent Account</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Full Name</label>
-            <input
-              type="text"
-              value={data.name}
-              onChange={e => setData('name', e.target.value)}
-              placeholder="Juan dela Cruz"
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Email Address</label>
-            <input
-              type="email"
-              value={data.email}
-              onChange={e => setData('email', e.target.value)}
-              placeholder="agent@company.com"
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Password</label>
-            <input
-              type="password"
-              value={data.password}
-              onChange={e => setData('password', e.target.value)}
-              placeholder="Min 8 characters"
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Phone <span className="text-muted-foreground">(optional)</span></label>
-            <input
-              type="text"
-              value={data.phone}
-              onChange={e => setData('phone', e.target.value)}
-              placeholder="+63 9XX XXX XXXX"
-              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1" disabled={processing}>
-              {processing ? 'Creating...' : 'Create Account'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open: boolean; onClose: () => void }) {
@@ -287,7 +192,6 @@ function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open:
 export default function AgentsIndex({ agents, stats }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
 
   const filteredAgents = agents?.filter(agent => {
@@ -307,17 +211,11 @@ export default function AgentsIndex({ agents, stats }: Props) {
     router.patch(`/agents/${agent.id}/toggle-active`);
   }
 
-  function deleteAgent(agent: Agent) {
-    if (confirm(`Delete agent ${agent.name}? This cannot be undone.`)) {
-      router.post(`/agents/${agent.id}/delete`);
-    }
-  }
 
   return (
     <AppLayout>
       <Head title="Agents" />
 
-      <AddAgentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
       <EditProfileModal agent={editingAgent} open={editingAgent !== null} onClose={() => setEditingAgent(null)} />
 
       <div className="space-y-6">
@@ -326,13 +224,9 @@ export default function AgentsIndex({ agents, stats }: Props) {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Agent Management</h1>
             <p className="text-muted-foreground">
-              Manage team members and monitor performance
+              Monitor team performance and agent activity. To create or manage user accounts, use the <strong>Admin</strong> section.
             </p>
           </div>
-          <Button onClick={() => setShowAddModal(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Agent
-          </Button>
         </div>
 
         {/* Stats */}
@@ -446,14 +340,6 @@ export default function AgentsIndex({ agents, stats }: Props) {
                             </>
                           )}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => deleteAgent(agent)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -548,10 +434,9 @@ export default function AgentsIndex({ agents, stats }: Props) {
                   {search || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first agent to get started'}
                 </p>
                 {!search && statusFilter === 'all' && (
-                  <Button className="mt-4" onClick={() => setShowAddModal(true)}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add First Agent
-                  </Button>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Go to <strong>Admin &gt; User Management</strong> to create agent accounts.
+                  </p>
                 )}
               </CardContent>
             </Card>
