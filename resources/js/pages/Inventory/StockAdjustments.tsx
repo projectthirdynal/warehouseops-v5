@@ -109,7 +109,7 @@ export default function StockAdjustments({
       <div className="space-y-5 p-6">
 
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Stock Adjustments</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -240,7 +240,7 @@ export default function StockAdjustments({
                       {adj.reason_code.replace(/_/g, ' ')}
                     </span>
                     {adj.reason_notes && (
-                      <div className="mt-0.5 max-w-[180px] truncate text-xs text-muted-foreground">{adj.reason_notes}</div>
+                      <div className="mt-0.5 max-w-[180px] line-clamp-2 text-xs text-muted-foreground">{adj.reason_notes}</div>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{adj.quantity_before}</TableCell>

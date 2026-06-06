@@ -1,0 +1,254 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers;
+
+use App\Domain\Inventory\Models\Supply;
+use App\Domain\Inventory\Models\SupplyStock;
+use App\Domain\Inventory\Models\UnitOfMeasure;
+use App\Domain\Inventory\Models\Warehouse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class SupplyController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $supplies = Supply::query()
+            ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
+            ->when($request->search, function ($query, string $search): void {
+                $query->where(function ($inner) use ($search): void {
+                    $inner->where('sku', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->category, fn ($query, string $category) => $query->where('category', $category))
+            ->when($request->status === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($request->status === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->orderBy('name')
+            ->paginate(25)
+            ->withQueryString();
+
+        $lowStock = SupplyStock::query()
+            ->where('reorder_point', '>', 0)
+            ->whereRaw('(current_stock - reserved_stock) <= reorder_point')
+            ->count();
+
+        $recentMovements = DB::table('supply_movements as sm')
+            ->leftJoin('supplies as s', 's.id', '=', 'sm.supply_id')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
+            ->leftJoin('users as u', 'u.id', '=', 'sm.performed_by')
+            ->select([
+                'sm.id',
+                'sm.type',
+                'sm.quantity',
+                'sm.batch_number',
+                'sm.notes',
+                'sm.created_at',
+                's.id as supply_id',
+                's.sku as supply_sku',
+                's.name as supply_name',
+                'w.id as warehouse_id',
+                'w.name as warehouse_name',
+                'w.code as warehouse_code',
+                'u.id as performer_id',
+                'u.name as performer_name',
+            ])
+            ->latest('sm.created_at')
+            ->limit(15)
+            ->get()
+            ->map(fn ($movement) => [
+                'id' => $movement->id,
+                'type' => $movement->type,
+                'quantity' => (int) $movement->quantity,
+                'batch_number' => $movement->batch_number,
+                'notes' => $movement->notes,
+                'created_at' => $movement->created_at,
+                'supply' => $movement->supply_id ? [
+                    'id' => $movement->supply_id,
+                    'sku' => $movement->supply_sku,
+                    'name' => $movement->supply_name,
+                ] : null,
+                'warehouse' => $movement->warehouse_id ? [
+                    'id' => $movement->warehouse_id,
+                    'name' => $movement->warehouse_name,
+                    'code' => $movement->warehouse_code,
+                ] : null,
+                'performer' => $movement->performer_id ? [
+                    'id' => $movement->performer_id,
+                    'name' => $movement->performer_name,
+                ] : null,
+            ]);
+
+        return Inertia::render('Inventory/Supplies/Index', [
+            'supplies' => $supplies,
+            'stats' => [
+                'total' => Supply::count(),
+                'active' => Supply::where('is_active', true)->count(),
+                'low_stock' => $lowStock,
+                'categories' => Supply::query()
+                    ->whereNotNull('category')
+                    ->where('category', '!=', '')
+                    ->distinct()
+                    ->orderBy('category')
+                    ->pluck('category')
+                    ->values(),
+            ],
+            'filters' => $request->only(['search', 'category', 'status']),
+            'uoms' => UnitOfMeasure::where('is_active', true)->orderBy('name')->get(['id', 'name', 'abbreviation']),
+            'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
+            'recent_movements' => $recentMovements,
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $this->validatedSupply($request);
+        $initialStock = (int) $request->input('initial_stock', 0);
+        $warehouseId = $this->warehouseId($request);
+
+        DB::transaction(function () use ($data, $initialStock, $warehouseId, $request): void {
+            $supply = Supply::create($data);
+
+            if ($initialStock > 0 || $warehouseId !== null) {
+                SupplyStock::create([
+                    'supply_id' => $supply->id,
+                    'warehouse_id' => $warehouseId,
+                    'location_id' => null,
+                    'current_stock' => $initialStock,
+                    'reserved_stock' => 0,
+                    'reorder_point' => $supply->reorder_point,
+                    'last_restock_at' => $initialStock > 0 ? now() : null,
+                ]);
+            }
+
+            if ($initialStock > 0) {
+                $this->recordMovement($supply->id, $warehouseId, 'STOCK_IN', $initialStock, 'Initial stock', $request->user()?->id);
+            }
+        });
+
+        return back()->with('success', 'Material created.');
+    }
+
+    public function update(Request $request, Supply $supply): RedirectResponse
+    {
+        $supply->update($this->validatedSupply($request, $supply));
+
+        return back()->with('success', 'Material updated.');
+    }
+
+    public function destroy(Supply $supply): RedirectResponse
+    {
+        $supply->delete();
+
+        return back()->with('success', 'Material removed.');
+    }
+
+    public function adjustStock(Request $request, Supply $supply): RedirectResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'in:stock_in,stock_out,adjustment'],
+            'quantity' => ['required', 'integer', 'min:0'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $warehouseId = $this->warehouseId($request);
+        $quantity = (int) $data['quantity'];
+
+        DB::transaction(function () use ($supply, $warehouseId, $quantity, $data, $request): void {
+            $stock = SupplyStock::firstOrCreate(
+                ['supply_id' => $supply->id, 'warehouse_id' => $warehouseId, 'location_id' => null],
+                ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => $supply->reorder_point]
+            );
+
+            $before = (int) $stock->current_stock;
+            $movementType = 'ADJUSTMENT';
+            $movementQuantity = 0;
+
+            if ($data['type'] === 'stock_in') {
+                $stock->current_stock = $before + $quantity;
+                $stock->last_restock_at = now();
+                $movementType = 'STOCK_IN';
+                $movementQuantity = $quantity;
+            } elseif ($data['type'] === 'stock_out') {
+                if ($quantity > $before - (int) $stock->reserved_stock) {
+                    abort(422, 'Insufficient material stock.');
+                }
+                $stock->current_stock = $before - $quantity;
+                $movementType = 'STOCK_OUT';
+                $movementQuantity = -$quantity;
+            } else {
+                $stock->current_stock = $quantity;
+                $movementQuantity = $quantity - $before;
+            }
+
+            $stock->save();
+
+            if ($movementQuantity !== 0 || $data['type'] === 'adjustment') {
+                $this->recordMovement(
+                    $supply->id,
+                    $warehouseId,
+                    $movementType,
+                    $movementQuantity,
+                    $data['notes'] ?? null,
+                    $request->user()?->id
+                );
+            }
+        });
+
+        return back()->with('success', 'Material stock updated.');
+    }
+
+    private function validatedSupply(Request $request, ?Supply $supply = null): array
+    {
+        $id = $supply?->id;
+
+        return $request->validate([
+            'sku' => ['required', 'string', 'max:60', 'unique:supplies,sku,' . ($id ?? 'NULL')],
+            'name' => ['required', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'uom_id' => ['nullable', 'integer', 'exists:units_of_measure,id'],
+            'cost_price' => ['required', 'numeric', 'min:0'],
+            'min_stock_level' => ['nullable', 'integer', 'min:0'],
+            'reorder_point' => ['nullable', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
+        ]);
+    }
+
+    private function warehouseId(Request $request): ?int
+    {
+        if ($request->filled('warehouse_id')) {
+            return (int) $request->input('warehouse_id');
+        }
+
+        return Warehouse::default()?->id;
+    }
+
+    private function recordMovement(
+        int $supplyId,
+        ?int $warehouseId,
+        string $type,
+        int $quantity,
+        ?string $notes,
+        ?int $performedBy
+    ): void {
+        DB::table('supply_movements')->insert([
+            'supply_id' => $supplyId,
+            'type' => $type,
+            'quantity' => $quantity,
+            'warehouse_id' => $warehouseId,
+            'location_id' => null,
+            'to_location_id' => null,
+            'notes' => $notes,
+            'performed_by' => $performedBy,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+}

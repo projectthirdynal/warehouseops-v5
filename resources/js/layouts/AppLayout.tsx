@@ -50,6 +50,7 @@ import type { PageProps } from '@/types';
 const ALL_STAFF = ['superadmin','admin','supervisor','finance','accounting','warehouse','agent'];
 const ADMIN_ONLY = ['superadmin','admin'];
 const OPS_ROLES = ['superadmin','admin','supervisor','warehouse'];
+const INVENTORY_MATERIAL_ROLES = ['superadmin','admin','supervisor','warehouse','finance','accounting'];
 const AGENT_ONLY = ['agent'];
 
 interface NavItem {
@@ -115,27 +116,27 @@ const navigation: NavEntry[] = [
   {
     name: 'Inventory',
     icon: WarehouseIcon,
-    roles: OPS_ROLES,
+    roles: INVENTORY_MATERIAL_ROLES,
     children: [
-      { name: 'Stock', divider: true, href: '', icon: () => null },
-      { name: 'Dashboard',         href: '/inventory',              icon: BarChart3 },
-      { name: 'Movements',         href: '/inventory/movements',    icon: Recycle },
-      { name: 'Stock Adjustments', href: '/inventory/adjustments',  icon: ClipboardCheck },
-      { name: 'Supplies',          href: '/inventory/supplies',     icon: Package },
-      { name: 'Catalog', divider: true, href: '', icon: () => null },
-      { name: 'Products',          href: '/products',               icon: Package },
-      { name: 'Warehouses',        href: '/warehouses',             icon: Building2 },
-      { name: 'Procurement', divider: true, href: '', icon: () => null },
-      { name: 'Suppliers',         href: '/procurement/suppliers',  icon: Building2 },
-      { name: 'Purchase Requests', href: '/procurement/requests',   icon: FileText },
-      { name: 'Purchase Orders',   href: '/procurement/orders',     icon: ShoppingCart },
-      { name: 'Receiving (Goods Receipt)', href: '/procurement/receiving', icon: PackageCheck },
-      { name: 'Finance', divider: true, href: '', icon: () => null },
-      { name: 'Finance Overview',  href: '/finance',                icon: BarChart3 },
-      { name: 'QuickBooks',        href: '/finance/quickbooks',     icon: Building2 },
-      { name: 'Cost of Goods',     href: '/finance/cost-of-goods',  icon: Package },
-      { name: 'Invoices',            href: '/finance/invoices',       icon: FileText },
-      { name: 'Supplier Invoices',   href: '/finance/supplier-invoices', icon: Building2 },
+      { name: 'Stock', divider: true, href: '', icon: () => null, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Dashboard',         href: '/inventory',              icon: BarChart3, roles: OPS_ROLES },
+      { name: 'Movements',         href: '/inventory/movements',    icon: Recycle, roles: OPS_ROLES },
+      { name: 'Stock Adjustments', href: '/inventory/adjustments',  icon: ClipboardCheck, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Supplies',          href: '/inventory/supplies',     icon: Package, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Catalog', divider: true, href: '', icon: () => null, roles: OPS_ROLES },
+      { name: 'Products',          href: '/products',               icon: Package, roles: OPS_ROLES },
+      { name: 'Warehouses',        href: '/warehouses',             icon: Building2, roles: OPS_ROLES },
+      { name: 'Procurement', divider: true, href: '', icon: () => null, roles: OPS_ROLES },
+      { name: 'Suppliers',         href: '/procurement/suppliers',  icon: Building2, roles: OPS_ROLES },
+      { name: 'Purchase Requests', href: '/procurement/requests',   icon: FileText, roles: OPS_ROLES },
+      { name: 'Purchase Orders',   href: '/procurement/orders',     icon: ShoppingCart, roles: OPS_ROLES },
+      { name: 'Receiving (Goods Receipt)', href: '/procurement/receiving', icon: PackageCheck, roles: OPS_ROLES },
+      { name: 'Finance', divider: true, href: '', icon: () => null, roles: ['superadmin','admin','finance','accounting'] },
+      { name: 'Finance Overview',  href: '/finance',                icon: BarChart3, roles: ['superadmin','admin','finance','accounting'] },
+      { name: 'QuickBooks',        href: '/finance/quickbooks',     icon: Building2, roles: ['superadmin','admin','finance','accounting'] },
+      { name: 'Cost of Goods',     href: '/finance/cost-of-goods',  icon: Package, roles: ['superadmin','admin','finance','accounting'] },
+      { name: 'Invoices',            href: '/finance/invoices',       icon: FileText, roles: ['superadmin','admin','finance','accounting'] },
+      { name: 'Supplier Invoices',   href: '/finance/supplier-invoices', icon: Building2, roles: ['superadmin','admin','finance','accounting'] },
     ],
   },
   { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ROLES },
@@ -147,7 +148,9 @@ const bottomNav: NavItem[] = [
 ];
 
 export default function AppLayout({ children }: PropsWithChildren) {
-  const { auth } = usePage<PageProps>().props;
+  type SharedUser = PageProps['auth']['user'];
+  const page = usePage<PageProps & { user?: SharedUser }>().props;
+  const authUser = page.auth?.user ?? page.user ?? null;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -167,7 +170,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   }, [currentPath]);
 
   useEffect(() => {
-    const theme = auth?.user?.theme ?? 'light';
+    const theme = authUser?.theme ?? 'light';
     const html = document.documentElement;
     if (theme === 'dark') {
       html.classList.add('dark');
@@ -177,15 +180,25 @@ export default function AppLayout({ children }: PropsWithChildren) {
     } else {
       html.classList.remove('dark');
     }
-  }, [auth?.user?.theme]);
+  }, [authUser?.theme]);
 
-  const userRole = auth?.user?.role ?? 'agent';
+  const userRole = authUser?.role ?? null;
 
   const canSee = (entry: NavEntry) => {
     const allowed = isNavGroup(entry) ? entry.roles : entry.roles;
     if (!allowed || allowed.length === 0) return true;
+    if (!userRole) return false;
     return allowed.includes(userRole);
   };
+
+  const canSeeNavItem = (item: NavItem) => {
+    if (!item.roles || item.roles.length === 0) return true;
+    if (!userRole) return false;
+    return item.roles.includes(userRole);
+  };
+
+  const visibleChildren = (group: NavGroup) =>
+    group.children.filter((child) => canSeeNavItem(child));
 
   const isActive = (href: string) => {
     if (href === '/') return currentPath === '/';
@@ -194,7 +207,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   };
 
   const isGroupActive = (group: NavGroup) =>
-    group.children.some((child) => isActive(child.href));
+    visibleChildren(group).some((child) => child.href && isActive(child.href));
 
   const toggleGroup = (name: string) =>
     setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -257,12 +270,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
     const open = openGroups[group.name] ?? false;
 
     if (collapsed) {
+      const firstVisibleChild = visibleChildren(group).find((child) => !child.divider);
       // Show group icon as a tooltip trigger, clicking navigates to first child
       return (
         <Tooltip key={group.name}>
           <TooltipTrigger asChild>
             <Link
-              href={group.children[0]?.href ?? '/'}
+              href={firstVisibleChild?.href ?? '/'}
               className={cn(
                 'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
@@ -299,7 +313,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </button>
         {open && (
           <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-            {group.children.map((child) => {
+            {visibleChildren(group).map((child) => {
               if (child.divider) {
                 return (
                   <div key={child.name} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
@@ -449,18 +463,18 @@ export default function AppLayout({ children }: PropsWithChildren) {
               )}
             >
               <Avatar className="h-8 w-8">
-                <AvatarImage src={auth?.user?.avatar_url} />
+                <AvatarImage src={authUser?.avatar_url} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {auth?.user?.name ? getInitials(auth.user.name) : 'U'}
+                  {authUser?.name ? getInitials(authUser.name) : 'U'}
                 </AvatarFallback>
               </Avatar>
               {!collapsed && (
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-sidebar-foreground truncate">
-                    {auth?.user?.name || 'User'}
+                    {authUser?.name || 'User'}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {auth?.user?.role || 'Agent'}
+                    {authUser?.role || 'No role'}
                   </p>
                 </div>
               )}

@@ -36,7 +36,7 @@ class HandleInertiaRequests extends Middleware
                         'id' => $user->id,
                         'name' => $user->name,
                         'email' => $user->email,
-                        'role' => $user->role ?? 'agent',
+                        'role' => $user->role,
                         'is_active' => $user->is_active ?? true,
                         'theme' => $user->theme ?? 'light',
                         'avatar_url' => $user->avatar_url ?? null,

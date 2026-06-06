@@ -3,6 +3,10 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -775,7 +779,7 @@ export default function InventoryDashboard({
                 <Warehouse className="h-4 w-4 text-muted-foreground" />
                 Stock by Warehouse
               </CardTitle>
-              <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
+              <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-primary hover:underline">
                 Manage <ArrowRight className="h-3 w-3" />
               </Link>
             </CardHeader>
@@ -891,29 +895,30 @@ export default function InventoryDashboard({
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">Reason</label>
-                  <select
-                    value={adjustReason}
-                    onChange={(e) => setAdjustReason(e.target.value)}
-                    className="h-8 w-full rounded border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="CYCLE_COUNT">Cycle Count</option>
-                    <option value="PHYSICAL_COUNT">Physical Count</option>
-                    <option value="DAMAGE">Damage</option>
-                    <option value="THEFT">Theft</option>
-                    <option value="RETURN_TO_STOCK">Return to Stock</option>
-                    <option value="SYSTEM_ERROR">System Error</option>
-                    <option value="OTHER">Other</option>
-                  </select>
+                  <Select value={adjustReason} onValueChange={setAdjustReason}>
+                    <SelectTrigger className="h-8 w-full text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CYCLE_COUNT">Cycle Count</SelectItem>
+                      <SelectItem value="PHYSICAL_COUNT">Physical Count</SelectItem>
+                      <SelectItem value="DAMAGE">Damage</SelectItem>
+                      <SelectItem value="THEFT">Theft</SelectItem>
+                      <SelectItem value="RETURN_TO_STOCK">Return to Stock</SelectItem>
+                      <SelectItem value="SYSTEM_ERROR">System Error</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">Notes</label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="Optional notes..."
                     value={adjustNotes}
                     onChange={(e) => setAdjustNotes(e.target.value)}
-                    className="h-8 w-full rounded border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+                    className="h-8 text-xs"
                   />
                 </div>
 
@@ -959,7 +964,7 @@ function KpiCard({ icon, label, value, accent }: {
   icon: React.ReactNode; label: string; value: string | number;
   accent: 'blue' | 'purple' | 'emerald' | 'green';
 }) {
-  const borderCls = { blue: 'border-l-blue-500', purple: 'border-l-purple-500', emerald: 'border-l-emerald-500', green: 'border-l-green-500' }[accent];
+  const borderCls = { blue: 'border-l-primary', purple: 'border-l-purple-500', emerald: 'border-l-emerald-500', green: 'border-l-green-500' }[accent];
   return (
     <Card className={`border-l-4 ${borderCls}`}>
       <CardContent className="p-4">
@@ -967,7 +972,7 @@ function KpiCard({ icon, label, value, accent }: {
           {icon}
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
         </div>
-        <span className="text-2xl font-bold tabular-nums">{value}</span>
+        <span className="text-xl font-bold tabular-nums">{value}</span>
       </CardContent>
     </Card>
   );
