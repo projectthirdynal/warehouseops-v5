@@ -6,7 +6,6 @@ import {
   Mail,
   Globe, Smartphone, ChevronRight,
   Sliders, Plug,
-  CheckSquare, Square,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -124,7 +123,7 @@ function SecuritySection() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Password Policy</CardTitle><CardDescription>Current security requirements</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Password Policy</CardTitle><CardDescription>Current security requirements</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           {[
             { label: 'Minimum 8 characters', ok: true },
@@ -139,79 +138,6 @@ function SecuritySection() {
               </Badge>
             </div>
           ))}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-/* ─── Roles & Permissions Section ─── */
-function RolesPermissionsSection({ roles = [], permissions = [], rolePermissions = {} }: {
-  roles: { value: string; label: string }[];
-  permissions: Permission[];
-  rolePermissions: Record<string, number>;
-}) {
-  const [selectedRole, setSelectedRole] = useState(roles[0]?.value ?? 'admin');
-  const [localPerms, setLocalPerms] = useState<Record<string, boolean>>({});
-
-  const sections = [...new Set(permissions.map(p => p.section))];
-
-  const isChecked = (permId: number) => {
-    const key = `${selectedRole}_${permId}`;
-    if (localPerms[key] !== undefined) return localPerms[key];
-    return !!rolePermissions[`${selectedRole}_${permId}`];
-  };
-
-  const toggle = (permId: number) => {
-    const key = `${selectedRole}_${permId}`;
-    setLocalPerms(prev => ({ ...prev, [key]: !isChecked(permId) }));
-  };
-
-  const save = () => {
-    const selectedIds = permissions.filter(p => isChecked(p.id)).map(p => p.id);
-    router.post('/settings/roles/permissions', { role: selectedRole, permissions: selectedIds });
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Permission Matrix</CardTitle>
-              <CardDescription>Configure access control for each role</CardDescription>
-            </div>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-              <SelectContent>{roles.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {sections.map(section => (
-            <div key={section} className="space-y-2">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{section}</h4>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {permissions.filter(p => p.section === section).map(perm => (
-                  <label key={perm.id} className="flex items-start gap-2 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="mt-0.5">
-                      {isChecked(perm.id)
-                        ? <CheckSquare className="h-4 w-4 text-primary" />
-                        : <Square className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                    <input type="checkbox" className="sr-only" checked={isChecked(perm.id)} onChange={() => toggle(perm.id)} />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">{perm.label}</div>
-                      <div className="text-xs text-muted-foreground">{perm.description}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="flex justify-end pt-2">
-            <Button onClick={save}><Save className="mr-2 h-4 w-4" />Save Changes</Button>
-          </div>
         </CardContent>
       </Card>
     </div>
