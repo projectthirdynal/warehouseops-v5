@@ -249,9 +249,13 @@ class InvoiceController extends Controller
             'recorded_by'  => $request->user()->id,
         ]);
 
+        // Refresh line-based totals first so payment math is never stale
+        InvoiceCalculator::recalculateInvoice($invoice);
+
         $invoice->amount_paid = $invoice->payments()->sum('amount');
         $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
         $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
+        $invoice->updated_by  = $request->user()->id;
         $invoice->save();
 
         return back()->with('success', 'Payment recorded.');

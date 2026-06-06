@@ -2,31 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Activity, UserCheck, UserX, Shield, Lock } from 'lucide-react';
 
-interface ActivityItem {
-  id: number;
-  user_id: number | null;
-  user: { name: string; email: string } | null;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+import type { ActivityItem } from '../types';
+import { ACTION_ICONS, ACTION_LABELS } from '../constants';
 
-const ACTION_ICONS: Record<string, React.ElementType> = {
-  'user.activated': UserCheck,
-  'user.deactivated': UserX,
-  'user.role_changed': Shield,
-  'user.created': UserCheck,
-  'user.deleted': UserX,
-  'permissions.updated': Lock,
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  'user.activated': 'Activated user',
-  'user.deactivated': 'Deactivated user',
-  'user.role_changed': 'Changed user role',
-  'user.created': 'Created user',
-  'user.deleted': 'Deleted user',
-  'permissions.updated': 'Updated role permissions',
+const ICON_MAP: Record<string, React.ElementType> = {
+  UserCheck,
+  UserX,
+  Shield,
+  Lock,
 };
 
 interface Props {
@@ -52,7 +35,8 @@ export default function ActivityFeed({ logs }: Props) {
           ) : (
             <div className="divide-y">
               {logs.map(log => {
-                const Icon = ACTION_ICONS[log.action] ?? Activity;
+                const iconName = ACTION_ICONS[log.action] ?? 'Activity';
+                const Icon = ICON_MAP[iconName] ?? Activity;
                 const label = ACTION_LABELS[log.action] ?? log.action;
                 return (
                   <div key={log.id} className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50">

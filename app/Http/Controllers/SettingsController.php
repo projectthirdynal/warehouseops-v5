@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -26,12 +27,12 @@ class SettingsController extends Controller
                 'theme', 'language', 'timezone',
             ]),
             'system_settings' => [
-                'company_name' => 'TECS Warehouse Operations',
-                'timezone' => 'Asia/Manila',
-                'date_format' => 'MM/DD/YYYY',
-                'time_format' => '12 Hour (AM/PM)',
-                'currency' => 'PHP - Philippine Peso',
-                'language' => 'en',
+                'company_name' => SiteSetting::get('company_name', 'TECS Warehouse Operations'),
+                'timezone' => SiteSetting::get('timezone', 'Asia/Manila'),
+                'date_format' => SiteSetting::get('date_format', 'MM/DD/YYYY'),
+                'time_format' => SiteSetting::get('time_format', '12 Hour (AM/PM)'),
+                'currency' => SiteSetting::get('currency', 'PHP - Philippine Peso'),
+                'language' => SiteSetting::get('language', 'en'),
             ],
             'integrations' => [
                 ['name' => 'Google Workspace', 'icon' => 'google', 'status' => 'connected', 'description' => 'Email and calendar sync'],
@@ -102,6 +103,10 @@ class SettingsController extends Controller
             'currency'     => ['required', 'string', 'max:50'],
             'language'     => ['required', 'in:en,tl'],
         ]);
+
+        foreach ($validated as $key => $value) {
+            SiteSetting::set($key, $value);
+        }
 
         ActivityLog::log('update_system_settings', $request->user(), 'system', null, $validated);
 

@@ -85,6 +85,7 @@ class SupplierInvoiceController extends Controller
             'amount_due'    => $validated['total_amount'],
             'notes'         => $validated['notes'] ?? null,
             'created_by'    => $request->user()->id,
+            'updated_by'    => $request->user()->id,
         ]);
 
         return redirect()->route('finance.supplier-invoices.show', $invoice->id)

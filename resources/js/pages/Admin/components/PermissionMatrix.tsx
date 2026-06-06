@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 
-interface PermissionItem {
-  id: number;
-  key: string;
-  label: string;
-  section: string;
-  description: string | null;
-}
+import type { PermissionItem } from '../types';
 
 interface Props {
   permissions: Record<string, PermissionItem[]>;
@@ -26,6 +20,10 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? 'superadmin');
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<Record<string, number[]>>(rolePermissions);
   const [savingPermissions, setSavingPermissions] = useState(false);
+
+  useEffect(() => {
+    setSelectedPermissionIds(rolePermissions);
+  }, [rolePermissions]);
 
   const togglePermission = (role: string, permissionId: number) => {
     setSelectedPermissionIds(prev => {

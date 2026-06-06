@@ -14,25 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Users, Search, Filter, Eye, Trash2 } from 'lucide-react';
 
-interface UserRecord {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  is_active: boolean;
-  last_login_at: string | null;
-  created_at: string;
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  superadmin: 'bg-red-100 text-red-700 border-red-200',
-  admin: 'bg-blue-100 text-blue-700 border-blue-200',
-  supervisor: 'bg-purple-100 text-purple-700 border-purple-200',
-  finance: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  accounting: 'bg-amber-100 text-amber-700 border-amber-200',
-  warehouse: 'bg-orange-100 text-orange-700 border-orange-200',
-  agent: 'bg-gray-100 text-gray-700 border-gray-200',
-};
+import type { UserRecord } from '../types';
+import { ROLE_COLORS } from '../constants';
 
 interface Props {
   users: UserRecord[];
@@ -56,11 +39,11 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
   }, [users, search, roleFilter, statusFilter]);
 
   const handleToggleUser = (userId: number) => {
-    router.post(`/admin/users/${userId}/toggle`, {}, { preserveScroll: true });
+    router.post(`/admin/users/${userId}/toggle`, {}, { preserveScroll: true, preserveState: true });
   };
 
   const handleRoleChange = (userId: number, newRole: string) => {
-    router.patch(`/admin/users/${userId}/role`, { role: newRole }, { preserveScroll: true });
+    router.patch(`/admin/users/${userId}/role`, { role: newRole }, { preserveScroll: true, preserveState: true });
   };
 
   return (
@@ -175,7 +158,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                           className="text-destructive hover:text-destructive"
                           onClick={() => {
                             if (confirm(`Delete user "${user.name}"? This cannot be undone.`)) {
-                              router.delete(`/admin/users/${user.id}`);
+                              router.delete(`/admin/users/${user.id}`, { preserveScroll: true, preserveState: true });
                             }
                           }}
                         >
