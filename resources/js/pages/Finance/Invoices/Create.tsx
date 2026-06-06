@@ -1,5 +1,4 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, FileText,
 } from 'lucide-react';

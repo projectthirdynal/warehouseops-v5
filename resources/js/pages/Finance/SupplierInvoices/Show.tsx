@@ -1,10 +1,11 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
-  ArrowLeft, CheckCircle, XCircle, Building2,
+  ArrowLeft, CheckCircle, XCircle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

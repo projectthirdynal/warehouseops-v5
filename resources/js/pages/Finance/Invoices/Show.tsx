@@ -1,8 +1,8 @@
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
-  ArrowLeft, Pencil, Send, CheckCircle, XCircle, FileText,
-  Plus, Trash2, CreditCard, AlertTriangle,
+  ArrowLeft, Send, CheckCircle, XCircle,
+  CreditCard,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,9 @@ import {
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 
 interface ThirdParty {
   id: number;
@@ -97,7 +100,6 @@ export default function InvoiceShow({ invoice }: Props) {
   });
 
   const balance = parseFloat(invoice.amount_due);
-  const canEdit = ['DRAFT', 'VALIDATED', 'SENT', 'PARTIAL', 'OVERDUE'].includes(invoice.status);
   const canPay = balance > 0 && invoice.status !== 'CANCELLED';
 
   return (

@@ -1,8 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
-  Building2, Plus, Search, Filter, ArrowUpDown,
-  CheckCircle, XCircle, Clock, AlertCircle,
+  Plus, Search, Filter,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
