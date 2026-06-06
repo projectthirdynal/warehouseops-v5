@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface PermissionItem {
   id: number;
