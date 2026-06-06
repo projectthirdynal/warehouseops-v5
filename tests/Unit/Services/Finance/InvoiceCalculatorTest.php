@@ -105,10 +105,10 @@ describe('recalculateInvoice', function () {
         $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shipping;  // 250 - 20 + 27.6 + 50 = 307.6
         $amountDue      = $totalAmount - 100.00;                                  // 207.6
 
-        expect($subtotal)->toEqual(250.0);
-        expect($discountAmount)->toEqual(20.0);
-        expect($taxAmount)->toEqual(27.6);
-        expect($totalAmount)->toEqual(307.6);
-        expect($amountDue)->toEqual(207.6);
+        expect($subtotal)->toBeCloseTo(250.0, 0.001);
+        expect($discountAmount)->toBeCloseTo(20.0, 0.001);
+        expect($taxAmount)->toBeCloseTo(27.6, 0.001);
+        expect($totalAmount)->toBeCloseTo(307.6, 0.001);
+        expect($amountDue)->toBeCloseTo(207.6, 0.001);
     });
 });
