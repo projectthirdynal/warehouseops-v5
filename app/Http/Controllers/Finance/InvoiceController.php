@@ -9,6 +9,7 @@ use App\Models\InvoicePayment;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ThirdParty;
+use App\Services\Finance\InvoiceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -210,34 +211,11 @@ class InvoiceController extends Controller
             'position'     => 'nullable|integer|min:0',
         ]);
 
-        $position = $validated['position'] ?? ($invoice->lines()->max('position') + 1);
+        $validated['position'] = $validated['position'] ?? ($invoice->lines()->max('position') + 1);
 
-        $qty          = (float) $validated['qty'];
-        $unitPrice    = (float) $validated['unit_price'];
-        $discountPct  = (float) ($validated['discount_pct'] ?? 0);
-        $taxRate      = (float) ($validated['tax_rate'] ?? 0);
+        InvoiceCalculator::createLine($invoice, $validated);
 
-        $subtotal       = $qty * $unitPrice;
-        $discountAmount = $subtotal * ($discountPct / 100);
-        $totalHt        = $subtotal - $discountAmount;
-        $taxAmount      = $totalHt * ($taxRate / 100);
-        $totalTtc       = $totalHt + $taxAmount;
-
-        InvoiceLine::create([
-            'invoice_id'      => $invoice->id,
-            'position'        => $position,
-            'description'     => $validated['description'],
-            'qty'             => $validated['qty'],
-            'unit_price'      => $validated['unit_price'],
-            'tax_rate'        => $taxRate,
-            'discount_pct'    => $discountPct,
-            'discount_amount' => $discountAmount,
-            'tax_amount'      => $taxAmount,
-            'total_ht'        => $totalHt,
-            'total_ttc'       => $totalTtc,
-        ]);
-
-        $this->recalculate($invoice);
+        InvoiceCalculator::recalculateInvoice($invoice);
 
         return back()->with('success', 'Line added.');
     }
@@ -249,7 +227,7 @@ class InvoiceController extends Controller
         }
 
         $line->delete();
-        $this->recalculate($invoice);
+        InvoiceCalculator::recalculateInvoice($invoice);
 
         return back()->with('success', 'Line removed.');
     }
@@ -284,56 +262,24 @@ class InvoiceController extends Controller
     protected function storeLines(Invoice $invoice, array $lines): void
     {
         foreach ($lines as $i => $line) {
-            $lineData = [
-                'invoice_id'   => $invoice->id,
-                'position'     => $i,
-                'product_id'   => $line['product_id'] ?? null,
-                'product_ref'  => $line['product_ref'] ?? null,
-                'description'  => $line['description'],
-                'unit'         => $line['unit'] ?? null,
-                'qty'          => $line['qty'],
-                'unit_price'   => $line['unit_price'],
-                'tax_rate'     => $line['tax_rate'] ?? 0,
-                'discount_pct' => $line['discount_pct'] ?? 0,
+            $data = [
+                'position'    => $i,
+                'description' => $line['description'],
+                'qty'         => $line['qty'],
+                'unit_price'  => $line['unit_price'],
+                'tax_rate'    => $line['tax_rate'] ?? 0,
+                'discount_pct'=> $line['discount_pct'] ?? 0,
             ];
+            if (! empty($line['product_id']))  $data['product_id']  = $line['product_id'];
+            if (! empty($line['product_ref'])) $data['product_ref'] = $line['product_ref'];
+            if (! empty($line['unit']))        $data['unit']        = $line['unit'];
 
-            // Calculate line totals
-            $qty        = (float) $lineData['qty'];
-            $unitPrice  = (float) $lineData['unit_price'];
-            $discountPct = (float) ($line['discount_pct'] ?? 0);
-            $taxRate    = (float) ($line['tax_rate'] ?? 0);
-
-            $totalHt = $qty * $unitPrice;
-            $discountAmount = $totalHt * ($discountPct / 100);
-            $totalHt -= $discountAmount;
-            $taxAmount = $totalHt * ($taxRate / 100);
-
-            InvoiceLine::create($lineData + [
-                'discount_amount' => $discountAmount,
-                'tax_amount'      => $taxAmount,
-                'total_ht'        => $totalHt,
-                'total_ttc'       => $totalHt + $taxAmount,
-            ]);
+            InvoiceCalculator::createLine($invoice, $data);
         }
     }
 
     protected function recalculate(Invoice $invoice): void
     {
-        $lines = $invoice->lines()->get();
-
-        // subtotal = pre-discount sum of qty * unit_price
-        $subtotal = $lines->sum(fn ($line) => (float) $line->qty * (float) $line->unit_price);
-        $discountAmount = $lines->sum('discount_amount');
-        $taxAmount      = $lines->sum('tax_amount');
-        $shippingAmount = (float) $invoice->shipping_amount;
-        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shippingAmount;
-
-        $invoice->update([
-            'subtotal'        => $subtotal,
-            'discount_amount' => $discountAmount,
-            'tax_amount'      => $taxAmount,
-            'total_amount'    => $totalAmount,
-            'amount_due'      => $totalAmount - (float) $invoice->amount_paid,
-        ]);
+        InvoiceCalculator::recalculateInvoice($invoice);
     }
 }
