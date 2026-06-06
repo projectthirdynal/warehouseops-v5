@@ -112,13 +112,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/appearance', [SettingsController::class, 'updateAppearance'])->name('appearance.update');
         Route::patch('/password', [SettingsController::class, 'updatePassword'])->name('password.update');
         Route::patch('/system', [SettingsController::class, 'updateSystemSettings'])->name('system.update');
-        Route::post('/roles/permissions', [SettingsController::class, 'updateRolePermissions'])->name('roles.permissions');
-
-        Route::post('/users',                      [SettingsController::class, 'storeUser'])->name('users.store');
-        Route::patch('/users/{user}',              [SettingsController::class, 'updateUser'])->name('users.update');
-        Route::post('/users/{user}/toggle',        [SettingsController::class, 'toggleUser'])->name('users.toggle');
-        Route::delete('/users/{user}',             [SettingsController::class, 'deleteUser'])->name('users.delete');
-        Route::post('/users/{user}/reset-password',[SettingsController::class, 'resetUserPassword'])->name('users.reset-password');
     });
 });
 
@@ -462,6 +455,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
 Route::middleware(['auth', 'role:superadmin,admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [\App\Http\Controllers\AdminController::class, 'index'])->name('dashboard');
     Route::post('/roles/permissions', [\App\Http\Controllers\AdminController::class, 'updateRolePermissions'])->name('roles.permissions');
+    Route::post('/users', [\App\Http\Controllers\AdminController::class, 'storeUser'])->name('users.store');
     Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleUser'])->name('users.toggle');
     Route::patch('/users/{user}/role', [\App\Http\Controllers\AdminController::class, 'updateUserRole'])->name('users.role');
+    Route::delete('/users/{user}', [\App\Http\Controllers\AdminController::class, 'deleteUser'])->name('users.delete');
 });

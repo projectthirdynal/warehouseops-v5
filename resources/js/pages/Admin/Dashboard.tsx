@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   Users, Shield, Activity, Search, CheckCircle, XCircle,
   UserCheck, UserX, BarChart3, Lock, Eye, Loader2,
-  Filter, RefreshCw,
+  Filter, RefreshCw, UserPlus, Trash2,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -106,6 +106,7 @@ export default function AdminDashboard({ users, roles, permissions, rolePermissi
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<Record<string, number[]>>(rolePermissions);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
 
   const filteredUsers = useMemo(() => {
@@ -164,9 +165,14 @@ export default function AdminDashboard({ users, roles, permissions, rolePermissi
               Manage users, roles, permissions, and system settings.
             </p>
           </div>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowAddUserDialog(true)}>
+              <UserPlus className="mr-2 h-4 w-4" /> Add User
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -330,6 +336,18 @@ export default function AdminDashboard({ users, roles, permissions, rolePermissi
                                 onClick={() => { setSelectedUser(user); setShowUserDialog(true); }}
                               >
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => {
+                                  if (confirm(`Delete user "${user.name}"? This cannot be undone.`)) {
+                                    router.delete(`/admin/users/${user.id}`);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -501,6 +519,9 @@ export default function AdminDashboard({ users, roles, permissions, rolePermissi
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Add User Dialog */}
+      <AddUserDialog open={showAddUserDialog} onClose={() => setShowAddUserDialog(false)} roles={roles} />
     </AppLayout>
   );
 }
@@ -530,5 +551,78 @@ function StatCard({ icon, label, value, accent }: {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AddUserDialog({ open, onClose, roles }: { open: boolean; onClose: () => void; roles: string[] }) {
+  const { data, setData, post, processing, errors, reset } = useForm({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'agent',
+    password: '',
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    post('/admin/users', {
+      onSuccess: () => {
+        reset();
+        onClose();
+      },
+    });
+  }
+
+  if (!open) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5" />Create User</DialogTitle>
+          <DialogDescription>Add a new user account to the system.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Full Name</label>
+            <Input value={data.name} onChange={e => setData('name', e.target.value)} placeholder="Juan dela Cruz" required />
+            {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium">Email Address</label>
+            <Input type="email" value={data.email} onChange={e => setData('email', e.target.value)} placeholder="user@company.com" required />
+            {errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium">Role</label>
+            <Select value={data.role} onValueChange={v => setData('role', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {roles.map(r => (
+                  <SelectItem key={r} value={r} className="capitalize">{r.replace('_', ' ')}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.role && <p className="mt-1 text-xs text-destructive">{errors.role}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium">Password</label>
+            <Input type="password" value={data.password} onChange={e => setData('password', e.target.value)} placeholder="Min 8 characters" required />
+            {errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium">Phone <span className="text-muted-foreground">(optional)</span></label>
+            <Input type="tel" value={data.phone} onChange={e => setData('phone', e.target.value)} placeholder="+63 9XX XXX XXXX" />
+            {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button type="submit" className="flex-1" disabled={processing}>
+              {processing ? 'Creating...' : 'Create User'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -8,6 +8,8 @@ use App\Models\RolePermission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class AdminController extends Controller
@@ -104,5 +106,43 @@ class AdminController extends Controller
         ]);
 
         return redirect()->back(303)->with('success', 'User role updated.');
+    }
+
+    public function storeUser(Request $request)
+    {
+        $validated = $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'max:255', 'unique:users'],
+            'phone'    => ['nullable', 'string', 'max:20'],
+            'role'     => ['required', 'in:superadmin,admin,supervisor,finance,accounting,warehouse,agent'],
+            'password' => ['required', Password::min(8)],
+        ]);
+
+        $user = User::create([
+            'name'      => $validated['name'],
+            'email'     => $validated['email'],
+            'phone'     => $validated['phone'] ?? null,
+            'role'      => $validated['role'],
+            'password'  => Hash::make($validated['password']),
+            'is_active' => true,
+        ]);
+
+        ActivityLog::log('user.created', $request->user(), 'User', $user->id, ['role' => $user->role]);
+
+        return redirect()->back(303)->with('success', "User \"{$user->name}\" created.");
+    }
+
+    public function deleteUser(Request $request, User $user)
+    {
+        if ($user->id === $request->user()->id) {
+            return redirect()->back(303)->with('error', 'You cannot delete your own account.');
+        }
+
+        $name = $user->name;
+        $user->delete();
+
+        ActivityLog::log('user.deleted', $request->user(), 'User', $user->id, ['deleted_user_name' => $name]);
+
+        return redirect()->back(303)->with('success', "User \"{$name}\" deleted.");
     }
 }
