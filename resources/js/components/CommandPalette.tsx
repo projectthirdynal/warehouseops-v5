@@ -12,8 +12,7 @@ import {
   BarChart3, Settings, Phone, Recycle, UserCog, MessageSquare,
   Shield, FileText, ShoppingCart, PackageCheck, Building2,
   TrendingUp, Store, BookUser, ScanLine, Upload, ShieldAlert,
-  AlertOctagon, HelpCircle, Warehouse, ChevronRight, Search,
-  Command,
+  AlertOctagon, HelpCircle, ChevronRight, Search,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
