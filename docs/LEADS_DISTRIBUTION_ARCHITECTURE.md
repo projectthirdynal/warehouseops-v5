@@ -127,6 +127,30 @@ In addition to the lead's own status, the pool tracks assignment availability:
 | `APPROVED` | QA has approved the sale |
 | `REJECTED` | QA has rejected the sale; may trigger lead recycle |
 
+### 2.6 Product Catalog (Source of Truth)
+
+The Lead Distribution System **does not own product data**. Product names, SKUs, categories, and attributes are maintained in a separate **Product Catalog** (source of truth — e.g., ERP, PIM, or dedicated product service).
+
+**Integration contract:**
+
+| Field | Source | Used By |
+|-------|--------|---------|
+| `product_id` / `sku` | Product Catalog | `Lead.product_name` stores the SKU; the Distribution Engine resolves it to a `product_id` via catalog lookup at import time |
+| `category_id` | Product Catalog | Fallback for Skill Match when no exact product skill match exists |
+| `product_name` | Product Catalog | Display-only; never used for routing logic |
+
+**Rules:**
+1. `Lead.product_name` at import stores the raw SKU string from the upload file.
+2. During enrichment (Step 2 in §6.2), the system queries the Product Catalog to resolve `product_name` → `product_id` + `category_id`.
+3. If the SKU is unknown, the lead is flagged as `product_unresolved` and routed to the supervisor queue for manual classification.
+4. Agent `product_skills` and `category_skills` are arrays of **catalog IDs**, never raw strings. This ensures consistency when product names change.
+5. The Product Catalog provides a read-only API (or cached sync) for:
+   - SKU → ID resolution
+   - Category hierarchy
+   - Product attributes (for future filtering)
+
+> **Why this matters:** Product names change. SKUs get reorganized. By referencing the Product Catalog as the single source of truth, agent skills remain stable even when the catalog is updated.
+
 ---
 
 ## 3. Current Architecture (As-Is)
@@ -269,6 +293,8 @@ The existing `AgentProfile` model gains these fields to support intelligent dist
 | `concurrent_lead_cap` | integer | Per-agent override for `max_active_cycles` |
 | `preferred_lead_sources` | array | e.g. `['facebook', 'organic']` — bias routing toward preferred sources |
 | `excluded_regions` | array | Regions the agent has opted out of (e.g. due to language barriers) |
+| `category_skills` | array | Array of **category IDs** from the Product Catalog; used as fallback when no exact product skill match exists |
+| `product_skills` | array | Array of **product IDs/SKUs** from the Product Catalog; used by Skill Match strategy. Not product names — always references the source of truth. |
 
 ```php
 // AgentProfile model additions
@@ -298,7 +324,7 @@ class AgentProfile extends Model
 |----------|-------------|----------|
 | **Round Robin** | Circular queue across all eligible agents regardless of performance | Default fallback; fair rotation when no other signals are available |
 | **Weighted** | Score = performance × availability × priority multiplier | Rewarding top performers; incentivizing consistent agents |
-| **Skill Match** | Routes `lead.product_name` to agents whose `product_skills` array contains that product | Product-specialized teams; high-value SKUs needing expert handling |
+| **Skill Match** | Routes `lead.product_id` (resolved via Product Catalog) to agents whose `product_skills` array contains that product ID/SKU | Product-specialized teams; high-value SKUs needing expert handling |
 | **Territory** | Routes `lead.city/region` to agents whose `regions` array contains that area | COD-heavy provinces; agents with local dialect advantage |
 | **Hybrid** *(Recommended)* | Weighted combination of performance, availability, skill, region, load, and recency | Default production strategy; balances all signals simultaneously |
 | **Supervisor Override** | Manual assignment with a required reason field, fully audited | VIP leads, escalations, special customer handling |
@@ -324,8 +350,8 @@ where:
     load_factor         = active_leads / max_active_cycles
                           (result between 0 and 1)
 
-    skill_match         = 1.0 if lead.product_name ∈ agent.product_skills
-                        = 0.5 partial match
+    skill_match         = 1.0 if lead.product_id (from Product Catalog) ∈ agent.product_skills
+                        = 0.5 if lead.category_id ∈ agent.category_skills
                         = 0.0 no match
 
     region_match        = 1.0 if lead.province or lead.city ∈ agent.regions
