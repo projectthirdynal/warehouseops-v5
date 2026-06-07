@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { router } from '@inertiajs/react';
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
+  Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -12,16 +10,32 @@ import {
   BarChart3, Settings, Phone, Recycle, UserCog, MessageSquare,
   Shield, FileText, ShoppingCart, PackageCheck, Building2,
   TrendingUp, Store, BookUser, ScanLine, Upload, ShieldAlert,
-  AlertOctagon, HelpCircle, ChevronRight, Search,
+  AlertOctagon, HelpCircle, ChevronRight, Search, Clock,
+  Zap, Plus,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
+/* ── Recent Items localStorage ── */
+const RECENTS_KEY = 'cmdp_recents_v1';
+const MAX_RECENTS = 5;
+function getRecents(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { return []; }
+}
+function pushRecent(href: string) {
+  const prev = getRecents();
+  const next = [href, ...prev.filter((h) => h !== href)].slice(0, MAX_RECENTS);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+}
+
+/* ── Types ── */
 interface NavItem {
+  id?: string;
   name: string;
   href: string;
   icon: LucideIcon;
   section: string;
   keywords?: string[];
+  action?: boolean;
 }
 
 const allNavItems: NavItem[] = [
@@ -66,6 +80,17 @@ const allNavItems: NavItem[] = [
   { name: 'Couriers', href: '/couriers', icon: Truck, section: 'Logistics' },
   { name: 'Tickets', href: '/tickets', icon: Phone, section: 'Commercial' },
   { name: 'Settings', href: '/settings', icon: Settings, section: 'System' },
+
+  /* ── Action Verbs ── */
+  { id: 'act-new-wb', name: 'Create Waybill', href: '/waybills/create', icon: Plus, section: 'Actions', action: true },
+  { id: 'act-new-inv', name: 'Create Invoice', href: '/finance/invoices/create', icon: Plus, section: 'Actions', action: true },
+  { id: 'act-new-ord', name: 'Create Order', href: '/orders/create', icon: Plus, section: 'Actions', action: true },
+  { id: 'act-new-contact', name: 'Create Contact', href: '/crm/contacts/create', icon: Plus, section: 'Actions', action: true },
+  { id: 'act-new-prod', name: 'Create Product', href: '/products/create', icon: Plus, section: 'Actions', action: true },
+  { id: 'act-import', name: 'Import Waybills', href: '/waybills/import', icon: Upload, section: 'Actions', action: true },
+  { id: 'act-scan', name: 'Open Scanner', href: '/waybills/scanner', icon: ScanLine, section: 'Actions', action: true },
+  { id: 'act-reports', name: 'View Reports', href: '/reports', icon: BarChart3, section: 'Actions', action: true },
+  { id: 'act-settings', name: 'Open Settings', href: '/settings', icon: Settings, section: 'Actions', action: true },
 ];
 
 interface CommandPaletteProps {
@@ -73,71 +98,84 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/* ── Scope filter parser ── */
+function parseQuery(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { scope: null, q: '' };
+  const m = trimmed.match(/^in:(\w+)\s+(.*)$/i);
+  if (m) return { scope: m[1].toLowerCase(), q: m[2].trim().toLowerCase() };
+  return { scope: null, q: trimmed.toLowerCase() };
+}
+
 export default function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const { scope, q } = useMemo(() => parseQuery(query), [query]);
+
+  /* Recent items (hydrated from localStorage) */
+  const [recents, setRecents] = useState<string[]>([]);
+  useEffect(() => { if (open) setRecents(getRecents()); }, [open]);
+
+  /* Filtered results */
   const filtered = useMemo(() => {
-    if (!query.trim()) return allNavItems;
-    const q = query.toLowerCase();
+    if (!q && !scope) return allNavItems;
     return allNavItems.filter((item) => {
+      if (scope && item.section.toLowerCase() !== scope) return false;
+      if (!q) return true;
       const text = `${item.name} ${item.section} ${(item.keywords ?? []).join(' ')}`.toLowerCase();
       return text.includes(q);
     });
-  }, [query]);
+  }, [q, scope]);
+
+  /* Build display list: recents first when empty query */
+  const displayList = useMemo(() => {
+    if (q || scope) return filtered;
+    const recentItems = recents
+      .map((href) => allNavItems.find((i) => i.href === href))
+      .filter(Boolean) as NavItem[];
+    const others = filtered.filter((i) => !recents.includes(i.href));
+    return [...recentItems, ...others];
+  }, [q, scope, filtered, recents]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    filtered.forEach((item) => {
+    displayList.forEach((item) => {
       const list = map.get(item.section) ?? [];
       list.push(item);
       map.set(item.section, list);
     });
     return Array.from(map.entries());
-  }, [filtered]);
-
-  const flatItems = useMemo(() => filtered, [filtered]);
+  }, [displayList]);
 
   const navigate = useCallback((href: string) => {
+    pushRecent(href);
     onOpenChange(false);
     setQuery('');
     setSelectedIndex(0);
     router.visit(href);
   }, [onOpenChange]);
 
+  useEffect(() => { setSelectedIndex(0); }, [query]);
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
-
-  useEffect(() => {
-    if (open && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (open && inputRef.current) setTimeout(() => inputRef.current?.focus(), 50);
   }, [open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handle = (e: KeyboardEvent) => {
       if (!open) return;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((i) => (i + 1) % flatItems.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + flatItems.length) % flatItems.length);
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const item = flatItems[selectedIndex];
-        if (item) navigate(item.href);
-      } else if (e.key === 'Escape') {
-        onOpenChange(false);
-      }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex((i) => (i + 1) % displayList.length); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex((i) => (i - 1 + displayList.length) % displayList.length); }
+      else if (e.key === 'Enter') { e.preventDefault(); const item = displayList[selectedIndex]; if (item) navigate(item.href); }
+      else if (e.key === 'Escape') { onOpenChange(false); }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, flatItems, selectedIndex, navigate, onOpenChange]);
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [open, displayList, selectedIndex, navigate, onOpenChange]);
 
   let globalIdx = 0;
+  const hasRecents = !q && !scope && recents.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,43 +187,52 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search pages, modules, actions..."
+            placeholder="Search pages, modules, actions...  (in:logistics waybill)"
             className="h-8 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-base"
           />
           <kbd className="hidden sm:inline-flex h-6 items-center gap-1 rounded border bg-muted px-2 font-mono text-[10px] text-muted-foreground">
-            <span className="text-xs">Esc</span>
+            Esc
           </kbd>
         </div>
         <div className="max-h-[60vh] overflow-y-auto py-2">
           {grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Search className="h-8 w-8 mb-3 opacity-40" />
-              <p className="text-sm">No results found for "{query}"</p>
+              <p className="text-sm">No results for "{query}"</p>
+              {scope && <p className="text-xs mt-1">Try removing scope: in:{scope}</p>}
             </div>
           ) : (
             grouped.map(([section, items]) => (
               <div key={section}>
-                <div className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  {section === 'Actions' && <Zap className="h-3 w-3" />}
+                  {hasRecents && section === 'General' && <Clock className="h-3 w-3" />}
                   {section}
                 </div>
                 {items.map((item) => {
                   const idx = globalIdx++;
                   const Icon = item.icon;
                   const isSelected = idx === selectedIndex;
+                  const isAction = item.action;
+                  const isRecent = hasRecents && recents.includes(item.href);
                   return (
                     <button
-                      key={item.href + item.name}
+                      key={(item.id ?? item.href) + item.name}
                       onClick={() => navigate(item.href)}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={cn(
                         'flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left',
-                        isSelected
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-foreground hover:bg-muted'
+                        isSelected ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-muted'
                       )}
                     >
-                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Icon className={cn('h-4 w-4 shrink-0', isAction ? 'text-primary' : 'text-muted-foreground')} />
                       <span className="flex-1">{item.name}</span>
+                      {isAction && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">Action</span>
+                      )}
+                      {isRecent && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Recent</span>
+                      )}
                       <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
                     </button>
                   );
@@ -195,15 +242,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
           )}
         </div>
         <div className="flex items-center gap-4 border-t px-4 py-2 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <kbd className="rounded border bg-muted px-1 font-mono">↑↓</kbd> Navigate
-          </span>
-          <span className="flex items-center gap-1">
-            <kbd className="rounded border bg-muted px-1 font-mono">↵</kbd> Select
-          </span>
-          <span className="flex items-center gap-1">
-            <kbd className="rounded border bg-muted px-1 font-mono">Esc</kbd> Close
-          </span>
+          <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1 font-mono">↑↓</kbd> Navigate</span>
+          <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1 font-mono">↵</kbd> Select</span>
+          <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1 font-mono">Esc</kbd> Close</span>
+          <span className="ml-auto hidden sm:inline">in:section query</span>
         </div>
       </DialogContent>
     </Dialog>

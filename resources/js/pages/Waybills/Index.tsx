@@ -20,7 +20,9 @@ import { BulkActionBar, type BulkAction } from '@/components/BulkActionBar';
 import { InlineEdit } from '@/components/InlineEdit';
 import { RowExpand } from '@/components/RowExpand';
 import { useToast } from '@/hooks/use-toast';
+import { useSavedFilters } from '@/hooks/use-saved-filters';
 import { SkeletonTable } from '@/components/ui/skeleton';
+import { DetailDrawer } from '@/components/DetailDrawer';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,7 +76,10 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
   const [statusFilter, setStatusFilter] = useState(filters?.status || 'all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerWaybill, setDrawerWaybill] = useState<Waybill | null>(null);
   const { success, error } = useToast();
+  const { apply: applyFilters } = useSavedFilters('/waybills');
 
   const waybillIds = waybills?.data?.map((w) => String(w.id)) || [];
 
@@ -115,13 +120,14 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    router.get('/waybills', { search, status: statusFilter !== 'all' ? statusFilter : undefined }, { preserveState: true });
+    applyFilters({ search, status: statusFilter !== 'all' ? statusFilter : undefined });
   };
 
   const handleStatusFilter = (value: string) => {
     setStatusFilter(value);
     setLoading(true);
-    router.get('/waybills', { search, status: value !== 'all' ? value : undefined }, { preserveState: true, onFinish: () => setLoading(false) });
+    applyFilters({ search, status: value !== 'all' ? value : undefined });
+    setTimeout(() => setLoading(false), 300);
   };
 
   const bulkActions: BulkAction[] = [
@@ -336,7 +342,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => router.visit(`/waybills/${waybill.id}`)}>
+                                <DropdownMenuItem onClick={() => { setDrawerWaybill(waybill); setDrawerOpen(true); }}>
                                   <Eye className="mr-2 h-4 w-4" />
                                   View Details
                                 </DropdownMenuItem>
@@ -427,6 +433,72 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Detail Drawer */}
+      <DetailDrawer
+        open={drawerOpen}
+        onClose={() => { setDrawerOpen(false); setDrawerWaybill(null); }}
+        title={drawerWaybill ? `Waybill #${drawerWaybill.waybill_number}` : 'Waybill Details'}
+      >
+        {drawerWaybill && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <Badge variant={statusConfig[drawerWaybill.status]?.variant || 'secondary'}>
+                {statusConfig[drawerWaybill.status]?.label || drawerWaybill.status}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {formatDate(drawerWaybill.created_at)}
+              </span>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Receiver</p>
+                <p className="font-medium">{drawerWaybill.receiver_name}</p>
+                <p className="text-sm text-muted-foreground">{drawerWaybill.receiver_phone}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Address</p>
+                <p className="font-medium">{drawerWaybill.receiver_address}</p>
+                <p className="text-sm text-muted-foreground">
+                  {[drawerWaybill.barangay, drawerWaybill.city, drawerWaybill.state].filter(Boolean).join(', ')}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Remarks</p>
+                <InlineEdit
+                  value={drawerWaybill.remarks || ''}
+                  onSave={async (val) => {
+                    router.patch(`/waybills/${drawerWaybill.id}/remarks`, { remarks: val }, {
+                      preserveState: true,
+                      onSuccess: () => success('Remarks updated'),
+                      onError: () => error('Failed to update remarks'),
+                    });
+                  }}
+                  placeholder="Add remarks..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase">COD Amount</p>
+                  <p className="font-medium">₱{drawerWaybill.cod_amount?.toLocaleString() || '0'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase">Status</p>
+                  <p className="font-medium">{drawerWaybill.status}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-4 border-t">
+              <Button variant="outline" size="sm" onClick={() => router.visit(`/waybills/${drawerWaybill.id}`)}>
+                Open Full Page
+              </Button>
+              <Button size="sm" onClick={() => { success('Status update dialog would open here'); }}>
+                Update Status
+              </Button>
+            </div>
+          </div>
+        )}
+      </DetailDrawer>
     </AppLayout>
   );
 }
