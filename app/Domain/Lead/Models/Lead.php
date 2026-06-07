@@ -92,6 +92,7 @@ class Lead extends Model
         'is_exhausted' => false,
         'current_qa_level' => 1,
         'qa_required' => true,
+        'quality_score' => 50,
     ];
 
     // -------------------------------------------------------------------------

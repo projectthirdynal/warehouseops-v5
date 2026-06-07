@@ -18,6 +18,15 @@ class AgentProfile extends Model
         'is_available',
         'performance_score',
         'last_assignment_at',
+        'distribution_weight',
+        'auto_assign_enabled',
+        'shift_start',
+        'shift_end',
+        'max_daily_leads',
+        'concurrent_lead_cap',
+        'preferred_lead_sources',
+        'excluded_regions',
+        'category_skills',
     ];
 
     protected $casts = [
@@ -26,6 +35,13 @@ class AgentProfile extends Model
         'priority_weight' => 'decimal:2',
         'is_available' => 'boolean',
         'last_assignment_at' => 'datetime',
+        'distribution_weight' => 'decimal:2',
+        'auto_assign_enabled' => 'boolean',
+        'max_daily_leads' => 'integer',
+        'concurrent_lead_cap' => 'integer',
+        'preferred_lead_sources' => 'array',
+        'excluded_regions' => 'array',
+        'category_skills' => 'array',
     ];
 
     public function user(): BelongsTo
