@@ -129,30 +129,65 @@ class AgentController extends Controller
     public function updateProfile(Request $request, User $user)
     {
         $validated = $request->validate([
-            'product_skills'    => ['nullable', 'array'],
-            'product_skills.*'  => ['string', 'max:100'],
-            'regions'           => ['nullable', 'array'],
-            'regions.*'         => ['string', 'max:100'],
-            'max_active_cycles' => ['nullable', 'integer', 'min:1', 'max:50'],
-            'is_available'      => ['nullable', 'boolean'],
+            'product_skills'         => ['nullable', 'array'],
+            'product_skills.*'       => ['string', 'max:100'],
+            'category_skills'        => ['nullable', 'array'],
+            'category_skills.*'      => ['string', 'max:100'],
+            'regions'                => ['nullable', 'array'],
+            'regions.*'              => ['string', 'max:100'],
+            'excluded_regions'       => ['nullable', 'array'],
+            'excluded_regions.*'     => ['string', 'max:100'],
+            'preferred_lead_sources' => ['nullable', 'array'],
+            'preferred_lead_sources.*' => ['string', 'max:100'],
+            'max_active_cycles'      => ['nullable', 'integer', 'min:1', 'max:50'],
+            'concurrent_lead_cap'    => ['nullable', 'integer', 'min:1', 'max:50'],
+            'max_daily_leads'        => ['nullable', 'integer', 'min:1', 'max:500'],
+            'is_available'           => ['nullable', 'boolean'],
+            'auto_assign_enabled'    => ['nullable', 'boolean'],
+            'distribution_weight'    => ['nullable', 'numeric', 'min:0.5', 'max:2.0'],
+            'shift_start'            => ['nullable', 'date_format:H:i'],
+            'shift_end'              => ['nullable', 'date_format:H:i'],
         ]);
 
         $profile = $user->agentProfile;
 
-        if (!$profile) {
-            $user->agentProfile()->create([
-                'product_skills'    => $validated['product_skills'] ?? [],
-                'regions'           => $validated['regions'] ?? [],
-                'max_active_cycles' => $validated['max_active_cycles'] ?? 10,
-                'is_available'      => $validated['is_available'] ?? true,
-            ]);
+        $defaults = [
+            'product_skills'         => $validated['product_skills'] ?? [],
+            'category_skills'        => $validated['category_skills'] ?? [],
+            'regions'                => $validated['regions'] ?? [],
+            'excluded_regions'       => $validated['excluded_regions'] ?? [],
+            'preferred_lead_sources'   => $validated['preferred_lead_sources'] ?? [],
+            'max_active_cycles'      => $validated['max_active_cycles'] ?? 10,
+            'concurrent_lead_cap'    => $validated['concurrent_lead_cap'] ?? null,
+            'max_daily_leads'        => $validated['max_daily_leads'] ?? 50,
+            'is_available'           => $validated['is_available'] ?? true,
+            'auto_assign_enabled'    => $validated['auto_assign_enabled'] ?? true,
+            'distribution_weight'    => $validated['distribution_weight'] ?? 1.0,
+            'shift_start'            => $validated['shift_start'] ?? null,
+            'shift_end'              => $validated['shift_end'] ?? null,
+        ];
+
+        if (! $profile) {
+            $user->agentProfile()->create($defaults);
         } else {
-            $profile->update(array_filter([
-                'product_skills'    => $validated['product_skills'] ?? $profile->product_skills,
-                'regions'           => $validated['regions'] ?? $profile->regions,
-                'max_active_cycles' => $validated['max_active_cycles'] ?? $profile->max_active_cycles,
-                'is_available'      => $validated['is_available'] ?? $profile->is_available,
-            ], fn ($v) => $v !== null));
+            $profile->update(array_filter(
+                array_merge($defaults, [
+                    'product_skills'         => $validated['product_skills'] ?? $profile->product_skills,
+                    'category_skills'        => $validated['category_skills'] ?? $profile->category_skills,
+                    'regions'                => $validated['regions'] ?? $profile->regions,
+                    'excluded_regions'       => $validated['excluded_regions'] ?? $profile->excluded_regions,
+                    'preferred_lead_sources'   => $validated['preferred_lead_sources'] ?? $profile->preferred_lead_sources,
+                    'max_active_cycles'      => $validated['max_active_cycles'] ?? $profile->max_active_cycles,
+                    'concurrent_lead_cap'    => $validated['concurrent_lead_cap'] ?? $profile->concurrent_lead_cap,
+                    'max_daily_leads'        => $validated['max_daily_leads'] ?? $profile->max_daily_leads,
+                    'is_available'           => $validated['is_available'] ?? $profile->is_available,
+                    'auto_assign_enabled'    => $validated['auto_assign_enabled'] ?? $profile->auto_assign_enabled,
+                    'distribution_weight'    => $validated['distribution_weight'] ?? $profile->distribution_weight,
+                    'shift_start'            => $validated['shift_start'] ?? $profile->shift_start,
+                    'shift_end'              => $validated['shift_end'] ?? $profile->shift_end,
+                ]),
+                fn ($v) => $v !== null
+            ));
         }
 
         return back()->with('success', "Profile updated for {$user->name}.");

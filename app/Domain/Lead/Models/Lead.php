@@ -95,6 +95,15 @@ class Lead extends Model
         'quality_score' => 50,
     ];
 
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::created(function (Lead $lead) {
+            \App\Events\LeadCreated::dispatch($lead);
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Relationships
     // -------------------------------------------------------------------------

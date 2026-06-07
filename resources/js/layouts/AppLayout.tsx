@@ -7,7 +7,7 @@ import {
   Recycle, UserCog, Headphones, Upload, MessageSquare, ShieldAlert,
   Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
   ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
-  Store, BookUser, Search, ChevronRight, Home,
+  Store, BookUser, Search, ChevronRight, Home, ArrowUpDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,9 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/crm/contacts': 'CRM Contacts',
   '/qc': 'QC Review',
   '/recycling/pool': 'Recycling',
+  '/lead-pool': 'Lead Pool',
+  '/distribution': 'Distribution',
+  '/distribution/analytics': 'Distribution Analytics',
   '/monitoring/dashboard': 'Monitoring',
   '/sales': 'Sales',
   '/agents/governance': 'Agents',
@@ -179,6 +182,9 @@ const navigation: NavEntry[] = [
       { name: 'Beyond SLA', href: '/waybills/claims/beyond-sla', icon: AlertOctagon },
       { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle },
       { name: 'Leads', href: '/leads', icon: Users, roles: ADMIN_ONLY },
+      { name: 'Lead Pool', href: '/lead-pool', icon: Package, roles: ADMIN_ONLY },
+      { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: ADMIN_ONLY },
+      { name: 'Distribution Analytics', href: '/distribution/analytics', icon: BarChart3, roles: ADMIN_ONLY },
       { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
     ],
   },
