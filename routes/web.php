@@ -14,6 +14,7 @@ use App\Http\Controllers\SmsController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
 use App\Http\Controllers\DistributionController;
+use App\Http\Controllers\DistributionAnalyticsController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
@@ -448,6 +449,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/auto-distribute', [DistributionController::class, 'autoDistribute'])->name('auto-distribute');
         Route::get('/queue', [DistributionController::class, 'queue'])->name('queue');
         Route::get('/agents/{agent}/workload', [DistributionController::class, 'agentWorkload'])->name('agents.workload');
+
+        // Analytics
+        Route::get('/analytics', [DistributionAnalyticsController::class, 'index'])->name('analytics');
+        Route::get('/analytics/alerts', [DistributionAnalyticsController::class, 'alerts'])->name('analytics.alerts');
+        Route::get('/analytics/rebalancing', [DistributionAnalyticsController::class, 'rebalancing'])->name('analytics.rebalancing');
     });
 });
 
