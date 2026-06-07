@@ -20,6 +20,8 @@ class LeadPoolResource extends JsonResource
             'product_name' => $this->product_name,
             'product_brand' => $this->product_brand,
             'amount' => $this->amount,
+            'status' => $this->status,
+            'sales_status' => $this->sales_status,
             'pool_status' => $this->pool_status,
             'total_cycles' => $this->total_cycles,
             'is_exhausted' => $this->is_exhausted,

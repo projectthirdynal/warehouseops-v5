@@ -31,13 +31,27 @@ class LeadPoolController extends Controller
     public function index(Request $request): Response
     {
         $filters = $request->only(['source', 'city', 'product_name', 'pool_status']);
+        $viewMode = $request->input('view_mode', 'pool');
 
         $query = Lead::with(['assignedAgent', 'customer']);
 
-        if (isset($filters['pool_status']) && $filters['pool_status'] !== 'all') {
-            $query->where('pool_status', $filters['pool_status']);
+        // View mode determines base query scope
+        if ($viewMode === 'pool') {
+            if (isset($filters['pool_status']) && $filters['pool_status'] !== 'all') {
+                $query->where('pool_status', $filters['pool_status']);
+            } else {
+                $query->where('pool_status', PoolStatus::AVAILABLE);
+            }
+        } elseif ($viewMode === 'imported') {
+            $query->whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT]);
+            if (isset($filters['pool_status']) && $filters['pool_status'] !== 'all') {
+                $query->where('pool_status', $filters['pool_status']);
+            }
         } else {
-            $query->where('pool_status', PoolStatus::AVAILABLE);
+            // 'all' — no pool_status restriction
+            if (isset($filters['pool_status']) && $filters['pool_status'] !== 'all') {
+                $query->where('pool_status', $filters['pool_status']);
+            }
         }
 
         if (isset($filters['source'])) {
@@ -61,10 +75,26 @@ class LeadPoolController extends Controller
             ->groupBy('assigned_to')
             ->pluck('count', 'assigned_to');
 
-        // Cache pool stats for 30s to avoid stale data during bulk operations
-        $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats', 30, fn () =>
-            $this->poolService->getPoolStats()
-        );
+        // Stats depend on view mode
+        if ($viewMode === 'pool') {
+            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats', 30, fn () =>
+                $this->poolService->getPoolStats()
+            );
+        } elseif ($viewMode === 'imported') {
+            $stats = [
+                'total' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->count(),
+                'available' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::AVAILABLE)->count(),
+                'assigned' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                'cooldown' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::COOLDOWN)->count(),
+            ];
+        } else {
+            $stats = [
+                'total' => Lead::count(),
+                'new' => Lead::where('status', 'NEW')->count(),
+                'in_progress' => Lead::whereIn('status', ['CALLING', 'CALLBACK'])->count(),
+                'converted' => Lead::where('status', 'SALE')->count(),
+            ];
+        }
 
         return Inertia::render('LeadPool/Index', [
             'leads' => LeadPoolResource::collection($leads),
@@ -75,7 +105,8 @@ class LeadPoolController extends Controller
                 'active_leads' => $activeLeadCounts[$agent->id] ?? 0,
                 'max_active_cycles' => $agent->agentProfile->max_active_cycles ?? 10,
             ]),
-            'filters' => $filters,
+            'filters' => array_merge($filters, ['view_mode' => $viewMode]),
+            'viewMode' => $viewMode,
             'sourceOptions' => collect(LeadSource::cases())->map(fn ($s) => [
                 'value' => $s->value,
                 'label' => $s->label(),
