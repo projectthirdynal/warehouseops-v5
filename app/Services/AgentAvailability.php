@@ -22,16 +22,17 @@ class AgentAvailability
             return true;
         }
 
-        $now = Carbon::now();
-        $start = Carbon::parse($profile->shift_start);
-        $end = Carbon::parse($profile->shift_end);
+        // Compare time-only to avoid timezone issues with stored time strings
+        $nowTime = Carbon::now()->format('H:i');
+        $startTime = Carbon::parse($profile->shift_start)->format('H:i');
+        $endTime = Carbon::parse($profile->shift_end)->format('H:i');
 
         // Handle overnight shifts (e.g. 22:00 - 06:00)
-        if ($end->lessThan($start)) {
-            return $now->greaterThanOrEqualTo($start) || $now->lessThan($end);
+        if ($endTime < $startTime) {
+            return $nowTime >= $startTime || $nowTime < $endTime;
         }
 
-        return $now->greaterThanOrEqualTo($start) && $now->lessThan($end);
+        return $nowTime >= $startTime && $nowTime < $endTime;
     }
 
     /**

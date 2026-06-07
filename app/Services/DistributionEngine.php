@@ -50,10 +50,15 @@ class DistributionEngine
         // Fallback: round-robin across all capacity-eligible agents
         $eligible = $this->filterEligibleAgents($lead, null);
         if ($eligible->isNotEmpty()) {
-            $best = $eligible->first();
+            // True round-robin: cycle through eligible agents
+            $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
+            $lastKey = \Illuminate\Support\Facades\Cache::get('distribution:last_round_robin_key', -1);
+            $nextKey = ($lastKey + 1) % count($agentIds);
+            $bestId = $agentIds[$nextKey];
+            \Illuminate\Support\Facades\Cache::put('distribution:last_round_robin_key', $nextKey, now()->addDay());
 
             return [
-                'agent_id' => $best->user_id,
+                'agent_id' => $bestId,
                 'rule_id' => null,
                 'score' => 0.0,
                 'reason' => 'Fallback round-robin (no matching rule)',
@@ -198,15 +203,16 @@ class DistributionEngine
             // Distribution weight multiplier
             $score *= ($agent->distribution_weight ?? 1.0);
 
-            // Strategy overrides
+            // Strategy blending: boost the dominant factor without discarding
+            // capacity/availability guards already enforced in filterEligibleAgents
             if ($strategy === DistributionStrategy::ROUND_ROBIN) {
-                $score = $timeFactor; // Pure recency
+                $score = $score * 0.3 + $timeFactor * 0.7; // Recency-heavy
             } elseif ($strategy === DistributionStrategy::WEIGHTED) {
-                $score = $perfNormalized * $availFactor * ($agent->distribution_weight ?? 1.0);
+                $score = $score * 0.3 + ($perfNormalized * $availFactor * ($agent->distribution_weight ?? 1.0)) * 0.7;
             } elseif ($strategy === DistributionStrategy::SKILL_MATCH) {
-                $score = $skillMatch;
+                $score = $score * 0.3 + $skillMatch * 0.7;
             } elseif ($strategy === DistributionStrategy::TERRITORY) {
-                $score = $regionMatch;
+                $score = $score * 0.3 + $regionMatch * 0.7;
             }
 
             return [
