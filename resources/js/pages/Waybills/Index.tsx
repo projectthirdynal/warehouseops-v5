@@ -13,7 +13,14 @@ import {
   XCircle,
   Clock,
   ArrowUpDown,
+  Trash2,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionBar, type BulkAction } from '@/components/BulkActionBar';
+import { InlineEdit } from '@/components/InlineEdit';
+import { RowExpand } from '@/components/RowExpand';
+import { useToast } from '@/hooks/use-toast';
+import { SkeletonTable } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,6 +72,46 @@ const statusConfig: Record<WaybillStatus, { label: string; variant: 'default' | 
 export default function WaybillsIndex({ waybills, filters, stats }: Props) {
   const [search, setSearch] = useState(filters?.search || '');
   const [statusFilter, setStatusFilter] = useState(filters?.status || 'all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { success, error } = useToast();
+
+  const waybillIds = waybills?.data?.map((w) => String(w.id)) || [];
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const selectAll = (checked: boolean) => {
+    setSelectedIds(checked ? waybillIds : []);
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const handleDeleteBulk = (ids: string[]) => {
+    if (!confirm(`Delete ${ids.length} waybill(s)? This cannot be undone.`)) return;
+    setLoading(true);
+    router.delete('/waybills/bulk', {
+      data: { ids },
+      onSuccess: () => {
+        success(`${ids.length} waybills deleted`);
+        clearSelection();
+        setLoading(false);
+      },
+      onError: () => {
+        error('Failed to delete waybills');
+        setLoading(false);
+      },
+    });
+  };
+
+  const handleExportBulk = (ids: string[]) => {
+    success(`Exporting ${ids.length} waybills...`);
+    window.open(`/waybills/export?ids=${ids.join(',')}`, '_blank');
+    clearSelection();
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,8 +120,14 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
 
   const handleStatusFilter = (value: string) => {
     setStatusFilter(value);
-    router.get('/waybills', { search, status: value !== 'all' ? value : undefined }, { preserveState: true });
+    setLoading(true);
+    router.get('/waybills', { search, status: value !== 'all' ? value : undefined }, { preserveState: true, onFinish: () => setLoading(false) });
   };
+
+  const bulkActions: BulkAction[] = [
+    { id: 'delete', label: 'Delete', icon: Trash2, variant: 'destructive', onClick: handleDeleteBulk },
+    { id: 'export', label: 'Export', icon: Download, variant: 'default', onClick: handleExportBulk },
+  ];
 
   return (
     <AppLayout>
@@ -180,13 +233,32 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
           </CardContent>
         </Card>
 
+        {/* Bulk Actions */}
+        <BulkActionBar
+          selectedIds={selectedIds}
+          totalCount={waybillIds.length}
+          onSelectAll={selectAll}
+          onClear={clearSelection}
+          actions={bulkActions}
+        />
+
         {/* Table */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
+              {loading ? (
+                <SkeletonTable rows={5} columns={8} />
+              ) : (
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/50">
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-10">
+                      <Checkbox
+                        checked={selectedIds.length === waybillIds.length && waybillIds.length > 0}
+                        onCheckedChange={(c) => selectAll(Boolean(c))}
+                        aria-label="Select all"
+                      />
+                    </th>
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                       <button className="flex items-center gap-1 hover:text-foreground">
                         Waybill # <ArrowUpDown className="h-4 w-4" />
@@ -207,7 +279,15 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                       const config = statusConfig[waybill.status];
                       const StatusIcon = config?.icon || Package;
                       return (
+                        <>
                         <tr key={waybill.id} className="border-b transition-colors hover:bg-muted/50">
+                          <td className="p-4 align-middle w-10">
+                            <Checkbox
+                              checked={selectedIds.includes(String(waybill.id))}
+                              onCheckedChange={() => toggleSelection(String(waybill.id))}
+                              aria-label={`Select waybill ${waybill.waybill_number}`}
+                            />
+                          </td>
                           <td className="p-4 align-middle font-mono text-sm font-medium">
                             {waybill.waybill_number}
                           </td>
@@ -230,9 +310,17 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                             </Badge>
                           </td>
                           <td className="p-4 align-middle text-sm max-w-[200px]">
-                            <div className="truncate" title={waybill.remarks || ''}>
-                              {waybill.remarks || '-'}
-                            </div>
+                            <InlineEdit
+                              value={waybill.remarks || ''}
+                              onSave={async (val) => {
+                                router.patch(`/waybills/${waybill.id}/remarks`, { remarks: val }, {
+                                  preserveState: true,
+                                  onSuccess: () => success('Remarks updated'),
+                                  onError: () => error('Failed to update remarks'),
+                                });
+                              }}
+                              placeholder="Add remarks..."
+                            />
                           </td>
                           <td className="p-4 align-middle text-sm font-medium">
                             ₱{waybill.cod_amount?.toLocaleString() || '0'}
@@ -260,17 +348,54 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                             </DropdownMenu>
                           </td>
                         </tr>
+                        {/* Expanded row */}
+                        {selectedIds.includes(String(waybill.id)) && (
+                          <tr>
+                            <td colSpan={9} className="px-4 pb-3">
+                              <RowExpand>
+                                <div className="grid grid-cols-3 gap-4 text-sm">
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">Phone</p>
+                                    <p className="font-medium">{waybill.receiver_phone ?? '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">Address</p>
+                                    <p className="font-medium">{[waybill.barangay, waybill.city, waybill.state].filter(Boolean).join(', ') || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">COD Amount</p>
+                                    <p className="font-medium">₱{waybill.cod_amount?.toLocaleString() || '0'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">Created</p>
+                                    <p className="font-medium">{formatDate(waybill.created_at)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">Dispatched</p>
+                                    <p className="font-medium">{waybill.dispatched_at ? formatDate(waybill.dispatched_at) : '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground text-xs uppercase">Delivered</p>
+                                    <p className="font-medium">{waybill.delivered_at ? formatDate(waybill.delivered_at) : '—'}</p>
+                                  </div>
+                                </div>
+                              </RowExpand>
+                            </td>
+                          </tr>
+                        )}
+                        </>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <td colSpan={9} className="h-24 text-center text-muted-foreground">
                         No waybills found
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+              )}
             </div>
 
             {/* Pagination */}
