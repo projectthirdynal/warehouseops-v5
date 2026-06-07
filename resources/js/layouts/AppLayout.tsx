@@ -1,4 +1,5 @@
 import { PropsWithChildren, useEffect, useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard, Package, Users, Truck, ClipboardCheck, BarChart3,
@@ -22,6 +23,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { PageProps } from '@/types';
 import CommandPalette from '@/components/CommandPalette';
+import { HotkeyCheatSheet } from '@/components/HotkeyCheatSheet';
+import { useGlobalHotkeys } from '@/hooks/use-hotkeys';
 
 /* ─── Role-based navigation ─── */
 const ALL_STAFF = ['superadmin','admin','supervisor','finance','accounting','warehouse','agent'];
@@ -207,6 +210,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+
+  /* ── Global hotkeys ── */
+  useGlobalHotkeys(
+    () => setCheatSheetOpen(true),
+    () => setCommandPaletteOpen(true)
+  );
 
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
 
@@ -386,36 +396,58 @@ export default function AppLayout({ children }: PropsWithChildren) {
             className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
           />
         </button>
-        {open && (
-          <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-            {visibleChildren(group).map((child) => {
-              if (child.divider) {
-                return (
-                  <div key={child.name} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                    {child.name}
-                  </div>
-                );
-              }
-              const ChildIcon = child.icon;
-              const childActive = isActive(child.href);
-              return (
-                <Link
-                  key={child.name}
-                  href={child.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
-                    childActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  )}
-                >
-                  <ChildIcon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{child.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              key="children"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1, transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] } }}
+              exit={{ height: 0, opacity: 0, transition: { duration: 0.16 } }}
+              className="overflow-hidden"
+            >
+              <motion.div
+                className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2"
+                variants={{ animate: { transition: { staggerChildren: 0.04 } } }}
+                initial="initial"
+                animate="animate"
+              >
+                {visibleChildren(group).map((child) => {
+                  if (child.divider) {
+                    return (
+                      <div key={child.name} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                        {child.name}
+                      </div>
+                    );
+                  }
+                  const ChildIcon = child.icon;
+                  const childActive = isActive(child.href);
+                  return (
+                    <motion.div
+                      key={child.name}
+                      variants={{
+                        initial: { opacity: 0, x: -6 },
+                        animate: { opacity: 1, x: 0, transition: { duration: 0.18 } },
+                      }}
+                    >
+                      <Link
+                        href={child.href}
+                        className={cn(
+                          'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                          childActive
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                        )}
+                      >
+                        <ChildIcon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1">{child.name}</span>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
@@ -663,7 +695,8 @@ export default function AppLayout({ children }: PropsWithChildren) {
         </div>
       </div>
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+      <HotkeyCheatSheet open={cheatSheetOpen} onOpenChange={setCheatSheetOpen} />
     </TooltipProvider>
   );
 }
-// cache-bust-1780725425
+// cache-bust-1781032200
