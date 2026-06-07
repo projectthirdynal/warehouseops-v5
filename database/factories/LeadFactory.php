@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,7 +31,7 @@ class LeadFactory extends Factory
             'postal_code' => fake()->postcode(),
             'status' => 'NEW',
             'sales_status' => 'NEW',
-            'source' => fake()->randomElement(['WEB', 'PHONE', 'REFERRAL', 'WALK_IN']),
+            'source' => fake()->randomElement([LeadSource::MANUAL, LeadSource::WAYBILL, LeadSource::XLSX_IMPORT, LeadSource::TELESALES_IMPORT]),
             'product_name' => fake()->words(3, true),
             'product_brand' => fake()->company(),
             'amount' => fake()->randomFloat(2, 100, 10000),

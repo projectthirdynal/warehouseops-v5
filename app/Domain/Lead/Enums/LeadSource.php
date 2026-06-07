@@ -10,6 +10,10 @@ enum LeadSource: string
     case MANUAL = 'MANUAL';
     case FACEBOOK = 'FACEBOOK';
     case SHOP = 'SHOP';
+    case WEB = 'WEB';
+    case PHONE = 'PHONE';
+    case REFERRAL = 'REFERRAL';
+    case WALK_IN = 'WALK_IN';
 
     public function label(): string
     {
@@ -20,6 +24,10 @@ enum LeadSource: string
             self::MANUAL => 'Manual Entry',
             self::FACEBOOK => 'Facebook',
             self::SHOP => 'Shop',
+            self::WEB => 'Web',
+            self::PHONE => 'Phone',
+            self::REFERRAL => 'Referral',
+            self::WALK_IN => 'Walk-In',
         };
     }
 }
