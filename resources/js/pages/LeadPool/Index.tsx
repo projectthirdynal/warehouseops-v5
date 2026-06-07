@@ -3,7 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import {
   Search, Filter, Users, Clock, Pause, AlertTriangle,
   Phone, ArrowUpDown, UserPlus, TrendingUp, CheckCircle,
-  Inbox, Layers,
+  Inbox,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
