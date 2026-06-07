@@ -15,6 +15,7 @@ use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DistributionAnalyticsController;
+use App\Http\Controllers\TelesalesLeadImportController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
@@ -436,6 +437,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
+    });
+
+    // Telesales Import
+    Route::prefix('telesales')->name('telesales.')->group(function () {
+        Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
+        Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
     });
 
     // Distribution Engine

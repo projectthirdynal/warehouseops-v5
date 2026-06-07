@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Lead\Models;
 
 use App\Models\Customer;
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
@@ -80,6 +81,7 @@ class Lead extends Model
         'current_qa_level' => 'integer',
         'qa_required' => 'boolean',
         'amount' => 'decimal:2',
+        'source' => LeadSource::class,
         'pool_status' => PoolStatus::class,
         'cooldown_until' => 'datetime',
     ];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\LeadPoolResource;
@@ -64,6 +65,10 @@ class LeadPoolController extends Controller
                 'max_active_cycles' => $agent->agentProfile->max_active_cycles ?? 10,
             ]),
             'filters' => $filters,
+            'sourceOptions' => collect(LeadSource::cases())->map(fn ($s) => [
+                'value' => $s->value,
+                'label' => $s->label(),
+            ]),
         ]);
     }
 

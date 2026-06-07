@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
@@ -217,7 +218,7 @@ class LeadImportService
                 ? (float) $data['amount']
                 : null,
             'notes' => $data['notes'] ?? null,
-            'source' => $data['source'] ?? 'XLSX_IMPORT',
+            'source' => $data['source'] ?? LeadSource::XLSX_IMPORT,
             'status' => $leadStatus ?? LeadStatus::NEW,
             'pool_status' => PoolStatus::AVAILABLE,
             'quality_score' => $qualityScore,

@@ -4,10 +4,10 @@ import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard, Package, Users, Truck, ClipboardCheck, BarChart3,
   Settings, ChevronLeft, ChevronDown, LogOut, Menu, Phone,
-  Recycle, UserCog, Headphones, Upload, MessageSquare, ShieldAlert,
+  Recycle, UserCog, Headphones, MessageSquare, ShieldAlert,
   Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
   ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
-  Store, BookUser, Search, ChevronRight, Home, ArrowUpDown,
+  Store, BookUser, Search, ChevronRight, Home, ArrowUpDown, Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/qc': 'QC Review',
   '/recycling/pool': 'Recycling',
   '/lead-pool': 'Lead Pool',
+  '/telesales/import': 'Telesales Import',
   '/distribution': 'Distribution',
   '/distribution/analytics': 'Distribution Analytics',
   '/monitoring/dashboard': 'Monitoring',
@@ -183,6 +184,7 @@ const navigation: NavEntry[] = [
       { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle },
       { name: 'Leads', href: '/leads', icon: Users, roles: ADMIN_ONLY },
       { name: 'Lead Pool', href: '/lead-pool', icon: Package, roles: ADMIN_ONLY },
+      { name: 'Telesales Import', href: '/telesales/import', icon: Upload, roles: ADMIN_ONLY },
       { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: ADMIN_ONLY },
       { name: 'Distribution Analytics', href: '/distribution/analytics', icon: BarChart3, roles: ADMIN_ONLY },
       { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
