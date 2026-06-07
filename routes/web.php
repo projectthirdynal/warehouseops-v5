@@ -85,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
         Route::get('/leads/{lead}/customer-history', [AgentLeadController::class, 'customerHistory'])->name('leads.customer-history');
+        Route::get('/leads/unread-count', [AgentLeadController::class, 'unreadCount'])->name('leads.unread-count');
     });
 });
 

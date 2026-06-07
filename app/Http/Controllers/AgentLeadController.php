@@ -507,4 +507,35 @@ class AgentLeadController extends Controller
 
         return AgentLeadResource::collection($leads);
     }
+
+    /**
+     * Return unread lead count for the authenticated agent.
+     * Used by polling-based notification badge.
+     */
+    public function unreadCount(): JsonResponse
+    {
+        $agentId = auth()->id();
+
+        $count = Lead::where('assigned_to', $agentId)
+            ->where('pool_status', PoolStatus::ASSIGNED)
+            ->where('assigned_at', '>=', now()->subHours(24))
+            ->count();
+
+        $latest = Lead::where('assigned_to', $agentId)
+            ->where('pool_status', PoolStatus::ASSIGNED)
+            ->latest('assigned_at')
+            ->first();
+
+        return response()->json([
+            'count' => $count,
+            'latest' => $latest ? [
+                'lead_id' => $latest->id,
+                'customer_name' => $latest->name,
+                'product' => $latest->product_name,
+                'province' => $latest->state,
+                'city' => $latest->city,
+                'priority' => $latest->quality_score ?? 50,
+            ] : null,
+        ]);
+    }
 }

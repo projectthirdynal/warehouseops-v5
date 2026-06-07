@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard, Package, Users, Truck, ClipboardCheck, BarChart3,
-  Settings, Bell, ChevronLeft, ChevronDown, LogOut, Menu, Phone,
+  Settings, ChevronLeft, ChevronDown, LogOut, Menu, Phone,
   Recycle, UserCog, Headphones, Upload, MessageSquare, ShieldAlert,
   Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
   ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
@@ -24,6 +24,7 @@ import {
 import type { PageProps } from '@/types';
 import CommandPalette from '@/components/CommandPalette';
 import { HotkeyCheatSheet } from '@/components/HotkeyCheatSheet';
+import { LeadNotificationBadge } from '@/components/LeadNotificationBadge';
 import { useGlobalHotkeys } from '@/hooks/use-hotkeys';
 
 /* ─── Role-based navigation ─── */
@@ -644,12 +645,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             </Button>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
-                3
-              </span>
-            </Button>
+            <LeadNotificationBadge count={0} />
 
             {/* User Menu */}
             <DropdownMenu>

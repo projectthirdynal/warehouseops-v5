@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
+use App\Jobs\AutoDistributeLeads;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;
 use App\Models\Upload;
@@ -19,6 +20,12 @@ class Kernel extends ConsoleKernel
         $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
         $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
         $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        // Auto-distribute leads from queue every minute
+        $schedule->job(new AutoDistributeLeads(batchSize: 20))
+            ->everyMinute()
             ->withoutOverlapping()
             ->onOneServer();
 
