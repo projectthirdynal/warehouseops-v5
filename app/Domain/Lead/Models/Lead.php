@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Lead\Models;
 
-use App\Domain\Customer\Models\Customer;
+use App\Models\Customer;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
-use App\Domain\Waybill\Models\Waybill;
+use App\Models\Waybill;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
