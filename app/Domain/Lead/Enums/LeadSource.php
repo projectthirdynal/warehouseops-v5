@@ -14,6 +14,7 @@ enum LeadSource: string
     case PHONE = 'PHONE';
     case REFERRAL = 'REFERRAL';
     case WALK_IN = 'WALK_IN';
+    case DELIVERED_WAYBILL = 'DELIVERED_WAYBILL';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum LeadSource: string
             self::PHONE => 'Phone',
             self::REFERRAL => 'Referral',
             self::WALK_IN => 'Walk-In',
+            self::DELIVERED_WAYBILL => 'Delivered Waybill',
         };
     }
 }
