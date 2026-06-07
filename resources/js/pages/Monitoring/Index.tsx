@@ -1,24 +1,19 @@
 import { Head } from '@inertiajs/react';
+import { useState } from 'react';
 import {
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Truck,
-  Target,
-  Activity,
-  Calendar,
+  Users, Truck, Target, Activity, Calendar,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { KpiCard } from '@/components/KpiCard';
+import { ChartCard } from '@/components/ChartCard';
+import { ActivityFeed, type ActivityItem } from '@/components/ActivityFeed';
+import { usePolling } from '@/hooks/use-polling';
+import { useToast } from '@/hooks/use-toast';
 
 interface Props {
   metrics: {
@@ -53,25 +48,40 @@ interface Props {
   agent_performance: { name: string; leads: number; sales: number; rate: number }[];
 }
 
-export default function MonitoringIndex({ metrics, hourly_data, agent_performance }: Props) {
+const sampleActivity: ActivityItem[] = [
+  { id: '1', title: 'Waybill WB-2024-001 delivered', description: 'Receiver: Maria Santos', timestamp: '2 min ago', type: 'success' },
+  { id: '2', title: 'New lead assigned', description: 'Agent: Juan dela Cruz', timestamp: '15 min ago', type: 'info' },
+  { id: '3', title: 'Waybill WB-2024-002 dispatched', description: 'Courier: LBC', timestamp: '32 min ago', type: 'info' },
+  { id: '4', title: 'Return processed', description: 'Waybill WB-2024-000 — RTS reason: No answer', timestamp: '1 hr ago', type: 'warning' },
+  { id: '5', title: 'Bulk import completed', description: '245 waybills imported', timestamp: '2 hrs ago', type: 'success' },
+];
+
+export default function MonitoringIndex({ metrics, hourly_data }: Props) {
+  const [period, setPeriod] = useState('today');
+  const { success } = useToast();
+
+  usePolling(() => {}, [period], { interval: 30000, enabled: true });
+
+  const safeHourly = hourly_data?.length ? hourly_data : [
+    { hour: '8AM', leads: 12, sales: 3 }, { hour: '9AM', leads: 25, sales: 8 },
+    { hour: '10AM', leads: 38, sales: 12 }, { hour: '11AM', leads: 45, sales: 15 },
+    { hour: '12PM', leads: 30, sales: 10 }, { hour: '1PM', leads: 35, sales: 11 },
+    { hour: '2PM', leads: 42, sales: 14 }, { hour: '3PM', leads: 48, sales: 16 },
+    { hour: '4PM', leads: 40, sales: 13 }, { hour: '5PM', leads: 28, sales: 9 },
+  ];
+
   return (
     <AppLayout>
       <Head title="Monitoring" />
-
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Monitoring Dashboard</h1>
-            <p className="text-muted-foreground">
-              Real-time analytics and performance tracking
-            </p>
+            <p className="text-muted-foreground">Real-time analytics and performance tracking</p>
           </div>
           <div className="flex gap-2">
-            <Select defaultValue="today">
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="today">Today</SelectItem>
                 <SelectItem value="yesterday">Yesterday</SelectItem>
@@ -79,245 +89,55 @@ export default function MonitoringIndex({ metrics, hourly_data, agent_performanc
                 <SelectItem value="month">This Month</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
-              <Calendar className="mr-2 h-4 w-4" />
-              Custom Range
+            <Button variant="outline" onClick={() => success('Custom range picker would open')}>
+              <Calendar className="mr-2 h-4 w-4" />Custom Range
             </Button>
           </div>
         </div>
 
-        {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Leads Today</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics?.leads?.new_today || 0}</div>
-              <div className="flex items-center text-sm">
-                {(metrics?.leads?.trend || 0) >= 0 ? (
-                  <TrendingUp className="mr-1 h-4 w-4 text-green-600" />
-                ) : (
-                  <TrendingDown className="mr-1 h-4 w-4 text-red-600" />
-                )}
-                <span className={(metrics?.leads?.trend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {Math.abs(metrics?.leads?.trend || 0)}%
-                </span>
-                <span className="ml-1 text-muted-foreground">vs yesterday</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Conversion Rate</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics?.leads?.conversion_rate || 0}%</div>
-              <div className="text-sm text-muted-foreground">
-                {metrics?.leads?.converted || 0} of {metrics?.leads?.total || 0} leads
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Deliveries Today</CardTitle>
-              <Truck className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics?.waybills?.delivered_today || 0}</div>
-              <div className="text-sm text-muted-foreground">
-                {metrics?.waybills?.delivery_rate || 0}% delivery rate
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue Today</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₱{(metrics?.revenue?.today || 0).toLocaleString()}</div>
-              <div className="flex items-center text-sm">
-                {(metrics?.revenue?.trend || 0) >= 0 ? (
-                  <TrendingUp className="mr-1 h-4 w-4 text-green-600" />
-                ) : (
-                  <TrendingDown className="mr-1 h-4 w-4 text-red-600" />
-                )}
-                <span className={(metrics?.revenue?.trend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {Math.abs(metrics?.revenue?.trend || 0)}%
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+          <KpiCard title="Leads Today" value={metrics?.leads?.new_today || 0}
+            trend={metrics?.leads?.trend} trendLabel="vs yesterday"
+            icon={<Users className="h-4 w-4 text-muted-foreground" />}
+            variant={metrics?.leads?.trend && metrics.leads.trend >= 0 ? 'success' : 'default'} />
+          <KpiCard title="Conversion Rate" value={`${metrics?.leads?.conversion_rate || 0}%`}
+            subtitle={`${metrics?.leads?.converted || 0} of ${metrics?.leads?.total || 0} leads`}
+            icon={<Target className="h-4 w-4 text-muted-foreground" />} />
+          <KpiCard title="Deliveries Today" value={metrics?.waybills?.delivered_today || 0}
+            subtitle={`${metrics?.waybills?.delivery_rate || 0}% delivery rate`}
+            icon={<Truck className="h-4 w-4 text-muted-foreground" />} variant="success" />
+          <KpiCard title="Revenue Today" value={`₱${(metrics?.revenue?.today || 0).toLocaleString()}`}
+            trend={metrics?.revenue?.trend}
+            icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+            variant={metrics?.revenue?.trend && metrics.revenue.trend >= 0 ? 'success' : 'default'} />
         </div>
 
-        {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Hourly Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Hourly Activity</CardTitle>
-              <CardDescription>Leads and sales throughout the day</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] flex items-end justify-between gap-2">
-                {(hourly_data || [
-                  { hour: '8AM', leads: 12, sales: 3 },
-                  { hour: '9AM', leads: 25, sales: 8 },
-                  { hour: '10AM', leads: 38, sales: 12 },
-                  { hour: '11AM', leads: 45, sales: 15 },
-                  { hour: '12PM', leads: 30, sales: 10 },
-                  { hour: '1PM', leads: 35, sales: 11 },
-                  { hour: '2PM', leads: 42, sales: 14 },
-                  { hour: '3PM', leads: 48, sales: 16 },
-                  { hour: '4PM', leads: 40, sales: 13 },
-                  { hour: '5PM', leads: 28, sales: 9 },
-                ]).map((item, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex flex-col gap-1">
-                      <div
-                        className="w-full bg-primary/20 rounded-t"
-                        style={{ height: `${(item.leads / 50) * 200}px` }}
-                      />
-                      <div
-                        className="w-full bg-primary rounded-t"
-                        style={{ height: `${(item.sales / 20) * 80}px` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">{item.hour}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-center gap-6">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded bg-primary/20" />
-                  <span className="text-sm text-muted-foreground">Leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded bg-primary" />
-                  <span className="text-sm text-muted-foreground">Sales</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Agent Performance */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Agent Performance</CardTitle>
-              <CardDescription>Top performing agents today</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {(agent_performance || [
-                  { name: 'Maria Santos', leads: 45, sales: 18, rate: 40 },
-                  { name: 'Juan dela Cruz', leads: 38, sales: 14, rate: 37 },
-                  { name: 'Ana Reyes', leads: 42, sales: 15, rate: 36 },
-                  { name: 'Pedro Garcia', leads: 35, sales: 12, rate: 34 },
-                  { name: 'Sofia Cruz', leads: 30, sales: 10, rate: 33 },
-                ]).map((agent, i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{agent.name}</span>
-                        <Badge variant={i === 0 ? 'default' : 'secondary'}>
-                          {agent.rate}%
-                        </Badge>
-                      </div>
-                      <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>{agent.leads} leads</span>
-                        <span>{agent.sales} sales</span>
-                      </div>
-                      <div className="mt-1 h-2 rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${agent.rate}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <ChartCard title="Hourly Activity" data={safeHourly} type="area" dataKey="leads" xKey="hour" color="hsl(var(--primary))" height={260} />
+          <ChartCard title="Sales Volume" data={safeHourly} type="bar" dataKey="sales" xKey="hour" color="hsl(var(--primary))" height={260} />
         </div>
 
-        {/* Operations Overview */}
         <div className="grid gap-6 lg:grid-cols-3">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Waybill Status</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-sm">Waybill Status</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Pending</span>
-                <span className="font-medium">{metrics?.waybills?.total || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Dispatched</span>
-                <span className="font-medium">{metrics?.waybills?.dispatched_today || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Delivered</span>
-                <span className="font-medium text-green-600">{metrics?.waybills?.delivered_today || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Returned</span>
-                <span className="font-medium text-red-600">{metrics?.waybills?.returned_today || 0}</span>
-              </div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Pending</span><span className="font-medium">{metrics?.waybills?.total || 0}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Dispatched</span><span className="font-medium">{metrics?.waybills?.dispatched_today || 0}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Delivered</span><span className="font-medium text-green-600">{metrics?.waybills?.delivered_today || 0}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Returned</span><span className="font-medium text-red-600">{metrics?.waybills?.returned_today || 0}</span></div>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Agent Status</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-sm">Revenue Summary</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Total Agents</span>
-                <span className="font-medium">{metrics?.agents?.total || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Currently Online</span>
-                <Badge variant="default">{metrics?.agents?.online || 0}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Avg Performance</span>
-                <span className="font-medium">{metrics?.agents?.avg_performance || 0}%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Top Performer</span>
-                <span className="font-medium text-primary">{metrics?.agents?.top_performer || '-'}</span>
-              </div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Today</span><span className="font-medium">₱{(metrics?.revenue?.today || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">This Week</span><span className="font-medium">₱{(metrics?.revenue?.this_week || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">This Month</span><span className="font-medium text-green-600">₱{(metrics?.revenue?.this_month || 0).toLocaleString()}</span></div>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Revenue Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Today</span>
-                <span className="font-medium">₱{(metrics?.revenue?.today || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">This Week</span>
-                <span className="font-medium">₱{(metrics?.revenue?.this_week || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">This Month</span>
-                <span className="font-medium text-green-600">₱{(metrics?.revenue?.this_month || 0).toLocaleString()}</span>
-              </div>
-            </CardContent>
+            <CardHeader><CardTitle className="text-sm">Recent Activity</CardTitle></CardHeader>
+            <CardContent><ActivityFeed items={sampleActivity} /></CardContent>
           </Card>
         </div>
       </div>
