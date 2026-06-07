@@ -16,6 +16,11 @@ class LeadController extends Controller
     {
         $query = Lead::with('assignedAgent');
 
+        // Non-supervisors should not see leads still in the distribution pool
+        if (!in_array(auth()->user()->role ?? '', ['superadmin', 'admin', 'supervisor'])) {
+            $query->where('pool_status', '!=', \App\Domain\Lead\Enums\PoolStatus::AVAILABLE);
+        }
+
         // Apply filters
         if ($request->has('search') && $request->search) {
             $search = $request->search;
@@ -32,6 +37,10 @@ class LeadController extends Controller
 
         if ($request->has('sales_status') && $request->sales_status) {
             $query->where('sales_status', $request->sales_status);
+        }
+
+        if ($request->has('pool_status') && $request->pool_status) {
+            $query->where('pool_status', $request->pool_status);
         }
 
         if ($request->has('assigned') && $request->assigned) {

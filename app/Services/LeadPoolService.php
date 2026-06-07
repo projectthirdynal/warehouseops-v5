@@ -6,6 +6,7 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class LeadPoolService
 {
@@ -52,6 +53,8 @@ class LeadPoolService
             'assigned_at' => now(),
         ]);
 
+        Cache::forget('lead_pool:stats');
+
         $this->auditService->log(
             lead: $lead,
             action: 'POOL_STATUS_CHANGED',
@@ -70,6 +73,8 @@ class LeadPoolService
             'cooldown_until' => now()->addHours($cooldownHours),
             'assigned_to' => null,
         ]);
+
+        Cache::forget('lead_pool:stats');
 
         $this->auditService->log(
             lead: $lead,
@@ -90,6 +95,8 @@ class LeadPoolService
             'assigned_to' => null,
         ]);
 
+        Cache::forget('lead_pool:stats');
+
         $this->auditService->log(
             lead: $lead,
             action: 'POOL_STATUS_CHANGED',
@@ -106,6 +113,8 @@ class LeadPoolService
             'pool_status' => PoolStatus::EXHAUSTED,
             'is_exhausted' => true,
         ]);
+
+        Cache::forget('lead_pool:stats');
 
         $this->auditService->log(
             lead: $lead,

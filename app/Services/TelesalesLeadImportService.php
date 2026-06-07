@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
+use App\Domain\Lead\Enums\SalesStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Events\LeadCreated;
 use App\Models\Customer;
@@ -35,11 +36,56 @@ class TelesalesLeadImportService
      */
     public function import(UploadedFile $file, int $userId): array
     {
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if (in_array($extension, ['xlsx', 'xls'])) {
+            return $this->importXlsx($file, $userId);
+        }
+
+        return $this->importCsv($file, $userId);
+    }
+
+    private function importCsv(UploadedFile $file, int $userId): array
+    {
         $rows = array_map('str_getcsv', file($file->getRealPath()));
         // Skip header if first row looks like headers
         if ($this->isHeaderRow($rows[0] ?? [])) {
             array_shift($rows);
         }
+
+        return $this->processRows($rows, $userId);
+    }
+
+    private function importXlsx(UploadedFile $file, int $userId): array
+    {
+        $rows = [];
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+
+            for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
+                $row = [];
+                for ($col = 1; $col <= 15; $col++) {
+                    $row[] = $sheet->getCellByColumnAndRow($col, $rowNum)->getValue();
+                }
+                $rows[] = $row;
+            }
+        } catch (\Exception $e) {
+            Log::error('Telesales XLSX import failed: ' . $e->getMessage());
+            return ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => ['Failed to read XLSX: ' . $e->getMessage()]];
+        }
+
+        // Skip header if first row looks like headers
+        if ($this->isHeaderRow($rows[0] ?? [])) {
+            array_shift($rows);
+        }
+
+        return $this->processRows($rows, $userId);
+    }
+
+    private function processRows(array $rows, int $userId): array
+    {
 
         $stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
 
@@ -132,9 +178,8 @@ class TelesalesLeadImportService
                 'product_name' => $product ?: $existing->product_name,
                 'quality_score' => max($existing->quality_score, $qualityScore),
                 'last_scored_at' => now(),
-                'pool_status' => $existing->pool_status === PoolStatus::COOLDOWN
-                    ? PoolStatus::AVAILABLE
-                    : $existing->pool_status,
+                // Do NOT override COOLDOWN — supervisor may have intentionally set it
+                'sales_status' => $this->mapOrderStatusToSalesStatus($orderStatus) ?? $existing->sales_status,
             ]);
 
             return ['action' => 'updated'];
@@ -153,6 +198,7 @@ class TelesalesLeadImportService
             'notes' => "Order status: {$orderStatus}",
             'source' => LeadSource::TELESALES_IMPORT,
             'status' => $leadStatus ?? LeadStatus::NEW,
+            'sales_status' => $this->mapOrderStatusToSalesStatus($orderStatus) ?? SalesStatus::NEW,
             'pool_status' => PoolStatus::AVAILABLE,
             'quality_score' => $qualityScore,
             'last_scored_at' => now(),
@@ -233,6 +279,18 @@ class TelesalesLeadImportService
             'cancelled', 'returned', 'failed', 'refused' => LeadStatus::CANCELLED,
             'pending', 'processing', 'confirmed' => LeadStatus::CALLBACK,
             default => LeadStatus::NEW,
+        };
+    }
+
+    private function mapOrderStatusToSalesStatus(string $orderStatus): ?SalesStatus
+    {
+        $normalized = strtolower(trim($orderStatus));
+
+        return match ($normalized) {
+            'delivered', 'completed', 'success', 'ordered' => SalesStatus::WAYBILL_CREATED,
+            'cancelled', 'returned', 'failed', 'refused' => SalesStatus::CANCELLED,
+            'pending', 'processing', 'confirmed' => SalesStatus::QA_PENDING,
+            default => null, // Keep existing / default
         };
     }
 }

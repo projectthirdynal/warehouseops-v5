@@ -54,14 +54,25 @@ class LeadPoolController extends Controller
 
         $agents = $this->distributionService->getAvailableAgents();
 
+        // Single query for all agent active lead counts (fixes N+1)
+        $activeLeadCounts = Lead::whereIn('assigned_to', $agents->pluck('id'))
+            ->where('pool_status', PoolStatus::ASSIGNED)
+            ->selectRaw('assigned_to, count(*) as count')
+            ->groupBy('assigned_to')
+            ->pluck('count', 'assigned_to');
+
+        // Cache pool stats for 30s to avoid stale data during bulk operations
+        $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats', 30, fn () =>
+            $this->poolService->getPoolStats()
+        );
+
         return Inertia::render('LeadPool/Index', [
             'leads' => LeadPoolResource::collection($leads),
-            'stats' => $this->poolService->getPoolStats(),
+            'stats' => $stats,
             'agents' => $agents->map(fn($agent) => [
                 'id' => $agent->id,
                 'name' => $agent->name,
-                'active_leads' => Lead::where('assigned_to', $agent->id)
-                    ->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                'active_leads' => $activeLeadCounts[$agent->id] ?? 0,
                 'max_active_cycles' => $agent->agentProfile->max_active_cycles ?? 10,
             ]),
             'filters' => $filters,
