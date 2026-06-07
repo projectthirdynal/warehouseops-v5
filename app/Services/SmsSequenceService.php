@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\ProcessSequenceStep;
-use App\Models\Lead;
+use App\Domain\Lead\Models\Lead;
 use App\Models\SmsSequence;
 use App\Models\SmsSequenceEnrollment;
 use App\Models\Waybill;

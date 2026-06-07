@@ -33,10 +33,18 @@ interface PoolLead {
   phone: string;
   city: string | null;
   state: string | null;
+  barangay: string | null;
+  source: string;
   product_name: string | null;
+  product_brand: string | null;
+  amount: number | null;
   pool_status: 'AVAILABLE' | 'ASSIGNED' | 'COOLDOWN' | 'EXHAUSTED';
   total_cycles: number;
+  is_exhausted: boolean;
   cooldown_until: string | null;
+  assigned_to: number | null;
+  assigned_agent: { id: number; name: string } | null;
+  customer: { id: number; total_orders: number; success_rate: number; is_blacklisted: boolean } | null;
   created_at: string;
 }
 
@@ -47,14 +55,23 @@ interface Agent {
   max_active_cycles: number;
 }
 
+interface SourceOption {
+  value: string;
+  label: string;
+}
+
 interface Props {
   leads: PaginatedResponse<PoolLead>;
   stats: PoolStats;
   agents: Agent[];
   filters: {
     pool_status?: string;
+    source?: string;
+    city?: string;
+    product_name?: string;
     search?: string;
   };
+  sourceOptions: SourceOption[];
 }
 
 const poolStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -64,7 +81,7 @@ const poolStatusConfig: Record<string, { label: string; variant: 'default' | 'se
   EXHAUSTED: { label: 'Exhausted', variant: 'destructive' },
 };
 
-export default function LeadPoolIndex({ leads, stats, agents, filters }: Props) {
+export default function LeadPoolIndex({ leads, stats, agents, filters, sourceOptions: _sourceOptions }: Props) {
   const [search, setSearch] = useState(filters?.search || '');
   const [statusFilter, setStatusFilter] = useState(filters?.pool_status || 'all');
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
@@ -187,6 +204,27 @@ export default function LeadPoolIndex({ leads, stats, agents, filters }: Props) 
                   <SelectItem value="ASSIGNED">Assigned</SelectItem>
                   <SelectItem value="COOLDOWN">Cooldown</SelectItem>
                   <SelectItem value="EXHAUSTED">Exhausted</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={filters?.source || 'all'}
+                onValueChange={(v) =>
+                  router.get('/lead-pool', {
+                    source: v !== 'all' ? v : undefined,
+                    pool_status: statusFilter !== 'all' ? statusFilter : undefined,
+                  }, { preserveState: true })
+                }
+              >
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  {_sourceOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button type="submit">

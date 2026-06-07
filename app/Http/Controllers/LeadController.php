@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Services\OrderFulfillmentService;
-use App\Models\Lead;
+use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
