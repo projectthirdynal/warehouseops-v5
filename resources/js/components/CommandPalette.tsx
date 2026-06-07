@@ -174,8 +174,17 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     return () => window.removeEventListener('keydown', handle);
   }, [open, displayList, selectedIndex, navigate, onOpenChange]);
 
-  let globalIdx = 0;
   const hasRecents = !q && !scope && recents.length > 0;
+
+  /* Flat index mapping for keyboard nav — precomputed, stable across renders */
+  const itemIndexMap = useMemo(() => {
+    const map = new Map<NavItem, number>();
+    let idx = 0;
+    grouped.forEach(([, items]) => {
+      items.forEach((item) => { map.set(item, idx++); });
+    });
+    return map;
+  }, [grouped]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -210,7 +219,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                   {section}
                 </div>
                 {items.map((item) => {
-                  const idx = globalIdx++;
+                  const idx = itemIndexMap.get(item) ?? -1;
                   const Icon = item.icon;
                   const isSelected = idx === selectedIndex;
                   const isAction = item.action;

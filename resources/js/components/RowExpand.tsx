@@ -6,10 +6,11 @@ import { ChevronDown } from 'lucide-react';
 interface RowExpandProps {
   children: React.ReactNode;
   className?: string;
+  defaultOpen?: boolean;
 }
 
-export function RowExpand({ children, className }: RowExpandProps) {
-  const [open, setOpen] = useState(false);
+export function RowExpand({ children, className, defaultOpen = false }: RowExpandProps) {
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className={cn('relative', className)}>

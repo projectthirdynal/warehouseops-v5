@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -25,6 +26,14 @@ export function ChartCard({
   className,
   height = 200,
 }: ChartCardProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return (
+    <Card className={cn(className)}>
+      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{title}</CardTitle></CardHeader>
+      <CardContent><div style={{ height }} className="animate-pulse bg-muted rounded" /></CardContent>
+    </Card>
+  );
   return (
     <Card className={cn(className)}>
       <CardHeader className="pb-2">

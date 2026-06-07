@@ -358,7 +358,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                         {selectedIds.includes(String(waybill.id)) && (
                           <tr>
                             <td colSpan={9} className="px-4 pb-3">
-                              <RowExpand>
+                              <RowExpand defaultOpen>
                                 <div className="grid grid-cols-3 gap-4 text-sm">
                                   <div>
                                     <p className="text-muted-foreground text-xs uppercase">Phone</p>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
@@ -21,11 +21,14 @@ export function DetailDrawer({
   className,
   width = '480px',
 }: DetailDrawerProps) {
-  /* Lock body scroll while open */
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  /* Lock body scroll + focus close button when open */
   useEffect(() => {
     if (open) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
+      setTimeout(() => closeRef.current?.focus(), 50);
       return () => { document.body.style.overflow = prev; };
     }
   }, [open]);
@@ -63,7 +66,7 @@ export function DetailDrawer({
           >
             <div className="flex items-center justify-between border-b px-5 py-4">
               <h2 className="text-base font-semibold">{title}</h2>
-              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+              <Button ref={closeRef} variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
             </div>
