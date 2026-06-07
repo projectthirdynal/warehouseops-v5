@@ -75,6 +75,13 @@ class LeadDistributionService
                 for ($i = 0; $i < $count && $leadIndex < $leads->count(); $i++) {
                     $lead = $leads[$leadIndex];
 
+                    // Race-condition guard
+                    $lead->refresh();
+                    if ($lead->pool_status !== PoolStatus::AVAILABLE) {
+                        $leadIndex++;
+                        continue;
+                    }
+
                     // Create new cycle
                     $cycleNumber = $lead->total_cycles + 1;
                     $cycle = LeadCycle::create([
@@ -92,6 +99,9 @@ class LeadDistributionService
                         'assigned_at' => now(),
                         'total_cycles' => $cycleNumber,
                     ]);
+
+                    // Update agent workload
+                    app(CapacityManager::class)->recordAssignment($agentId);
 
                     // Audit log
                     $this->auditService->log(

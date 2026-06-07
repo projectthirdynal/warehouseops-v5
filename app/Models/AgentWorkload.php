@@ -42,6 +42,11 @@ class AgentWorkload extends Model
 
     public function isDailyCapReached(int $maxDaily): bool
     {
+        // Reset counter if last assignment was before today
+        if ($this->last_assigned_at && ! $this->last_assigned_at->isToday()) {
+            return false;
+        }
+
         return $this->today_assigned_count >= $maxDaily;
     }
 

@@ -8,6 +8,7 @@ use App\Events\LeadAssigned;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\DistributionEngine;
 use App\Services\LeadAuditService;
 use Illuminate\Bus\Queueable;
@@ -115,6 +116,12 @@ class AutoDistributeLeads implements ShouldQueue
     private function assignLead(Lead $lead, User $agent, array $result, LeadAuditService $auditService): void
     {
         DB::transaction(function () use ($lead, $agent, $result, $auditService) {
+            // Race-condition guard: re-check lead is still available
+            $lead->refresh();
+            if ($lead->pool_status !== PoolStatus::AVAILABLE) {
+                return;
+            }
+
             $cycleNumber = $lead->total_cycles + 1;
             $cycle = LeadCycle::create([
                 'lead_id' => $lead->id,
@@ -130,6 +137,9 @@ class AutoDistributeLeads implements ShouldQueue
                 'assigned_at' => now(),
                 'total_cycles' => $cycleNumber,
             ]);
+
+            // Update agent workload counters
+            app(CapacityManager::class)->recordAssignment($agent->id);
 
             $auditService->log(
                 lead: $lead,

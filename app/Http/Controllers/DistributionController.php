@@ -22,7 +22,14 @@ class DistributionController extends Controller
     public function __construct(
         private DistributionEngine $engine,
         private LeadAuditService $auditService,
-    ) {}
+    ) {
+        $this->middleware(function ($request, $next) {
+            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+                abort(403, 'Unauthorized');
+            }
+            return $next($request);
+        });
+    }
 
     public function index()
     {
@@ -100,6 +107,12 @@ class DistributionController extends Controller
         }
 
         $result = DB::transaction(function () use ($lead, $agent, $validated) {
+            // Race-condition guard
+            $lead->refresh();
+            if ($lead->pool_status !== PoolStatus::AVAILABLE) {
+                throw new \RuntimeException('Lead is no longer available');
+            }
+
             $cycleNumber = $lead->total_cycles + 1;
             $cycle = LeadCycle::create([
                 'lead_id' => $lead->id,
@@ -115,6 +128,9 @@ class DistributionController extends Controller
                 'assigned_at' => now(),
                 'total_cycles' => $cycleNumber,
             ]);
+
+            // Update agent workload
+            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -157,6 +173,10 @@ class DistributionController extends Controller
                     'outcome' => 'REASSIGNED',
                     'closed_at' => now(),
                 ]);
+                // Free up old agent workload
+                if ($oldAgent) {
+                    app(\App\Services\CapacityManager::class)->recordCycleClose($oldAgent->id);
+                }
             }
 
             $cycleNumber = $lead->total_cycles + 1;
@@ -174,6 +194,9 @@ class DistributionController extends Controller
                 'assigned_at' => now(),
                 'total_cycles' => $cycleNumber,
             ]);
+
+            // Update new agent workload
+            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -199,7 +222,10 @@ class DistributionController extends Controller
 
     public function autoDistribute(Request $request)
     {
-        $limit = $request->input('limit', 10);
+        $validated = $request->validate([
+            'limit' => 'integer|min:1|max:100',
+        ]);
+        $limit = $validated['limit'] ?? 10;
         $distributed = 0;
 
         $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
@@ -224,6 +250,12 @@ class DistributionController extends Controller
             }
 
             DB::transaction(function () use ($lead, $agent, $result) {
+                // Race-condition guard
+                $lead->refresh();
+                if ($lead->pool_status !== PoolStatus::AVAILABLE) {
+                    return;
+                }
+
                 $cycleNumber = $lead->total_cycles + 1;
                 $cycle = LeadCycle::create([
                     'lead_id' => $lead->id,
@@ -239,6 +271,9 @@ class DistributionController extends Controller
                     'assigned_at' => now(),
                     'total_cycles' => $cycleNumber,
                 ]);
+
+                // Update agent workload
+                app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
 
                 $this->auditService->log(
                     lead: $lead,
