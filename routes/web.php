@@ -356,9 +356,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
     });
 
-    // Leads
+    // Leads — index now redirects to unified Lead Pool view
     Route::prefix('leads')->name('leads.')->group(function () {
-        Route::get('/', [LeadController::class, 'index'])->name('index');
+        Route::get('/', function () {
+            return redirect('/lead-pool');
+        })->name('index');
         Route::get('/{lead}', [LeadController::class, 'show'])->name('show');
     });
 
