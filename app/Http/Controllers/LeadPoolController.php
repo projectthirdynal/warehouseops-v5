@@ -20,7 +20,7 @@ class LeadPoolController extends Controller
         private LeadDistributionService $distributionService
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['supervisor', 'admin'])) {
+            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403, 'Supervisors only');
             }
             return $next($request);
