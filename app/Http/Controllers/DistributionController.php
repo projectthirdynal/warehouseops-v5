@@ -1,0 +1,299 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Domain\Lead\Enums\PoolStatus;
+use App\Domain\Lead\Models\Lead;
+use App\Events\LeadAssigned;
+use App\Http\Resources\AgentLeadResource;
+use App\Models\AgentWorkload;
+use App\Models\DistributionQueue;
+use App\Models\DistributionRule;
+use App\Models\LeadCycle;
+use App\Models\User;
+use App\Services\DistributionEngine;
+use App\Services\LeadAuditService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+
+class DistributionController extends Controller
+{
+    public function __construct(
+        private DistributionEngine $engine,
+        private LeadAuditService $auditService,
+    ) {}
+
+    public function index()
+    {
+        return Inertia::render('Distribution/Index', [
+            'rules' => DistributionRule::active()->get(),
+            'queue' => DistributionQueue::with(['lead', 'assignedAgent'])
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get(),
+            'agents' => User::where('role', 'agent')
+                ->where('is_active', true)
+                ->with('agentProfile')
+                ->get(),
+            'workloads' => AgentWorkload::with('agent')
+                ->get()
+                ->keyBy('agent_id'),
+        ]);
+    }
+
+    public function storeRule(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'strategy' => 'required|string|in:round_robin,weighted,skill_match,territory,hybrid',
+            'priority' => 'required|integer|min:0',
+            'filters' => 'nullable|array',
+            'weight_formula' => 'nullable|array',
+            'is_active' => 'boolean',
+        ]);
+
+        $rule = DistributionRule::create([
+            ...$validated,
+            'supervisor_id' => $request->user()->id,
+        ]);
+
+        return redirect()->back()->with('success', "Rule '{$rule->name}' created.");
+    }
+
+    public function updateRule(Request $request, DistributionRule $rule)
+    {
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'strategy' => 'sometimes|string|in:round_robin,weighted,skill_match,territory,hybrid',
+            'priority' => 'sometimes|integer|min:0',
+            'filters' => 'nullable|array',
+            'weight_formula' => 'nullable|array',
+            'is_active' => 'boolean',
+        ]);
+
+        $rule->update($validated);
+
+        return redirect()->back()->with('success', "Rule '{$rule->name}' updated.");
+    }
+
+    public function destroyRule(DistributionRule $rule)
+    {
+        $rule->delete();
+
+        return redirect()->back()->with('success', 'Rule deleted.');
+    }
+
+    public function assign(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_id' => 'required|exists:leads,id',
+            'agent_id' => 'required|exists:users,id',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $lead = Lead::findOrFail($validated['lead_id']);
+        $agent = User::findOrFail($validated['agent_id']);
+
+        if ($lead->pool_status !== PoolStatus::AVAILABLE) {
+            return redirect()->back()->with('error', 'Lead is not available for assignment.');
+        }
+
+        $result = DB::transaction(function () use ($lead, $agent, $validated) {
+            $cycleNumber = $lead->total_cycles + 1;
+            $cycle = LeadCycle::create([
+                'lead_id' => $lead->id,
+                'cycle_number' => $cycleNumber,
+                'assigned_agent_id' => $agent->id,
+                'status' => 'ACTIVE',
+                'opened_at' => now(),
+            ]);
+
+            $lead->update([
+                'pool_status' => PoolStatus::ASSIGNED,
+                'assigned_to' => $agent->id,
+                'assigned_at' => now(),
+                'total_cycles' => $cycleNumber,
+            ]);
+
+            $this->auditService->log(
+                lead: $lead,
+                action: 'MANUALLY_ASSIGNED',
+                user: auth()->user(),
+                cycle: $cycle,
+                metadata: [
+                    'agent_id' => $agent->id,
+                    'agent_name' => $agent->name,
+                    'reason' => $validated['reason'],
+                ]
+            );
+
+            LeadAssigned::dispatch($lead, $agent, $cycle, $validated['reason']);
+
+            return ['lead' => $lead, 'cycle' => $cycle];
+        });
+
+        return redirect()->back()->with('success', "Lead assigned to {$agent->name}.");
+    }
+
+    public function reassign(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_id' => 'required|exists:leads,id',
+            'agent_id' => 'required|exists:users,id',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $lead = Lead::findOrFail($validated['lead_id']);
+        $agent = User::findOrFail($validated['agent_id']);
+        $oldAgent = $lead->assignedAgent;
+
+        $result = DB::transaction(function () use ($lead, $agent, $oldAgent, $validated) {
+            // Close existing cycle
+            $existingCycle = $lead->activeCycle;
+            if ($existingCycle) {
+                $existingCycle->update([
+                    'status' => 'CLOSED',
+                    'outcome' => 'REASSIGNED',
+                    'closed_at' => now(),
+                ]);
+            }
+
+            $cycleNumber = $lead->total_cycles + 1;
+            $cycle = LeadCycle::create([
+                'lead_id' => $lead->id,
+                'cycle_number' => $cycleNumber,
+                'assigned_agent_id' => $agent->id,
+                'status' => 'ACTIVE',
+                'opened_at' => now(),
+            ]);
+
+            $lead->update([
+                'pool_status' => PoolStatus::ASSIGNED,
+                'assigned_to' => $agent->id,
+                'assigned_at' => now(),
+                'total_cycles' => $cycleNumber,
+            ]);
+
+            $this->auditService->log(
+                lead: $lead,
+                action: 'REASSIGNED',
+                user: auth()->user(),
+                cycle: $cycle,
+                metadata: [
+                    'from_agent_id' => $oldAgent?->id,
+                    'from_agent_name' => $oldAgent?->name,
+                    'to_agent_id' => $agent->id,
+                    'to_agent_name' => $agent->name,
+                    'reason' => $validated['reason'],
+                ]
+            );
+
+            LeadAssigned::dispatch($lead, $agent, $cycle, $validated['reason']);
+
+            return ['lead' => $lead, 'cycle' => $cycle];
+        });
+
+        return redirect()->back()->with('success', "Lead reassigned to {$agent->name}.");
+    }
+
+    public function autoDistribute(Request $request)
+    {
+        $limit = $request->input('limit', 10);
+        $distributed = 0;
+
+        $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
+            ->limit($limit)
+            ->get();
+
+        foreach ($leads as $lead) {
+            $result = $this->engine->findBestAgent($lead);
+
+            if (! $result['agent_id']) {
+                DistributionQueue::create([
+                    'lead_id' => $lead->id,
+                    'rule_id' => $result['rule_id'],
+                    'status' => 'pending',
+                ]);
+                continue;
+            }
+
+            $agent = User::find($result['agent_id']);
+            if (! $agent) {
+                continue;
+            }
+
+            DB::transaction(function () use ($lead, $agent, $result) {
+                $cycleNumber = $lead->total_cycles + 1;
+                $cycle = LeadCycle::create([
+                    'lead_id' => $lead->id,
+                    'cycle_number' => $cycleNumber,
+                    'assigned_agent_id' => $agent->id,
+                    'status' => 'ACTIVE',
+                    'opened_at' => now(),
+                ]);
+
+                $lead->update([
+                    'pool_status' => PoolStatus::ASSIGNED,
+                    'assigned_to' => $agent->id,
+                    'assigned_at' => now(),
+                    'total_cycles' => $cycleNumber,
+                ]);
+
+                $this->auditService->log(
+                    lead: $lead,
+                    action: 'AUTO_DISTRIBUTED',
+                    user: $agent,
+                    cycle: $cycle,
+                    metadata: [
+                        'agent_id' => $agent->id,
+                        'agent_name' => $agent->name,
+                        'score' => $result['score'],
+                        'reason' => $result['reason'],
+                    ]
+                );
+
+                LeadAssigned::dispatch($lead, $agent, $cycle, $result['reason']);
+            });
+
+            $distributed++;
+        }
+
+        return redirect()->back()->with('success', "{$distributed} leads distributed.");
+    }
+
+    public function queue()
+    {
+        return response()->json([
+            'pending' => DistributionQueue::pending()->count(),
+            'assigned' => DistributionQueue::where('status', 'assigned')->count(),
+            'failed' => DistributionQueue::where('status', 'failed')->count(),
+            'items' => DistributionQueue::with(['lead', 'assignedAgent'])
+                ->orderByDesc('created_at')
+                ->limit(20)
+                ->get(),
+        ]);
+    }
+
+    public function agentWorkload(User $agent)
+    {
+        $workload = AgentWorkload::firstOrCreate(
+            ['agent_id' => $agent->id],
+            ['active_leads_count' => 0, 'today_assigned_count' => 0, 'today_converted_count' => 0]
+        );
+
+        $profile = $agent->agentProfile;
+        $maxCycles = $profile?->concurrent_lead_cap ?? $profile?->max_active_cycles ?? 10;
+
+        return response()->json([
+            'agent_id' => $agent->id,
+            'name' => $agent->name,
+            'active_leads' => $workload->active_leads_count,
+            'max_cycles' => $maxCycles,
+            'utilization' => $maxCycles > 0 ? round($workload->active_leads_count / $maxCycles, 2) : 0,
+            'today_assigned' => $workload->today_assigned_count,
+            'today_converted' => $workload->today_converted_count,
+            'last_assigned_at' => $workload->last_assigned_at,
+        ]);
+    }
+}

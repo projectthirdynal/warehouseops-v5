@@ -13,6 +13,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\LeadImportController;
+use App\Http\Controllers\DistributionController;
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
@@ -433,6 +434,19 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
+    });
+
+    // Distribution Engine
+    Route::prefix('distribution')->name('distribution.')->group(function () {
+        Route::get('/', [DistributionController::class, 'index'])->name('index');
+        Route::post('/rules', [DistributionController::class, 'storeRule'])->name('rules.store');
+        Route::patch('/rules/{rule}', [DistributionController::class, 'updateRule'])->name('rules.update');
+        Route::delete('/rules/{rule}', [DistributionController::class, 'destroyRule'])->name('rules.destroy');
+        Route::post('/assign', [DistributionController::class, 'assign'])->name('assign');
+        Route::post('/reassign', [DistributionController::class, 'reassign'])->name('reassign');
+        Route::post('/auto-distribute', [DistributionController::class, 'autoDistribute'])->name('auto-distribute');
+        Route::get('/queue', [DistributionController::class, 'queue'])->name('queue');
+        Route::get('/agents/{agent}/workload', [DistributionController::class, 'agentWorkload'])->name('agents.workload');
     });
 });
 
