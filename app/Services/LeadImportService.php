@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -229,6 +230,8 @@ class LeadImportService
             action: 'LEAD_CREATED',
             metadata: ['source' => 'xlsx_import', 'uploaded_by' => $userId, 'quality_score' => $qualityScore]
         );
+
+        LeadCreated::dispatch($lead);
 
         return ['action' => 'created', 'error' => null];
     }

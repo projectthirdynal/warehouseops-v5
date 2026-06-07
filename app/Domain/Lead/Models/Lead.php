@@ -9,6 +9,7 @@ use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
 use App\Domain\Waybill\Models\Waybill;
+use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
 use Database\Factories\LeadFactory;
@@ -95,15 +96,6 @@ class Lead extends Model
         'quality_score' => 50,
     ];
 
-    protected static function boot(): void
-    {
-        parent::boot();
-
-        static::created(function (Lead $lead) {
-            \App\Events\LeadCreated::dispatch($lead);
-        });
-    }
-
     // -------------------------------------------------------------------------
     // Relationships
     // -------------------------------------------------------------------------
@@ -136,6 +128,11 @@ class Lead extends Model
     public function cycles(): HasMany
     {
         return $this->hasMany(LeadCycle::class)->orderByDesc('cycle_number');
+    }
+
+    public function distributionQueues(): HasMany
+    {
+        return $this->hasMany(DistributionQueue::class);
     }
 
     public function activeCycle(): HasOne
