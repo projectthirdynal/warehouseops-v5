@@ -116,8 +116,8 @@ const navigation: NavEntry[] = [
     icon: WarehouseIcon,
     roles: INVENTORY_MATERIAL_ROLES,
     children: [
-      { name: 'Inventory Dashboard', href: '/inventory', icon: BarChart3, roles: OPS_ROLES },
-      { name: 'Movements', href: '/inventory/movements', icon: Recycle, roles: OPS_ROLES },
+      { name: 'Inventory Dashboard', href: '/inventory', icon: BarChart3, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Movements', href: '/inventory/movements', icon: Recycle, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Stock Adjustments', href: '/inventory/adjustments', icon: ClipboardCheck, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Supplies', href: '/inventory/supplies', icon: Package, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Products', href: '/products', icon: Package, roles: OPS_ROLES },

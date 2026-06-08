@@ -96,7 +96,7 @@ Route::middleware(['auth'])->group(function () {
 //   superadmin  – IT Administrator  – full system access
 //   admin       – Manager/Admin     – full access except system config
 //   supervisor  – Operations Supervisor – ops + inventory + procurement
-//   finance     – Finance Officer   – finance, reports, inventory (read)
+//   finance     – Finance Officer   – finance, reports, inventory (full: dashboard, movements, supplies, adjustments)
 //   accounting  – Accountant        – finance, QuickBooks, claims, reports
 //   warehouse   – Warehouse Staff   – inventory + procurement + products
 //   agent       – Sales Agent       – agent portal only (separate group below)
@@ -125,8 +125,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
     Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
 });
 
-// ── INVENTORY MATERIALS + ADJUSTMENTS: accounting can participate in controls
-Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting'])->group(function () {
+// ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting,finance'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('/supplies',  [SupplyController::class, 'index'])->name('supplies.index');
         Route::post('/supplies', [SupplyController::class, 'store'])->name('supplies.store');
