@@ -348,13 +348,15 @@ function EmailSection({ email_settings }: { email_settings?: EmailSettings }) {
     zoho:     { host: 'smtp.zoho.com',        port: '587', encryption: 'tls' },
   };
 
+  const isConfigured = !!(data.host && data.host.trim().length > 0);
+
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Status banner */}
-      <Card className={defaults.is_configured ? 'border-green-200 bg-green-50 dark:bg-green-950' : 'border-amber-200 bg-amber-50 dark:bg-amber-950'}>
+      {/* Status banner — reactive to live form state */}
+      <Card className={isConfigured ? 'border-green-200 bg-green-50 dark:bg-green-950' : 'border-amber-200 bg-amber-50 dark:bg-amber-950'}>
         <CardContent className="flex items-center gap-3 p-4">
-          {defaults.is_configured
-            ? <><CheckCircle className="h-5 w-5 text-green-600 shrink-0" /><div><p className="text-sm font-medium text-green-800 dark:text-green-300">SMTP is configured</p><p className="text-xs text-green-700 dark:text-green-400">Emails are being sent via {defaults.host}</p></div></>
+          {isConfigured
+            ? <><CheckCircle className="h-5 w-5 text-green-600 shrink-0" /><div><p className="text-sm font-medium text-green-800 dark:text-green-300">SMTP is configured</p><p className="text-xs text-green-700 dark:text-green-400">Emails are being sent via {data.host}</p></div></>
             : <><XCircle className="h-5 w-5 text-amber-600 shrink-0" /><div><p className="text-sm font-medium text-amber-800 dark:text-amber-300">SMTP not configured</p><p className="text-xs text-amber-700 dark:text-amber-400">Configure below to enable email notifications and password resets</p></div></>
           }
         </CardContent>

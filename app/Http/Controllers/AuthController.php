@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -69,6 +70,7 @@ class AuthController extends Controller
             'password'  => Hash::make($validated['password']),
             'role'      => 'agent',
             'is_active' => true,
+            // email_verified_at intentionally null — must verify before accessing
         ]);
 
         $user->agentProfile()->create([
@@ -76,10 +78,12 @@ class AuthController extends Controller
             'is_available'      => true,
         ]);
 
+        event(new Registered($user));
+
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('agent.leads');
+        return redirect()->route('verification.notice');
     }
 
     public function logout(Request $request): RedirectResponse

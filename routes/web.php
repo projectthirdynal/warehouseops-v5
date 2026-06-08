@@ -44,6 +44,7 @@ use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\InventoryScannerController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
@@ -74,6 +75,13 @@ Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkReques
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
 Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
 Route::post('/reset-password', [ForgotPasswordController::class, 'reset'])->name('password.update');
+
+// Email Verification Routes
+Route::middleware('auth')->group(function () {
+    Route::get('/email/verify', [EmailVerificationController::class, 'notice'])->name('verification.notice');
+    Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
+    Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])->middleware('throttle:6,1')->name('verification.send');
+});
 
 // Agent Self-Service Portal (all authenticated users can access their own portal)
 Route::middleware(['auth'])->group(function () {

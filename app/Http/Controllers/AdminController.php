@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\RolePermission;
 use App\Models\User;
 use App\Models\UserModuleAccess;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -179,15 +180,19 @@ class AdminController extends Controller
             'role'      => $validated['role'],
             'password'  => Hash::make($validated['password']),
             'is_active' => true,
+            // email_verified_at intentionally null — verification email sent below
         ]);
 
         if ($user->role === 'agent') {
             \App\Models\AgentProfile::create(['user_id' => $user->id]);
         }
 
+        // Send email verification notification
+        event(new Registered($user));
+
         ActivityLog::log('user.created', $request->user(), 'User', $user->id, ['role' => $user->role]);
 
-        return redirect()->back(303)->with('success', "User \"{$user->name}\" created.");
+        return redirect()->back(303)->with('success', "User \"{$user->name}\" created. A verification email has been sent.");
     }
 
     public function deleteUser(Request $request, User $user)

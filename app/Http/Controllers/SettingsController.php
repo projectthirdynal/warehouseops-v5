@@ -214,6 +214,10 @@ class SettingsController extends Controller
                 'mail.from.name'                  => $fromName,
             ]);
 
+            // Purge the cached mailer so Laravel re-resolves with the new config above
+            Mail::purge($mailer);
+            Mail::purge('smtp');
+
             Mail::raw(
                 "This is a test email from WarehouseOps.\n\nIf you received this, your SMTP configuration is working correctly.\n\nSent at: " . now()->toDateTimeString(),
                 fn ($m) => $m->to($request->to)->subject('WarehouseOps — SMTP Test Email')
