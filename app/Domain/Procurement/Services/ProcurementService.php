@@ -150,8 +150,10 @@ class ProcurementService
                     );
                 }
 
-                $poItem->quantity_received += (int) $grnItem->quantity_received;
-                $poItem->save();
+                if ($grnItem->condition === 'GOOD') {
+                    $poItem->quantity_received += (int) $grnItem->quantity_received;
+                    $poItem->save();
+                }
             }
 
             $grn->status       = GrnStatus::CONFIRMED;

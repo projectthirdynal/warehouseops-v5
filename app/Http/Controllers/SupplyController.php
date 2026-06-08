@@ -190,7 +190,7 @@ class SupplyController extends Controller
 
             $stock->save();
 
-            if ($movementQuantity !== 0 || $data['type'] === 'adjustment') {
+            if ($movementQuantity !== 0) {
                 $this->recordMovement(
                     $supply->id,
                     $warehouseId,

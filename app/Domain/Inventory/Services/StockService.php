@@ -114,6 +114,7 @@ class StockService
             $stock = ProductStock::lockForUpdate()
                 ->where('product_id', $productId)
                 ->where('variant_id', $variantId)
+                ->where('warehouse_id', $warehouseId)
                 ->first();
 
             if (! $stock || ($stock->current_stock - $stock->reserved_stock) < $quantity) {
@@ -143,6 +144,7 @@ class StockService
     public function reserve(
         int $productId,
         ?int $variantId,
+        int $warehouseId,
         int $quantity,
         string $referenceType,
         int $referenceId,
@@ -153,9 +155,10 @@ class StockService
             throw new RuntimeException('reserve quantity must be positive.');
         }
 
-        return DB::transaction(function () use ($productId, $variantId, $quantity, $referenceType, $referenceId, $expiresAt, $reservedBy) {
+        return DB::transaction(function () use ($productId, $variantId, $warehouseId, $quantity, $referenceType, $referenceId, $expiresAt, $reservedBy) {
             $rows = DB::table('product_stocks')
                 ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
                 ->where(function ($q) use ($variantId) {
                     $variantId === null ? $q->whereNull('variant_id') : $q->where('variant_id', $variantId);
                 })
@@ -167,6 +170,7 @@ class StockService
 
             if ($rows === 0) {
                 $available = (int) (ProductStock::where('product_id', $productId)
+                    ->where('warehouse_id', $warehouseId)
                     ->where('variant_id', $variantId)
                     ->value(DB::raw('COALESCE(current_stock - reserved_stock, 0)')) ?? 0);
                 throw new InsufficientStockException($productId, $quantity, $available);
@@ -175,6 +179,7 @@ class StockService
             return StockReservation::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'quantity'       => $quantity,
                 'reference_type' => $referenceType,
                 'reference_id'   => $referenceId,
@@ -182,6 +187,48 @@ class StockService
                 'reserved_at'    => now(),
                 'expires_at'     => $expiresAt,
                 'status'         => 'ACTIVE',
+            ]);
+        });
+    }
+
+    /**
+     * Set stock to an absolute quantity (used by scanner auto-adjust and approved adjustments).
+     * Uses SELECT FOR UPDATE to prevent concurrent over/under adjustments.
+     */
+    public function adjustStock(
+        int $productId,
+        ?int $variantId,
+        int $warehouseId,
+        ?int $locationId,
+        int $newQuantity,
+        ?string $notes = null,
+        ?int $performedBy = null,
+    ): void {
+        if ($newQuantity < 0) {
+            throw new RuntimeException('adjustStock newQuantity must be >= 0.');
+        }
+
+        DB::transaction(function () use ($productId, $variantId, $warehouseId, $locationId, $newQuantity, $notes, $performedBy) {
+            $stock = ProductStock::lockForUpdate()
+                ->firstOrCreate(
+                    ['product_id' => $productId, 'variant_id' => $variantId, 'warehouse_id' => $warehouseId],
+                    ['location_id' => $locationId, 'current_stock' => 0, 'reserved_stock' => 0]
+                );
+
+            $variance = $newQuantity - $stock->current_stock;
+
+            $stock->current_stock = $newQuantity;
+            $stock->save();
+
+            InventoryMovement::create([
+                'product_id'   => $productId,
+                'variant_id'   => $variantId,
+                'warehouse_id' => $warehouseId,
+                'location_id'  => $locationId,
+                'type'         => 'ADJUSTMENT',
+                'quantity'     => $variance,
+                'notes'        => $notes ?? "Adjusted to {$newQuantity}",
+                'performed_by' => $performedBy,
             ]);
         });
     }

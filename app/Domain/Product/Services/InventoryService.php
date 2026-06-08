@@ -56,6 +56,14 @@ class InventoryService
         ?int $referenceId = null,
     ): InventoryMovement {
         return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId) {
+            $stock = $this->getOrCreateStock($productId, $variantId);
+
+            if (($stock->current_stock - $stock->reserved_stock) < abs($quantity)) {
+                throw new \RuntimeException(
+                    "Insufficient stock. Available: {$stock->available_stock}, requested: {$quantity}"
+                );
+            }
+
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
@@ -67,7 +75,6 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock = $this->getOrCreateStock($productId, $variantId);
             $stock->decrement('current_stock', abs($quantity));
 
             return $movement;

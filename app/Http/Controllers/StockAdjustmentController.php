@@ -77,29 +77,28 @@ class StockAdjustmentController extends Controller
             'quantity_after' => ['required', 'integer', 'min:0'],
         ]);
 
-        DB::transaction(function () use ($data, $request): void {
+        $adj = null;
+        DB::transaction(function () use ($data, $request, &$adj): void {
             $quantityBefore = $this->currentQuantity($data);
-            $quantityAfter = (int) $data['quantity_after'];
+            $quantityAfter  = (int) $data['quantity_after'];
 
-            StockAdjustment::create([
-                'product_id' => $data['product_id'] ?? null,
-                'supply_id' => $data['supply_id'] ?? null,
-                'variant_id' => $data['variant_id'] ?? null,
-                'warehouse_id' => $data['warehouse_id'],
-                'reason_code' => $data['reason_code'],
-                'reason_notes' => $data['reason_notes'] ?? null,
+            $adj = StockAdjustment::create([
+                'product_id'      => $data['product_id'] ?? null,
+                'supply_id'       => $data['supply_id'] ?? null,
+                'variant_id'      => $data['variant_id'] ?? null,
+                'warehouse_id'    => $data['warehouse_id'],
+                'reason_code'     => $data['reason_code'],
+                'reason_notes'    => $data['reason_notes'] ?? null,
                 'quantity_before' => $quantityBefore,
-                'quantity_after' => $quantityAfter,
-                'variance' => $quantityAfter - $quantityBefore,
-                'status' => 'PENDING',
-                'submitted_by' => $request->user()?->id,
+                'quantity_after'  => $quantityAfter,
+                'variance'        => $quantityAfter - $quantityBefore,
+                'status'          => 'PENDING',
+                'submitted_by'    => $request->user()?->id,
             ]);
         });
 
-        $adj = StockAdjustment::with(['product', 'supply', 'warehouse'])
-            ->where('submitted_by', $request->user()?->id)
-            ->orderByDesc('id')->first();
         if ($adj) {
+            $adj->load(['product', 'supply', 'warehouse']);
             $approvers = $this->approval->getApprovers('adjustment');
             Notification::send($approvers, new StockAdjustmentNotification($adj, 'submitted'));
         }
