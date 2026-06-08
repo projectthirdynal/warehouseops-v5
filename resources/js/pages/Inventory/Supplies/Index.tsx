@@ -301,8 +301,16 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
         <DialogHeader><DialogTitle>{editing ? 'Edit Material' : 'New Material'}</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label>SKU *</Label><Input value={form.data.sku} onChange={e => form.setData('sku', e.target.value.toUpperCase())} required className="font-mono uppercase" /></div>
-            <div className="space-y-1"><Label>Name *</Label><Input value={form.data.name} onChange={e => form.setData('name', e.target.value)} required placeholder="Bottles, caps, labels..." /></div>
+            <div className="space-y-1">
+              <Label>SKU *</Label>
+              <Input value={form.data.sku} onChange={e => form.setData('sku', e.target.value.toUpperCase())} required className="font-mono uppercase" />
+              {form.errors.sku && <p className="text-xs text-red-600">{form.errors.sku}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label>Name *</Label>
+              <Input value={form.data.name} onChange={e => form.setData('name', e.target.value)} required placeholder="Bottles, caps, labels..." />
+              {form.errors.name && <p className="text-xs text-red-600">{form.errors.name}</p>}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -325,7 +333,11 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><Label>Unit Cost *</Label><Input type="number" min={0} step="0.0001" value={form.data.cost_price} onChange={e => form.setData('cost_price', Number(e.target.value))} required /></div>
+            <div className="space-y-1">
+              <Label>Unit Cost *</Label>
+              <Input type="number" min={0} step="0.0001" value={form.data.cost_price} onChange={e => form.setData('cost_price', Number(e.target.value))} required />
+              {form.errors.cost_price && <p className="text-xs text-red-600">{form.errors.cost_price}</p>}
+            </div>
             <div className="space-y-1"><Label>Min Stock</Label><Input type="number" min={0} value={form.data.min_stock_level} onChange={e => form.setData('min_stock_level', Number(e.target.value))} /></div>
             <div className="space-y-1"><Label>Reorder Point</Label><Input type="number" min={0} value={form.data.reorder_point} onChange={e => form.setData('reorder_point', Number(e.target.value))} /></div>
           </div>
