@@ -27,7 +27,7 @@ class StockAdjustmentController extends Controller
     public function index(Request $request): Response
     {
         return Inertia::render('Inventory/StockAdjustments', [
-            'adjustments' => $this->adjustmentQuery($request)->paginate(25)->withQueryString(),
+            'adjustments' => $this->adjustmentQuery($request)->paginate(25)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a)),
             'warehouses'  => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
             'products'    => Product::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
             'supplies'    => Supply::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
@@ -47,7 +47,8 @@ class StockAdjustmentController extends Controller
                 ->when($request->from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
                 ->when($request->to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
                 ->paginate(50)
-                ->withQueryString(),
+                ->withQueryString()
+                ->through(fn ($a) => $this->flattenAdjustment($a)),
             'warehouses' => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
             'summary' => [
                 'total' => StockAdjustment::count(),
@@ -194,6 +195,29 @@ class StockAdjustmentController extends Controller
             ->when($request->status, fn ($query, string $status) => $query->where('status', $status))
             ->when($request->warehouse_id, fn ($query, string $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->orderByDesc('created_at');
+    }
+
+    private function flattenAdjustment(StockAdjustment $a): array
+    {
+        return [
+            'id'              => $a->id,
+            'reason_code'     => $a->reason_code,
+            'reason_notes'    => $a->reason_notes,
+            'quantity_before' => $a->quantity_before,
+            'quantity_after'  => $a->quantity_after,
+            'variance'        => $a->variance,
+            'status'          => $a->status,
+            'created_at'      => $a->created_at,
+            'approved_at'     => $a->approved_at,
+            'product_name'    => $a->product?->name,
+            'product_sku'     => $a->product?->sku,
+            'supply_name'     => $a->supply?->name,
+            'supply_sku'      => $a->supply?->sku,
+            'warehouse_name'  => $a->warehouse?->name,
+            'warehouse_code'  => $a->warehouse?->code,
+            'submitted_by'    => $a->submittedBy?->name,
+            'approved_by'     => $a->approvedBy?->name,
+        ];
     }
 
     private function currentQuantity(array $data): int
