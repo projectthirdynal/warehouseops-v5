@@ -155,6 +155,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                 <TableHead className="text-right">Available</TableHead>
                 <TableHead className="text-right">Reorder</TableHead>
                 <TableHead className="text-right">Unit Cost</TableHead>
+                <TableHead className="text-right">Stock Value</TableHead>
                 <TableHead>Warehouse</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-24"></TableHead>
@@ -163,7 +164,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             <TableBody>
               {supplies.data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                     <Boxes className="mx-auto mb-2 h-8 w-8 opacity-30" />
                     No materials yet. Add bottles, labels, packaging, or other supplies here.
                   </TableCell>
@@ -186,6 +187,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                     </TableCell>
                     <TableCell className="text-right text-sm">{reorder}</TableCell>
                     <TableCell className="text-right text-sm">{formatCurrency(Number(supply.cost_price))}</TableCell>
+                    <TableCell className="text-right text-sm font-medium">{formatCurrency(available * Number(supply.cost_price))}</TableCell>
                     <TableCell className="text-sm">{supply.stocks.map(stock => stock.warehouse?.name).filter(Boolean).join(', ') || '—'}</TableCell>
                     <TableCell>
                       <span className={`rounded-full px-2 py-0.5 text-xs ${supply.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
