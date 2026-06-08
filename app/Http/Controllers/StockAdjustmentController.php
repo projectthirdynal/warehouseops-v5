@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\StockAdjustment;
+use App\Domain\Inventory\Models\Supply;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Product\Models\InventoryMovement;
+use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use App\Notifications\StockAdjustmentNotification;
 use App\Services\ApprovalService;
@@ -25,7 +28,14 @@ class StockAdjustmentController extends Controller
     {
         return Inertia::render('Inventory/StockAdjustments', [
             'adjustments' => $this->adjustmentQuery($request)->paginate(25)->withQueryString(),
-            'warehouses' => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
+            'warehouses'  => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
+            'products'    => Product::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
+            'supplies'    => Supply::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
+            'stats'       => [
+                'pending'  => StockAdjustment::where('status', 'PENDING')->count(),
+                'approved' => StockAdjustment::where('status', 'APPROVED')->count(),
+                'rejected' => StockAdjustment::where('status', 'REJECTED')->count(),
+            ],
             'filters' => $request->only(['status', 'warehouse_id']),
         ]);
     }
@@ -57,18 +67,18 @@ class StockAdjustmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'product_id' => ['nullable', 'required_without:supply_id', 'exists:products,id'],
-            'supply_id' => ['nullable', 'required_without:product_id', 'exists:supplies,id'],
-            'variant_id' => ['nullable', 'exists:product_variants,id'],
-            'warehouse_id' => ['required', 'exists:warehouses,id'],
-            'reason_code' => ['required', 'string', 'max:50'],
-            'reason_notes' => ['nullable', 'string', 'max:1000'],
-            'new_quantity' => ['required', 'integer', 'min:0'],
+            'product_id'     => ['nullable', 'required_without:supply_id', 'exists:products,id'],
+            'supply_id'      => ['nullable', 'required_without:product_id', 'exists:supplies,id'],
+            'variant_id'     => ['nullable', 'exists:product_variants,id'],
+            'warehouse_id'   => ['required', 'exists:warehouses,id'],
+            'reason_code'    => ['required', 'string', 'max:50'],
+            'reason_notes'   => ['nullable', 'string', 'max:1000'],
+            'quantity_after' => ['required', 'integer', 'min:0'],
         ]);
 
         DB::transaction(function () use ($data, $request): void {
             $quantityBefore = $this->currentQuantity($data);
-            $quantityAfter = (int) $data['new_quantity'];
+            $quantityAfter = (int) $data['quantity_after'];
 
             StockAdjustment::create([
                 'product_id' => $data['product_id'] ?? null,
@@ -86,6 +96,7 @@ class StockAdjustmentController extends Controller
         });
 
         $adj = StockAdjustment::with(['product', 'supply', 'warehouse'])
+            ->where('submitted_by', $request->user()?->id)
             ->orderByDesc('id')->first();
         if ($adj) {
             $approvers = $this->approval->getApprovers('adjustment');
@@ -113,25 +124,37 @@ class StockAdjustmentController extends Controller
             if ($adjustment->supply_id) {
                 SupplyStock::firstOrCreate(
                     [
-                        'supply_id' => $adjustment->supply_id,
+                        'supply_id'    => $adjustment->supply_id,
                         'warehouse_id' => $adjustment->warehouse_id,
-                        'location_id' => $adjustment->location_id,
+                        'location_id'  => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
                 )->update(['current_stock' => $adjustment->quantity_after]);
-
-                return;
+            } else {
+                ProductStock::firstOrCreate(
+                    [
+                        'product_id'   => $adjustment->product_id,
+                        'variant_id'   => $adjustment->variant_id,
+                        'warehouse_id' => $adjustment->warehouse_id,
+                        'location_id'  => $adjustment->location_id,
+                    ],
+                    ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
+                )->update(['current_stock' => $adjustment->quantity_after]);
             }
 
-            ProductStock::firstOrCreate(
-                [
-                    'product_id' => $adjustment->product_id,
-                    'variant_id' => $adjustment->variant_id,
-                    'warehouse_id' => $adjustment->warehouse_id,
-                    'location_id' => $adjustment->location_id,
-                ],
-                ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
-            )->update(['current_stock' => $adjustment->quantity_after]);
+            // Write the movement ledger entry so the Movements page reflects this
+            InventoryMovement::create([
+                'product_id'     => $adjustment->product_id,
+                'variant_id'     => $adjustment->variant_id,
+                'warehouse_id'   => $adjustment->warehouse_id,
+                'location_id'    => $adjustment->location_id,
+                'type'           => 'ADJUSTMENT',
+                'quantity'       => $adjustment->variance,
+                'reference_type' => StockAdjustment::class,
+                'reference_id'   => $adjustment->id,
+                'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
+                'performed_by'   => $request->user()?->id,
+            ]);
         });
 
         $adjustment->load(['product', 'supply', 'warehouse']);

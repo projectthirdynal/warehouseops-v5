@@ -51,8 +51,8 @@ class StockService
         ) {
             $stock = ProductStock::lockForUpdate()
                 ->firstOrCreate(
-                    ['product_id' => $productId, 'variant_id' => $variantId],
-                    ['warehouse_id' => $warehouseId, 'location_id' => $locationId, 'current_stock' => 0, 'reserved_stock' => 0]
+                    ['product_id' => $productId, 'variant_id' => $variantId, 'warehouse_id' => $warehouseId],
+                    ['location_id' => $locationId, 'current_stock' => 0, 'reserved_stock' => 0]
                 );
 
             $stock->current_stock   += $quantity;
