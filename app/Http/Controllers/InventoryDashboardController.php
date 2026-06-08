@@ -108,7 +108,7 @@ class InventoryDashboardController extends Controller
                 'ss.id', 's.name as supply_name', 's.sku',
                 'w.name as warehouse_name',
                 'ss.current_stock', 'ss.reserved_stock', 'ss.reorder_point',
-                DB::raw('GREATEST(ss.current_stock - ss.reserved_stock, 0) as available_stock'),
+                DB::raw('CASE WHEN ss.current_stock - ss.reserved_stock > 0 THEN ss.current_stock - ss.reserved_stock ELSE 0 END as available_stock'),
             ])
             ->get();
 
@@ -134,7 +134,7 @@ class InventoryDashboardController extends Controller
             ->where('created_at', '>=', $since30)
             ->selectRaw("DATE(created_at) as date,
                 SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as stock_in,
-                SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as stock_out")
+                SUM(CASE WHEN quantity < 0 THEN -quantity ELSE 0 END) as stock_out")
             ->groupByRaw('DATE(created_at)')
             ->orderBy('date')
             ->get();
@@ -143,8 +143,8 @@ class InventoryDashboardController extends Controller
         $supplyMovementTrend = DB::table('supply_movements')
             ->where('created_at', '>=', $since30)
             ->selectRaw("DATE(created_at) as date,
-                SUM(CASE WHEN quantity > 0 AND type = 'STOCK_IN' THEN quantity ELSE 0 END) as stock_in,
-                SUM(CASE WHEN quantity < 0 AND type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out,
+                SUM(CASE WHEN type = 'STOCK_IN' AND quantity > 0 THEN quantity ELSE 0 END) as stock_in,
+                SUM(CASE WHEN type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out,
                 SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments")
             ->groupByRaw('DATE(created_at)')
             ->orderBy('date')
@@ -158,7 +158,7 @@ class InventoryDashboardController extends Controller
             ->groupBy('w.id', 'w.name', 'w.code')
             ->select([
                 'w.id', 'w.name', 'w.code',
-                DB::raw('COALESCE(COUNT(ps.id), 0) as product_units'),
+                DB::raw('COALESCE(COUNT(DISTINCT ps.product_id), 0) as product_units'),
                 DB::raw('COALESCE(SUM(ps.current_stock * COALESCE(p.cost_price, 0)), 0) as stock_value'),
             ])
             ->get();

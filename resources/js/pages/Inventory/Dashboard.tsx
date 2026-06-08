@@ -943,8 +943,9 @@ export default function InventoryDashboard({
             <CardContent className="flex items-center gap-3 py-4">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">Product not found</p>
-                <p className="text-xs text-red-600">{scannedProduct.message}</p>
+                <p className="text-sm font-medium text-red-800">
+                  {scannedProduct.message ?? 'Scan failed'}
+                </p>
               </div>
               <button
                 onClick={() => { setScannedProduct(null); scanInputRef.current?.focus(); }}
