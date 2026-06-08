@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserModuleAccess extends Model
 {
+    protected $table = 'user_module_access';
+
     protected $fillable = ['user_id', 'module_key', 'granted'];
 
     protected $casts = ['granted' => 'boolean'];
