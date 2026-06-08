@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Product\Services\InventoryService;
@@ -103,6 +104,7 @@ class ProductController extends Controller
                 $initialStock,
                 notes: 'Initial stock on product creation',
                 performedBy: auth()->id(),
+                warehouseId: Warehouse::where('is_default', true)->value('id'),
             );
         }
 
@@ -122,13 +124,14 @@ class ProductController extends Controller
         $product->load(['variants.stock', 'stock']);
 
         $movements = $product->movements()
-            ->with('performer')
+            ->with(['performer', 'warehouse:id,name'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
         return Inertia::render('Products/Show', [
-            'product'   => $product,
-            'movements' => $movements,
+            'product'    => $product,
+            'movements'  => $movements,
+            'warehouses' => Warehouse::where('is_active', true)->orderByDesc('is_default')->get(['id', 'name', 'is_default']),
         ]);
     }
 
@@ -178,11 +181,14 @@ class ProductController extends Controller
     public function adjustStock(Request $request, Product $product)
     {
         $validated = $request->validate([
-            'type'       => ['required', 'in:stock_in,stock_out,adjustment'],
-            'quantity'   => ['required', 'integer', 'min:1'],
-            'variant_id' => ['nullable', 'exists:product_variants,id'],
-            'notes'      => ['nullable', 'string', 'max:500'],
+            'type'         => ['required', 'in:stock_in,stock_out,adjustment'],
+            'quantity'     => ['required', 'integer', 'min:1'],
+            'variant_id'   => ['nullable', 'exists:product_variants,id'],
+            'notes'        => ['nullable', 'string', 'max:500'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
         ]);
+
+        $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
 
         match ($validated['type']) {
             'stock_in' => $this->inventory->stockIn(
@@ -191,6 +197,7 @@ class ProductController extends Controller
                 $validated['variant_id'] ?? null,
                 $validated['notes'],
                 auth()->id(),
+                warehouseId: $warehouseId,
             ),
             'stock_out' => $this->inventory->stockOut(
                 $product->id,
@@ -198,6 +205,7 @@ class ProductController extends Controller
                 $validated['variant_id'] ?? null,
                 $validated['notes'],
                 auth()->id(),
+                warehouseId: $warehouseId,
             ),
             'adjustment' => $this->inventory->adjustStock(
                 $product->id,
@@ -205,6 +213,7 @@ class ProductController extends Controller
                 $validated['variant_id'] ?? null,
                 $validated['notes'],
                 auth()->id(),
+                warehouseId: $warehouseId,
             ),
         };
 

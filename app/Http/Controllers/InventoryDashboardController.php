@@ -16,6 +16,7 @@ use App\Domain\Inventory\Models\StockCostLot;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -178,19 +179,30 @@ class InventoryDashboardController extends Controller
 
     public function movements(\Illuminate\Http\Request $request)
     {
+        $type = $request->input('type');
+        if ($type === 'all') {
+            $type = null;
+        }
+
         $movements = InventoryMovement::with(['product:id,sku,name', 'warehouse:id,name', 'location:id,code', 'performer:id,name'])
-            ->when($request->type,         fn ($q, $v) => $q->where('type', $v))
+            ->when($type,                  fn ($q, $v) => $q->where('type', $v))
             ->when($request->product_id,   fn ($q, $v) => $q->where('product_id', $v))
             ->when($request->warehouse_id, fn ($q, $v) => $q->where('warehouse_id', $v))
-            ->when($request->from,         fn ($q, $v) => $q->where('created_at', '>=', $v))
-            ->when($request->to,           fn ($q, $v) => $q->where('created_at', '<=', $v . ' 23:59:59'))
+            ->when($request->from,         fn ($q, $v) => $q->where('created_at', '>=', Carbon::parse($v)->startOfDay()))
+            ->when($request->to,           fn ($q, $v) => $q->where('created_at', '<=', Carbon::parse($v)->endOfDay()))
+            ->when($request->stock === 'low', fn ($q) => $q->whereHas('product', function ($q2) {
+                $q2->whereHas('stocks', function ($q3) {
+                    $q3->whereRaw('(current_stock - reserved_stock) <= reorder_point')
+                       ->where('reorder_point', '>', 0);
+                });
+            }))
             ->latest()
             ->paginate(50)
             ->withQueryString();
 
         return Inertia::render('Inventory/Movements', [
             'movements' => $movements,
-            'filters'   => $request->only(['type', 'product_id', 'warehouse_id', 'from', 'to']),
+            'filters'   => $request->only(['type', 'product_id', 'warehouse_id', 'from', 'to', 'stock']),
         ]);
     }
 }

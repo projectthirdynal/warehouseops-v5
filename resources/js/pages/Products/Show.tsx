@@ -17,9 +17,16 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import type { Product, InventoryMovement, PaginatedResponse } from '@/types';
 
+interface Warehouse {
+  id: number;
+  name: string;
+  is_default: boolean;
+}
+
 interface Props {
   product: Product;
   movements: PaginatedResponse<InventoryMovement>;
+  warehouses: Warehouse[];
 }
 
 const movementConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -31,8 +38,9 @@ const movementConfig: Record<string, { label: string; icon: React.ReactNode; col
   RELEASE:     { label: 'Released',    icon: <Box className="h-3.5 w-3.5" />,         color: 'bg-gray-100 text-gray-800' },
 };
 
-export default function ProductShow({ product, movements }: Props) {
-  const [stockForm, setStockForm] = useState({ type: 'stock_in', quantity: '', notes: '' });
+export default function ProductShow({ product, movements, warehouses = [] }: Props) {
+  const defaultWarehouse = warehouses.find(w => w.is_default) ?? warehouses[0];
+  const [stockForm, setStockForm] = useState({ type: 'stock_in', quantity: '', notes: '', warehouse_id: String(defaultWarehouse?.id ?? '') });
   const [submitting, setSubmitting] = useState(false);
 
   const stock = product.stock;
@@ -45,7 +53,7 @@ export default function ProductShow({ product, movements }: Props) {
     router.post(`/products/${product.id}/stock`, stockForm, {
       onFinish: () => {
         setSubmitting(false);
-        setStockForm({ type: 'stock_in', quantity: '', notes: '' });
+        setStockForm({ type: 'stock_in', quantity: '', notes: '', warehouse_id: String(defaultWarehouse?.id ?? '') });
       },
       preserveScroll: true,
     });
@@ -203,6 +211,20 @@ export default function ProductShow({ product, movements }: Props) {
                       placeholder="Reason for adjustment"
                     />
                   </div>
+                  {warehouses.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Warehouse</label>
+                      <select
+                        value={stockForm.warehouse_id}
+                        onChange={(e) => setStockForm((p) => ({ ...p, warehouse_id: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2 text-sm"
+                      >
+                        {warehouses.map(w => (
+                          <option key={w.id} value={String(w.id)}>{w.name}{w.is_default ? ' (default)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting ? 'Updating...' : 'Update Stock'}
                   </Button>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Product\Services;
 
+use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
@@ -22,11 +23,14 @@ class InventoryService
         ?int $performedBy = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId) {
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'STOCK_IN',
                 'quantity'       => abs($quantity),
                 'notes'          => $notes,
@@ -35,7 +39,7 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock = $this->getOrCreateStock($productId, $variantId);
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $stock->increment('current_stock', abs($quantity));
             $stock->update(['last_restock_at' => now()]);
 
@@ -54,9 +58,11 @@ class InventoryService
         ?int $performedBy = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId) {
-            $stock = $this->getOrCreateStock($productId, $variantId);
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
 
             if (($stock->current_stock - $stock->reserved_stock) < abs($quantity)) {
                 throw new \RuntimeException(
@@ -67,6 +73,7 @@ class InventoryService
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'STOCK_OUT',
                 'quantity'       => -abs($quantity),
                 'notes'          => $notes,
@@ -90,9 +97,11 @@ class InventoryService
         ?int $variantId = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId) {
-            $stock = $this->getOrCreateStock($productId, $variantId);
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
 
             if ($stock->available_stock < $quantity) {
                 throw new \RuntimeException("Insufficient stock. Available: {$stock->available_stock}, requested: {$quantity}");
@@ -101,6 +110,7 @@ class InventoryService
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'RESERVATION',
                 'quantity'       => -abs($quantity),
                 'notes'          => 'Stock reserved for order',
@@ -123,11 +133,14 @@ class InventoryService
         ?int $variantId = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId) {
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'RELEASE',
                 'quantity'       => abs($quantity),
                 'notes'          => 'Reservation released',
@@ -135,7 +148,7 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock = $this->getOrCreateStock($productId, $variantId);
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $stock->decrement('reserved_stock', min(abs($quantity), $stock->reserved_stock));
 
             return $movement;
@@ -152,11 +165,14 @@ class InventoryService
         ?int $variantId = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId) {
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'STOCK_OUT',
                 'quantity'       => -abs($quantity),
                 'notes'          => 'Reservation confirmed — order delivered',
@@ -164,7 +180,7 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock = $this->getOrCreateStock($productId, $variantId);
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $stock->decrement('current_stock', abs($quantity));
             $stock->decrement('reserved_stock', min(abs($quantity), $stock->reserved_stock));
 
@@ -182,11 +198,14 @@ class InventoryService
         ?string $notes = null,
         ?string $referenceType = null,
         ?int $referenceId = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $referenceType, $referenceId) {
+        return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $referenceType, $referenceId, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
                 'type'           => 'RETURN',
                 'quantity'       => abs($quantity),
                 'notes'          => $notes ?? 'Stock returned',
@@ -194,7 +213,7 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock = $this->getOrCreateStock($productId, $variantId);
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $stock->increment('current_stock', abs($quantity));
 
             return $movement;
@@ -210,14 +229,17 @@ class InventoryService
         ?int $variantId = null,
         ?string $notes = null,
         ?int $performedBy = null,
+        ?int $warehouseId = null,
     ): InventoryMovement {
-        return DB::transaction(function () use ($productId, $newQuantity, $variantId, $notes, $performedBy) {
-            $stock = $this->getOrCreateStock($productId, $variantId);
+        return DB::transaction(function () use ($productId, $newQuantity, $variantId, $notes, $performedBy, $warehouseId) {
+            $warehouseId ??= $this->defaultWarehouseId();
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $diff = $newQuantity - $stock->current_stock;
 
             $movement = InventoryMovement::create([
                 'product_id'   => $productId,
                 'variant_id'   => $variantId,
+                'warehouse_id' => $warehouseId,
                 'type'         => 'ADJUSTMENT',
                 'quantity'     => $diff,
                 'notes'        => $notes ?? "Adjusted from {$stock->current_stock} to {$newQuantity}",
@@ -240,11 +262,17 @@ class InventoryService
             ->get();
     }
 
-    private function getOrCreateStock(int $productId, ?int $variantId): ProductStock
+    private function getOrCreateStock(int $productId, ?int $variantId, ?int $warehouseId = null): ProductStock
     {
         return ProductStock::firstOrCreate(
-            ['product_id' => $productId, 'variant_id' => $variantId],
+            ['product_id' => $productId, 'variant_id' => $variantId, 'warehouse_id' => $warehouseId],
             ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
         );
+    }
+
+    private function defaultWarehouseId(): ?int
+    {
+        static $id;
+        return $id ??= Warehouse::where('is_default', true)->value('id');
     }
 }
