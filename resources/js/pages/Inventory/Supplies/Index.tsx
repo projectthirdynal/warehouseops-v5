@@ -305,15 +305,11 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Category</Label>
-              <Input
+              <CategorySelect
                 value={form.data.category}
-                onChange={e => form.setData('category', e.target.value)}
-                placeholder="Packaging, Raw Material..."
-                list="category-suggestions"
+                onChange={v => form.setData('category', v)}
+                categories={categories}
               />
-              <datalist id="category-suggestions">
-                {categories.map(c => <option key={c} value={c} />)}
-              </datalist>
             </div>
             <div className="space-y-1">
               <Label>UoM</Label>
@@ -428,6 +424,77 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+const PRESET_CATEGORIES = [
+  'Raw Materials',
+  'Packaging',
+  'Labels & Inserts',
+  'Bottles & Caps',
+  'Boxes & Cartons',
+  'Pouches & Bags',
+  'Office Supplies',
+  'Cleaning Supplies',
+  'Spare Parts',
+];
+
+function CategorySelect({ value, onChange, categories }: {
+  value: string;
+  onChange: (v: string) => void;
+  categories: string[];
+}) {
+  const [custom, setCustom] = useState(false);
+
+  // Merge presets with DB categories, deduplicated
+  const allOptions = Array.from(
+    new Set([...PRESET_CATEGORIES, ...categories])
+  ).sort();
+
+  // If editing an existing value not in the list, show custom input
+  useEffect(() => {
+    if (value && !allOptions.includes(value)) setCustom(true);
+  }, []);
+
+  if (custom) {
+    return (
+      <div className="flex gap-1.5">
+        <Input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Type category name..."
+          className="flex-1"
+          autoFocus
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 px-2 text-xs"
+          onClick={() => { setCustom(false); onChange(''); }}
+        >
+          ✕
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Select
+      value={value || '__none__'}
+      onValueChange={v => {
+        if (v === '__other__') { setCustom(true); onChange(''); }
+        else if (v === '__none__') onChange('');
+        else onChange(v);
+      }}
+    >
+      <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__"><span className="text-muted-foreground">— None —</span></SelectItem>
+        {allOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        <SelectItem value="__other__"><span className="text-primary">+ Custom category...</span></SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
 
