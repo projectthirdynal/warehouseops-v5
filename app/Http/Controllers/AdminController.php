@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Permission;
 use App\Models\RolePermission;
 use App\Models\User;
+use App\Models\UserModuleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -19,15 +20,33 @@ class AdminController extends Controller
         $users = User::orderBy('created_at', 'desc')
             ->get(['id', 'name', 'email', 'phone', 'role', 'is_active', 'last_login_at', 'created_at']);
 
-        $permissions = Permission::orderBy('section')->orderBy('key')->get();
-        $rolePermissions = RolePermission::pluck('permission_id', 'role')->groupBy('role');
-
         $roles = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting', 'warehouse', 'agent'];
 
+        $modules = UserModuleAccess::moduleDefinitions();
+
+        // Per-user module access: user_id => [module_key => bool]
+        // If no override exists, fall back to role default
+        $allOverrides = UserModuleAccess::whereIn('user_id', $users->pluck('id'))
+            ->get()
+            ->groupBy('user_id');
+
+        $userModules = [];
+        foreach ($users as $user) {
+            $defaults = array_fill_keys(
+                UserModuleAccess::defaultsForRole($user->role),
+                true
+            );
+            $overrides = $allOverrides->get($user->id, collect())
+                ->pluck('granted', 'module_key')
+                ->all();
+            // Merge: defaults set the baseline, overrides take precedence
+            $userModules[$user->id] = array_merge($defaults, $overrides);
+        }
+
         $stats = [
-            'total_users' => $users->count(),
-            'active_users' => $users->where('is_active', true)->count(),
-            'inactive_users' => $users->where('is_active', false)->count(),
+            'total_users'       => $users->count(),
+            'active_users'      => $users->where('is_active', true)->count(),
+            'inactive_users'    => $users->where('is_active', false)->count(),
             'role_distribution' => $users->groupBy('role')->map->count(),
         ];
 
@@ -37,13 +56,39 @@ class AdminController extends Controller
             ->get();
 
         return Inertia::render('Admin/Dashboard', [
-            'users' => $users,
-            'roles' => $roles,
-            'permissions' => $permissions->groupBy('section'),
-            'rolePermissions' => $rolePermissions->map(fn($items) => $items->values()->all())->toArray(),
-            'stats' => $stats,
-            'recentActivity' => $recentActivity,
+            'users'         => $users,
+            'roles'         => $roles,
+            'modules'       => $modules,
+            'userModules'   => $userModules,
+            'stats'         => $stats,
+            'recentActivity'=> $recentActivity,
         ]);
+    }
+
+    public function updateUserModules(Request $request, User $user)
+    {
+        $validKeys = collect(UserModuleAccess::moduleDefinitions())->pluck('key')->all();
+
+        $validated = $request->validate([
+            'modules'   => 'required|array',
+            'modules.*' => 'boolean',
+        ]);
+
+        DB::transaction(function () use ($user, $validated, $validKeys) {
+            foreach ($validated['modules'] as $moduleKey => $granted) {
+                if (!in_array($moduleKey, $validKeys)) continue;
+                UserModuleAccess::updateOrCreate(
+                    ['user_id' => $user->id, 'module_key' => $moduleKey],
+                    ['granted' => (bool) $granted]
+                );
+            }
+        });
+
+        ActivityLog::log('user.modules_updated', $request->user(), 'User', $user->id, [
+            'modules' => $validated['modules'],
+        ]);
+
+        return redirect()->back(303)->with('success', 'Module access updated.');
     }
 
     public function updateRolePermissions(Request $request)

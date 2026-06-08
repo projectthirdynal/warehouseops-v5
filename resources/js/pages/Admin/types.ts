@@ -9,6 +9,13 @@ export interface UserRecord {
   created_at: string;
 }
 
+export interface ModuleDefinition {
+  key: string;
+  label: string;
+  section: string;
+  roles: string[];
+}
+
 export interface PermissionItem {
   id: number;
   key: string;
