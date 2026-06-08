@@ -10,6 +10,7 @@ use App\Models\UserModuleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
@@ -25,10 +26,11 @@ class AdminController extends Controller
         $modules = UserModuleAccess::moduleDefinitions();
 
         // Per-user module access: user_id => [module_key => bool]
-        // If no override exists, fall back to role default
-        $allOverrides = UserModuleAccess::whereIn('user_id', $users->pluck('id'))
-            ->get()
-            ->groupBy('user_id');
+        // Guard: table may not exist yet if migration hasn't run on this environment
+        $tableExists = Schema::hasTable('user_module_access');
+        $allOverrides = $tableExists && $users->isNotEmpty()
+            ? UserModuleAccess::whereIn('user_id', $users->pluck('id'))->get()->groupBy('user_id')
+            : collect();
 
         $userModules = [];
         foreach ($users as $user) {
@@ -39,7 +41,6 @@ class AdminController extends Controller
             $overrides = $allOverrides->get($user->id, collect())
                 ->pluck('granted', 'module_key')
                 ->all();
-            // Merge: defaults set the baseline, overrides take precedence
             $userModules[$user->id] = array_merge($defaults, $overrides);
         }
 
@@ -67,6 +68,10 @@ class AdminController extends Controller
 
     public function updateUserModules(Request $request, User $user)
     {
+        if (!Schema::hasTable('user_module_access')) {
+            return redirect()->back(303)->with('error', 'Module access table not ready. Run: php artisan migrate');
+        }
+
         $validKeys = collect(UserModuleAccess::moduleDefinitions())->pluck('key')->all();
 
         $validated = $request->validate([
