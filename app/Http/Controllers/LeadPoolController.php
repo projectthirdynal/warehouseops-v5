@@ -111,7 +111,9 @@ class LeadPoolController extends Controller
                 'id' => $agent->id,
                 'name' => $agent->name,
                 'active_leads' => $activeLeadCounts[$agent->id] ?? 0,
-                'max_active_cycles' => $agent->agentProfile->max_active_cycles ?? 10,
+                'max_active_cycles' => $agent->agentProfile?->max_active_cycles ?? 10,
+                'max_daily_leads' => $agent->agentProfile?->max_daily_leads ?? 50,
+                'product_skills' => $agent->agentProfile?->product_skills ?? [],
             ]),
             'filters' => array_merge($filters, ['view_mode' => $viewMode]),
             'viewMode' => $viewMode,
@@ -119,6 +121,11 @@ class LeadPoolController extends Controller
                 'value' => $s->value,
                 'label' => $s->label(),
             ]),
+            'productOptions' => Lead::where('pool_status', PoolStatus::AVAILABLE)
+                ->whereNotNull('product_name')
+                ->distinct()
+                ->orderBy('product_name')
+                ->pluck('product_name'),
         ]);
     }
 
@@ -131,17 +138,32 @@ class LeadPoolController extends Controller
             'agent_ids.*' => ['integer', 'exists:users,id'],
             'distribution' => ['required_if:method,custom', 'array'],
             'method' => ['required', 'in:equal,custom'],
+            'product_filter' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Optionally narrow lead IDs to a specific product before distributing
+        $leadIds = $validated['lead_ids'];
+        if (!empty($validated['product_filter'])) {
+            $leadIds = Lead::whereIn('id', $leadIds)
+                ->where('pool_status', PoolStatus::AVAILABLE)
+                ->where('product_name', 'ILIKE', '%' . $validated['product_filter'] . '%')
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($leadIds)) {
+                return redirect()->back()->with('error', 'No available leads match the selected product filter.');
+            }
+        }
 
         if ($validated['method'] === 'equal') {
             $result = $this->distributionService->distributeEqual(
-                $validated['lead_ids'],
+                $leadIds,
                 $validated['agent_ids'],
                 auth()->id()
             );
         } else {
             $result = $this->distributionService->distributeCustom(
-                $validated['lead_ids'],
+                $leadIds,
                 $validated['distribution'],
                 auth()->id()
             );

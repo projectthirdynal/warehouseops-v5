@@ -30,7 +30,10 @@ interface PoolLead {
   created_at: string;
 }
 
-interface Agent { id: number; name: string; active_leads: number; max_active_cycles: number; }
+interface Agent {
+  id: number; name: string; active_leads: number; max_active_cycles: number;
+  max_daily_leads: number; product_skills: string[];
+}
 interface SourceOption { value: string; label: string; }
 
 type ViewMode = 'pool' | 'imported' | 'all';
@@ -42,6 +45,7 @@ interface Props {
   filters: { pool_status?: string; source?: string; city?: string; product_name?: string; search?: string; view_mode?: ViewMode; };
   viewMode: ViewMode;
   sourceOptions: SourceOption[];
+  productOptions: string[];
 }
 
 const poolStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -70,7 +74,7 @@ const tabs: { key: ViewMode; label: string }[] = [
   { key: 'all', label: 'All Leads' },
 ];
 
-export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode, sourceOptions: _sourceOptions }: Props) {
+export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode, sourceOptions: _sourceOptions, productOptions }: Props) {
   const [search, setSearch] = useState(filters?.search || '');
   const [statusFilter, setStatusFilter] = useState(filters?.pool_status || 'all');
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
@@ -412,6 +416,7 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
           onClose={() => setIsDistributeOpen(false)}
           selectedLeadIds={selectedLeads}
           agents={agents}
+          productOptions={productOptions}
         />
       )}
     </AppLayout>
