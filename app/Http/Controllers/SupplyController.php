@@ -26,7 +26,7 @@ class SupplyController extends Controller
                         ->orWhere('name', 'like', "%{$search}%");
                 });
             })
-            ->when($request->category, fn ($query, string $category) => $query->where('category', $category))
+            ->when($request->category, fn ($query, string $category) => $query->whereRaw('LOWER(category) = ?', [strtolower($category)]))
             ->when($request->status === 'active', fn ($query) => $query->where('is_active', true))
             ->when($request->status === 'inactive', fn ($query) => $query->where('is_active', false))
             ->orderBy('name')
@@ -93,9 +93,10 @@ class SupplyController extends Controller
                 'categories' => Supply::query()
                     ->whereNotNull('category')
                     ->where('category', '!=', '')
-                    ->distinct()
-                    ->orderBy('category')
                     ->pluck('category')
+                    ->map(fn ($c) => ucwords(strtolower(trim($c))))
+                    ->unique()
+                    ->sort()
                     ->values(),
             ],
             'filters' => $request->only(['search', 'category', 'status']),
@@ -107,7 +108,7 @@ class SupplyController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validatedSupply($request);
+        $data = $this->normaliseCategory($this->validatedSupply($request));
         $initialStock = (int) $request->input('initial_stock', 0);
         $warehouseId = $this->warehouseId($request);
 
@@ -136,7 +137,7 @@ class SupplyController extends Controller
 
     public function update(Request $request, Supply $supply): RedirectResponse
     {
-        $supply->update($this->validatedSupply($request, $supply));
+        $supply->update($this->normaliseCategory($this->validatedSupply($request, $supply)));
 
         return back()->with('success', 'Material updated.');
     }
@@ -219,6 +220,14 @@ class SupplyController extends Controller
             'description' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ]);
+    }
+
+    private function normaliseCategory(array $data): array
+    {
+        if (!empty($data['category'])) {
+            $data['category'] = ucwords(strtolower(trim($data['category'])));
+        }
+        return $data;
     }
 
     private function warehouseId(Request $request): ?int

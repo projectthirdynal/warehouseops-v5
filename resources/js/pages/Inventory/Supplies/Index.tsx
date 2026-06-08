@@ -238,18 +238,19 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         )}
       </div>
 
-      <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} />
+      <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} />
       <StockDialog supply={stockTarget} onClose={() => setStockTarget(null)} warehouses={warehouses} />
     </AppLayout>
   );
 }
 
-function MaterialDialog({ open, onClose, editing, uoms, warehouses }: {
+function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }: {
   open: boolean;
   onClose: () => void;
   editing: Supply | null;
   uoms: Uom[];
   warehouses: Warehouse[];
+  categories: string[];
 }) {
   const form = useForm({
     sku: '',
@@ -302,7 +303,18 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses }: {
             <div className="space-y-1"><Label>Name *</Label><Input value={form.data.name} onChange={e => form.setData('name', e.target.value)} required placeholder="Bottles, caps, labels..." /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label>Category</Label><Input value={form.data.category} onChange={e => form.setData('category', e.target.value)} placeholder="Packaging, Raw Material..." /></div>
+            <div className="space-y-1">
+              <Label>Category</Label>
+              <Input
+                value={form.data.category}
+                onChange={e => form.setData('category', e.target.value)}
+                placeholder="Packaging, Raw Material..."
+                list="category-suggestions"
+              />
+              <datalist id="category-suggestions">
+                {categories.map(c => <option key={c} value={c} />)}
+              </datalist>
+            </div>
             <div className="space-y-1">
               <Label>UoM</Label>
               <Select value={form.data.uom_id || 'none'} onValueChange={(value) => form.setData('uom_id', value === 'none' ? '' : value)}>
