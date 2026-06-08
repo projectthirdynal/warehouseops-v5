@@ -30,9 +30,9 @@ docker compose exec -T app php artisan migrate --force
 echo "[3/6] Clearing application caches..."
 docker compose exec -T app php artisan optimize:clear
 
-# ── 4. Rebuild JS assets ─────────────────────
+# ── 4. Rebuild JS assets (on host, output served via volume mount) ──
 echo "[4/6] Building frontend assets..."
-docker compose exec -T app npm run build
+npm run build
 
 # ── 5. Re-cache for production ───────────────
 echo "[5/6] Caching config/routes/views..."
