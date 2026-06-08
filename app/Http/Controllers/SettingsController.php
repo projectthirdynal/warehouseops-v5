@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\SiteSetting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -39,6 +42,36 @@ class SettingsController extends Controller
                 ['name' => 'Slack', 'icon' => 'slack', 'status' => 'connected', 'description' => 'Team notifications'],
                 ['name' => 'Microsoft 365', 'icon' => 'microsoft', 'status' => 'disconnected', 'description' => 'Office integration'],
                 ['name' => 'Webhook', 'icon' => 'webhook', 'status' => 'connected', 'description' => 'Custom event notifications'],
+            ],
+            'email_settings' => [
+                'mailer'        => SiteSetting::get('mail_mailer', 'smtp'),
+                'host'          => SiteSetting::get('mail_host', ''),
+                'port'          => SiteSetting::get('mail_port', '587'),
+                'encryption'    => SiteSetting::get('mail_encryption', 'tls'),
+                'username'      => SiteSetting::get('mail_username', ''),
+                'password'      => SiteSetting::get('mail_password') ? '••••••••' : '',
+                'from_address'  => SiteSetting::get('mail_from_address', ''),
+                'from_name'     => SiteSetting::get('mail_from_name', SiteSetting::get('company_name', 'WarehouseOps')),
+                'is_configured' => (bool) SiteSetting::get('mail_host'),
+            ],
+            'printer_settings' => [
+                'enabled'         => SiteSetting::get('printer_enabled', '0') === '1',
+                'type'            => SiteSetting::get('printer_type', 'network'),
+                'ip_address'      => SiteSetting::get('printer_ip', ''),
+                'port'            => SiteSetting::get('printer_port', '9100'),
+                'dpi'             => SiteSetting::get('printer_dpi', '203'),
+                'label_width_mm'  => SiteSetting::get('printer_label_width', '100'),
+                'label_height_mm' => SiteSetting::get('printer_label_height', '50'),
+                'copies'          => SiteSetting::get('printer_copies', '1'),
+                'printer_name'    => SiteSetting::get('printer_name', ''),
+            ],
+            'scanner_settings' => [
+                'enabled'          => SiteSetting::get('scanner_enabled', '1') === '1',
+                'mode'             => SiteSetting::get('scanner_default_mode', 'validate'),
+                'sound_enabled'    => SiteSetting::get('scanner_sound', '1') === '1',
+                'auto_submit'      => SiteSetting::get('scanner_auto_submit', '1') === '1',
+                'beep_on_success'  => SiteSetting::get('scanner_beep_success', '1') === '1',
+                'beep_on_error'    => SiteSetting::get('scanner_beep_error', '1') === '1',
             ],
         ]);
     }
@@ -111,5 +144,136 @@ class SettingsController extends Controller
         ActivityLog::log('update_system_settings', $request->user(), 'system', null, $validated);
 
         return redirect()->back(303)->with('success', 'System settings saved.');
+    }
+
+    /* ─── Email / SMTP Settings ─── */
+
+    public function updateEmailSettings(Request $request)
+    {
+        $request->validate([
+            'mailer'       => ['required', 'in:smtp,log,mailpit'],
+            'host'         => ['nullable', 'string', 'max:255'],
+            'port'         => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'encryption'   => ['nullable', 'in:tls,ssl,none'],
+            'username'     => ['nullable', 'string', 'max:255'],
+            'password'     => ['nullable', 'string', 'max:500'],
+            'from_address' => ['required', 'email', 'max:255'],
+            'from_name'    => ['required', 'string', 'max:255'],
+        ]);
+
+        SiteSetting::set('mail_mailer',       $request->mailer);
+        SiteSetting::set('mail_host',         $request->host ?? '');
+        SiteSetting::set('mail_port',         (string) ($request->port ?? 587));
+        SiteSetting::set('mail_encryption',   $request->encryption ?? 'tls');
+        SiteSetting::set('mail_username',     $request->username ?? '');
+        SiteSetting::set('mail_from_address', $request->from_address);
+        SiteSetting::set('mail_from_name',    $request->from_name);
+
+        if ($request->filled('password') && $request->password !== '••••••••') {
+            SiteSetting::set('mail_password', Crypt::encryptString($request->password));
+        }
+
+        ActivityLog::log('update_email_settings', $request->user(), 'system', null, ['mailer' => $request->mailer, 'host' => $request->host]);
+
+        return redirect()->back(303)->with('success', 'Email settings saved.');
+    }
+
+    public function testEmail(Request $request): JsonResponse
+    {
+        $request->validate([
+            'to' => ['required', 'email'],
+        ]);
+
+        $host       = SiteSetting::get('mail_host', '');
+        $mailer     = SiteSetting::get('mail_mailer', 'log');
+        $username   = SiteSetting::get('mail_username', '');
+        $password   = SiteSetting::get('mail_password', '');
+        $port       = (int) SiteSetting::get('mail_port', 587);
+        $encryption = SiteSetting::get('mail_encryption', 'tls');
+        $fromAddr   = SiteSetting::get('mail_from_address', 'noreply@example.com');
+        $fromName   = SiteSetting::get('mail_from_name', 'WarehouseOps');
+
+        if (empty($host) && $mailer === 'smtp') {
+            return response()->json(['ok' => false, 'message' => 'SMTP not configured yet. Add a host first.'], 422);
+        }
+
+        try {
+            $decryptedPassword = '';
+            if ($password) {
+                try { $decryptedPassword = Crypt::decryptString($password); } catch (\Throwable) { $decryptedPassword = $password; }
+            }
+
+            config([
+                'mail.default'                    => $mailer,
+                'mail.mailers.smtp.host'          => $host,
+                'mail.mailers.smtp.port'          => $port,
+                'mail.mailers.smtp.encryption'    => $encryption === 'none' ? null : $encryption,
+                'mail.mailers.smtp.username'      => $username,
+                'mail.mailers.smtp.password'      => $decryptedPassword,
+                'mail.from.address'               => $fromAddr,
+                'mail.from.name'                  => $fromName,
+            ]);
+
+            Mail::raw(
+                "This is a test email from WarehouseOps.\n\nIf you received this, your SMTP configuration is working correctly.\n\nSent at: " . now()->toDateTimeString(),
+                fn ($m) => $m->to($request->to)->subject('WarehouseOps — SMTP Test Email')
+            );
+
+            return response()->json(['ok' => true, 'message' => "Test email sent to {$request->to}."]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    /* ─── Label Printer Settings ─── */
+
+    public function updateLabelPrinter(Request $request)
+    {
+        $request->validate([
+            'enabled'         => ['boolean'],
+            'type'            => ['required', 'in:network,usb,windows'],
+            'ip_address'      => ['nullable', 'string', 'max:255'],
+            'port'            => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'dpi'             => ['required', 'in:203,300,600'],
+            'label_width_mm'  => ['required', 'integer', 'min:20', 'max:300'],
+            'label_height_mm' => ['required', 'integer', 'min:10', 'max:300'],
+            'copies'          => ['required', 'integer', 'min:1', 'max:10'],
+            'printer_name'    => ['nullable', 'string', 'max:255'],
+        ]);
+
+        SiteSetting::set('printer_enabled',      $request->enabled ? '1' : '0');
+        SiteSetting::set('printer_type',         $request->type);
+        SiteSetting::set('printer_ip',           $request->ip_address ?? '');
+        SiteSetting::set('printer_port',         (string) ($request->port ?? 9100));
+        SiteSetting::set('printer_dpi',          (string) $request->dpi);
+        SiteSetting::set('printer_label_width',  (string) $request->label_width_mm);
+        SiteSetting::set('printer_label_height', (string) $request->label_height_mm);
+        SiteSetting::set('printer_copies',       (string) $request->copies);
+        SiteSetting::set('printer_name',         $request->printer_name ?? '');
+
+        return redirect()->back(303)->with('success', 'Label printer settings saved.');
+    }
+
+    /* ─── Scanner Settings ─── */
+
+    public function updateScannerSettings(Request $request)
+    {
+        $request->validate([
+            'enabled'         => ['boolean'],
+            'mode'            => ['required', 'in:validate,dispatch,receive_return'],
+            'sound_enabled'   => ['boolean'],
+            'auto_submit'     => ['boolean'],
+            'beep_on_success' => ['boolean'],
+            'beep_on_error'   => ['boolean'],
+        ]);
+
+        SiteSetting::set('scanner_enabled',      $request->enabled ? '1' : '0');
+        SiteSetting::set('scanner_default_mode', $request->mode);
+        SiteSetting::set('scanner_sound',        $request->sound_enabled ? '1' : '0');
+        SiteSetting::set('scanner_auto_submit',  $request->auto_submit ? '1' : '0');
+        SiteSetting::set('scanner_beep_success', $request->beep_on_success ? '1' : '0');
+        SiteSetting::set('scanner_beep_error',   $request->beep_on_error ? '1' : '0');
+
+        return redirect()->back(303)->with('success', 'Scanner settings saved.');
     }
 }

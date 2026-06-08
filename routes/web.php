@@ -118,6 +118,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/appearance', [SettingsController::class, 'updateAppearance'])->name('appearance.update');
         Route::patch('/password', [SettingsController::class, 'updatePassword'])->name('password.update');
         Route::patch('/system', [SettingsController::class, 'updateSystemSettings'])->name('system.update');
+        Route::patch('/email', [SettingsController::class, 'updateEmailSettings'])->name('email.update');
+        Route::post('/email/test', [SettingsController::class, 'testEmail'])->name('email.test');
+        Route::patch('/printer', [SettingsController::class, 'updateLabelPrinter'])->name('printer.update');
+        Route::patch('/scanner', [SettingsController::class, 'updateScannerSettings'])->name('scanner.update');
     });
 });
 
