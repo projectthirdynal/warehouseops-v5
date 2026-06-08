@@ -139,7 +139,7 @@ class Lead extends Model
 
     public function activeCycle(): HasOne
     {
-        return $this->hasOne(LeadCycle::class)->where('status', 'ACTIVE')->latest();
+        return $this->hasOne(LeadCycle::class)->where('status', 'ACTIVE')->latestOfMany();
     }
 
     public function logs(): HasMany
@@ -263,6 +263,11 @@ class Lead extends Model
     {
         if ($this->is_exhausted) {
             return 'Lead has exceeded maximum recycle attempts.';
+        }
+
+        // Explicit cooldown window check (ISS-011)
+        if ($this->cooldown_until && $this->cooldown_until->isFuture()) {
+            return 'Lead is in cooldown period.';
         }
 
         if ($this->activeCycle) {

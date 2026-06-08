@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Lead\Enums\LeadSource;
+use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\LeadPoolResource;
@@ -81,19 +82,26 @@ class LeadPoolController extends Controller
                 $this->poolService->getPoolStats()
             );
         } elseif ($viewMode === 'imported') {
-            $stats = [
-                'total' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->count(),
-                'available' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::AVAILABLE)->count(),
-                'assigned' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::ASSIGNED)->count(),
-                'cooldown' => Lead::whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])->where('pool_status', PoolStatus::COOLDOWN)->count(),
-            ];
+            // 30-second cache matching the pool:stats invalidation pattern (ISS-015)
+            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats:imported', 30, function () {
+                $sources = [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT];
+                return [
+                    'total' => Lead::whereIn('source', $sources)->count(),
+                    'available' => Lead::whereIn('source', $sources)->where('pool_status', PoolStatus::AVAILABLE)->count(),
+                    'assigned' => Lead::whereIn('source', $sources)->where('pool_status', PoolStatus::ASSIGNED)->count(),
+                    'cooldown' => Lead::whereIn('source', $sources)->where('pool_status', PoolStatus::COOLDOWN)->count(),
+                ];
+            });
         } else {
-            $stats = [
-                'total' => Lead::count(),
-                'new' => Lead::where('status', 'NEW')->count(),
-                'in_progress' => Lead::whereIn('status', ['CALLING', 'CALLBACK'])->count(),
-                'converted' => Lead::where('status', 'SALE')->count(),
-            ];
+            // 30-second cache matching the pool:stats invalidation pattern (ISS-015)
+            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats:all', 30, function () {
+                return [
+                    'total' => Lead::count(),
+                    'new' => Lead::where('status', LeadStatus::NEW)->count(),
+                    'in_progress' => Lead::whereIn('status', [LeadStatus::CALLING, LeadStatus::CALLBACK])->count(),
+                    'converted' => Lead::where('status', LeadStatus::SALE)->count(),
+                ];
+            });
         }
 
         return Inertia::render('LeadPool/Index', [
@@ -147,26 +155,39 @@ class LeadPoolController extends Controller
         $agents = User::where('role', 'agent')
             ->where('is_active', true)
             ->with('agentProfile')
-            ->get()
-            ->map(function ($agent) {
-                $todayCycles = LeadCycle::where('assigned_agent_id', $agent->id)
-                    ->whereDate('opened_at', today())
-                    ->get();
+            ->get();
 
-                return [
-                    'id' => $agent->id,
-                    'name' => $agent->name,
-                    'active_leads' => Lead::where('assigned_to', $agent->id)
-                        ->where('pool_status', PoolStatus::ASSIGNED)->count(),
-                    'called_today' => $todayCycles->where('call_count', '>', 0)->count(),
-                    'sold_today' => $todayCycles->where('outcome', 'ORDERED')->count(),
-                    'no_answer_today' => $todayCycles->where('outcome', 'NO_ANSWER')->count(),
-                    'conversion_rate' => $todayCycles->count() > 0
-                        ? round($todayCycles->where('outcome', 'ORDERED')->count() / $todayCycles->count() * 100, 1)
-                        : 0,
-                    'is_available' => $agent->agentProfile?->is_available ?? false,
-                ];
-            });
+        $agentIds = $agents->pluck('id')->all();
+
+        // Pre-aggregate active lead counts — single query (ISS-006)
+        $activeLeadCounts = Lead::whereIn('assigned_to', $agentIds)
+            ->where('pool_status', PoolStatus::ASSIGNED)
+            ->selectRaw('assigned_to, count(*) as count')
+            ->groupBy('assigned_to')
+            ->pluck('count', 'assigned_to');
+
+        // Pre-fetch all today's cycles — single query (ISS-006)
+        $todayCyclesAll = LeadCycle::whereIn('assigned_agent_id', $agentIds)
+            ->whereDate('opened_at', today())
+            ->get()
+            ->groupBy('assigned_agent_id');
+
+        $agents = $agents->map(function ($agent) use ($activeLeadCounts, $todayCyclesAll) {
+            $todayCycles = $todayCyclesAll->get($agent->id, collect());
+
+            return [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'active_leads' => $activeLeadCounts[$agent->id] ?? 0,
+                'called_today' => $todayCycles->where('call_count', '>', 0)->count(),
+                'sold_today' => $todayCycles->where('outcome', 'ORDERED')->count(),
+                'no_answer_today' => $todayCycles->where('outcome', 'NO_ANSWER')->count(),
+                'conversion_rate' => $todayCycles->count() > 0
+                    ? round($todayCycles->where('outcome', 'ORDERED')->count() / $todayCycles->count() * 100, 1)
+                    : 0,
+                'is_available' => $agent->agentProfile?->is_available ?? false,
+            ];
+        });
 
         return Inertia::render('LeadPool/AgentPerformance', [
             'agents' => $agents,

@@ -42,9 +42,10 @@ class AgentWorkload extends Model
 
     public function isDailyCapReached(int $maxDaily): bool
     {
-        // Reset counter if last assignment was before today
+        // Reset counter if last assignment date is stale (ISS-001)
         if ($this->last_assigned_at && ! $this->last_assigned_at->isToday()) {
-            return false;
+            $this->update(['today_assigned_count' => 0]);
+            $this->today_assigned_count = 0;
         }
 
         return $this->today_assigned_count >= $maxDaily;

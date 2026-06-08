@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Domain\Lead\Enums\PoolStatus;
+use App\Services\CapacityManager;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -11,7 +12,8 @@ use Illuminate\Support\Facades\Cache;
 class LeadPoolService
 {
     public function __construct(
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private CapacityManager $capacityManager,
     ) {}
 
     public function getAvailableLeads(?array $filters = null): Collection
@@ -54,6 +56,8 @@ class LeadPoolService
         ]);
 
         Cache::forget('lead_pool:stats');
+        Cache::forget('lead_pool:stats:imported');
+        Cache::forget('lead_pool:stats:all');
 
         $this->auditService->log(
             lead: $lead,
@@ -68,6 +72,11 @@ class LeadPoolService
     {
         $oldStatus = $lead->pool_status?->value;
 
+        // Free agent workload before nulling assignment (ISS-003)
+        if ($lead->assigned_to) {
+            $this->capacityManager->recordCycleClose($lead->assigned_to);
+        }
+
         $lead->update([
             'pool_status' => PoolStatus::COOLDOWN,
             'cooldown_until' => now()->addHours($cooldownHours),
@@ -75,6 +84,8 @@ class LeadPoolService
         ]);
 
         Cache::forget('lead_pool:stats');
+        Cache::forget('lead_pool:stats:imported');
+        Cache::forget('lead_pool:stats:all');
 
         $this->auditService->log(
             lead: $lead,
@@ -89,6 +100,11 @@ class LeadPoolService
     {
         $oldStatus = $lead->pool_status?->value;
 
+        // Free agent workload before nulling assignment (ISS-003)
+        if ($lead->assigned_to) {
+            $this->capacityManager->recordCycleClose($lead->assigned_to);
+        }
+
         $lead->update([
             'pool_status' => PoolStatus::AVAILABLE,
             'cooldown_until' => null,
@@ -96,6 +112,8 @@ class LeadPoolService
         ]);
 
         Cache::forget('lead_pool:stats');
+        Cache::forget('lead_pool:stats:imported');
+        Cache::forget('lead_pool:stats:all');
 
         $this->auditService->log(
             lead: $lead,
@@ -115,6 +133,8 @@ class LeadPoolService
         ]);
 
         Cache::forget('lead_pool:stats');
+        Cache::forget('lead_pool:stats:imported');
+        Cache::forget('lead_pool:stats:all');
 
         $this->auditService->log(
             lead: $lead,

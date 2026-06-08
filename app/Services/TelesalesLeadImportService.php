@@ -63,10 +63,14 @@ class TelesalesLeadImportService
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
             $sheet = $spreadsheet->getActiveSheet();
             $highestRow = $sheet->getHighestRow();
+            // Determine column count dynamically (ISS-014)
+            $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
+                $sheet->getHighestColumn()
+            );
 
             for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
                 $row = [];
-                for ($col = 1; $col <= 15; $col++) {
+                for ($col = 1; $col <= $highestColIndex; $col++) {
                     $row[] = $sheet->getCellByColumnAndRow($col, $rowNum)->getValue();
                 }
                 $rows[] = $row;
@@ -165,7 +169,7 @@ class TelesalesLeadImportService
         }
 
         $existing = Lead::where('customer_id', $customer->id)
-            ->where('source', LeadSource::TELESALES_IMPORT)
+            ->whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])
             ->first();
 
         if ($existing) {

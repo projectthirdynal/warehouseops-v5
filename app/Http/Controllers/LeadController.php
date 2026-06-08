@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Services\OrderFulfillmentService;
+use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -57,14 +58,14 @@ class LeadController extends Controller
             ->withQueryString();
 
         // Calculate stats
+        $total = Lead::count();
+        $converted = Lead::where('status', LeadStatus::SALE)->count();
         $stats = [
-            'total' => Lead::count(),
-            'new' => Lead::where('status', 'NEW')->count(),
-            'in_progress' => Lead::whereIn('status', ['CALLING', 'CALLBACK'])->count(),
-            'converted' => Lead::where('status', 'SALE')->count(),
-            'conversion_rate' => Lead::count() > 0
-                ? round((Lead::where('status', 'SALE')->count() / Lead::count()) * 100, 1)
-                : 0,
+            'total' => $total,
+            'new' => Lead::where('status', LeadStatus::NEW)->count(),
+            'in_progress' => Lead::whereIn('status', [LeadStatus::CALLING, LeadStatus::CALLBACK])->count(),
+            'converted' => $converted,
+            'conversion_rate' => $total > 0 ? round(($converted / $total) * 100, 1) : 0,
         ];
 
         return Inertia::render('Leads/Index', [
@@ -109,8 +110,10 @@ class LeadController extends Controller
 
     public function recyclingPool()
     {
-        $leads = Lead::whereNull('assigned_to')
-            ->orWhereIn('status', ['NO_ANSWER', 'CALLBACK'])
+        $leads = Lead::where(function ($q) {
+                $q->whereNull('assigned_to')
+                  ->orWhereIn('status', ['NO_ANSWER', 'CALLBACK']);
+            })
             ->orderBy('updated_at', 'asc')
             ->get()
             ->map(function ($lead) {

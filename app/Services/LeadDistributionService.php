@@ -75,10 +75,11 @@ class LeadDistributionService
                 for ($i = 0; $i < $count && $leadIndex < $leads->count(); $i++) {
                     $lead = $leads[$leadIndex];
 
-                    // Race-condition guard
+                    // Race-condition guard; only count slot when actually assigned (ISS-016)
                     $lead->refresh();
                     if ($lead->pool_status !== PoolStatus::AVAILABLE) {
                         $leadIndex++;
+                        $i--; // do not consume slot for a skipped lead
                         continue;
                     }
 

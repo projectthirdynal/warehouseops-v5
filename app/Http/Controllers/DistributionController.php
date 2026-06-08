@@ -162,6 +162,12 @@ class DistributionController extends Controller
 
         $lead = Lead::findOrFail($validated['lead_id']);
         $agent = User::findOrFail($validated['agent_id']);
+
+        // Guard: only ASSIGNED leads can be reassigned (ISS-010)
+        if ($lead->pool_status !== PoolStatus::ASSIGNED) {
+            return redirect()->back()->with('error', 'Lead must be currently assigned before it can be reassigned.');
+        }
+
         $oldAgent = $lead->assignedAgent;
 
         $result = DB::transaction(function () use ($lead, $agent, $oldAgent, $validated) {
@@ -249,11 +255,11 @@ class DistributionController extends Controller
                 continue;
             }
 
-            DB::transaction(function () use ($lead, $agent, $result) {
-                // Race-condition guard
+            $assigned = DB::transaction(function () use ($lead, $agent, $result): bool {
+                // Race-condition guard (ISS-002)
                 $lead->refresh();
                 if ($lead->pool_status !== PoolStatus::AVAILABLE) {
-                    return;
+                    return false;
                 }
 
                 $cycleNumber = $lead->total_cycles + 1;
@@ -272,7 +278,6 @@ class DistributionController extends Controller
                     'total_cycles' => $cycleNumber,
                 ]);
 
-                // Update agent workload
                 app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
 
                 $this->auditService->log(
@@ -289,9 +294,13 @@ class DistributionController extends Controller
                 );
 
                 LeadAssigned::dispatch($lead, $agent, $cycle, $result['reason']);
+
+                return true;
             });
 
-            $distributed++;
+            if ($assigned) {
+                $distributed++;
+            }
         }
 
         return redirect()->back()->with('success', "{$distributed} leads distributed.");

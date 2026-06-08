@@ -51,11 +51,13 @@ class DistributionEngine
         $eligible = $this->filterEligibleAgents($lead, null);
         if ($eligible->isNotEmpty()) {
             // True round-robin: cycle through eligible agents
+            // Key is namespaced by environment to prevent cross-env bleed (ISS-013)
+            $rrKey = config('app.env') . ':distribution:last_round_robin_key';
             $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
-            $lastKey = \Illuminate\Support\Facades\Cache::get('distribution:last_round_robin_key', -1);
+            $lastKey = \Illuminate\Support\Facades\Cache::get($rrKey, -1);
             $nextKey = ($lastKey + 1) % count($agentIds);
             $bestId = $agentIds[$nextKey];
-            \Illuminate\Support\Facades\Cache::put('distribution:last_round_robin_key', $nextKey, now()->addDay());
+            \Illuminate\Support\Facades\Cache::put($rrKey, $nextKey, now()->addDay());
 
             return [
                 'agent_id' => $bestId,
@@ -157,12 +159,16 @@ class DistributionEngine
 
         $strategy = $rule->strategy;
 
-        $scored = $agents->map(function (AgentProfile $agent) use ($lead, $formula, $strategy) {
+        // Pre-fetch all workloads in one query — no N+1 (ISS-007)
+        $agentIds = $agents->pluck('user_id')->all();
+        $workloads = AgentWorkload::whereIn('agent_id', $agentIds)
+            ->get()
+            ->keyBy('agent_id');
+
+        $scored = $agents->map(function (AgentProfile $agent) use ($lead, $formula, $strategy, $workloads) {
             $score = 0.0;
-            $workload = AgentWorkload::firstOrCreate(
-                ['agent_id' => $agent->user_id],
-                ['active_leads_count' => 0, 'today_assigned_count' => 0]
-            );
+            $workload = $workloads->get($agent->user_id)
+                ?? new AgentWorkload(['agent_id' => $agent->user_id, 'active_leads_count' => 0, 'today_assigned_count' => 0]);
 
             // Performance score (normalized 0–100)
             $wPerf = $formula['w_perf'] ?? 0.30;
