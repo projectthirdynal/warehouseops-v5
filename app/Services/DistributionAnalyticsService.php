@@ -9,7 +9,6 @@ use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class DistributionAnalyticsService
@@ -61,14 +60,20 @@ class DistributionAnalyticsService
     /**
      * Agent utilization stats.
      *
-     * @return Collection<int, array{agent_id: int, name: string, active: int, max: int, utilization: float}>
+     * @return array<int, array{agent_id: int, name: string, active: int, max: int, utilization: float}>
      */
-    public function agentUtilization(): Collection
+    public function agentUtilization(): array
     {
         $workloads = AgentWorkload::with('agent')->get();
 
-        return $workloads->map(function (AgentWorkload $w) {
-            $profile = AgentProfile::where('user_id', $w->agent_id)->first();
+        // Pre-fetch all profiles in one query to avoid N+1
+        $agentIds = $workloads->pluck('agent_id')->all();
+        $profiles = AgentProfile::whereIn('user_id', $agentIds)
+            ->get()
+            ->keyBy('user_id');
+
+        return $workloads->map(function (AgentWorkload $w) use ($profiles) {
+            $profile = $profiles->get($w->agent_id);
             $max = $profile?->concurrent_lead_cap ?? $profile?->max_active_cycles ?? 10;
 
             return [
@@ -80,7 +85,7 @@ class DistributionAnalyticsService
                 'today_assigned' => $w->today_assigned_count,
                 'today_converted' => $w->today_converted_count,
             ];
-        });
+        })->values()->all();
     }
 
     /**
@@ -105,7 +110,8 @@ class DistributionAnalyticsService
         }
 
         foreach ($items as $item) {
-            $key = $item->hour->format('Y-m-d H:00');
+            // DATE_TRUNC returns a plain string; parse to Carbon before formatting
+            $key = \Illuminate\Support\Carbon::parse($item->hour)->format('Y-m-d H:00');
             if (isset($buckets[$key]) && in_array($item->status, ['pending', 'assigned', 'failed'])) {
                 $buckets[$key][$item->status] = (int) $item->count;
             }
@@ -208,31 +214,42 @@ class DistributionAnalyticsService
             ->with('agentProfile')
             ->get();
 
+        $agentIds = $agents->pluck('id')->all();
+
+        // Batch-fetch assigned counts per agent — single query
+        $assignedCounts = LeadCycle::whereIn('assigned_agent_id', $agentIds)
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw('assigned_agent_id, COUNT(*) as cnt')
+            ->groupBy('assigned_agent_id')
+            ->pluck('cnt', 'assigned_agent_id');
+
+        // Batch-fetch converted counts per agent — single query
+        $convertedCounts = LeadCycle::whereIn('assigned_agent_id', $agentIds)
+            ->whereBetween('created_at', [$from, $to])
+            ->whereIn('outcome', ['SALE', 'ORDERED', 'REORDER'])
+            ->selectRaw('assigned_agent_id, COUNT(*) as cnt')
+            ->groupBy('assigned_agent_id')
+            ->pluck('cnt', 'assigned_agent_id');
+
         $report = [];
         foreach ($agents as $agent) {
             $profile = $agent->agentProfile;
-            $weight = $profile?->distribution_weight ?? 1.0;
+            $weight = max(0.01, (float) ($profile?->distribution_weight ?? 1.0)); // guard zero division
 
-            $assigned = LeadCycle::where('assigned_agent_id', $agent->id)
-                ->whereBetween('created_at', [$from, $to])
-                ->count();
-
-            $converted = LeadCycle::where('assigned_agent_id', $agent->id)
-                ->whereBetween('created_at', [$from, $to])
-                ->whereIn('outcome', ['SALE', 'ORDERED', 'REORDER'])
-                ->count();
-
+            $assigned = (int) ($assignedCounts[$agent->id] ?? 0);
+            $converted = (int) ($convertedCounts[$agent->id] ?? 0);
             $actualRate = $assigned > 0 ? round(($converted / $assigned) * 100, 1) : 0;
+            $expectedRate = round(50 * $weight, 1);
 
             $report[] = [
                 'agent_id' => $agent->id,
                 'name' => $agent->name,
-                'weight' => (float) $weight,
+                'weight' => $weight,
                 'assigned' => $assigned,
                 'converted' => $converted,
-                'expected_rate' => round(50 * $weight, 1), // heuristic: base 50% × weight
+                'expected_rate' => $expectedRate,
                 'actual_rate' => $actualRate,
-                'skew' => $actualRate > 0 ? round(($actualRate / (50 * $weight)) - 1, 2) : 0,
+                'skew' => $expectedRate > 0 ? round(($actualRate / $expectedRate) - 1, 2) : 0,
             ];
         }
 
