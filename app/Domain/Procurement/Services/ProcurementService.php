@@ -13,7 +13,11 @@ use App\Domain\Procurement\Models\PurchaseOrder;
 use App\Domain\Procurement\Models\PurchaseRequest;
 use App\Domain\Procurement\Models\ReceivingReport;
 use App\Models\User;
+use App\Notifications\PrDecidedNotification;
+use App\Notifications\PrSubmittedNotification;
+use App\Services\ApprovalService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use RuntimeException;
 
 class ProcurementService
@@ -21,6 +25,7 @@ class ProcurementService
     public function __construct(
         private readonly StockService $stockService,
         private readonly QboSyncService $qbo,
+        private readonly ApprovalService $approval,
     ) {}
 
     /**
@@ -43,6 +48,11 @@ class ProcurementService
             $pr->approved_at = now();
         }
         $pr->save();
+
+        if ($pr->status === PrStatus::SUBMITTED) {
+            $approvers = $this->approval->getApprovers('pr');
+            Notification::send($approvers, new PrSubmittedNotification($pr->fresh(['requester'])));
+        }
     }
 
     public function approvePr(PurchaseRequest $pr, User $approver): void
@@ -54,6 +64,10 @@ class ProcurementService
         $pr->approved_by = $approver->id;
         $pr->approved_at = now();
         $pr->save();
+
+        if ($pr->requester) {
+            $pr->requester->notify(new PrDecidedNotification($pr->fresh(['approver']), 'approved'));
+        }
     }
 
     public function rejectPr(PurchaseRequest $pr, User $approver, string $reason): void
@@ -66,6 +80,10 @@ class ProcurementService
         $pr->approved_at     = now();
         $pr->rejected_reason = $reason;
         $pr->save();
+
+        if ($pr->requester) {
+            $pr->requester->notify(new PrDecidedNotification($pr->fresh(['approver']), 'rejected'));
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\ApprovalsController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuthController;
@@ -479,6 +481,19 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::post('/{thirdParty}/contacts',              [ThirdPartyController::class, 'storeContact'])->name('contacts.store');
         Route::post('/{thirdParty}/addresses',             [ThirdPartyController::class, 'storeAddress'])->name('addresses.store');
     });
+});
+
+// Approvals Inbox
+Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,warehouse'])->group(function () {
+    Route::get('/approvals', [ApprovalsController::class, 'index'])->name('approvals.index');
+    Route::post('/approvals/settings', [ApprovalsController::class, 'updateSettings'])->name('approvals.settings');
+});
+
+// Notifications API
+Route::middleware('auth')->prefix('api/notifications')->name('api.notifications.')->group(function () {
+    Route::get('/', [NotificationController::class, 'index'])->name('index');
+    Route::post('/{id}/read', [NotificationController::class, 'markRead'])->name('read');
+    Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
 });
 
 // Admin Dashboard

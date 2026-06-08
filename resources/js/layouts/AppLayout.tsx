@@ -1,4 +1,4 @@
-import { PropsWithChildren, useEffect, useState, useMemo } from 'react';
+import { PropsWithChildren, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
 import {
@@ -8,6 +8,7 @@ import {
   Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
   ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
   Store, BookUser, Search, ChevronRight, Home, ArrowUpDown, Upload,
+  CheckSquare, Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,6 @@ import {
 import type { PageProps } from '@/types';
 import CommandPalette from '@/components/CommandPalette';
 import { HotkeyCheatSheet } from '@/components/HotkeyCheatSheet';
-import { LeadNotificationBadge } from '@/components/LeadNotificationBadge';
 import { useGlobalHotkeys } from '@/hooks/use-hotkeys';
 
 /* ─── Role-based navigation ─── */
@@ -95,6 +95,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/procurement/requests': 'Purchase Requests',
   '/procurement/orders': 'Purchase Orders',
   '/procurement/receiving': 'Receiving',
+  '/approvals': 'Approvals',
   '/finance': 'Finance',
   '/finance/quickbooks': 'QuickBooks',
   '/finance/cost-of-goods': 'Cost of Goods',
@@ -108,6 +109,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
 const navigation: NavEntry[] = [
   /* ── General ── */
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ALL_STAFF },
+  { name: 'Approvals', href: '/approvals', icon: CheckSquare, roles: ['superadmin','admin','supervisor','finance','warehouse'] },
   { name: 'Shop', href: '/shop', icon: Store, roles: ADMIN_ONLY },
 
   /* ── Operations ── */
@@ -652,7 +654,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             </Button>
 
             {/* Notifications */}
-            <LeadNotificationBadge count={0} />
+            <NotificationBell />
 
             {/* User Menu */}
             <DropdownMenu>
@@ -702,4 +704,133 @@ export default function AppLayout({ children }: PropsWithChildren) {
     </TooltipProvider>
   );
 }
+interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  url: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+function NotificationBell() {
+  const [open, setOpen]                       = useState(false);
+  const [notifications, setNotifications]     = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount]         = useState(0);
+  const panelRef                              = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/notifications', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+        setUnreadCount(data.unread_count ?? 0);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  async function markRead(id: string) {
+    await fetch(`/api/notifications/${id}/read`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '' },
+      credentials: 'same-origin',
+    });
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  }
+
+  async function markAllRead() {
+    await fetch('/api/notifications/read-all', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '' },
+      credentials: 'same-origin',
+    });
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  }
+
+  const typeIcon: Record<string, string> = {
+    pr_submitted: '📋',
+    pr_decided: '✅',
+    adjustment_submitted: '⚖️',
+    adjustment_decided: '📦',
+  };
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="relative inline-flex items-center justify-center rounded-full p-2 hover:bg-accent transition-colors"
+        aria-label={`${unreadCount} unread notifications`}
+      >
+        <Bell className="h-5 w-5 text-muted-foreground" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-red-500">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border bg-popover shadow-xl">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <span className="text-sm font-semibold">Notifications</span>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} className="text-xs text-primary hover:underline">
+                Mark all read
+              </button>
+            )}
+          </div>
+          <div className="max-h-96 overflow-y-auto divide-y">
+            {notifications.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No notifications yet</p>
+            ) : notifications.map(n => (
+              <div
+                key={n.id}
+                className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}
+                onClick={() => {
+                  markRead(n.id);
+                  if (n.url) window.location.href = n.url;
+                  setOpen(false);
+                }}
+              >
+                <span className="mt-0.5 text-lg">{typeIcon[n.type] ?? '🔔'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm ${!n.read ? 'font-semibold' : 'font-medium'} leading-tight`}>{n.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{n.created_at}</p>
+                </div>
+                {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // cache-bust-1781032200

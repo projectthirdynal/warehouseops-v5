@@ -8,14 +8,19 @@ use App\Domain\Inventory\Models\StockAdjustment;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\ProductStock;
+use App\Notifications\StockAdjustmentNotification;
+use App\Services\ApprovalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class StockAdjustmentController extends Controller
 {
+    public function __construct(private readonly ApprovalService $approval) {}
+
     public function index(Request $request): Response
     {
         return Inertia::render('Inventory/StockAdjustments', [
@@ -80,6 +85,13 @@ class StockAdjustmentController extends Controller
             ]);
         });
 
+        $adj = StockAdjustment::with(['product', 'supply', 'warehouse'])
+            ->orderByDesc('id')->first();
+        if ($adj) {
+            $approvers = $this->approval->getApprovers('adjustment');
+            Notification::send($approvers, new StockAdjustmentNotification($adj, 'submitted'));
+        }
+
         return back()->with('success', 'Adjustment submitted for approval.');
     }
 
@@ -122,6 +134,11 @@ class StockAdjustmentController extends Controller
             )->update(['current_stock' => $adjustment->quantity_after]);
         });
 
+        $adjustment->load(['product', 'supply', 'warehouse']);
+        if ($adjustment->submittedBy) {
+            $adjustment->submittedBy->notify(new StockAdjustmentNotification($adjustment, 'approved'));
+        }
+
         return back()->with('success', 'Adjustment approved and stock updated.');
     }
 
@@ -139,6 +156,11 @@ class StockAdjustmentController extends Controller
             'approved_at' => now(),
             'reason_notes' => trim(($adjustment->reason_notes ?? '') . "\n[REJECTED] " . ($request->input('reason') ?? 'No reason provided')),
         ]);
+
+        $adjustment->load(['product', 'supply', 'warehouse']);
+        if ($adjustment->submittedBy) {
+            $adjustment->submittedBy->notify(new StockAdjustmentNotification($adjustment, 'rejected'));
+        }
 
         return back()->with('success', 'Adjustment rejected.');
     }
