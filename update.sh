@@ -31,7 +31,8 @@ echo "[3/6] Clearing application caches..."
 docker compose exec -T app php artisan optimize:clear
 
 # ── 4. Rebuild JS assets (on host, output served via volume mount) ──
-echo "[4/6] Building frontend assets..."
+echo "[4/6] Installing JS dependencies & building frontend assets..."
+npm install --prefer-offline
 npm run build
 
 # ── 5. Re-cache for production ───────────────
