@@ -2,6 +2,7 @@ export interface UserRecord {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
   role: string;
   is_active: boolean;
   last_login_at: string | null;

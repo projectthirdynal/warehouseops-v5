@@ -17,7 +17,7 @@ class AdminController extends Controller
     public function index()
     {
         $users = User::orderBy('created_at', 'desc')
-            ->get(['id', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at']);
+            ->get(['id', 'name', 'email', 'phone', 'role', 'is_active', 'last_login_at', 'created_at']);
 
         $permissions = Permission::orderBy('section')->orderBy('key')->get();
         $rolePermissions = RolePermission::pluck('permission_id', 'role')->groupBy('role');
@@ -78,6 +78,10 @@ class AdminController extends Controller
             return redirect()->back(303)->with('error', 'You cannot deactivate yourself.');
         }
 
+        if ($user->role === 'superadmin' && $request->user()->role !== 'superadmin') {
+            return redirect()->back(303)->with('error', 'Only a superadmin can deactivate another superadmin.');
+        }
+
         $user->update(['is_active' => !$user->is_active]);
 
         ActivityLog::log(
@@ -127,6 +131,10 @@ class AdminController extends Controller
             'is_active' => true,
         ]);
 
+        if ($user->role === 'agent') {
+            \App\Models\AgentProfile::create(['user_id' => $user->id]);
+        }
+
         ActivityLog::log('user.created', $request->user(), 'User', $user->id, ['role' => $user->role]);
 
         return redirect()->back(303)->with('success', "User \"{$user->name}\" created.");
@@ -136,6 +144,10 @@ class AdminController extends Controller
     {
         if ($user->id === $request->user()->id) {
             return redirect()->back(303)->with('error', 'You cannot delete your own account.');
+        }
+
+        if ($user->role === 'superadmin' && $request->user()->role !== 'superadmin') {
+            return redirect()->back(303)->with('error', 'Only a superadmin can delete another superadmin.');
         }
 
         $name = $user->name;

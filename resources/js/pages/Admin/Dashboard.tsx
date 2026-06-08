@@ -187,6 +187,10 @@ export default function AdminDashboard({ users, roles, permissions, rolePermissi
                   <p className="mt-1">{selectedUser.last_login_at ? new Date(selectedUser.last_login_at).toLocaleString() : 'Never'}</p>
                 </div>
                 <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Phone</p>
+                  <p className="mt-1">{selectedUser.phone ?? '—'}</p>
+                </div>
+                <div>
                   <p className="text-muted-foreground text-xs uppercase tracking-wide">Created</p>
                   <p className="mt-1">{new Date(selectedUser.created_at).toLocaleDateString()}</p>
                 </div>

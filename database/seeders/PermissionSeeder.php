@@ -79,12 +79,12 @@ class PermissionSeeder extends Seeder
             'finance' => Permission::whereIn('key', [
                 'finance.view', 'finance.edit',
                 'reports.view', 'reports.export',
-                'inventory.view',
+                'inventory.view', 'inventory.edit', 'inventory.adjust',
             ])->pluck('id')->all(),
             'accounting' => Permission::whereIn('key', [
-                'finance.view',
-                'reports.view',
-                'inventory.view',
+                'finance.view', 'finance.edit',
+                'reports.view', 'reports.export',
+                'inventory.view', 'inventory.edit', 'inventory.adjust',
             ])->pluck('id')->all(),
             'warehouse' => Permission::whereIn('key', [
                 'inventory.view', 'inventory.edit', 'inventory.scan', 'inventory.adjust',
@@ -92,7 +92,6 @@ class PermissionSeeder extends Seeder
                 'reports.view',
             ])->pluck('id')->all(),
             'agent' => Permission::whereIn('key', [
-                'inventory.view', 'inventory.scan',
                 'reports.view',
             ])->pluck('id')->all(),
         ];

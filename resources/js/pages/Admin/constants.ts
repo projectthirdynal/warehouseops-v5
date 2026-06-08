@@ -13,6 +13,7 @@ export const ACTION_ICONS: Record<string, string> = {
   'user.deactivated': 'UserX',
   'user.role_changed': 'Shield',
   'user.created': 'UserCheck',
+  'user.updated': 'UserCog',
   'user.deleted': 'UserX',
   'permissions.updated': 'Lock',
 };
@@ -22,6 +23,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.deactivated': 'Deactivated user',
   'user.role_changed': 'Changed user role',
   'user.created': 'Created user',
+  'user.updated': 'Updated user',
   'user.deleted': 'Deleted user',
   'permissions.updated': 'Updated role permissions',
 };

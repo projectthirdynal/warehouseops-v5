@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
+import type { PageProps } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,10 @@ interface Props {
 }
 
 export default function UserTable({ users, roles, onViewUser }: Props) {
+  const { auth } = usePage<PageProps>().props;
+  const currentUser = auth.user;
+  const isSuperadmin = currentUser.role === 'superadmin';
+
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -113,6 +118,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                           checked={user.is_active}
                           onCheckedChange={() => handleToggleUser(user.id)}
                           aria-label="Toggle user status"
+                          disabled={user.role === 'superadmin' && !isSuperadmin}
                         />
                       </TableCell>
                       <TableCell>
@@ -130,6 +136,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                         <Select
                           value={user.role}
                           onValueChange={(val) => handleRoleChange(user.id, val)}
+                          disabled={user.role === 'superadmin' && !isSuperadmin}
                         >
                           <SelectTrigger className={cn('h-7 w-36 text-xs border-0', ROLE_COLORS[user.role])}>
                             <SelectValue />
@@ -156,6 +163,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
+                          disabled={user.role === 'superadmin' && !isSuperadmin}
                           onClick={() => {
                             if (confirm(`Delete user "${user.name}"? This cannot be undone.`)) {
                               router.delete(`/admin/users/${user.id}`, { preserveScroll: true, preserveState: true });
