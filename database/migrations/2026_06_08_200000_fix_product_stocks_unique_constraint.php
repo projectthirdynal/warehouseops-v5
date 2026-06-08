@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -18,17 +19,60 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('product_stocks', function (Blueprint $table) {
-            $table->dropUnique(['product_id', 'variant_id']);
-            $table->unique(['product_id', 'variant_id', 'warehouse_id'], 'product_stocks_product_variant_warehouse_unique');
-        });
+        // Drop the old 2-column constraint only if it still exists.
+        // Some environments may have already dropped it or never had it.
+        $oldConstraint = 'product_stocks_product_id_variant_id_unique';
+        $newConstraint = 'product_stocks_product_variant_warehouse_unique';
+
+        $existing = DB::select(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'product_stocks'::regclass AND conname = ?",
+            [$oldConstraint]
+        );
+
+        if (!empty($existing)) {
+            Schema::table('product_stocks', function (Blueprint $table) use ($oldConstraint) {
+                $table->dropUnique($oldConstraint);
+            });
+        }
+
+        // Add the 3-column constraint only if it doesn't already exist.
+        $alreadyNew = DB::select(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'product_stocks'::regclass AND conname = ?",
+            [$newConstraint]
+        );
+
+        if (empty($alreadyNew)) {
+            Schema::table('product_stocks', function (Blueprint $table) use ($newConstraint) {
+                $table->unique(['product_id', 'variant_id', 'warehouse_id'], $newConstraint);
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('product_stocks', function (Blueprint $table) {
-            $table->dropUnique('product_stocks_product_variant_warehouse_unique');
-            $table->unique(['product_id', 'variant_id']);
-        });
+        $newConstraint = 'product_stocks_product_variant_warehouse_unique';
+        $oldConstraint = 'product_stocks_product_id_variant_id_unique';
+
+        $existing = DB::select(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'product_stocks'::regclass AND conname = ?",
+            [$newConstraint]
+        );
+
+        if (!empty($existing)) {
+            Schema::table('product_stocks', function (Blueprint $table) use ($newConstraint) {
+                $table->dropUnique($newConstraint);
+            });
+        }
+
+        $alreadyOld = DB::select(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'product_stocks'::regclass AND conname = ?",
+            [$oldConstraint]
+        );
+
+        if (empty($alreadyOld)) {
+            Schema::table('product_stocks', function (Blueprint $table) {
+                $table->unique(['product_id', 'variant_id']);
+            });
+        }
     }
 };
