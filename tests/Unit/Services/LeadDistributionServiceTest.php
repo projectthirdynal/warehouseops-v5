@@ -7,6 +7,7 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
@@ -23,7 +24,8 @@ class LeadDistributionServiceTest extends TestCase
     {
         parent::setUp();
         $auditService = new LeadAuditService();
-        $poolService = new LeadPoolService($auditService);
+        $capacityManager = $this->createMock(CapacityManager::class);
+        $poolService = new LeadPoolService($auditService, $capacityManager);
         $this->service = new LeadDistributionService($poolService, $auditService);
     }
 
