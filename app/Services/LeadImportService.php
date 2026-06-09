@@ -196,9 +196,13 @@ class LeadImportService
                 'status' => $leadStatus ?? $existing->status,
                 'quality_score' => $qualityScore,
                 'last_scored_at' => now(),
-                'pool_status' => $existing->pool_status === PoolStatus::COOLDOWN
-                    ? PoolStatus::AVAILABLE
-                    : $existing->pool_status,
+                'pool_status' => ($existing->pool_status === PoolStatus::COOLDOWN
+                    && $existing->cooldown_until
+                    && $existing->cooldown_until->isFuture())
+                    ? PoolStatus::COOLDOWN   // Still in cooldown — do not unlock
+                    : ($existing->pool_status === PoolStatus::COOLDOWN
+                        ? PoolStatus::AVAILABLE   // Cooldown expired — safe to unlock
+                        : $existing->pool_status),
             ]);
 
             return ['action' => 'updated', 'error' => null];
@@ -247,21 +251,30 @@ class LeadImportService
         }
 
         // Handle Excel scientific notation (e.g. 9.772053856E9)
-        if (is_float($raw) || (is_string($raw) && str_contains(strtolower($raw), 'e'))) {
+        if (is_float($raw) || (is_string($raw) && str_contains(strtolower((string) $raw), 'e'))) {
             $raw = (string) (int) round((float) $raw);
         }
 
-        $phone = preg_replace('/[^0-9]/', '', (string) $raw);
+        $digits = preg_replace('/\D/', '', (string) $raw);
 
-        if (strlen($phone) === 10 && str_starts_with($phone, '9')) {
-            $phone = '0' . $phone;
+        if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+            $digits = '0' . $digits;
         }
 
-        if (strlen($phone) !== 11 || ! str_starts_with($phone, '09')) {
-            return null;
+        // Normalise to +63 format (matches TelesalesLeadImportService — BUG-11)
+        if (strlen($digits) === 11 && str_starts_with($digits, '09')) {
+            return '+63' . substr($digits, 1);
         }
 
-        return $phone;
+        if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
+            return '+' . $digits;
+        }
+
+        if (strlen($digits) === 13 && str_starts_with($digits, '+639')) {
+            return $digits;
+        }
+
+        return null;
     }
 
     /**

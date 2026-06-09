@@ -8,6 +8,7 @@ use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\RecyclingRule;
 use App\Models\User;
+use App\Services\CapacityManager;
 
 class LeadRecyclingService
 {
@@ -15,6 +16,7 @@ class LeadRecyclingService
         private LeadPoolService $poolService,
         private LeadAuditService $auditService,
         private OrderFulfillmentService $orderService,
+        private CapacityManager $capacityManager,
     ) {}
 
     public function processOutcome(
@@ -66,6 +68,13 @@ class LeadRecyclingService
 
         // ORDERED → create order and enter fulfillment pipeline (don't recycle)
         if ($outcome === LeadOutcome::ORDERED) {
+            // Release the active_leads_count slot now that the cycle is closed (BUG-04).
+            // Clear assigned_to so a later cancel() -> markAsAvailable() does NOT
+            // decrement a second time (LeadPoolService checks assigned_to before calling
+            // recordCycleClose — ISSUE-A double-decrement guard).
+            $this->capacityManager->recordCycleClose($agent->id);
+            $lead->update(['assigned_to' => null]);
+
             $this->orderService->createFromLead($lead);
 
             $this->auditService->log(
@@ -76,7 +85,7 @@ class LeadRecyclingService
                 metadata: ['remarks' => $remarks]
             );
 
-            return; // Don't recycle — lead stays assigned until order is fulfilled
+            return;
         }
 
         // Get recycling rule

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
@@ -45,6 +45,11 @@ interface Supply {
   sku: string;
   name: string;
   category?: string;
+  section: 'STOCK' | 'OPEX';
+  stock_category?: string;
+  opex_category?: string;
+  stock_status: 'MOVING' | 'NON_MOVING' | 'DEAD';
+  stock_status_override: boolean;
   uom_id?: number;
   uom?: Uom;
   cost_price: number;
@@ -73,19 +78,61 @@ interface Props {
     total: number;
     active: number;
     low_stock: number;
+    trashed: number;
+    by_section: { STOCK: number; OPEX: number };
+    by_stock_status: { MOVING: number; NON_MOVING: number; DEAD: number };
     categories: string[];
   };
-  filters: { search?: string; category?: string; status?: string };
+  filters: {
+    search?: string;
+    category?: string;
+    status?: string;
+    section?: string;
+    stock_category?: string;
+    opex_category?: string;
+    stock_status?: string;
+  };
   uoms: Uom[];
   warehouses: Warehouse[];
   recent_movements: SupplyMovement[];
 }
+
+const SECTION_TABS = [
+  { value: 'all',   label: 'All' },
+  { value: 'STOCK', label: 'Section 1 — Stock' },
+  { value: 'OPEX',  label: 'Section 2 — OPEX' },
+];
+
+const STOCK_CATEGORY_TABS = [
+  { value: 'all',                label: 'All Stock' },
+  { value: 'RAW_MATERIAL',       label: 'Raw Materials' },
+  { value: 'PRODUCTION_MATERIAL',label: 'Production Materials' },
+  { value: 'MERCHANDISE',        label: 'Merchandise' },
+  { value: 'RD_SUPPLY',          label: 'R&D Supplies' },
+];
+
+const OPEX_CATEGORY_TABS = [
+  { value: 'all',               label: 'All OPEX' },
+  { value: 'OFFICE_SUPPLY',     label: 'Office Supplies' },
+  { value: 'CLEANING_MATERIAL', label: 'Cleaning Materials' },
+];
+
+const STATUS_TABS = [
+  { value: 'all',        label: 'All' },
+  { value: 'MOVING',     label: 'Moving' },
+  { value: 'NON_MOVING', label: 'Non-Moving' },
+  { value: 'DEAD',       label: 'Dead Stock' },
+];
 
 export default function SuppliesIndex({ supplies, stats, filters, uoms, warehouses, recent_movements }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
   const [materialOpen, setMaterialOpen] = useState(false);
   const [editing, setEditing] = useState<Supply | null>(null);
   const [stockTarget, setStockTarget] = useState<Supply | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Supply | null>(null);
+
+  const section      = filters.section ?? 'all';
+  const stockStatus  = filters.stock_status ?? 'all';
 
   function applyFilters(overrides: Record<string, string>) {
     router.get('/inventory/supplies', { ...filters, ...overrides }, { preserveState: true, replace: true });
@@ -100,16 +147,30 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
     <AppLayout>
       <Head title="Materials" />
       <div className="space-y-6 p-6">
+        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Materials</h1>
-            <p className="text-sm text-muted-foreground">Warehouse assets used to make or pack products, such as bottles, caps, boxes, labels, and inserts.</p>
+            <p className="text-sm text-muted-foreground">Stock, OPEX, and asset items across all warehouses.</p>
           </div>
-          <Button onClick={() => { setEditing(null); setMaterialOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" />New Material
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/inventory/assets">
+              <Button variant="outline" size="sm">CAPEX Assets</Button>
+            </Link>
+            {stats.trashed > 0 && (
+              <Link href="/inventory/supplies/trash">
+                <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />Trash ({stats.trashed})
+                </Button>
+              </Link>
+            )}
+            <Button onClick={() => { setEditing(null); setMaterialOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" />New Material
+            </Button>
+          </div>
         </div>
 
+        {/* KPI cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Materials" value={stats.total} />
           <StatCard label="Active" value={stats.active} />
@@ -117,6 +178,87 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
           <StatCard label="Page Stock Value" value={formatCurrency(stockValue)} />
         </div>
 
+        {/* Section 1 / Section 2 tabs */}
+        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1 w-fit">
+          {SECTION_TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => applyFilters({ section: tab.value, stock_category: '', opex_category: '', page: '1' })}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                section === tab.value
+                  ? 'bg-background shadow text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+              {tab.value === 'STOCK' && <span className="ml-1.5 text-xs opacity-60">{stats.by_section.STOCK}</span>}
+              {tab.value === 'OPEX'  && <span className="ml-1.5 text-xs opacity-60">{stats.by_section.OPEX}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Sub-category tabs */}
+        {section === 'STOCK' && (
+          <div className="flex flex-wrap gap-1.5">
+            {STOCK_CATEGORY_TABS.map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => applyFilters({ stock_category: tab.value, page: '1' })}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  (filters.stock_category ?? 'all') === tab.value
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-input hover:bg-muted'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {section === 'OPEX' && (
+          <div className="flex flex-wrap gap-1.5">
+            {OPEX_CATEGORY_TABS.map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => applyFilters({ opex_category: tab.value, page: '1' })}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  (filters.opex_category ?? 'all') === tab.value
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-input hover:bg-muted'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Stock status tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_TABS.map(tab => {
+            const count = tab.value === 'all' ? null
+              : tab.value === 'MOVING' ? stats.by_stock_status.MOVING
+              : tab.value === 'NON_MOVING' ? stats.by_stock_status.NON_MOVING
+              : stats.by_stock_status.DEAD;
+            const activeClass = stockStatus === tab.value
+              ? tab.value === 'DEAD' ? 'bg-red-600 text-white border-red-600'
+                : tab.value === 'NON_MOVING' ? 'bg-amber-500 text-white border-amber-500'
+                : 'bg-primary text-primary-foreground border-primary'
+              : 'border-input hover:bg-muted';
+            return (
+              <button
+                key={tab.value}
+                onClick={() => applyFilters({ stock_status: tab.value, page: '1' })}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${activeClass}`}
+              >
+                {tab.label}
+                {count !== null && <span className="ml-1.5 opacity-75">{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search + filters bar */}
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
             <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex min-w-64 flex-1 gap-2">
@@ -126,14 +268,6 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
               </div>
               <Button type="submit" variant="secondary">Search</Button>
             </form>
-
-            <Select value={filters.category ?? 'all'} onValueChange={(v) => applyFilters({ category: v === 'all' ? '' : v, page: '1' })}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {stats.categories.map(category => <SelectItem key={category} value={category}>{category}</SelectItem>)}
-              </SelectContent>
-            </Select>
 
             <Select value={filters.status ?? 'all'} onValueChange={(v) => applyFilters({ status: v === 'all' ? '' : v, page: '1' })}>
               <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -146,27 +280,29 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
           </CardContent>
         </Card>
 
+        {/* Table */}
         <Card>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Material</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Section / Category</TableHead>
+                <TableHead>Movement</TableHead>
                 <TableHead className="text-right">Available</TableHead>
                 <TableHead className="text-right">Reorder</TableHead>
                 <TableHead className="text-right">Unit Cost</TableHead>
                 <TableHead className="text-right">Stock Value</TableHead>
                 <TableHead>Warehouse</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-24"></TableHead>
+                <TableHead className="w-28"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {supplies.data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
                     <Boxes className="mx-auto mb-2 h-8 w-8 opacity-30" />
-                    No materials yet. Add bottles, labels, packaging, or other supplies here.
+                    No materials match these filters.
                   </TableCell>
                 </TableRow>
               ) : supplies.data.map(supply => {
@@ -180,7 +316,12 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                       <div className="font-medium">{supply.name}</div>
                       <div className="text-xs text-muted-foreground"><span className="font-mono">{supply.sku}</span>{supply.uom && ` / ${supply.uom.abbreviation}`}</div>
                     </TableCell>
-                    <TableCell className="text-sm">{supply.category ?? '—'}</TableCell>
+                    <TableCell>
+                      <SectionBadge section={supply.section} stockCategory={supply.stock_category} opexCategory={supply.opex_category} />
+                    </TableCell>
+                    <TableCell>
+                      <StockStatusBadge status={supply.stock_status} override={supply.stock_status_override} />
+                    </TableCell>
                     <TableCell className={`text-right font-medium ${isLow ? 'text-orange-700' : ''}`}>
                       {available}
                       {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
@@ -198,6 +339,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                       <div className="flex justify-end gap-1">
                         <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTarget(supply)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -242,7 +384,104 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
 
       <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} />
       <StockDialog supply={stockTarget} onClose={() => setStockTarget(null)} warehouses={warehouses} />
+      <DeleteDialog supply={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </AppLayout>
+  );
+}
+
+function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () => void }) {
+  const form = useForm({ delete_reason: '' });
+
+  useEffect(() => {
+    form.setData({ delete_reason: '' });
+    form.clearErrors();
+  }, [supply?.id]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supply) return;
+    form.delete(`/inventory/supplies/${supply.id}`, { onSuccess: onClose });
+  }
+
+  return (
+    <Dialog open={!!supply} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Remove Material</DialogTitle></DialogHeader>
+        {supply && (
+          <form onSubmit={submit} className="space-y-3">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
+              <div className="font-medium text-red-800">{supply.name}</div>
+              <div className="font-mono text-xs text-red-500">{supply.sku}</div>
+            </div>
+            <p className="text-sm text-muted-foreground">This will soft-delete the material. A reason is required for audit purposes.</p>
+            <div className="space-y-1">
+              <Label>Reason for deletion *</Label>
+              <Textarea
+                rows={2}
+                placeholder="e.g. Wrong data entry, duplicate SKU..."
+                value={form.data.delete_reason}
+                onChange={e => form.setData('delete_reason', e.target.value)}
+                required
+              />
+              {form.errors.delete_reason && <p className="text-xs text-red-600">{form.errors.delete_reason}</p>}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" variant="destructive" disabled={form.processing || !form.data.delete_reason.trim()}>
+                <Trash2 className="mr-2 h-4 w-4" />Remove
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionBadge({ section, stockCategory, opexCategory }: {
+  section: string;
+  stockCategory?: string;
+  opexCategory?: string;
+}) {
+  const STOCK_LABELS: Record<string, string> = {
+    RAW_MATERIAL: 'Raw Materials',
+    PRODUCTION_MATERIAL: 'Production',
+    MERCHANDISE: 'Merchandise',
+    RD_SUPPLY: 'R&D',
+  };
+  const OPEX_LABELS: Record<string, string> = {
+    OFFICE_SUPPLY: 'Office Supplies',
+    CLEANING_MATERIAL: 'Cleaning',
+  };
+
+  if (section === 'OPEX') {
+    return (
+      <div>
+        <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium">OPEX</span>
+        {opexCategory && <div className="mt-0.5 text-xs text-muted-foreground">{OPEX_LABELS[opexCategory] ?? opexCategory}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-medium">STOCK</span>
+      {stockCategory && <div className="mt-0.5 text-xs text-muted-foreground">{STOCK_LABELS[stockCategory] ?? stockCategory}</div>}
+    </div>
+  );
+}
+
+function StockStatusBadge({ status, override }: { status: string; override: boolean }) {
+  const cfg: Record<string, { cls: string; label: string }> = {
+    MOVING:     { cls: 'bg-green-100 text-green-700',  label: 'Moving' },
+    NON_MOVING: { cls: 'bg-amber-100 text-amber-700',  label: 'Non-Moving' },
+    DEAD:       { cls: 'bg-red-100 text-red-700',      label: 'Dead Stock' },
+  };
+  const { cls, label } = cfg[status] ?? { cls: 'bg-gray-100 text-gray-600', label: status };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {label}{override && <span title="Manually set" className="opacity-60">★</span>}
+    </span>
   );
 }
 
@@ -258,6 +497,9 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
     sku: '',
     name: '',
     category: '',
+    section: 'STOCK' as string,
+    stock_category: '' as string,
+    opex_category: '' as string,
     uom_id: '',
     cost_price: 0,
     min_stock_level: 0,
@@ -273,6 +515,9 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
       sku: editing?.sku ?? '',
       name: editing?.name ?? '',
       category: editing?.category ?? '',
+      section: editing?.section ?? 'STOCK',
+      stock_category: editing?.stock_category ?? '',
+      opex_category: editing?.opex_category ?? '',
       uom_id: editing?.uom_id ? String(editing.uom_id) : '',
       cost_price: Number(editing?.cost_price ?? 0),
       min_stock_level: editing?.min_stock_level ?? 0,
@@ -314,7 +559,46 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Category</Label>
+              <Label>Section</Label>
+              <Select value={form.data.section} onValueChange={v => { form.setData('section', v); form.setData('stock_category', ''); form.setData('opex_category', ''); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STOCK">Section 1 — Stock</SelectItem>
+                  <SelectItem value="OPEX">Section 2 — OPEX</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.data.section === 'STOCK' ? (
+              <div className="space-y-1">
+                <Label>Stock Category</Label>
+                <Select value={form.data.stock_category || 'none'} onValueChange={v => form.setData('stock_category', v === 'none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— None —</SelectItem>
+                    <SelectItem value="RAW_MATERIAL">Raw Materials</SelectItem>
+                    <SelectItem value="PRODUCTION_MATERIAL">Production Materials</SelectItem>
+                    <SelectItem value="MERCHANDISE">Merchandise</SelectItem>
+                    <SelectItem value="RD_SUPPLY">R&D Supplies</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>OPEX Category</Label>
+                <Select value={form.data.opex_category || 'none'} onValueChange={v => form.setData('opex_category', v === 'none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— None —</SelectItem>
+                    <SelectItem value="OFFICE_SUPPLY">Office Supplies</SelectItem>
+                    <SelectItem value="CLEANING_MATERIAL">Cleaning Materials</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Category (optional tag)</Label>
               <CategorySelect
                 value={form.data.category}
                 onChange={v => form.setData('category', v)}

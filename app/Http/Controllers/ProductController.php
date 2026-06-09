@@ -180,9 +180,12 @@ class ProductController extends Controller
      */
     public function adjustStock(Request $request, Product $product)
     {
+        $isAdjustment = $request->input('type') === 'adjustment';
         $validated = $request->validate([
             'type'         => ['required', 'in:stock_in,stock_out,adjustment'],
-            'quantity'     => ['required', 'integer', 'min:1'],
+            // For stock_in/stock_out: quantity is a delta (must be >= 1).
+            // For adjustment: quantity is the new absolute stock level (can be 0).
+            'quantity'     => ['required', 'integer', $isAdjustment ? 'min:0' : 'min:1'],
             'variant_id'   => ['nullable', 'exists:product_variants,id'],
             'notes'        => ['nullable', 'string', 'max:500'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],

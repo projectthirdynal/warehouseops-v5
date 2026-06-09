@@ -72,14 +72,14 @@ class LeadDistributionService
                     continue; // Skip invalid agent IDs
                 }
 
-                for ($i = 0; $i < $count && $leadIndex < $leads->count(); $i++) {
+                $assigned = 0;
+                while ($assigned < $count && $leadIndex < $leads->count()) {
                     $lead = $leads[$leadIndex];
+                    $leadIndex++;
 
-                    // Race-condition guard; only count slot when actually assigned (ISS-016)
+                    // Race-condition guard: skip leads claimed by another worker (ISS-016)
                     $lead->refresh();
                     if ($lead->pool_status !== PoolStatus::AVAILABLE) {
-                        $leadIndex++;
-                        $i--; // do not consume slot for a skipped lead
                         continue;
                     }
 
@@ -117,8 +117,8 @@ class LeadDistributionService
                         ]
                     );
 
+                    $assigned++;
                     $totalDistributed++;
-                    $leadIndex++;
                 }
             }
         });

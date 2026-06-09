@@ -35,13 +35,25 @@ class DistributionEngine
             }
 
             $scored = $this->scoreAgents($lead, $eligible, $rule);
-            $best = $scored->first();
 
-            if ($best) {
+            // For ROUND_ROBIN strategy use a per-rule RR cursor (BUG-17)
+            if ($rule->strategy === \App\Domain\Lead\Enums\DistributionStrategy::ROUND_ROBIN) {
+                $rrKey = config('app.env') . ':distribution:rr:rule:' . $rule->id;
+                $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
+                $lastKey  = \Illuminate\Support\Facades\Cache::get($rrKey, -1);
+                $nextKey  = ($lastKey + 1) % count($agentIds);
+                \Illuminate\Support\Facades\Cache::put($rrKey, $nextKey, now()->addDay());
+                $bestId = $agentIds[$nextKey];
+            } else {
+                $best = $scored->first();
+                $bestId = $best ? $best['agent_id'] : null;
+            }
+
+            if ($bestId) {
                 return [
-                    'agent_id' => $best['agent_id'],
+                    'agent_id' => $bestId,
                     'rule_id' => $rule->id,
-                    'score' => $best['score'],
+                    'score' => $scored->firstWhere('agent_id', $bestId)['score'] ?? 0.0,
                     'reason' => "Matched via rule '{$rule->name}' ({$rule->strategy->value})",
                 ];
             }
@@ -50,9 +62,8 @@ class DistributionEngine
         // Fallback: round-robin across all capacity-eligible agents
         $eligible = $this->filterEligibleAgents($lead, null);
         if ($eligible->isNotEmpty()) {
-            // True round-robin: cycle through eligible agents
-            // Key is namespaced by environment to prevent cross-env bleed (ISS-013)
-            $rrKey = config('app.env') . ':distribution:last_round_robin_key';
+            // Key is namespaced by environment + 'fallback' segment (BUG-17: per-rule scoping handled above via rule loop)
+            $rrKey = config('app.env') . ':distribution:rr:fallback';
             $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
             $lastKey = \Illuminate\Support\Facades\Cache::get($rrKey, -1);
             $nextKey = ($lastKey + 1) % count($agentIds);
@@ -124,8 +135,8 @@ class DistributionEngine
                 return false;
             }
 
-            // Shift check
-            if (! $this->agentAvailability->isWithinShift($profile->user_id)) {
+            // Shift check — use already-loaded profile data to avoid N+1 (ISSUE-C)
+            if (! $this->isWithinShiftFromProfile($profile)) {
                 return false;
             }
 
@@ -175,9 +186,9 @@ class DistributionEngine
             $perfNormalized = ($agent->performance_score ?? 50) / 100;
             $score += $wPerf * $perfNormalized;
 
-            // Availability factor
+            // Availability factor — computed from already-loaded profile data (BUG-10: no N+1)
             $wAvail = $formula['w_avail'] ?? 0.25;
-            $availFactor = $this->agentAvailability->isWithinShift($agent->user_id) ? 1.0 : 0.0;
+            $availFactor = $this->isWithinShiftFromProfile($agent) ? 1.0 : 0.0;
             $score += $wAvail * $availFactor;
 
             // Skill match
@@ -230,6 +241,26 @@ class DistributionEngine
         });
 
         return $scored->sortByDesc('score')->values();
+    }
+
+    /**
+     * Determine shift eligibility from an already-loaded AgentProfile (no extra DB query).
+     */
+    private function isWithinShiftFromProfile(AgentProfile $profile): bool
+    {
+        if (! $profile->shift_start || ! $profile->shift_end) {
+            return true;
+        }
+
+        $nowTime   = \Carbon\Carbon::now()->format('H:i');
+        $startTime = \Carbon\Carbon::parse($profile->shift_start)->format('H:i');
+        $endTime   = \Carbon\Carbon::parse($profile->shift_end)->format('H:i');
+
+        if ($endTime < $startTime) {
+            return $nowTime >= $startTime || $nowTime < $endTime;
+        }
+
+        return $nowTime >= $startTime && $nowTime < $endTime;
     }
 
     /**

@@ -43,6 +43,7 @@ use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\InventoryScannerController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -144,11 +145,25 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting,finance'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/supplies',  [SupplyController::class, 'index'])->name('supplies.index');
-        Route::post('/supplies', [SupplyController::class, 'store'])->name('supplies.store');
-        Route::put('/supplies/{supply}', [SupplyController::class, 'update'])->name('supplies.update');
-        Route::delete('/supplies/{supply}', [SupplyController::class, 'destroy'])->name('supplies.destroy');
+        Route::get('/supplies',              [SupplyController::class, 'index'])->name('supplies.index');
+        Route::post('/supplies',             [SupplyController::class, 'store'])->name('supplies.store');
+        Route::put('/supplies/{supply}',     [SupplyController::class, 'update'])->name('supplies.update');
+        Route::delete('/supplies/{supply}',  [SupplyController::class, 'destroy'])->name('supplies.destroy');
         Route::post('/supplies/{supply}/stock', [SupplyController::class, 'adjustStock'])->name('supplies.stock.adjust');
+        Route::get('/supplies/trash',        [SupplyController::class, 'trash'])->name('supplies.trash');
+        Route::post('/supplies/{id}/restore',[SupplyController::class, 'restore'])->name('supplies.restore');
+
+        Route::prefix('assets')->name('assets.')->group(function () {
+            Route::get('/',                             [CapexAssetController::class, 'index'])->name('index');
+            Route::get('/create',                       [CapexAssetController::class, 'create'])->name('create');
+            Route::post('/',                            [CapexAssetController::class, 'store'])->name('store');
+            Route::get('/{asset}',                      [CapexAssetController::class, 'show'])->name('show');
+            Route::get('/{asset}/edit',                 [CapexAssetController::class, 'edit'])->name('edit');
+            Route::put('/{asset}',                      [CapexAssetController::class, 'update'])->name('update');
+            Route::post('/{asset}/assign',              [CapexAssetController::class, 'assign'])->name('assign');
+            Route::post('/depreciation/{schedule}/post',[CapexAssetController::class, 'postDepreciation'])->name('depreciation.post');
+            Route::post('/{asset}/dispose',             [CapexAssetController::class, 'dispose'])->name('dispose');
+        });
 
         Route::prefix('adjustments')->name('adjustments.')->group(function () {
             Route::get('/',              [StockAdjustmentController::class, 'index'])->name('index');

@@ -27,6 +27,10 @@ class SupplyController extends Controller
                 });
             })
             ->when($request->category, fn ($query, string $category) => $query->whereRaw('LOWER(category) = ?', [strtolower($category)]))
+            ->when($request->section && $request->section !== 'all', fn ($q) => $q->where('section', $request->section))
+            ->when($request->stock_category && $request->stock_category !== 'all', fn ($q) => $q->where('stock_category', $request->stock_category))
+            ->when($request->opex_category && $request->opex_category !== 'all', fn ($q) => $q->where('opex_category', $request->opex_category))
+            ->when($request->stock_status && $request->stock_status !== 'all', fn ($q) => $q->where('stock_status', $request->stock_status))
             ->when($request->status === 'active', fn ($query) => $query->where('is_active', true))
             ->when($request->status === 'inactive', fn ($query) => $query->where('is_active', false))
             ->orderBy('name')
@@ -87,9 +91,19 @@ class SupplyController extends Controller
         return Inertia::render('Inventory/Supplies/Index', [
             'supplies' => $supplies,
             'stats' => [
-                'total' => Supply::count(),
-                'active' => Supply::where('is_active', true)->count(),
-                'low_stock' => $lowStock,
+                'total'      => Supply::count(),
+                'active'     => Supply::where('is_active', true)->count(),
+                'low_stock'  => $lowStock,
+                'trashed'    => Supply::onlyTrashed()->count(),
+                'by_section' => [
+                    'STOCK' => Supply::where('section', 'STOCK')->count(),
+                    'OPEX'  => Supply::where('section', 'OPEX')->count(),
+                ],
+                'by_stock_status' => [
+                    'MOVING'     => Supply::where('stock_status', 'MOVING')->count(),
+                    'NON_MOVING' => Supply::where('stock_status', 'NON_MOVING')->count(),
+                    'DEAD'       => Supply::where('stock_status', 'DEAD')->count(),
+                ],
                 'categories' => Supply::query()
                     ->whereNotNull('category')
                     ->where('category', '!=', '')
@@ -99,11 +113,38 @@ class SupplyController extends Controller
                     ->sort()
                     ->values(),
             ],
-            'filters' => $request->only(['search', 'category', 'status']),
+            'filters' => $request->only(['search', 'category', 'status', 'section', 'stock_category', 'opex_category', 'stock_status']),
             'uoms' => UnitOfMeasure::where('is_active', true)->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
             'recent_movements' => $recentMovements,
         ]);
+    }
+
+    public function trash(Request $request): Response
+    {
+        $trashed = Supply::onlyTrashed()
+            ->with(['uom:id,name,abbreviation'])
+            ->when($request->search, function ($query, string $search): void {
+                $query->where(function ($inner) use ($search): void {
+                    $inner->where('sku', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('deleted_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return Inertia::render('Inventory/Supplies/Trash', [
+            'trashed' => $trashed,
+            'filters' => $request->only(['search']),
+        ]);
+    }
+
+    public function restore(int $id): RedirectResponse
+    {
+        Supply::onlyTrashed()->findOrFail($id)->restore();
+
+        return back()->with('success', 'Material restored.');
     }
 
     public function store(Request $request): RedirectResponse
@@ -143,9 +184,13 @@ class SupplyController extends Controller
         return back()->with('success', 'Material updated.');
     }
 
-    public function destroy(Supply $supply): RedirectResponse
+    public function destroy(Request $request, Supply $supply): RedirectResponse
     {
-        $supply->delete();
+        $data = $request->validate([
+            'delete_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $supply->deleteWithReason($data['delete_reason']);
 
         return back()->with('success', 'Material removed.');
     }
@@ -212,15 +257,20 @@ class SupplyController extends Controller
         $id = $supply?->id;
 
         return $request->validate([
-            'sku' => ['required', 'string', 'max:60', 'unique:supplies,sku,' . ($id ?? 'NULL')],
-            'name' => ['required', 'string', 'max:255'],
-            'category' => ['nullable', 'string', 'max:100'],
-            'uom_id' => ['nullable', 'integer', 'exists:units_of_measure,id'],
-            'cost_price' => ['required', 'numeric', 'min:0'],
-            'min_stock_level' => ['nullable', 'integer', 'min:0'],
-            'reorder_point' => ['nullable', 'integer', 'min:0'],
-            'description' => ['nullable', 'string'],
-            'is_active' => ['boolean'],
+            'sku'                  => ['required', 'string', 'max:60', 'unique:supplies,sku,' . ($id ?? 'NULL')],
+            'name'                 => ['required', 'string', 'max:255'],
+            'category'             => ['nullable', 'string', 'max:100'],
+            'section'              => ['nullable', 'in:STOCK,OPEX'],
+            'stock_category'       => ['nullable', 'in:RAW_MATERIAL,PRODUCTION_MATERIAL,MERCHANDISE,RD_SUPPLY'],
+            'opex_category'        => ['nullable', 'in:OFFICE_SUPPLY,CLEANING_MATERIAL'],
+            'stock_status'         => ['nullable', 'in:MOVING,NON_MOVING,DEAD'],
+            'stock_status_override' => ['boolean'],
+            'uom_id'               => ['nullable', 'integer', 'exists:units_of_measure,id'],
+            'cost_price'           => ['required', 'numeric', 'min:0'],
+            'min_stock_level'      => ['nullable', 'integer', 'min:0'],
+            'reorder_point'        => ['nullable', 'integer', 'min:0'],
+            'description'          => ['nullable', 'string'],
+            'is_active'            => ['boolean'],
         ]);
     }
 

@@ -29,6 +29,8 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->onOneServer();
 
+        $schedule->command('inventory:recompute-stock-status')->daily()->withoutOverlapping();
+
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {
             Upload::where('type', 'waybill')

@@ -9,7 +9,6 @@ use App\Domain\Finance\Services\CogsService;
 use App\Domain\Finance\Services\CommissionService;
 use App\Domain\Finance\Services\QboSyncService;
 use App\Domain\Finance\Services\RevenueService;
-use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
@@ -18,6 +17,7 @@ use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\Waybill;
 use App\Services\LeadAuditService;
+use App\Services\LeadPoolService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -31,6 +31,7 @@ class OrderFulfillmentService
         private RevenueService $revenueService,
         private CogsService $cogsService,
         private QboSyncService $qboSyncService,
+        private LeadPoolService $leadPoolService,
     ) {}
 
     /**
@@ -38,7 +39,7 @@ class OrderFulfillmentService
      */
     public function createFromLead(Lead $lead, ?string $courierCode = null): Order
     {
-        return DB::transaction(function () use ($lead, $courierCode) {
+        $order = DB::transaction(function () use ($lead, $courierCode) {
             // Find or match product
             $product = $this->matchProduct($lead);
             $variant = null;
@@ -96,23 +97,37 @@ class OrderFulfillmentService
             }
 
             // Route through QA or skip
-            if ($product?->requires_qa ?? true) {
+            $skipQa = ! ($product?->requires_qa ?? true);
+            if ($skipQa) {
+                // Approve DB state inside the transaction; defer courier call until after commit.
+                $this->approve($order, submitCourier: false);
+            } else {
                 $order->update(['status' => OrderStatus::QA_PENDING]);
                 $lead->update(['sales_status' => 'QA_PENDING']);
-            } else {
-                $this->approve($order);
             }
 
             return $order;
         });
+
+        // Submit to courier AFTER the transaction is committed (ISSUE-B / BUG-09).
+        // If the order was auto-approved (status = QA_APPROVED), send it now.
+        if ($order->status === OrderStatus::QA_APPROVED) {
+            $this->submitToCourier($order);
+        }
+
+        return $order;
     }
 
     /**
      * QA approves the order → submit to courier.
+     *
+     * @param bool $submitCourier Set to false when called from within an existing transaction
+     *                            (e.g. createFromLead auto-approve path) to defer courier
+     *                            submission until the outer transaction has committed.
      */
-    public function approve(Order $order, ?int $approvedBy = null): void
+    public function approve(Order $order, ?int $approvedBy = null, bool $submitCourier = true): void
     {
-        DB::transaction(function () use ($order, $approvedBy) {
+        DB::transaction(function () use ($order) {
             $order->update([
                 'status'       => OrderStatus::QA_APPROVED,
                 'confirmed_at' => now(),
@@ -121,10 +136,13 @@ class OrderFulfillmentService
             if ($order->lead) {
                 $order->lead->update(['sales_status' => 'QA_APPROVED']);
             }
-
-            // Auto-submit to courier
-            $this->submitToCourier($order);
         });
+
+        // Courier submission runs OUTSIDE the transaction — prevents the external
+        // API call from holding a DB lock and rolling back committed data on timeout.
+        if ($submitCourier) {
+            $this->submitToCourier($order);
+        }
     }
 
     /**
@@ -339,13 +357,11 @@ class OrderFulfillmentService
                 );
             }
 
-            // Return lead to pool
+            // Return lead to pool — routes through LeadPoolService so that
+            // cache is invalidated and agent workload is decremented (BUG-03).
             if ($order->lead) {
-                $order->lead->update([
-                    'sales_status' => 'NEW',
-                    'pool_status'  => PoolStatus::AVAILABLE->value,
-                    'assigned_to'  => null,
-                ]);
+                $order->lead->update(['sales_status' => 'NEW']);
+                $this->leadPoolService->markAsAvailable($order->lead);
             }
         });
     }

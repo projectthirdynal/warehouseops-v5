@@ -49,11 +49,34 @@ class CapacityManager
             ->where('auto_assign_enabled', true)
             ->get();
 
+        $agentIds = $profiles->pluck('user_id')->all();
+
+        // Pre-fetch all workloads in one query to avoid N+1 (BUG-15)
+        $workloads = AgentWorkload::whereIn('agent_id', $agentIds)
+            ->get()
+            ->keyBy('agent_id');
+
         $eligible = [];
         foreach ($profiles as $profile) {
-            if ($this->canAcceptLead($profile->user_id)) {
-                $eligible[] = $profile->user_id;
+            $workload = $workloads->get($profile->user_id)
+                ?? new AgentWorkload(['agent_id' => $profile->user_id, 'active_leads_count' => 0, 'today_assigned_count' => 0]);
+
+            // Apply same stale-date reset as recordAssignment() so yesterday's count
+            // doesn't block agents eligible for today (ISSUE-D).
+            $effectiveCount = ($workload->last_assigned_at && ! $workload->last_assigned_at->isToday())
+                ? 0
+                : $workload->today_assigned_count;
+
+            $maxCycles = $profile->concurrent_lead_cap ?? $profile->max_active_cycles;
+            if ($workload->isAtCapacity($maxCycles)) {
+                continue;
             }
+
+            if ($effectiveCount >= $profile->max_daily_leads) {
+                continue;
+            }
+
+            $eligible[] = $profile->user_id;
         }
 
         return $eligible;

@@ -1,0 +1,11 @@
+## Obsidian Knowledge Vault
+
+Persistent knowledge vault at ~/Documents/AgentMemory.
+
+At the start of every session:
+1. Read ~/Documents/AgentMemory/todos/Active TODOs.md
+2. Read ~/Documents/AgentMemory/projects/warehouseops/warehouseops.md
+
+This project is warehouseops-v5 — Laravel 11 + Inertia React + TypeScript.
+Path: /home/it-admin/Downloads/automation/ai-system/projects/warehouseops-v5-main
+Production server: 192.168.0.14 | Docker at /opt/warehouseops/

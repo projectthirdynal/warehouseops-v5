@@ -6,6 +6,7 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Domain\Lead\Enums\LeadStatus;
+use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -110,10 +111,8 @@ class LeadController extends Controller
 
     public function recyclingPool()
     {
-        $leads = Lead::where(function ($q) {
-                $q->whereNull('assigned_to')
-                  ->orWhereIn('status', ['NO_ANSWER', 'CALLBACK']);
-            })
+        $leads = Lead::whereNotIn('pool_status', [PoolStatus::ASSIGNED, PoolStatus::EXHAUSTED])
+            ->whereIn('status', [LeadStatus::NO_ANSWER, LeadStatus::CALLBACK])
             ->orderBy('updated_at', 'asc')
             ->get()
             ->map(function ($lead) {
@@ -126,11 +125,11 @@ class LeadController extends Controller
             ->get();
 
         $stats = [
-            'pool_size' => $leads->count(),
-            'recycled_today' => Lead::whereDate('updated_at', today())
-                ->whereIn('status', ['NO_ANSWER'])
+            'pool_size'        => $leads->count(),
+            'recycled_today'   => $leads->where('status', LeadStatus::NO_ANSWER)
+                ->filter(fn ($l) => \Carbon\Carbon::parse($l->updated_at)->isToday())
                 ->count(),
-            'avg_days_in_pool' => $leads->avg('days_in_pool') ?? 0,
+            'avg_days_in_pool' => round((float) ($leads->avg('days_in_pool') ?? 0), 1),
             'reassigned_today' => 0,
         ];
 
