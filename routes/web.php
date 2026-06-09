@@ -45,6 +45,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\InventoryScannerController;
+use App\Http\Controllers\DeadStockController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
@@ -173,6 +174,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/{id}/approve', [StockAdjustmentController::class, 'approve'])->name('approve');
             Route::post('/{id}/reject',  [StockAdjustmentController::class, 'reject'])->name('reject');
         });
+
+        Route::get('/dead-stock',  [DeadStockController::class, 'index'])->name('dead-stock.index');
+        Route::post('/dead-stock', [DeadStockController::class, 'store'])->name('dead-stock.store');
 
         Route::post('/scan', [InventoryScannerController::class, 'scan'])->name('scan');
         Route::post('/scan/adjust', [InventoryScannerController::class, 'quickAdjust'])->name('scan.adjust');

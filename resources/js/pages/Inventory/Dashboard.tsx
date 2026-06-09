@@ -13,7 +13,7 @@ import {
 import {
   Package, Warehouse, AlertTriangle, ShoppingCart, FileText, TrendingUp,
   Box, CalendarClock, SlidersHorizontal, ArrowRight, ArrowUpCircle,
-  RefreshCw, Zap, Activity, BarChart3, ScanLine, Minus, Plus,
+  RefreshCw, Zap, Activity, BarChart3, ScanLine, Minus, Plus, Skull,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { PageProps, User } from '@/types';
@@ -837,7 +837,8 @@ export default function InventoryDashboard({
             </>
           )}
           <Link href="/inventory/movements"><Button variant="outline" size="sm"><ArrowUpCircle className="mr-1 h-3 w-3" />View Movements</Button></Link>
-          <Link href="/inventory/non-moving"><Button variant="outline" size="sm"><AlertTriangle className="mr-1 h-3 w-3" />Dead Stock</Button></Link>
+          <Link href="/inventory/non-moving"><Button variant="outline" size="sm"><AlertTriangle className="mr-1 h-3 w-3" />Non-Moving</Button></Link>
+          <Link href="/inventory/dead-stock"><Button variant="outline" size="sm"><Skull className="mr-1 h-3 w-3" />Dead Stock</Button></Link>
           {canUseMaterialsAndAdjustments && (
             <Link href="/inventory/supplies"><Button variant="outline" size="sm"><Box className="mr-1 h-3 w-3" />Materials</Button></Link>
           )}

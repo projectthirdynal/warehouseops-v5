@@ -8,7 +8,7 @@ import {
   Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
   ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
   Store, BookUser, Search, ChevronRight, Home, ArrowUpDown, Upload,
-  CheckSquare, Bell,
+  CheckSquare, Bell, Skull,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -122,6 +122,8 @@ const navigation: NavEntry[] = [
       { name: 'Movements', href: '/inventory/movements', icon: Recycle, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Stock Adjustments', href: '/inventory/adjustments', icon: ClipboardCheck, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Supplies', href: '/inventory/supplies', icon: Package, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Non-Moving', href: '/inventory/non-moving', icon: AlertOctagon, roles: INVENTORY_MATERIAL_ROLES },
+      { name: 'Dead Stock', href: '/inventory/dead-stock', icon: Skull, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Products', href: '/products', icon: Package, roles: OPS_ROLES },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
       { name: 'QC Review', href: '/qc', icon: ClipboardCheck, roles: OPS_ROLES },
