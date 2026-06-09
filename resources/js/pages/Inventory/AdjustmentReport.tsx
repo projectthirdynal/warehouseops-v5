@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  ArrowLeft, Download, SlidersHorizontal, TrendingUp,
+  ArrowLeft, ArrowRight, Download, SlidersHorizontal, TrendingUp,
   TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Clock,
   BarChart3, Warehouse, User, Tag, Zap,
 } from 'lucide-react';
