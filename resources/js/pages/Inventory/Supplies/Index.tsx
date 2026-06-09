@@ -16,6 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
+import Paginator from '@/components/Paginator';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
@@ -348,6 +349,8 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             </TableBody>
           </Table>
         </Card>
+
+        <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
 
         {recent_movements.length > 0 && (
           <Card>

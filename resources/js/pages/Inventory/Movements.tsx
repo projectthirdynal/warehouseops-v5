@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
+import Paginator from '@/components/Paginator';
 
 interface Movement {
   id: number;
@@ -119,14 +120,7 @@ export default function MovementsPage({ movements, filters }: Props) {
           </Table>
         </Card>
 
-        {movements.last_page > 1 && (
-          <div className="flex justify-center gap-2">
-            {Array.from({ length: movements.last_page }, (_, i) => i + 1).map(p => (
-              <Button key={p} size="sm" variant={p === movements.current_page ? 'default' : 'outline'}
-                onClick={() => applyFilters({ page: String(p) })}>{p}</Button>
-            ))}
-          </div>
-        )}
+        <Paginator pagination={movements} url="/inventory/movements" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );

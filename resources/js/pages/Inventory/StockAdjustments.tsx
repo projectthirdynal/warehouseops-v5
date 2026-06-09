@@ -16,9 +16,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  CheckCircle, XCircle, Plus, SlidersHorizontal, ArrowLeft, ArrowRight,
+  CheckCircle, XCircle, Plus, SlidersHorizontal,
   TrendingUp, TrendingDown, Minus, X, AlertTriangle, BarChart3,
 } from 'lucide-react';
+import Paginator from '@/components/Paginator';
 import { formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
@@ -285,35 +286,7 @@ export default function StockAdjustments({
         </Card>
 
         {/* Pagination */}
-        {lastPage > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Showing {((currentPage - 1) * perPage) + 1}–{Math.min(currentPage * perPage, total)} of {total.toLocaleString()}
-            </p>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" disabled={currentPage <= 1}
-                onClick={() => applyFilters({ page: String(currentPage - 1) })}>
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </Button>
-              {Array.from({ length: Math.min(lastPage, 7) }, (_, i) => {
-                const page = lastPage <= 7 ? i + 1
-                  : currentPage <= 4 ? i + 1
-                  : currentPage >= lastPage - 3 ? lastPage - 6 + i
-                  : currentPage - 3 + i;
-                return (
-                  <Button key={page} size="sm" variant={page === currentPage ? 'default' : 'outline'}
-                    onClick={() => applyFilters({ page: String(page) })} className="w-8">
-                    {page}
-                  </Button>
-                );
-              })}
-              <Button size="sm" variant="outline" disabled={currentPage >= lastPage}
-                onClick={() => applyFilters({ page: String(currentPage + 1) })}>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
+        <Paginator pagination={adjustments} url="/inventory/adjustments" params={filters as Record<string, string>} />
       </div>
 
       {/* New Adjustment Dialog */}

@@ -13,6 +13,7 @@ import {
 import { ArrowLeft, Plus, Search } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
+import Paginator from '@/components/Paginator';
 
 interface CapexAsset {
   id: number;
@@ -179,6 +180,8 @@ export default function AssetsIndex({ assets, stats, filters, categories }: Prop
             </TableBody>
           </Table>
         </Card>
+
+        <Paginator pagination={assets} url="/inventory/assets" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );

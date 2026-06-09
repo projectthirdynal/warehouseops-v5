@@ -10,10 +10,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  ArrowLeft, ArrowRight, Download, SlidersHorizontal, TrendingUp,
+  ArrowLeft, Download, SlidersHorizontal, TrendingUp,
   TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Clock,
   BarChart3, Warehouse, User, Tag, Zap,
 } from 'lucide-react';
+import Paginator from '@/components/Paginator';
 import { formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
@@ -672,35 +673,7 @@ export default function AdjustmentReport({
         </Card>
 
         {/* Pagination */}
-        {rows.last_page > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Showing {((rows.current_page - 1) * rows.per_page) + 1}–{Math.min(rows.current_page * rows.per_page, rows.total)} of {rows.total.toLocaleString()}
-            </p>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" disabled={rows.current_page <= 1}
-                onClick={() => apply({ page: String(rows.current_page - 1) })}>
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </Button>
-              {Array.from({ length: Math.min(rows.last_page, 7) }, (_, i) => {
-                const page = rows.last_page <= 7 ? i + 1
-                  : rows.current_page <= 4 ? i + 1
-                  : rows.current_page >= rows.last_page - 3 ? rows.last_page - 6 + i
-                  : rows.current_page - 3 + i;
-                return (
-                  <Button key={page} size="sm" variant={page === rows.current_page ? 'default' : 'outline'}
-                    onClick={() => apply({ page: String(page) })} className="w-8">
-                    {page}
-                  </Button>
-                );
-              })}
-              <Button size="sm" variant="outline" disabled={rows.current_page >= rows.last_page}
-                onClick={() => apply({ page: String(rows.current_page + 1) })}>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
+        <Paginator pagination={rows} url="/inventory/adjustments/report" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );

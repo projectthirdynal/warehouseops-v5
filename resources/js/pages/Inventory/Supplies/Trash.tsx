@@ -8,6 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { ArrowLeft, RotateCcw, Search } from 'lucide-react';
+import Paginator from '@/components/Paginator';
 import { formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
@@ -105,6 +106,8 @@ export default function SuppliesTrash({ trashed, filters }: Props) {
             </TableBody>
           </Table>
         </Card>
+
+        <Paginator pagination={trashed} url="/inventory/supplies/trash" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );
