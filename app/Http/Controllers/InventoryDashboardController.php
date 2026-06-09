@@ -196,30 +196,102 @@ class InventoryDashboardController extends Controller
 
     public function movements(\Illuminate\Http\Request $request)
     {
-        $type = $request->input('type');
-        if ($type === 'all') {
-            $type = null;
+        $stream = $request->input('stream', 'products'); // 'products' | 'materials'
+        $type   = $request->input('type');
+        if ($type === 'all') $type = null;
+
+        if ($stream === 'materials') {
+            // ── Supply movements ─────────────────────────────────────
+            $query = DB::table('supply_movements as sm')
+                ->leftJoin('supplies as s',    's.id',  '=', 'sm.supply_id')
+                ->leftJoin('warehouses as w',  'w.id',  '=', 'sm.warehouse_id')
+                ->leftJoin('users as u',       'u.id',  '=', 'sm.performed_by')
+                ->when($type,                fn ($q, $v) => $q->where('sm.type', $v))
+                ->when($request->warehouse_id, fn ($q, $v) => $q->where('sm.warehouse_id', $v))
+                ->when($request->from,         fn ($q, $v) => $q->where('sm.created_at', '>=', Carbon::parse($v)->startOfDay()))
+                ->when($request->to,           fn ($q, $v) => $q->where('sm.created_at', '<=', Carbon::parse($v)->endOfDay()))
+                ->select([
+                    'sm.id',
+                    DB::raw("'material' as stream"),
+                    'sm.type',
+                    'sm.quantity',
+                    'sm.batch_number',
+                    'sm.notes',
+                    'sm.created_at',
+                    's.id as item_id',
+                    's.sku as item_sku',
+                    's.name as item_name',
+                    DB::raw('NULL as location_code'),
+                    'w.id as warehouse_id',
+                    'w.name as warehouse_name',
+                    'u.id as performer_id',
+                    'u.name as performer_name',
+                ])
+                ->latest('sm.created_at');
+
+            $movements = $query->paginate(50)->withQueryString();
+
+        } else {
+            // ── Product / inventory movements ────────────────────────
+            $query = DB::table('inventory_movements as im')
+                ->leftJoin('products as p',   'p.id',  '=', 'im.product_id')
+                ->leftJoin('warehouses as w',  'w.id',  '=', 'im.warehouse_id')
+                ->leftJoin('warehouse_locations as l', 'l.id', '=', 'im.location_id')
+                ->leftJoin('users as u',       'u.id',  '=', 'im.performed_by')
+                ->when($type,                fn ($q, $v) => $q->where('im.type', $v))
+                ->when($request->warehouse_id, fn ($q, $v) => $q->where('im.warehouse_id', $v))
+                ->when($request->from,         fn ($q, $v) => $q->where('im.created_at', '>=', Carbon::parse($v)->startOfDay()))
+                ->when($request->to,           fn ($q, $v) => $q->where('im.created_at', '<=', Carbon::parse($v)->endOfDay()))
+                ->select([
+                    'im.id',
+                    DB::raw("'product' as stream"),
+                    'im.type',
+                    'im.quantity',
+                    'im.batch_number',
+                    'im.notes',
+                    'im.created_at',
+                    'p.id as item_id',
+                    'p.sku as item_sku',
+                    'p.name as item_name',
+                    'l.code as location_code',
+                    'w.id as warehouse_id',
+                    'w.name as warehouse_name',
+                    'u.id as performer_id',
+                    'u.name as performer_name',
+                ])
+                ->latest('im.created_at');
+
+            $movements = $query->paginate(50)->withQueryString();
         }
 
-        $movements = InventoryMovement::with(['product:id,sku,name', 'warehouse:id,name', 'location:id,code', 'performer:id,name'])
-            ->when($type,                  fn ($q, $v) => $q->where('type', $v))
-            ->when($request->product_id,   fn ($q, $v) => $q->where('product_id', $v))
-            ->when($request->warehouse_id, fn ($q, $v) => $q->where('warehouse_id', $v))
-            ->when($request->from,         fn ($q, $v) => $q->where('created_at', '>=', Carbon::parse($v)->startOfDay()))
-            ->when($request->to,           fn ($q, $v) => $q->where('created_at', '<=', Carbon::parse($v)->endOfDay()))
-            ->when(strtolower((string) ($request->stock ?? '')) === 'low', fn ($q) => $q->whereHas('product', function ($q2) {
-                $q2->whereHas('stocks', function ($q3) {
-                    $q3->whereRaw('(current_stock - reserved_stock) <= reorder_point')
-                       ->where('reorder_point', '>', 0);
-                });
-            }))
-            ->latest()
-            ->paginate(50)
-            ->withQueryString();
+        // Transform to uniform shape
+        $movements->through(fn ($row) => [
+            'id'           => $row->id,
+            'stream'       => $row->stream,
+            'type'         => $row->type,
+            'quantity'     => (int) $row->quantity,
+            'batch_number' => $row->batch_number,
+            'notes'        => $row->notes,
+            'created_at'   => $row->created_at,
+            'item'         => $row->item_id ? [
+                'id'  => $row->item_id,
+                'sku' => $row->item_sku,
+                'name'=> $row->item_name,
+            ] : null,
+            'location_code'  => $row->location_code,
+            'warehouse'    => $row->warehouse_id ? [
+                'id'   => $row->warehouse_id,
+                'name' => $row->warehouse_name,
+            ] : null,
+            'performer'    => $row->performer_id ? [
+                'id'   => $row->performer_id,
+                'name' => $row->performer_name,
+            ] : null,
+        ]);
 
         return Inertia::render('Inventory/Movements', [
             'movements' => $movements,
-            'filters'   => $request->only(['type', 'product_id', 'warehouse_id', 'from', 'to', 'stock']),
+            'filters'   => $request->only(['stream', 'type', 'warehouse_id', 'from', 'to']),
         ]);
     }
 

@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  CheckCircle, XCircle, Plus, SlidersHorizontal,
+  CheckCircle, XCircle, Plus, SlidersHorizontal, ArrowLeft,
   TrendingUp, TrendingDown, Minus, X, AlertTriangle, BarChart3,
 } from 'lucide-react';
 import Paginator from '@/components/Paginator';
@@ -108,6 +108,11 @@ export default function StockAdjustments({
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
+            <div className="mb-1 flex items-center gap-2">
+              <Link href="/inventory" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="h-3 w-3" /> Dashboard
+              </Link>
+            </div>
             <h1 className="text-2xl font-bold tracking-tight">Stock Adjustments</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Submit and approve physical count variances or stock corrections.
