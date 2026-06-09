@@ -101,6 +101,8 @@ interface Props {
     pending_adjustments: number;
     pending_prs: number;
     open_pos: number;
+    non_moving_products: number;
+    non_moving_supplies: number;
   };
   recent_movements: MovementRow[];
   recent_supply_movements: MaterialMovementRow[];
@@ -402,6 +404,18 @@ export default function InventoryDashboard({
             icon={<CalendarClock className="h-5 w-5" />}
             label="Expiring (30 days)" value={stats.expiring_soon} sub="lots nearing expiry" />
         </div>
+
+        {/* Non-moving / dead stock row */}
+        {(stats.non_moving_products > 0 || stats.non_moving_supplies > 0) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <AlertCard href="/inventory/non-moving?type=products" tone="red"
+              icon={<Package className="h-5 w-5" />}
+              label="Non-Moving Products" value={stats.non_moving_products} sub="no movement in 90+ days" />
+            <AlertCard href="/inventory/non-moving?type=supplies" tone="red"
+              icon={<Box className="h-5 w-5" />}
+              label="Non-Moving Materials" value={stats.non_moving_supplies} sub="no movement in 90+ days" />
+          </div>
+        )}
 
         {/* Procurement row */}
         {canUseProcurement && (
@@ -823,6 +837,7 @@ export default function InventoryDashboard({
             </>
           )}
           <Link href="/inventory/movements"><Button variant="outline" size="sm"><ArrowUpCircle className="mr-1 h-3 w-3" />View Movements</Button></Link>
+          <Link href="/inventory/non-moving"><Button variant="outline" size="sm"><AlertTriangle className="mr-1 h-3 w-3" />Dead Stock</Button></Link>
           {canUseMaterialsAndAdjustments && (
             <Link href="/inventory/supplies"><Button variant="outline" size="sm"><Box className="mr-1 h-3 w-3" />Materials</Button></Link>
           )}

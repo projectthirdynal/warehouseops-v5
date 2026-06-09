@@ -258,6 +258,7 @@ export interface ProductStock {
   reorder_point: number;
   is_low_stock: boolean;
   last_restock_at: string | null;
+  last_movement_at: string | null;
 }
 
 export interface InventoryMovement {
