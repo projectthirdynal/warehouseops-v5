@@ -254,14 +254,14 @@ class InventoryDashboardController extends Controller
                     'w.name as warehouse_name',
                     'ps.current_stock',
                     'ps.reserved_stock',
-                    DB::raw('GREATEST(ps.current_stock - ps.reserved_stock, 0) as available_stock'),
+                    DB::raw('CASE WHEN ps.current_stock - ps.reserved_stock > 0 THEN ps.current_stock - ps.reserved_stock ELSE 0 END as available_stock'),
                     DB::raw('ps.current_stock * COALESCE(p.cost_price, 0) as stock_value'),
                     'ps.last_movement_at',
                     'ps.last_restock_at',
                     DB::raw("'product' as item_type"),
                 ])
                 ->orderByRaw('ps.last_movement_at ASC NULLS FIRST')
-                ->get();
+                ->paginate(50)->withQueryString();
         }
 
         $supplies = collect();
@@ -284,17 +284,38 @@ class InventoryDashboardController extends Controller
                     'w.name as warehouse_name',
                     'ss.current_stock',
                     'ss.reserved_stock',
-                    DB::raw('GREATEST(ss.current_stock - ss.reserved_stock, 0) as available_stock'),
+                    DB::raw('CASE WHEN ss.current_stock - ss.reserved_stock > 0 THEN ss.current_stock - ss.reserved_stock ELSE 0 END as available_stock'),
                     DB::raw('ss.current_stock * COALESCE(s.cost_price, 0) as stock_value'),
                     'ss.last_movement_at',
                     'ss.last_restock_at',
                     DB::raw("'supply' as item_type"),
                 ])
                 ->orderByRaw('ss.last_movement_at ASC NULLS FIRST')
-                ->get();
+                ->paginate(50)->withQueryString();
         }
 
-        $totalDeadValue = round((float) ($products->sum('stock_value') + $supplies->sum('stock_value')), 2);
+        // Compute total dead value in SQL to avoid loading all rows into PHP
+        $productDeadValue = DB::table('product_stocks as ps')
+            ->join('products as p', 'p.id', '=', 'ps.product_id')
+            ->where('ps.current_stock', '>', 0)
+            ->where(function ($q) use ($threshold) {
+                $q->whereNull('ps.last_movement_at')
+                  ->orWhere('ps.last_movement_at', '<', $threshold);
+            })
+            ->whereNull('p.deleted_at')
+            ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
+
+        $supplyDeadValue = DB::table('supply_stocks as ss')
+            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+            ->where('ss.current_stock', '>', 0)
+            ->where(function ($q) use ($threshold) {
+                $q->whereNull('ss.last_movement_at')
+                  ->orWhere('ss.last_movement_at', '<', $threshold);
+            })
+            ->whereNull('s.deleted_at')
+            ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+
+        $totalDeadValue = round((float) ($productDeadValue + $supplyDeadValue), 2);
 
         return Inertia::render('Inventory/NonMoving', [
             'products'         => $products,
@@ -370,8 +391,10 @@ class InventoryDashboardController extends Controller
 
         $union = $productQ->unionAll($supplyQ);
 
+        $allBindings = array_merge($productQ->getBindings(), $supplyQ->getBindings());
+
         $paginated = DB::table(DB::raw("({$union->toSql()}) as movements"))
-            ->mergeBindings($union)
+            ->addBinding($allBindings)
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 

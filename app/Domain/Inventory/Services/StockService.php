@@ -166,8 +166,9 @@ class StockService
                 })
                 ->whereRaw('(current_stock - reserved_stock) >= ?', [$quantity])
                 ->update([
-                    'reserved_stock' => DB::raw("reserved_stock + {$quantity}"),
-                    'updated_at'     => now(),
+                    'reserved_stock'  => DB::raw("reserved_stock + {$quantity}"),
+                    'last_movement_at' => now(),
+                    'updated_at'      => now(),
                 ]);
 
             if ($rows === 0) {
@@ -254,8 +255,9 @@ class StockService
                         : $q->where('variant_id', $reservation->variant_id);
                 })
                 ->update([
-                    'reserved_stock' => DB::raw("GREATEST(reserved_stock - {$reservation->quantity}, 0)"),
-                    'updated_at'     => now(),
+                    'reserved_stock'  => DB::raw("GREATEST(reserved_stock - {$reservation->quantity}, 0)"),
+                    'last_movement_at' => now(),
+                    'updated_at'      => now(),
                 ]);
 
             $reservation->status          = 'RELEASED';

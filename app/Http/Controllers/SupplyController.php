@@ -117,13 +117,14 @@ class SupplyController extends Controller
 
             if ($initialStock > 0 || $warehouseId !== null) {
                 SupplyStock::create([
-                    'supply_id' => $supply->id,
-                    'warehouse_id' => $warehouseId,
-                    'location_id' => null,
-                    'current_stock' => $initialStock,
-                    'reserved_stock' => 0,
-                    'reorder_point' => $supply->reorder_point,
+                    'supply_id'       => $supply->id,
+                    'warehouse_id'    => $warehouseId,
+                    'location_id'     => null,
+                    'current_stock'   => $initialStock,
+                    'reserved_stock'  => 0,
+                    'reorder_point'   => $supply->reorder_point,
                     'last_restock_at' => $initialStock > 0 ? now() : null,
+                    'last_movement_at' => $initialStock > 0 ? now() : null,
                 ]);
             }
 
