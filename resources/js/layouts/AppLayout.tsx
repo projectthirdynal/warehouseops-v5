@@ -120,7 +120,6 @@ const navigation: NavEntry[] = [
     children: [
       { name: 'Inventory Dashboard', href: '/inventory', icon: BarChart3, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Movements', href: '/inventory/movements', icon: Recycle, roles: INVENTORY_MATERIAL_ROLES },
-      { name: 'Stock Adjustments', href: '/inventory/adjustments', icon: ClipboardCheck, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Supplies', href: '/inventory/supplies', icon: Package, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Non-Moving', href: '/inventory/non-moving', icon: AlertOctagon, roles: INVENTORY_MATERIAL_ROLES },
       { name: 'Dead Stock', href: '/inventory/dead-stock', icon: Skull, roles: INVENTORY_MATERIAL_ROLES },

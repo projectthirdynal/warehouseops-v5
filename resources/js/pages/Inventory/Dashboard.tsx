@@ -397,9 +397,9 @@ export default function InventoryDashboard({
           <AlertCard href={canUseMaterialsAndAdjustments ? '/inventory/supplies?status=active' : '/inventory/movements'} tone="amber"
             icon={<Box className="h-5 w-5" />}
             label="Low Stock Materials" value={stats.supply_low_stock} sub="supplies below reorder" />
-          <AlertCard href={canUseMaterialsAndAdjustments ? '/inventory/adjustments?status=PENDING' : '/inventory/movements'} tone="red"
+          <AlertCard href={canUseMaterialsAndAdjustments ? '/inventory/supplies' : '/inventory/movements'} tone="red"
             icon={<SlidersHorizontal className="h-5 w-5" />}
-            label="Pending Adjustments" value={stats.pending_adjustments} sub="awaiting approval" />
+            label="Stock Adjustments" value={stats.pending_adjustments} sub="use Materials to adjust" />
           <AlertCard href="/procurement/receiving" tone="yellow"
             icon={<CalendarClock className="h-5 w-5" />}
             label="Expiring (30 days)" value={stats.expiring_soon} sub="lots nearing expiry" />
@@ -827,9 +827,6 @@ export default function InventoryDashboard({
         <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
           <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-xs font-medium text-muted-foreground mr-1">Quick:</span>
-          {canUseMaterialsAndAdjustments && (
-            <Link href="/inventory/adjustments"><Button variant="outline" size="sm"><SlidersHorizontal className="mr-1 h-3 w-3" />New Adjustment</Button></Link>
-          )}
           {canUseProcurement && (
             <>
               <Link href="/procurement/requests/create"><Button variant="outline" size="sm"><FileText className="mr-1 h-3 w-3" />New PR</Button></Link>
