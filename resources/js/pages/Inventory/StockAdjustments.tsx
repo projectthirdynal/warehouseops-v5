@@ -97,10 +97,6 @@ export default function StockAdjustments({
   }
 
   const data = adjustments?.data ?? [];
-  const lastPage = adjustments?.last_page ?? 1;
-  const currentPage = adjustments?.current_page ?? 1;
-  const total = adjustments?.total ?? 0;
-  const perPage = adjustments?.per_page ?? 25;
 
   const hasFilters = !!(filters.status || filters.warehouse_id || filters.from || filters.to);
 
