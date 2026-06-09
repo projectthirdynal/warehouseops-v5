@@ -105,9 +105,12 @@ export default function SuppliesTrash({ trashed, filters }: Props) {
               ))}
             </TableBody>
           </Table>
+          {trashed.last_page > 1 && (
+            <div className="border-t p-3">
+              <Paginator pagination={trashed} url="/inventory/supplies/trash" params={filters as Record<string, string>} />
+            </div>
+          )}
         </Card>
-
-        <Paginator pagination={trashed} url="/inventory/supplies/trash" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );

@@ -179,9 +179,12 @@ export default function AssetsIndex({ assets, stats, filters, categories }: Prop
               ))}
             </TableBody>
           </Table>
+          {assets.last_page > 1 && (
+            <div className="border-t p-3">
+              <Paginator pagination={assets} url="/inventory/assets" params={filters as Record<string, string>} />
+            </div>
+          )}
         </Card>
-
-        <Paginator pagination={assets} url="/inventory/assets" params={filters as Record<string, string>} />
       </div>
     </AppLayout>
   );

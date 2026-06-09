@@ -38,7 +38,7 @@ export default function Paginator<T>({
 }: Props<T>) {
   const { current_page, last_page, per_page, total } = pagination;
 
-  if (last_page <= 1 && !showCount) return null;
+  if (last_page <= 1 && total === 0) return null;
 
   function go(page: number) {
     const target = url ?? window.location.pathname;

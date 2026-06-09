@@ -348,9 +348,12 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
               })}
             </TableBody>
           </Table>
+          {supplies.last_page > 1 && (
+            <div className="border-t p-3">
+              <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
+            </div>
+          )}
         </Card>
-
-        <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
 
         {recent_movements.length > 0 && (
           <Card>
