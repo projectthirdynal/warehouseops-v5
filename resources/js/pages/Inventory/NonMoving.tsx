@@ -31,12 +31,14 @@ interface NonMovingItem {
 }
 
 interface Props {
-  products: PaginatedResponse<NonMovingItem> | [];
-  supplies: PaginatedResponse<NonMovingItem> | [];
+  products: PaginatedResponse<NonMovingItem> | null;
+  supplies: PaginatedResponse<NonMovingItem> | null;
   total_dead_value: number;
   filters: {
     days: number;
     type: string;
+    product_page?: number;
+    supply_page?: number;
   };
 }
 
@@ -48,10 +50,10 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
     router.get('/inventory/non-moving', { days, type, ...overrides }, { preserveState: true, replace: true });
   }
 
-  const productData = Array.isArray(products) ? [] : products.data;
-  const supplyData  = Array.isArray(supplies) ? [] : supplies.data;
-  const productPagination = Array.isArray(products) ? null : products;
-  const supplyPagination  = Array.isArray(supplies) ? null : supplies;
+  const productData       = products?.data ?? [];
+  const supplyData        = supplies?.data ?? [];
+  const productPagination = products ?? null;
+  const supplyPagination  = supplies ?? null;
 
   return (
     <AppLayout>
@@ -80,7 +82,8 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
         </div>
 
         {/* Filters */}
-        <Card className="p-4 flex flex-wrap items-end gap-3">
+        <Card>
+          <CardContent className="flex flex-wrap items-end gap-3 p-4">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Threshold (days)</label>
             <Select value={days} onValueChange={(v) => { setDays(v); applyFilters({ days: v, page: '1' }); }}>
@@ -106,6 +109,7 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
               </SelectContent>
             </Select>
           </div>
+          </CardContent>
         </Card>
 
         {/* Products table */}
@@ -127,7 +131,7 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
               <div className="flex justify-center gap-2 border-t p-3">
                 <PaginationBar
                   pagination={productPagination}
-                  onPage={(p) => applyFilters({ page: String(p) })}
+                  onPage={(p) => applyFilters({ product_page: String(p) })}
                 />
               </div>
             )}
@@ -153,7 +157,7 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
               <div className="flex justify-center gap-2 border-t p-3">
                 <PaginationBar
                   pagination={supplyPagination}
-                  onPage={(p) => applyFilters({ page: String(p) })}
+                  onPage={(p) => applyFilters({ supply_page: String(p) })}
                 />
               </div>
             )}
@@ -192,7 +196,7 @@ function NonMovingTable({ rows, emptyLabel }: { rows: NonMovingItem[]; emptyLabe
           const isNeverMoved = row.last_movement_at === null;
           return (
             <TableRow key={`${row.item_type}-${row.product_id ?? row.supply_id}-${i}`}
-              className={isNeverMoved ? 'bg-red-50 hover:bg-red-50' : ''}>
+              className={isNeverMoved ? 'border-l-2 border-red-500 bg-red-50 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/30' : ''}>
               <TableCell className="font-mono text-xs text-muted-foreground">{row.sku}</TableCell>
               <TableCell className="font-medium text-sm max-w-[180px] truncate">{row.item_name}</TableCell>
               <TableCell className="text-sm text-muted-foreground">{row.category ?? '—'}</TableCell>

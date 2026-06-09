@@ -230,11 +230,13 @@ class InventoryDashboardController extends Controller
      */
     public function nonMoving(Request $request): \Inertia\Response
     {
-        $days      = max(1, (int) $request->input('days', 90));
-        $threshold = now()->subDays($days);
-        $type      = $request->input('type', 'all'); // all | products | supplies
+        $days        = max(1, (int) $request->input('days', 90));
+        $threshold   = now()->subDays($days);
+        $type        = $request->input('type', 'all'); // all | products | supplies
+        $productPage = max(1, (int) $request->input('product_page', 1));
+        $supplyPage  = max(1, (int) $request->input('supply_page', 1));
 
-        $products = collect();
+        $products = null;
         if (in_array($type, ['all', 'products'])) {
             $products = DB::table('product_stocks as ps')
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
@@ -260,11 +262,11 @@ class InventoryDashboardController extends Controller
                     'ps.last_restock_at',
                     DB::raw("'product' as item_type"),
                 ])
-                ->orderByRaw('ps.last_movement_at ASC NULLS FIRST')
-                ->paginate(50)->withQueryString();
+                ->orderByRaw('CASE WHEN ps.last_movement_at IS NULL THEN 0 ELSE 1 END, ps.last_movement_at ASC')
+                ->paginate(50, ['*'], 'product_page', $productPage)->withQueryString();
         }
 
-        $supplies = collect();
+        $supplies = null;
         if (in_array($type, ['all', 'supplies'])) {
             $supplies = DB::table('supply_stocks as ss')
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
@@ -290,30 +292,36 @@ class InventoryDashboardController extends Controller
                     'ss.last_restock_at',
                     DB::raw("'supply' as item_type"),
                 ])
-                ->orderByRaw('ss.last_movement_at ASC NULLS FIRST')
-                ->paginate(50)->withQueryString();
+                ->orderByRaw('CASE WHEN ss.last_movement_at IS NULL THEN 0 ELSE 1 END, ss.last_movement_at ASC')
+                ->paginate(50, ['*'], 'supply_page', $supplyPage)->withQueryString();
         }
 
-        // Compute total dead value in SQL to avoid loading all rows into PHP
-        $productDeadValue = DB::table('product_stocks as ps')
-            ->join('products as p', 'p.id', '=', 'ps.product_id')
-            ->where('ps.current_stock', '>', 0)
-            ->where(function ($q) use ($threshold) {
-                $q->whereNull('ps.last_movement_at')
-                  ->orWhere('ps.last_movement_at', '<', $threshold);
-            })
-            ->whereNull('p.deleted_at')
-            ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
+        // Compute total dead value — respects the active type filter
+        $productDeadValue = 0;
+        if (in_array($type, ['all', 'products'])) {
+            $productDeadValue = DB::table('product_stocks as ps')
+                ->join('products as p', 'p.id', '=', 'ps.product_id')
+                ->where('ps.current_stock', '>', 0)
+                ->where(function ($q) use ($threshold) {
+                    $q->whereNull('ps.last_movement_at')
+                      ->orWhere('ps.last_movement_at', '<', $threshold);
+                })
+                ->whereNull('p.deleted_at')
+                ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
+        }
 
-        $supplyDeadValue = DB::table('supply_stocks as ss')
-            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
-            ->where('ss.current_stock', '>', 0)
-            ->where(function ($q) use ($threshold) {
-                $q->whereNull('ss.last_movement_at')
-                  ->orWhere('ss.last_movement_at', '<', $threshold);
-            })
-            ->whereNull('s.deleted_at')
-            ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+        $supplyDeadValue = 0;
+        if (in_array($type, ['all', 'supplies'])) {
+            $supplyDeadValue = DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->where('ss.current_stock', '>', 0)
+                ->where(function ($q) use ($threshold) {
+                    $q->whereNull('ss.last_movement_at')
+                      ->orWhere('ss.last_movement_at', '<', $threshold);
+                })
+                ->whereNull('s.deleted_at')
+                ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+        }
 
         $totalDeadValue = round((float) ($productDeadValue + $supplyDeadValue), 2);
 
