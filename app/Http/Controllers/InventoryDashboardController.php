@@ -16,6 +16,7 @@ use App\Domain\Inventory\Models\StockCostLot;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -47,18 +48,34 @@ class InventoryDashboardController extends Controller
             ->where('quantity_remaining', '>', 0)
             ->count();
 
+        // ── Non-moving / dead stock counts (no movement in 90 days) ─
+        $deadThreshold = now()->subDays(90);
+        $nonMovingProducts = ProductStock::where('current_stock', '>', 0)
+            ->where(function ($q) use ($deadThreshold) {
+                $q->whereNull('last_movement_at')
+                  ->orWhere('last_movement_at', '<', $deadThreshold);
+            })->count();
+
+        $nonMovingSupplies = SupplyStock::where('current_stock', '>', 0)
+            ->where(function ($q) use ($deadThreshold) {
+                $q->whereNull('last_movement_at')
+                  ->orWhere('last_movement_at', '<', $deadThreshold);
+            })->count();
+
         // ── Stats ────────────────────────────────────────────────────
         $stats = [
-            'total_products'     => Product::where('is_active', true)->count(),
-            'total_supplies'     => Supply::where('is_active', true)->count(),
-            'total_warehouses'   => Warehouse::where('is_active', true)->count(),
-            'stock_value'        => $stockValue,
-            'low_stock_count'    => $lowStockCount,
-            'supply_low_stock'   => $supplyLowStockCount,
-            'expiring_soon'      => $expiringSoon,
+            'total_products'      => Product::where('is_active', true)->count(),
+            'total_supplies'      => Supply::where('is_active', true)->count(),
+            'total_warehouses'    => Warehouse::where('is_active', true)->count(),
+            'stock_value'         => $stockValue,
+            'low_stock_count'     => $lowStockCount,
+            'supply_low_stock'    => $supplyLowStockCount,
+            'expiring_soon'       => $expiringSoon,
             'pending_adjustments' => StockAdjustment::where('status', 'PENDING')->count(),
-            'pending_prs'        => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
-            'open_pos'           => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
+            'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
+            'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
+            'non_moving_products' => $nonMovingProducts,
+            'non_moving_supplies' => $nonMovingSupplies,
         ];
 
         // ── Recent product movements ─────────────────────────────────
@@ -190,7 +207,7 @@ class InventoryDashboardController extends Controller
             ->when($request->warehouse_id, fn ($q, $v) => $q->where('warehouse_id', $v))
             ->when($request->from,         fn ($q, $v) => $q->where('created_at', '>=', Carbon::parse($v)->startOfDay()))
             ->when($request->to,           fn ($q, $v) => $q->where('created_at', '<=', Carbon::parse($v)->endOfDay()))
-            ->when($request->stock === 'low', fn ($q) => $q->whereHas('product', function ($q2) {
+            ->when(strtolower((string) ($request->stock ?? '')) === 'low', fn ($q) => $q->whereHas('product', function ($q2) {
                 $q2->whereHas('stocks', function ($q3) {
                     $q3->whereRaw('(current_stock - reserved_stock) <= reorder_point')
                        ->where('reorder_point', '>', 0);
@@ -203,6 +220,170 @@ class InventoryDashboardController extends Controller
         return Inertia::render('Inventory/Movements', [
             'movements' => $movements,
             'filters'   => $request->only(['type', 'product_id', 'warehouse_id', 'from', 'to', 'stock']),
+        ]);
+    }
+
+    /**
+     * Non-moving / dead stock report.
+     * Lists products and supplies with on-hand stock but no movement within
+     * the requested threshold (default 90 days).
+     */
+    public function nonMoving(Request $request): \Inertia\Response
+    {
+        $days      = max(1, (int) $request->input('days', 90));
+        $threshold = now()->subDays($days);
+        $type      = $request->input('type', 'all'); // all | products | supplies
+
+        $products = collect();
+        if (in_array($type, ['all', 'products'])) {
+            $products = DB::table('product_stocks as ps')
+                ->join('products as p', 'p.id', '=', 'ps.product_id')
+                ->leftJoin('warehouses as w', 'w.id', '=', 'ps.warehouse_id')
+                ->where('ps.current_stock', '>', 0)
+                ->where(function ($q) use ($threshold) {
+                    $q->whereNull('ps.last_movement_at')
+                      ->orWhere('ps.last_movement_at', '<', $threshold);
+                })
+                ->whereNull('p.deleted_at')
+                ->select([
+                    'p.id as product_id',
+                    'p.sku',
+                    'p.name as item_name',
+                    'p.category',
+                    'w.id as warehouse_id',
+                    'w.name as warehouse_name',
+                    'ps.current_stock',
+                    'ps.reserved_stock',
+                    DB::raw('GREATEST(ps.current_stock - ps.reserved_stock, 0) as available_stock'),
+                    DB::raw('ps.current_stock * COALESCE(p.cost_price, 0) as stock_value'),
+                    'ps.last_movement_at',
+                    'ps.last_restock_at',
+                    DB::raw("'product' as item_type"),
+                ])
+                ->orderByRaw('ps.last_movement_at ASC NULLS FIRST')
+                ->get();
+        }
+
+        $supplies = collect();
+        if (in_array($type, ['all', 'supplies'])) {
+            $supplies = DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
+                ->where('ss.current_stock', '>', 0)
+                ->where(function ($q) use ($threshold) {
+                    $q->whereNull('ss.last_movement_at')
+                      ->orWhere('ss.last_movement_at', '<', $threshold);
+                })
+                ->whereNull('s.deleted_at')
+                ->select([
+                    's.id as supply_id',
+                    's.sku',
+                    's.name as item_name',
+                    's.category',
+                    'w.id as warehouse_id',
+                    'w.name as warehouse_name',
+                    'ss.current_stock',
+                    'ss.reserved_stock',
+                    DB::raw('GREATEST(ss.current_stock - ss.reserved_stock, 0) as available_stock'),
+                    DB::raw('ss.current_stock * COALESCE(s.cost_price, 0) as stock_value'),
+                    'ss.last_movement_at',
+                    'ss.last_restock_at',
+                    DB::raw("'supply' as item_type"),
+                ])
+                ->orderByRaw('ss.last_movement_at ASC NULLS FIRST')
+                ->get();
+        }
+
+        $totalDeadValue = round((float) ($products->sum('stock_value') + $supplies->sum('stock_value')), 2);
+
+        return Inertia::render('Inventory/NonMoving', [
+            'products'         => $products,
+            'supplies'         => $supplies,
+            'total_dead_value' => $totalDeadValue,
+            'filters'          => [
+                'days' => $days,
+                'type' => $type,
+            ],
+        ]);
+    }
+
+    /**
+     * Realtime unified movement feed — product + supply movements, newest first.
+     * Filterable by warehouse, movement type, and optional `since` timestamp
+     * for incremental polling (e.g. the frontend polls every 10 s passing the
+     * last `server_time` it received as `since`).
+     */
+    public function liveMovements(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $since       = $request->input('since');
+        $warehouseId = $request->input('warehouse_id');
+        $typeFilter  = $request->input('type') ? strtoupper($request->input('type')) : null;
+        $perPage     = min(100, max(10, (int) $request->input('per_page', 25)));
+
+        $productQ = DB::table('inventory_movements as im')
+            ->join('products as p', 'p.id', '=', 'im.product_id')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'im.warehouse_id')
+            ->leftJoin('users as u', 'u.id', '=', 'im.performed_by')
+            ->select([
+                'im.id',
+                DB::raw("'product' as source"),
+                'im.type',
+                'im.quantity',
+                'im.notes',
+                'im.batch_number',
+                'im.created_at',
+                'p.id as item_id',
+                'p.sku',
+                'p.name as item_name',
+                'w.id as warehouse_id',
+                'w.name as warehouse_name',
+                'u.id as performer_id',
+                'u.name as performer_name',
+            ])
+            ->when($since,       fn ($q) => $q->where('im.created_at', '>', Carbon::parse($since)))
+            ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
+            ->when($typeFilter,  fn ($q) => $q->where('im.type', $typeFilter));
+
+        $supplyQ = DB::table('supply_movements as sm')
+            ->join('supplies as s', 's.id', '=', 'sm.supply_id')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
+            ->leftJoin('users as u', 'u.id', '=', 'sm.performed_by')
+            ->select([
+                'sm.id',
+                DB::raw("'supply' as source"),
+                'sm.type',
+                'sm.quantity',
+                'sm.notes',
+                'sm.batch_number',
+                'sm.created_at',
+                's.id as item_id',
+                's.sku',
+                's.name as item_name',
+                'w.id as warehouse_id',
+                'w.name as warehouse_name',
+                'u.id as performer_id',
+                'u.name as performer_name',
+            ])
+            ->when($since,       fn ($q) => $q->where('sm.created_at', '>', Carbon::parse($since)))
+            ->when($warehouseId, fn ($q) => $q->where('sm.warehouse_id', $warehouseId))
+            ->when($typeFilter,  fn ($q) => $q->where('sm.type', $typeFilter));
+
+        $union = $productQ->unionAll($supplyQ);
+
+        $paginated = DB::table(DB::raw("({$union->toSql()}) as movements"))
+            ->mergeBindings($union)
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data'        => $paginated->items(),
+            'meta'        => [
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+            ],
+            'server_time' => now()->toISOString(),
         ]);
     }
 }

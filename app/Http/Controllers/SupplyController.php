@@ -188,6 +188,7 @@ class SupplyController extends Controller
                 $movementQuantity = $quantity - $before;
             }
 
+            $stock->last_movement_at = now();
             $stock->save();
 
             if ($movementQuantity !== 0) {

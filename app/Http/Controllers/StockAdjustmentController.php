@@ -129,7 +129,7 @@ class StockAdjustmentController extends Controller
                         'location_id'  => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
-                )->update(['current_stock' => $adjustment->quantity_after]);
+                )->update(['current_stock' => $adjustment->quantity_after, 'last_movement_at' => now()]);
             } else {
                 ProductStock::firstOrCreate(
                     [
@@ -139,22 +139,37 @@ class StockAdjustmentController extends Controller
                         'location_id'  => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
-                )->update(['current_stock' => $adjustment->quantity_after]);
+                )->update(['current_stock' => $adjustment->quantity_after, 'last_movement_at' => now()]);
             }
 
             // Write the movement ledger entry so the Movements page reflects this
-            InventoryMovement::create([
-                'product_id'     => $adjustment->product_id,
-                'variant_id'     => $adjustment->variant_id,
-                'warehouse_id'   => $adjustment->warehouse_id,
-                'location_id'    => $adjustment->location_id,
-                'type'           => 'ADJUSTMENT',
-                'quantity'       => $adjustment->variance,
-                'reference_type' => StockAdjustment::class,
-                'reference_id'   => $adjustment->id,
-                'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
-                'performed_by'   => $request->user()?->id,
-            ]);
+            if ($adjustment->supply_id) {
+                \Illuminate\Support\Facades\DB::table('supply_movements')->insert([
+                    'supply_id'      => $adjustment->supply_id,
+                    'warehouse_id'   => $adjustment->warehouse_id,
+                    'type'           => 'ADJUSTMENT',
+                    'quantity'       => $adjustment->variance,
+                    'reference_type' => StockAdjustment::class,
+                    'reference_id'   => $adjustment->id,
+                    'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
+                    'performed_by'   => $request->user()?->id,
+                    'created_at'     => now(),
+                    'updated_at'     => now(),
+                ]);
+            } else {
+                InventoryMovement::create([
+                    'product_id'     => $adjustment->product_id,
+                    'variant_id'     => $adjustment->variant_id,
+                    'warehouse_id'   => $adjustment->warehouse_id,
+                    'location_id'    => $adjustment->location_id,
+                    'type'           => 'ADJUSTMENT',
+                    'quantity'       => $adjustment->variance,
+                    'reference_type' => StockAdjustment::class,
+                    'reference_id'   => $adjustment->id,
+                    'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
+                    'performed_by'   => $request->user()?->id,
+                ]);
+            }
         });
 
         $adjustment->load(['product', 'supply', 'warehouse']);

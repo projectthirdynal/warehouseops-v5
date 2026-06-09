@@ -93,7 +93,10 @@ class Product extends Model
 
     public function getAvailableStockAttribute(): int
     {
-        return $this->stock?->current_stock - $this->stock?->reserved_stock ?? 0;
+        if (! $this->stock) {
+            return 0;
+        }
+        return $this->stock->current_stock - $this->stock->reserved_stock;
     }
 
     public function getIsLowStockAttribute(): bool

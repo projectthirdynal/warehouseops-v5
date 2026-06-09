@@ -40,8 +40,10 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->increment('current_stock', abs($quantity));
-            $stock->update(['last_restock_at' => now()]);
+            $stock->current_stock += abs($quantity);
+            $stock->last_restock_at  = now();
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -82,7 +84,9 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock->decrement('current_stock', abs($quantity));
+            $stock->current_stock   -= abs($quantity);
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -118,7 +122,9 @@ class InventoryService
                 'reference_id'   => $referenceId,
             ]);
 
-            $stock->increment('reserved_stock', abs($quantity));
+            $stock->reserved_stock  += abs($quantity);
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -149,7 +155,9 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->decrement('reserved_stock', min(abs($quantity), $stock->reserved_stock));
+            $stock->reserved_stock   = max(0, $stock->reserved_stock - abs($quantity));
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -181,8 +189,10 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->decrement('current_stock', abs($quantity));
-            $stock->decrement('reserved_stock', min(abs($quantity), $stock->reserved_stock));
+            $stock->current_stock   -= abs($quantity);
+            $stock->reserved_stock   = max(0, $stock->reserved_stock - abs($quantity));
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -214,7 +224,9 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->increment('current_stock', abs($quantity));
+            $stock->current_stock   += abs($quantity);
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -246,7 +258,9 @@ class InventoryService
                 'performed_by' => $performedBy,
             ]);
 
-            $stock->update(['current_stock' => $newQuantity]);
+            $stock->current_stock   = $newQuantity;
+            $stock->last_movement_at = now();
+            $stock->save();
 
             return $movement;
         });
@@ -270,9 +284,10 @@ class InventoryService
         );
     }
 
+    private ?int $defaultWarehouseIdCache = null;
+
     private function defaultWarehouseId(): ?int
     {
-        static $id;
-        return $id ??= Warehouse::where('is_default', true)->value('id');
+        return $this->defaultWarehouseIdCache ??= Warehouse::where('is_default', true)->value('id');
     }
 }

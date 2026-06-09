@@ -57,6 +57,7 @@ class StockService
 
             $stock->current_stock   += $quantity;
             $stock->last_restock_at  = now();
+            $stock->last_movement_at = now();
             if ($stock->warehouse_id === null) $stock->warehouse_id = $warehouseId;
             if ($stock->location_id === null)  $stock->location_id  = $locationId;
             $stock->save();
@@ -121,7 +122,8 @@ class StockService
                 throw new InsufficientStockException($productId, $quantity, $stock?->current_stock ?? 0);
             }
 
-            $stock->current_stock -= $quantity;
+            $stock->current_stock   -= $quantity;
+            $stock->last_movement_at = now();
             $stock->save();
 
             InventoryMovement::create([
@@ -217,7 +219,8 @@ class StockService
 
             $variance = $newQuantity - $stock->current_stock;
 
-            $stock->current_stock = $newQuantity;
+            $stock->current_stock   = $newQuantity;
+            $stock->last_movement_at = now();
             $stock->save();
 
             InventoryMovement::create([

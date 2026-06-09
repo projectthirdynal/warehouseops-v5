@@ -137,6 +137,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,accounting'])->group(function () {
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
+    Route::get('/inventory/non-moving', [InventoryDashboardController::class, 'nonMoving'])->name('inventory.non-moving');
+    Route::get('/inventory/live-movements', [InventoryDashboardController::class, 'liveMovements'])->name('inventory.live-movements');
 });
 
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls

@@ -11,7 +11,7 @@ class SupplyStock extends Model
 {
     protected $fillable = [
         'supply_id', 'warehouse_id', 'location_id',
-        'current_stock', 'reserved_stock', 'reorder_point', 'last_restock_at',
+        'current_stock', 'reserved_stock', 'reorder_point', 'last_restock_at', 'last_movement_at',
     ];
 
     protected $casts = [
@@ -19,6 +19,7 @@ class SupplyStock extends Model
         'reserved_stock'  => 'integer',
         'reorder_point'   => 'integer',
         'last_restock_at' => 'datetime',
+        'last_movement_at' => 'datetime',
     ];
 
     protected $appends = ['available_stock'];
