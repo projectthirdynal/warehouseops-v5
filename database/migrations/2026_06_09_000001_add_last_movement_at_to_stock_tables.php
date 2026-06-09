@@ -24,32 +24,39 @@ return new class extends Migration
         });
 
         // Backfill product_stocks from the latest inventory_movement per (product_id, warehouse_id)
+        // Written without UPDATE aliases for SQLite compatibility.
         DB::statement('
-            UPDATE product_stocks ps
+            UPDATE product_stocks
             SET last_movement_at = (
-                SELECT MAX(im.created_at)
-                FROM inventory_movements im
-                WHERE im.product_id = ps.product_id
-                  AND (im.warehouse_id = ps.warehouse_id OR (im.warehouse_id IS NULL AND ps.warehouse_id IS NULL))
+                SELECT MAX(inventory_movements.created_at)
+                FROM inventory_movements
+                WHERE inventory_movements.product_id = product_stocks.product_id
+                  AND (
+                      inventory_movements.warehouse_id = product_stocks.warehouse_id
+                      OR (inventory_movements.warehouse_id IS NULL AND product_stocks.warehouse_id IS NULL)
+                  )
             )
             WHERE EXISTS (
-                SELECT 1 FROM inventory_movements im2
-                WHERE im2.product_id = ps.product_id
+                SELECT 1 FROM inventory_movements
+                WHERE inventory_movements.product_id = product_stocks.product_id
             )
         ');
 
         // Backfill supply_stocks from supply_movements
         DB::statement('
-            UPDATE supply_stocks ss
+            UPDATE supply_stocks
             SET last_movement_at = (
-                SELECT MAX(sm.created_at)
-                FROM supply_movements sm
-                WHERE sm.supply_id = ss.supply_id
-                  AND (sm.warehouse_id = ss.warehouse_id OR (sm.warehouse_id IS NULL AND ss.warehouse_id IS NULL))
+                SELECT MAX(supply_movements.created_at)
+                FROM supply_movements
+                WHERE supply_movements.supply_id = supply_stocks.supply_id
+                  AND (
+                      supply_movements.warehouse_id = supply_stocks.warehouse_id
+                      OR (supply_movements.warehouse_id IS NULL AND supply_stocks.warehouse_id IS NULL)
+                  )
             )
             WHERE EXISTS (
-                SELECT 1 FROM supply_movements sm2
-                WHERE sm2.supply_id = ss.supply_id
+                SELECT 1 FROM supply_movements
+                WHERE supply_movements.supply_id = supply_stocks.supply_id
             )
         ');
     }
