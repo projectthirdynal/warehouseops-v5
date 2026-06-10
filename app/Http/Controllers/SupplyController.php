@@ -19,6 +19,8 @@ class SupplyController extends Controller
 {
     public function index(Request $request): Response
     {
+        app(StockStatusService::class)->recomputeAll();
+
         $supplies = Supply::query()
             ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
             ->when($request->search, function ($query, string $search): void {
