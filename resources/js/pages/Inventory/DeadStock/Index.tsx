@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Plus, Skull, AlertTriangle, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Skull, AlertTriangle, Search, Tag } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Paginator from '@/components/Paginator';
 import type { PaginatedResponse } from '@/types';
@@ -52,9 +52,24 @@ interface DeadEntry {
   created_at: string;
 }
 
+interface DeadSupply {
+  id: number;
+  sku: string;
+  name: string;
+  section: string;
+  category: string | null;
+  cost_price: number;
+  uom: string | null;
+  stock_status_override: boolean;
+  total_stock: number;
+  total_value: number;
+  warehouses: { name: string; available: number }[];
+}
+
 interface Props {
   entries: PaginatedResponse<DeadEntry>;
   total_dead_value: number;
+  dead_supplies: DeadSupply[];
   supplies: SupplyOption[];
   products: ItemOption[];
   warehouses: Warehouse[];
@@ -66,7 +81,7 @@ interface Props {
   };
 }
 
-export default function DeadStockIndex({ entries, total_dead_value, supplies, products, warehouses, filters }: Props) {
+export default function DeadStockIndex({ entries, total_dead_value, dead_supplies, supplies, products, warehouses, filters }: Props) {
   const [open, setOpen] = useState(false);
   const [itemType, setItemType] = useState<'supply' | 'product'>('supply');
   const [selectedId, setSelectedId] = useState('');
@@ -178,7 +193,62 @@ export default function DeadStockIndex({ entries, total_dead_value, supplies, pr
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Classified Dead Stock — materials tagged DEAD via status badge */}
+        {dead_supplies.length > 0 && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-red-500" />
+                    Classified as Dead Stock
+                    <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{dead_supplies.length}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Materials tagged DEAD via the override or auto-classification. Use the Tag button in Materials to reclassify.</p>
+                </div>
+                <Link href="/inventory/supplies?stock_status=DEAD">
+                  <Button variant="outline" size="sm">Manage in Materials</Button>
+                </Link>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Material</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Warehouses</TableHead>
+                    <TableHead className="text-right">Total Stock</TableHead>
+                    <TableHead className="text-right">Est. Value</TableHead>
+                    <TableHead>Source</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dead_supplies.map(s => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{s.sku}</TableCell>
+                      <TableCell className="font-medium text-sm">{s.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{s.category ?? '—'}</TableCell>
+                      <TableCell className="text-sm">
+                        {s.warehouses.length > 0
+                          ? s.warehouses.map(w => `${w.name} (${w.available})`).join(', ')
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{s.total_stock.toLocaleString()}{s.uom ? ` ${s.uom}` : ''}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-red-600">{formatCurrency(s.total_value)}</TableCell>
+                      <TableCell>
+                        {s.stock_status_override
+                          ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"><Tag className="h-3 w-3" />Manual</span>
+                          : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Auto</span>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Write-off Ledger Filters */}
         <Card>
           <CardContent className="flex flex-wrap items-end gap-3 p-4">
             <div className="space-y-1">
@@ -234,8 +304,15 @@ export default function DeadStockIndex({ entries, total_dead_value, supplies, pr
           </CardContent>
         </Card>
 
-        {/* Table */}
+        {/* Write-off Ledger Table */}
         <Card>
+          <div className="border-b px-4 py-3">
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <Skull className="h-4 w-4 text-red-500" />
+              Write-off Ledger
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">Stock physically written off and deducted from inventory. Use "Record Dead Stock" to add entries.</p>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

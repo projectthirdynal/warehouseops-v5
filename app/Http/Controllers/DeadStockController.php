@@ -78,13 +78,38 @@ class DeadStockController extends Controller
 
         $warehouses = Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
 
+        // Supplies currently classified as DEAD (badge status) — shown separately from write-off ledger
+        $deadSupplies = Supply::query()
+            ->where('stock_status', 'DEAD')
+            ->where('is_active', true)
+            ->with(['stocks.warehouse:id,name,code', 'uom:id,abbreviation'])
+            ->orderBy('name')
+            ->get(['id', 'sku', 'name', 'section', 'stock_category', 'cost_price', 'stock_status_override', 'uom_id'])
+            ->map(fn ($s) => [
+                'id'                   => $s->id,
+                'sku'                  => $s->sku,
+                'name'                 => $s->name,
+                'section'              => $s->section,
+                'category'             => $s->stock_category,
+                'cost_price'           => (float) $s->cost_price,
+                'uom'                  => $s->uom?->abbreviation,
+                'stock_status_override'=> $s->stock_status_override,
+                'total_stock'          => (int) $s->stocks->sum('current_stock'),
+                'total_value'          => (float) $s->cost_price * $s->stocks->sum('current_stock'),
+                'warehouses'           => $s->stocks->map(fn ($st) => [
+                    'name'      => $st->warehouse?->name ?? 'Default',
+                    'available' => $st->current_stock - $st->reserved_stock,
+                ])->values(),
+            ]);
+
         return Inertia::render('Inventory/DeadStock/Index', [
-            'entries'         => $entries,
+            'entries'          => $entries,
             'total_dead_value' => (float) $totalDeadValue,
-            'supplies'        => $supplies,
-            'products'        => $products,
-            'warehouses'      => $warehouses,
-            'filters'         => $request->only(['item_type', 'warehouse_id', 'from', 'to']),
+            'dead_supplies'    => $deadSupplies,
+            'supplies'         => $supplies,
+            'products'         => $products,
+            'warehouses'       => $warehouses,
+            'filters'          => $request->only(['item_type', 'warehouse_id', 'from', 'to']),
         ]);
     }
 
