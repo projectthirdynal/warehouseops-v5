@@ -50,7 +50,15 @@ class StockStatusService
             ->where('supply_id', $supply->id)
             ->max('last_movement_at');
 
+        // No movement record yet — use supply creation date as the baseline.
+        // A brand-new material should never auto-classify as DEAD.
         if ($lastMovement === null) {
+            $daysSinceCreated = now()->diffInDays($supply->created_at);
+
+            if ($daysSinceCreated < self::NON_MOVING_DAYS) {
+                return Supply::STATUS_MOVING;
+            }
+
             $totalStock = DB::table('supply_stocks')
                 ->where('supply_id', $supply->id)
                 ->sum('current_stock');

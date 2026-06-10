@@ -8,6 +8,7 @@ use App\Domain\Inventory\Models\Supply;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\UnitOfMeasure;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\StockStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -172,6 +173,8 @@ class SupplyController extends Controller
             if ($initialStock > 0) {
                 $this->recordMovement($supply->id, $warehouseId, 'STOCK_IN', $initialStock, 'Initial stock', $request->user()?->id);
             }
+
+            app(StockStatusService::class)->recompute($supply->fresh());
         });
 
         return back()->with('success', 'Material created.');
@@ -247,6 +250,8 @@ class SupplyController extends Controller
                     $request->user()?->id
                 );
             }
+
+            app(StockStatusService::class)->recompute($supply->fresh());
         });
 
         return back()->with('success', 'Material stock updated.');
