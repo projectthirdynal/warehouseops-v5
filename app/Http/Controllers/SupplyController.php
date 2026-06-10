@@ -200,6 +200,24 @@ class SupplyController extends Controller
         return back()->with('success', 'Material removed.');
     }
 
+    public function updateStatus(Request $request, Supply $supply): RedirectResponse
+    {
+        $data = $request->validate([
+            'stock_status'          => ['required', 'in:MOVING,NON_MOVING,DEAD'],
+            'stock_status_override' => ['required', 'boolean'],
+        ]);
+
+        $supply->stock_status          = $data['stock_status'];
+        $supply->stock_status_override = $data['stock_status_override'];
+        $supply->save();
+
+        if (! $data['stock_status_override']) {
+            app(StockStatusService::class)->recompute($supply->fresh());
+        }
+
+        return back()->with('success', 'Stock status updated.');
+    }
+
     public function adjustStock(Request $request, Supply $supply): RedirectResponse
     {
         $data = $request->validate([

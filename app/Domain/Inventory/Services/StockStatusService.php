@@ -32,10 +32,11 @@ class StockStatusService
                 foreach ($supplies as $supply) {
                     $newStatus = $this->classify($supply);
 
+                    DB::table('supplies')
+                        ->where('id', $supply->id)
+                        ->update(['stock_status' => $newStatus, 'updated_at' => now()]);
+
                     if ($supply->stock_status !== $newStatus) {
-                        DB::table('supplies')
-                            ->where('id', $supply->id)
-                            ->update(['stock_status' => $newStatus, 'updated_at' => now()]);
                         $updated++;
                     }
                 }
@@ -50,23 +51,14 @@ class StockStatusService
             ->where('supply_id', $supply->id)
             ->max('last_movement_at');
 
-        // No movement record yet — use supply creation date as the baseline.
-        // A brand-new material should never auto-classify as DEAD.
-        if ($lastMovement === null) {
-            $daysSinceCreated = now()->diffInDays($supply->created_at);
+        // Use MAX(last_movement_at, created_at) as effective activity date.
+        // This means a brand-new material always starts as MOVING regardless
+        // of whether it has a stock record yet.
+        $effectiveDate = $lastMovement !== null && $lastMovement > $supply->created_at
+            ? $lastMovement
+            : $supply->created_at;
 
-            if ($daysSinceCreated < self::NON_MOVING_DAYS) {
-                return Supply::STATUS_MOVING;
-            }
-
-            $totalStock = DB::table('supply_stocks')
-                ->where('supply_id', $supply->id)
-                ->sum('current_stock');
-
-            return $totalStock > 0 ? Supply::STATUS_DEAD : Supply::STATUS_MOVING;
-        }
-
-        $daysSince = now()->diffInDays($lastMovement);
+        $daysSince = now()->diffInDays($effectiveDate);
 
         if ($daysSince < self::MOVING_DAYS) {
             return Supply::STATUS_MOVING;

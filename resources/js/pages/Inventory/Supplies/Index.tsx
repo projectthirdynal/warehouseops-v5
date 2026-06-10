@@ -15,7 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
 import Paginator from '@/components/Paginator';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
@@ -131,6 +131,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   const [editing, setEditing] = useState<Supply | null>(null);
   const [stockTarget, setStockTarget] = useState<Supply | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supply | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Supply | null>(null);
 
   const section      = filters.section ?? 'all';
   const stockStatus  = filters.stock_status ?? 'all';
@@ -339,6 +340,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" title="Override stock status" onClick={() => setStatusTarget(supply)}><Tag className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTarget(supply)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
@@ -388,10 +390,110 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         )}
       </div>
 
-      <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} />
+      <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} onOverrideStatus={(s) => { setMaterialOpen(false); setStatusTarget(s); }} />
       <StockDialog supply={stockTarget} onClose={() => setStockTarget(null)} warehouses={warehouses} />
+      <StatusOverrideDialog supply={statusTarget} onClose={() => setStatusTarget(null)} />
       <DeleteDialog supply={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </AppLayout>
+  );
+}
+
+function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onClose: () => void }) {
+  const form = useForm({
+    stock_status: 'MOVING' as 'MOVING' | 'NON_MOVING' | 'DEAD',
+    stock_status_override: true,
+  });
+
+  useEffect(() => {
+    if (supply) {
+      form.setData({
+        stock_status: supply.stock_status,
+        stock_status_override: supply.stock_status_override,
+      });
+      form.clearErrors();
+    }
+  }, [supply?.id]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supply) return;
+    form.patch(`/inventory/supplies/${supply.id}/status`, { onSuccess: onClose });
+  }
+
+  function clearOverride() {
+    if (!supply) return;
+    form.setData({ stock_status: supply.stock_status, stock_status_override: false });
+    form.patch(`/inventory/supplies/${supply.id}/status`, {
+      data: { stock_status: supply.stock_status, stock_status_override: false },
+      onSuccess: onClose,
+    });
+  }
+
+  const STATUS_OPTIONS: { value: 'MOVING' | 'NON_MOVING' | 'DEAD'; label: string; cls: string }[] = [
+    { value: 'MOVING',     label: 'Moving',     cls: 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' },
+    { value: 'NON_MOVING', label: 'Non-Moving', cls: 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+    { value: 'DEAD',       label: 'Dead Stock', cls: 'border-red-500 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300' },
+  ];
+
+  return (
+    <Dialog open={!!supply} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Override Stock Status</DialogTitle></DialogHeader>
+        {supply && (
+          <form onSubmit={submit} className="space-y-4">
+            <div className="rounded-md bg-muted p-3 text-sm">
+              <div className="font-medium">{supply.name}</div>
+              <div className="font-mono text-xs text-muted-foreground">{supply.sku}</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {STATUS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => form.setData('stock_status', opt.value)}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${
+                      form.data.stock_status === opt.value
+                        ? opt.cls + ' border-2'
+                        : 'border-input bg-background hover:bg-muted'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.data.stock_status_override}
+                onChange={e => form.setData('stock_status_override', e.target.checked)}
+              />
+              <span>
+                <span className="font-medium">Lock this status</span>
+                <span className="block text-xs text-muted-foreground">Prevents auto-classification from overwriting this value. A ★ will appear on the badge.</span>
+              </span>
+            </label>
+
+            <div className="flex items-center justify-between pt-1">
+              {supply.stock_status_override && (
+                <button type="button" onClick={clearOverride} className="text-xs text-muted-foreground underline hover:text-foreground">
+                  Clear override (restore auto)
+                </button>
+              )}
+              <div className="ml-auto flex gap-2">
+                <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                <Button type="submit" disabled={form.processing}><Tag className="mr-2 h-4 w-4" />Apply</Button>
+              </div>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -494,13 +596,14 @@ function StockStatusBadge({ status, override }: { status: string; override: bool
   );
 }
 
-function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }: {
+function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, onOverrideStatus }: {
   open: boolean;
   onClose: () => void;
   editing: Supply | null;
   uoms: Uom[];
   warehouses: Warehouse[];
   categories: string[];
+  onOverrideStatus?: (supply: Supply) => void;
 }) {
   const form = useForm({
     sku: '',
@@ -653,6 +756,25 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories }
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.data.is_active} onChange={e => form.setData('is_active', e.target.checked)} />Active
           </label>
+          {editing && (
+            <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock Status</span>
+                {editing.stock_status_override && <span className="text-xs text-amber-600 font-medium">★ Manually locked</span>}
+              </div>
+              <div className="flex items-center justify-between">
+                <StockStatusBadge status={editing.stock_status} override={editing.stock_status_override} />
+                <button
+                  type="button"
+                  onClick={() => editing && onOverrideStatus?.(editing)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Override status →
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Auto-classification runs on page load based on last activity date.</p>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={form.processing}>{editing ? 'Save' : 'Create'}</Button>
