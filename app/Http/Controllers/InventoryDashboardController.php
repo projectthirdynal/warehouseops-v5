@@ -50,17 +50,19 @@ class InventoryDashboardController extends Controller
 
         // ── Non-moving / dead stock counts (no movement in 90 days) ─
         $deadThreshold = now()->subDays(90);
-        $nonMovingProducts = ProductStock::where('current_stock', '>', 0)
-            ->where(function ($q) use ($deadThreshold) {
-                $q->whereNull('last_movement_at')
-                  ->orWhere('last_movement_at', '<', $deadThreshold);
-            })->count();
+        $nonMovingProducts = DB::table('product_stocks as ps')
+            ->join('products as p', 'p.id', '=', 'ps.product_id')
+            ->where('ps.current_stock', '>', 0)
+            ->whereNull('p.deleted_at')
+            ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$deadThreshold])
+            ->count();
 
-        $nonMovingSupplies = SupplyStock::where('current_stock', '>', 0)
-            ->where(function ($q) use ($deadThreshold) {
-                $q->whereNull('last_movement_at')
-                  ->orWhere('last_movement_at', '<', $deadThreshold);
-            })->count();
+        $nonMovingSupplies = DB::table('supply_stocks as ss')
+            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+            ->where('ss.current_stock', '>', 0)
+            ->whereNull('s.deleted_at')
+            ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$deadThreshold])
+            ->count();
 
         // ── Stats ────────────────────────────────────────────────────
         $stats = [
@@ -314,10 +316,7 @@ class InventoryDashboardController extends Controller
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
                 ->leftJoin('warehouses as w', 'w.id', '=', 'ps.warehouse_id')
                 ->where('ps.current_stock', '>', 0)
-                ->where(function ($q) use ($threshold) {
-                    $q->whereNull('ps.last_movement_at')
-                      ->orWhere('ps.last_movement_at', '<', $threshold);
-                })
+                ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$threshold])
                 ->whereNull('p.deleted_at')
                 ->select([
                     'p.id as product_id',
@@ -344,10 +343,7 @@ class InventoryDashboardController extends Controller
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
                 ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
                 ->where('ss.current_stock', '>', 0)
-                ->where(function ($q) use ($threshold) {
-                    $q->whereNull('ss.last_movement_at')
-                      ->orWhere('ss.last_movement_at', '<', $threshold);
-                })
+                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$threshold])
                 ->whereNull('s.deleted_at')
                 ->select([
                     's.id as supply_id',
@@ -374,10 +370,7 @@ class InventoryDashboardController extends Controller
             $productDeadValue = DB::table('product_stocks as ps')
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
                 ->where('ps.current_stock', '>', 0)
-                ->where(function ($q) use ($threshold) {
-                    $q->whereNull('ps.last_movement_at')
-                      ->orWhere('ps.last_movement_at', '<', $threshold);
-                })
+                ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$threshold])
                 ->whereNull('p.deleted_at')
                 ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
         }
@@ -387,10 +380,7 @@ class InventoryDashboardController extends Controller
             $supplyDeadValue = DB::table('supply_stocks as ss')
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
                 ->where('ss.current_stock', '>', 0)
-                ->where(function ($q) use ($threshold) {
-                    $q->whereNull('ss.last_movement_at')
-                      ->orWhere('ss.last_movement_at', '<', $threshold);
-                })
+                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$threshold])
                 ->whereNull('s.deleted_at')
                 ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
         }
