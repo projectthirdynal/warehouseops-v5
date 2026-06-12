@@ -27,10 +27,16 @@ class InventoryDashboardController extends Controller
     {
         $since30 = now()->subDays(30)->startOfDay();
 
-        // ── Stock value ──────────────────────────────────────────────
-        $stockValue = (float) DB::table('product_stocks as ps')
+        // ── Stock value (products + supplies) ────────────────────────
+        $productStockValue = (float) DB::table('product_stocks as ps')
             ->join('products as p', 'p.id', '=', 'ps.product_id')
             ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
+
+        $supplyStockValue = (float) DB::table('supply_stocks as ss')
+            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+            ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+
+        $stockValue = $productStockValue + $supplyStockValue;
 
         // ── Low stock counts ─────────────────────────────────────────
         $lowStockCount = ProductStock::whereRaw('(current_stock - reserved_stock) <= reorder_point')
@@ -170,29 +176,76 @@ class InventoryDashboardController extends Controller
             ->orderBy('date')
             ->get();
 
-        // ── Warehouse stock summary ──────────────────────────────────
+        // ── Stock status distribution ────────────────────────────────
+        $stockStatusDistribution = DB::table('supplies')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->select('stock_status', DB::raw('COUNT(*) as count'))
+            ->groupBy('stock_status')
+            ->pluck('count', 'stock_status')
+            ->all();
+
+        // ── Section breakdown ──────────────────────────────────────
+        $sectionBreakdown = DB::table('supplies')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->select('section', DB::raw('COUNT(*) as count'))
+            ->groupBy('section')
+            ->pluck('count', 'section')
+            ->all();
+
+        // ── Top movers (products + supplies) ─────────────────────────
+        $topProductMovers = DB::table('inventory_movements as im')
+            ->join('products as p', 'p.id', '=', 'im.product_id')
+            ->where('im.created_at', '>=', $since30)
+            ->select('p.id', 'p.sku', 'p.name', DB::raw('SUM(ABS(im.quantity)) as total_qty'))
+            ->groupBy('p.id', 'p.sku', 'p.name')
+            ->orderByRaw('total_qty DESC')
+            ->limit(5)
+            ->get();
+
+        $topSupplyMovers = DB::table('supply_movements as sm')
+            ->join('supplies as s', 's.id', '=', 'sm.supply_id')
+            ->where('sm.created_at', '>=', $since30)
+            ->select('s.id', 's.sku', 's.name', DB::raw('SUM(ABS(sm.quantity)) as total_qty'))
+            ->groupBy('s.id', 's.sku', 's.name')
+            ->orderByRaw('total_qty DESC')
+            ->limit(5)
+            ->get();
+
+        // ── Warehouse stock summary (products + supplies) ────────────
         $warehouseStockSummary = DB::table('warehouses as w')
             ->leftJoin('product_stocks as ps', 'ps.warehouse_id', '=', 'w.id')
             ->leftJoin('products as p', 'p.id', '=', 'ps.product_id')
+            ->leftJoin('supply_stocks as ss', 'ss.warehouse_id', '=', 'w.id')
+            ->leftJoin('supplies as s', 's.id', '=', 'ss.supply_id')
             ->where('w.is_active', true)
             ->groupBy('w.id', 'w.name', 'w.code')
             ->select([
                 'w.id', 'w.name', 'w.code',
                 DB::raw('COALESCE(COUNT(DISTINCT ps.product_id), 0) as product_units'),
-                DB::raw('COALESCE(SUM(ps.current_stock * COALESCE(p.cost_price, 0)), 0) as stock_value'),
+                DB::raw('COALESCE(COUNT(DISTINCT ss.supply_id), 0) as supply_units'),
+                DB::raw('COALESCE(SUM(ps.current_stock * COALESCE(p.cost_price, 0)), 0) as product_value'),
+                DB::raw('COALESCE(SUM(ss.current_stock * COALESCE(s.cost_price, 0)), 0) as supply_value'),
             ])
             ->get();
 
         return Inertia::render('Inventory/Dashboard', [
-            'stats'                   => $stats,
-            'recent_movements'        => $recentMovements,
-            'recent_supply_movements' => $recentSupplyMovements,
-            'low_stock'               => $lowStock,
-            'supply_low_stock'        => $supplyLowStock,
-            'expiring_lots'           => $expiringLots,
-            'movement_trend'          => $movementTrend,
-            'supply_movement_trend'   => $supplyMovementTrend,
-            'warehouse_stock_summary' => $warehouseStockSummary,
+            'stats'                       => $stats,
+            'recent_movements'            => $recentMovements,
+            'recent_supply_movements'     => $recentSupplyMovements,
+            'low_stock'                   => $lowStock,
+            'supply_low_stock'            => $supplyLowStock,
+            'expiring_lots'               => $expiringLots,
+            'movement_trend'              => $movementTrend,
+            'supply_movement_trend'       => $supplyMovementTrend,
+            'warehouse_stock_summary'     => $warehouseStockSummary,
+            'product_stock_value'         => $productStockValue,
+            'supply_stock_value'          => $supplyStockValue,
+            'stock_status_distribution'   => $stockStatusDistribution,
+            'section_breakdown'           => $sectionBreakdown,
+            'top_product_movers'          => $topProductMovers,
+            'top_supply_movers'           => $topSupplyMovers,
         ]);
     }
 

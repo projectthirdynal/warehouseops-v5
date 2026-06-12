@@ -13,12 +13,17 @@ import {
 import {
   Package, Warehouse, AlertTriangle, ShoppingCart, FileText, TrendingUp,
   Box, CalendarClock, SlidersHorizontal, ArrowRight, ArrowUpCircle,
-  RefreshCw, Zap, Activity, BarChart3, ScanLine, Minus, Plus, Skull,
+  RefreshCw, Zap, Activity, ScanLine, Minus, Plus, Skull,
+  Layers, Tag, MoveRight,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { PageProps, User } from '@/types';
 import axios from 'axios';
 import { useState, useRef, useCallback } from 'react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 
 interface MovementRow {
   id: number;
@@ -76,6 +81,9 @@ interface WarehouseStockSummary {
   name: string;
   code: string;
   product_units: number;
+  supply_units: number;
+  product_value: number;
+  supply_value: number;
   stock_value: number;
 }
 
@@ -112,6 +120,12 @@ interface Props {
   warehouse_stock_summary: WarehouseStockSummary[];
   movement_trend: MovementTrend[];
   supply_movement_trend: SupplyMovementTrend[];
+  product_stock_value: number;
+  supply_stock_value: number;
+  stock_status_distribution: Record<string, number>;
+  section_breakdown: Record<string, number>;
+  top_product_movers: { id: number; sku: string; name: string; total_qty: number }[];
+  top_supply_movers: { id: number; sku: string; name: string; total_qty: number }[];
 }
 
 interface ScannedProduct {
@@ -139,6 +153,8 @@ interface ScannedProduct {
 export default function InventoryDashboard({
   stats, recent_movements = [], recent_supply_movements = [], low_stock = [], supply_low_stock = [],
   expiring_lots = [], warehouse_stock_summary = [], movement_trend = [], supply_movement_trend = [],
+  product_stock_value, supply_stock_value, stock_status_distribution, section_breakdown,
+  top_product_movers, top_supply_movers,
 }: Props) {
   const { auth } = usePage<PageProps>().props;
   const role = auth?.user?.role as User['role'] | undefined;
@@ -159,14 +175,8 @@ export default function InventoryDashboard({
 
   const totalIn  = movement_trend.reduce((s, d) => s + Number(d.stock_in), 0);
   const totalOut = movement_trend.reduce((s, d) => s + Number(d.stock_out), 0);
-  const maxBar   = Math.max(...movement_trend.map(x => Math.max(Number(x.stock_in), Number(x.stock_out))), 1);
   const materialIn = supply_movement_trend.reduce((s, d) => s + Number(d.stock_in), 0);
   const materialOut = supply_movement_trend.reduce((s, d) => s + Number(d.stock_out), 0);
-  const materialAdjustments = supply_movement_trend.reduce((s, d) => s + Number(d.adjustments), 0);
-  const materialMaxBar = Math.max(
-    ...supply_movement_trend.map(x => Math.max(Number(x.stock_in), Number(x.stock_out), Number(x.adjustments))),
-    1,
-  );
 
   const criticalCount = low_stock.filter(s => {
     const avail = s.available_stock ?? (s.current_stock - s.reserved_stock);
@@ -271,10 +281,11 @@ export default function InventoryDashboard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Inventory Dashboard</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">Real-time stock visibility across all warehouses.</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {formatCurrency(product_stock_value)} products · {formatCurrency(supply_stock_value)} materials · {stats.total_warehouses} warehouses
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* Barcode Scanner Input */}
             {canUseMaterialsAndAdjustments && (
               <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5 shadow-sm focus-within:ring-1 focus-within:ring-ring">
                 <ScanLine className="h-4 w-4 text-muted-foreground" />
@@ -318,19 +329,21 @@ export default function InventoryDashboard({
           </div>
         </div>
 
-        {/* KPI cards — left-border accent style */}
+        {/* KPI cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <KpiCard
             accent="blue"
             icon={<Package className="h-5 w-5 text-blue-600" />}
             label="Active Products"
             value={stats.total_products.toLocaleString()}
+            sub={formatCurrency(product_stock_value)}
           />
           <KpiCard
             accent="purple"
             icon={<Box className="h-5 w-5 text-purple-600" />}
             label="Active Materials"
             value={stats.total_supplies.toLocaleString()}
+            sub={formatCurrency(supply_stock_value)}
           />
           <KpiCard
             accent="emerald"
@@ -343,7 +356,47 @@ export default function InventoryDashboard({
             icon={<TrendingUp className="h-5 w-5 text-green-600" />}
             label="Total Stock Value"
             value={formatCurrency(stats.stock_value)}
+            sub={`${formatCurrency(product_stock_value)} products + ${formatCurrency(supply_stock_value)} supplies`}
           />
+        </div>
+
+        {/* Alert pills row */}
+        <div className="flex flex-wrap gap-2">
+          {stats.low_stock_count > 0 && (
+            <AlertPill href="/inventory/movements?stock=low" tone="orange"
+              icon={<AlertTriangle className="h-3.5 w-3.5" />}
+              label="Low Stock Products" value={stats.low_stock_count} />
+          )}
+          {stats.supply_low_stock > 0 && (
+            <AlertPill href="/inventory/supplies" tone="amber"
+              icon={<Box className="h-3.5 w-3.5" />}
+              label="Low Stock Materials" value={stats.supply_low_stock} />
+          )}
+          {stats.non_moving_products > 0 && (
+            <AlertPill href="/inventory/non-moving?type=products" tone="red"
+              icon={<Package className="h-3.5 w-3.5" />}
+              label="Non-Moving Products" value={stats.non_moving_products} />
+          )}
+          {stats.non_moving_supplies > 0 && (
+            <AlertPill href="/inventory/non-moving?type=supplies" tone="red"
+              icon={<Box className="h-3.5 w-3.5" />}
+              label="Non-Moving Materials" value={stats.non_moving_supplies} />
+          )}
+          {stats.expiring_soon > 0 && (
+            <AlertPill href="/procurement/receiving" tone="yellow"
+              icon={<CalendarClock className="h-3.5 w-3.5" />}
+              label="Expiring Soon" value={stats.expiring_soon} />
+          )}
+          {canUseProcurement && stats.pending_prs > 0 && (
+            <AlertPill href="/procurement/requests?status=SUBMITTED" tone="blue"
+              icon={<FileText className="h-3.5 w-3.5" />}
+              label="Pending PRs" value={stats.pending_prs} />
+          )}
+          {canUseProcurement && stats.open_pos > 0 && (
+            <AlertPill href="/procurement/orders?status=SENT" tone="green"
+              icon={<ShoppingCart className="h-3.5 w-3.5" />}
+              label="Open POs" value={stats.open_pos} />
+          )}
         </div>
 
         {/* Stock health bar */}
@@ -354,262 +407,242 @@ export default function InventoryDashboard({
                 <Activity className="h-4 w-4 text-muted-foreground" />
                 Stock Health Overview
               </span>
-              <Link href="/inventory/movements?stock=low" className="text-xs text-blue-600 hover:underline">
-                View low stock →
-              </Link>
+              <Link href="/inventory/movements?stock=low" className="text-xs text-blue-600 hover:underline">View low stock →</Link>
             </div>
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
               {criticalCount > 0 && (
-                <div
-                  className="h-full bg-red-500 transition-all"
-                  style={{ width: `${(criticalCount / stats.total_products) * 100}%` }}
-                  title={`${criticalCount} out of stock`}
-                />
+                <div className="h-full bg-red-500 transition-all" style={{ width: `${(criticalCount / stats.total_products) * 100}%` }} />
               )}
               {lowCount > 0 && (
-                <div
-                  className="h-full bg-amber-400 transition-all"
-                  style={{ width: `${(lowCount / stats.total_products) * 100}%` }}
-                  title={`${lowCount} low stock`}
-                />
+                <div className="h-full bg-amber-400 transition-all" style={{ width: `${(lowCount / stats.total_products) * 100}%` }} />
               )}
-              <div className="h-full flex-1 bg-green-400" title="Healthy stock" />
+              <div className="h-full flex-1 bg-green-400" />
             </div>
             <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-3 rounded-sm bg-red-500 inline-block" /> Out of stock: {criticalCount}
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-3 rounded-sm bg-amber-400 inline-block" /> Low stock: {lowCount}
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-3 rounded-sm bg-green-400 inline-block" /> Healthy: {stats.total_products - low_stock.length}
-              </span>
+              <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-red-500 inline-block" /> Out of stock: {criticalCount}</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-amber-400 inline-block" /> Low stock: {lowCount}</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-green-400 inline-block" /> Healthy: {stats.total_products - low_stock.length}</span>
             </div>
           </Card>
         )}
 
-        {/* Alert cards — 2×2 grid */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <AlertCard href="/inventory/movements?stock=low" tone="orange"
-            icon={<AlertTriangle className="h-5 w-5" />}
-            label="Low Stock Products" value={stats.low_stock_count} sub="below reorder point" />
-          <AlertCard href={canUseMaterialsAndAdjustments ? '/inventory/supplies?status=active' : '/inventory/movements'} tone="amber"
-            icon={<Box className="h-5 w-5" />}
-            label="Low Stock Materials" value={stats.supply_low_stock} sub="supplies below reorder" />
-          <AlertCard href={canUseMaterialsAndAdjustments ? '/inventory/supplies' : '/inventory/movements'} tone="red"
-            icon={<SlidersHorizontal className="h-5 w-5" />}
-            label="Stock Adjustments" value={stats.pending_adjustments} sub="use Materials to adjust" />
-          <AlertCard href="/procurement/receiving" tone="yellow"
-            icon={<CalendarClock className="h-5 w-5" />}
-            label="Expiring (30 days)" value={stats.expiring_soon} sub="lots nearing expiry" />
-        </div>
-
-        {/* Non-moving / dead stock row */}
-        {(stats.non_moving_products > 0 || stats.non_moving_supplies > 0) && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AlertCard href="/inventory/non-moving?type=products" tone="red"
-              icon={<Package className="h-5 w-5" />}
-              label="Non-Moving Products" value={stats.non_moving_products} sub="no movement in 90+ days" />
-            <AlertCard href="/inventory/non-moving?type=supplies" tone="red"
-              icon={<Box className="h-5 w-5" />}
-              label="Non-Moving Materials" value={stats.non_moving_supplies} sub="no movement in 90+ days" />
-          </div>
-        )}
-
-        {/* Procurement row */}
-        {canUseProcurement && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AlertCard href="/procurement/requests?status=SUBMITTED" tone="blue"
-              icon={<FileText className="h-5 w-5" />}
-              label="Pending PR Approvals" value={stats.pending_prs} sub="purchase requests" />
-            <AlertCard href="/procurement/orders?status=SENT" tone="green"
-              icon={<ShoppingCart className="h-5 w-5" />}
-              label="Open Purchase Orders" value={stats.open_pos} sub="awaiting receipt" />
-          </div>
-        )}
-
-        {/* Movement chart + Recent activity side by side */}
-        <div className="grid gap-4 lg:grid-cols-5">
-          {/* 30-day chart — takes 3/5 */}
-          <Card className="lg:col-span-3">
+        {/* Charts row — Product trend | Supply trend | Status donut */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Product Movement Trend */}
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-base">
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                30-Day Movement
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <Package className="h-4 w-4 text-blue-500" />
+                Product Movement (30d)
               </CardTitle>
-              <div className="flex gap-4 text-xs">
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-3 rounded-sm bg-emerald-400 inline-block" />
-                  <span className="font-medium text-emerald-700">+{totalIn.toLocaleString()}</span>
-                  <span className="text-muted-foreground">in</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-3 rounded-sm bg-red-400 inline-block" />
-                  <span className="font-medium text-red-700">-{totalOut.toLocaleString()}</span>
-                  <span className="text-muted-foreground">out</span>
-                </span>
-              </div>
+              <span className="text-xs text-muted-foreground">+{totalIn.toLocaleString()} in · -{totalOut.toLocaleString()} out</span>
             </CardHeader>
             <CardContent>
               {movement_trend.length === 0 ? (
-                <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-                  No movement data for this period.
-                </div>
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">No product movement data.</div>
               ) : (
-                <div className="flex items-end gap-px h-24 w-full overflow-hidden rounded-sm">
-                  {movement_trend.map(d => (
-                    <div
-                      key={d.date}
-                      className="group relative flex flex-1 flex-col gap-px items-center"
-                      title={`${d.date} — In: ${d.stock_in}  Out: ${d.stock_out}`}
-                    >
-                      <div
-                        style={{ height: `${(Number(d.stock_in) / maxBar) * 100}%` }}
-                        className="w-full bg-emerald-400 group-hover:bg-emerald-500 rounded-t min-h-[2px] transition-colors"
-                      />
-                      <div
-                        style={{ height: `${(Number(d.stock_out) / maxBar) * 100}%` }}
-                        className="w-full bg-red-400 group-hover:bg-red-500 rounded-b min-h-[2px] transition-colors"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={movement_trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3}/><stop offset="95%" stopColor="#34d399" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="pout" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/><stop offset="95%" stopColor="#f87171" stopOpacity={0}/></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(movement_trend.length / 6)} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number) => v.toLocaleString()} />
+                    <Area type="monotone" dataKey="stock_in" stroke="#34d399" fill="url(#pin)" strokeWidth={2} name="Stock In" />
+                    <Area type="monotone" dataKey="stock_out" stroke="#f87171" fill="url(#pout)" strokeWidth={2} name="Stock Out" />
+                  </AreaChart>
+                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
 
-          {/* Recent movements feed — takes 2/5 */}
-          <Card className="lg:col-span-2">
+          {/* Supply Movement Trend */}
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base">Recent Activity</CardTitle>
-              <Link href="/inventory/movements" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
-                All <ArrowRight className="h-3 w-3" />
-              </Link>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <Box className="h-4 w-4 text-purple-500" />
+                Material Movement (30d)
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">+{materialIn.toLocaleString()} in · -{materialOut.toLocaleString()} out</span>
             </CardHeader>
-            <CardContent className="p-0">
-              {recent_movements.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">No movements yet.</div>
+            <CardContent>
+              {supply_movement_trend.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">No material movement data.</div>
               ) : (
-                <ul className="divide-y divide-border">
-                  {recent_movements.slice(0, 8).map(m => (
-                    <li key={m.id} className="flex items-start gap-3 px-4 py-2.5">
-                      <MovementDot type={m.type} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium leading-snug">
-                          {m.product?.name ?? 'Unknown product'}
-                        </p>
-                        <div className="mt-0.5 flex items-center gap-1.5">
-                          <MovementTypePill type={m.type} />
-                          <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
-                        {formatDate(m.created_at)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={supply_movement_trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="min" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3}/><stop offset="95%" stopColor="#34d399" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="mout" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/><stop offset="95%" stopColor="#f87171" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="madj" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#facc15" stopOpacity={0.3}/><stop offset="95%" stopColor="#facc15" stopOpacity={0}/></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(supply_movement_trend.length / 6)} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number) => v.toLocaleString()} />
+                    <Area type="monotone" dataKey="stock_in" stroke="#34d399" fill="url(#min)" strokeWidth={2} name="Stock In" />
+                    <Area type="monotone" dataKey="stock_out" stroke="#f87171" fill="url(#mout)" strokeWidth={2} name="Stock Out" />
+                    <Area type="monotone" dataKey="adjustments" stroke="#facc15" fill="url(#madj)" strokeWidth={2} name="Adjusted" />
+                  </AreaChart>
+                </ResponsiveContainer>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Stock Status Donut + Section Breakdown */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <Tag className="h-4 w-4 text-amber-500" />
+                Material Status
+              </CardTitle>
+              <Link href="/inventory/supplies" className="text-xs text-blue-600 hover:underline">View all</Link>
+            </CardHeader>
+            <CardContent>
+              <div className="flex h-48 items-center justify-center">
+                {Object.keys(stock_status_distribution).length === 0 ? (
+                  <span className="text-sm text-muted-foreground">No status data.</span>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Moving', value: stock_status_distribution.MOVING ?? 0, color: '#34d399' },
+                          { name: 'Non-Moving', value: stock_status_distribution.NON_MOVING ?? 0, color: '#facc15' },
+                          { name: 'Dead', value: stock_status_distribution.DEAD ?? 0, color: '#f87171' },
+                        ].filter(d => d.value > 0)}
+                        cx="50%" cy="50%"
+                        innerRadius={40} outerRadius={60}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, value }) => value > 0 ? `${name}: ${value}` : ''}
+                        labelLine={false}
+                      >
+                        {[
+                          { name: 'Moving', value: stock_status_distribution.MOVING ?? 0, color: '#34d399' },
+                          { name: 'Non-Moving', value: stock_status_distribution.NON_MOVING ?? 0, color: '#facc15' },
+                          { name: 'Dead', value: stock_status_distribution.DEAD ?? 0, color: '#f87171' },
+                        ].filter(d => d.value > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number, n: string) => [`${v} items`, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              {/* Section breakdown mini pills */}
+              <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                {Object.entries(section_breakdown).map(([section, count]) => (
+                  <div key={section} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                    <Layers className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{section}</span>
+                    <span className="text-muted-foreground">{Number(count).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Material movement and specific low-stock materials */}
-        <div className="grid gap-4 lg:grid-cols-5">
-          <Card className="lg:col-span-3">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-base">
-                <Box className="h-4 w-4 text-muted-foreground" />
-                Material Movement Visual
+        {/* Top Movers + Recent Activity */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Top Product Movers */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <MoveRight className="h-4 w-4 text-blue-500" />
+                Top Product Movers (30d)
               </CardTitle>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-3 rounded-sm bg-emerald-400" />
-                  <span className="font-medium text-emerald-700">+{materialIn.toLocaleString()}</span>
-                  <span className="text-muted-foreground">in</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-3 rounded-sm bg-red-400" />
-                  <span className="font-medium text-red-700">-{materialOut.toLocaleString()}</span>
-                  <span className="text-muted-foreground">out</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-3 rounded-sm bg-yellow-400" />
-                  <span className="font-medium text-yellow-700">{materialAdjustments.toLocaleString()}</span>
-                  <span className="text-muted-foreground">adjusted</span>
-                </span>
-              </div>
             </CardHeader>
-            <CardContent>
-              {supply_movement_trend.length === 0 ? (
-                <div className="flex h-28 items-center justify-center text-sm text-muted-foreground">
-                  No material movement data for this period.
-                </div>
+            <CardContent className="p-0">
+              {top_product_movers.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">No movement data.</div>
               ) : (
-                <div className="flex h-28 w-full items-end gap-px overflow-hidden rounded-sm">
-                  {supply_movement_trend.map(d => (
-                    <div
-                      key={d.date}
-                      className="group relative flex flex-1 flex-col items-center gap-px"
-                      title={`${d.date} — In: ${d.stock_in}  Out: ${d.stock_out}  Adjusted: ${d.adjustments}`}
-                    >
-                      <div
-                        style={{ height: `${(Number(d.stock_in) / materialMaxBar) * 100}%` }}
-                        className="min-h-[2px] w-full rounded-t bg-emerald-400 transition-colors group-hover:bg-emerald-500"
-                      />
-                      <div
-                        style={{ height: `${(Number(d.stock_out) / materialMaxBar) * 100}%` }}
-                        className="min-h-[2px] w-full bg-red-400 transition-colors group-hover:bg-red-500"
-                      />
-                      <div
-                        style={{ height: `${(Number(d.adjustments) / materialMaxBar) * 100}%` }}
-                        className="min-h-[2px] w-full rounded-b bg-yellow-400 transition-colors group-hover:bg-yellow-500"
-                      />
-                    </div>
+                <ul className="divide-y divide-border">
+                  {top_product_movers.map((m, i) => (
+                    <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium">{m.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{m.sku}</p>
+                      </div>
+                      <span className="text-xs font-semibold tabular-nums text-blue-600">{Number(m.total_qty).toLocaleString()} units</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base">Recent Material Movements</CardTitle>
-              {canUseMaterialsAndAdjustments && (
-                <Link href="/inventory/supplies" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
-                  Materials <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
+          {/* Top Supply Movers */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <MoveRight className="h-4 w-4 text-purple-500" />
+                Top Material Movers (30d)
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {recent_supply_movements.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">No material movements yet.</div>
+              {top_supply_movers.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">No movement data.</div>
               ) : (
                 <ul className="divide-y divide-border">
-                  {recent_supply_movements.slice(0, 8).map(m => (
-                    <li key={m.id} className="flex items-start gap-3 px-4 py-2.5">
-                      <MovementDot type={m.type} />
+                  {top_supply_movers.map((m, i) => (
+                    <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold">{i + 1}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium leading-snug">
-                          {m.supply?.name ?? 'Unknown material'}
-                        </p>
-                        <div className="mt-0.5 flex items-center gap-1.5">
-                          <MovementTypePill type={m.type} />
-                          <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                          </span>
-                          <span className="truncate text-[10px] text-muted-foreground">{m.warehouse?.name ?? ''}</span>
-                        </div>
+                        <p className="truncate text-xs font-medium">{m.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{m.sku}</p>
                       </div>
-                      <span className="shrink-0 whitespace-nowrap text-[10px] text-muted-foreground">
-                        {formatDate(m.created_at)}
-                      </span>
+                      <span className="text-xs font-semibold tabular-nums text-purple-600">{Number(m.total_qty).toLocaleString()} units</span>
                     </li>
                   ))}
                 </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity Feed */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                Recent Activity
+              </CardTitle>
+              <Link href="/inventory/movements" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">All <ArrowRight className="h-3 w-3" /></Link>
+            </CardHeader>
+            <CardContent className="p-0">
+              {recent_movements.length === 0 && recent_supply_movements.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">No recent movements.</div>
+              ) : (
+                <ul className="divide-y divide-border max-h-64 overflow-y-auto">
+                  {[...recent_movements, ...recent_supply_movements]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .slice(0, 10)
+                    .map(m => {
+                      const isSupply = 'supply' in m;
+                      const item = isSupply ? (m as MaterialMovementRow).supply : (m as MovementRow).product;
+                      return (
+                        <li key={`${isSupply ? 's' : 'p'}-${m.id}`} className="flex items-start gap-3 px-4 py-2.5">
+                          <MovementDot type={m.type} />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium">{item?.name ?? 'Unknown'}</p>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <MovementTypePill type={m.type} />
+                              <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(m.created_at)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
               )}
             </CardContent>
           </Card>
@@ -618,35 +651,32 @@ export default function InventoryDashboard({
         {supply_low_stock.length > 0 && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-base">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Specific Low Stock Materials
+                Low Stock Materials
               </CardTitle>
               {canUseMaterialsAndAdjustments && (
                 <Link href="/inventory/supplies" className="text-xs text-blue-600 hover:underline">View all</Link>
               )}
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {supply_low_stock.map(s => (
-                <div key={s.id} className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-mono text-[11px] text-amber-700">{s.sku}</div>
-                      <div className="truncate text-sm font-semibold">{s.supply_name}</div>
-                      <div className="truncate text-xs text-muted-foreground">{s.warehouse_name}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold tabular-nums text-amber-700">{Number(s.available_stock)}</div>
-                      <div className="text-[10px] uppercase text-muted-foreground">available</div>
-                    </div>
-                  </div>
-                  <MaterialStockBar available={Number(s.available_stock)} reorderPoint={Number(s.reorder_point)} />
-                  <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
-                    <span>Current {Number(s.current_stock).toLocaleString()}</span>
-                    <span>Reorder {Number(s.reorder_point).toLocaleString()}</span>
-                  </div>
-                </div>
-              ))}
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader><TableRow className="hover:bg-transparent"><TableHead>SKU</TableHead><TableHead>Material</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">Reorder</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {supply_low_stock.map(s => {
+                    const avail = Number(s.available_stock);
+                    const isCritical = avail <= 0;
+                    return (
+                      <TableRow key={s.id} className={isCritical ? 'bg-red-50 hover:bg-red-50' : 'bg-amber-50/60 hover:bg-amber-50'}>
+                        <TableCell className="font-mono text-[11px] text-muted-foreground">{s.sku}</TableCell>
+                        <TableCell className="text-sm font-medium">{s.supply_name}</TableCell>
+                        <TableCell className={`text-right font-bold tabular-nums ${isCritical ? 'text-red-600' : 'text-amber-700'}`}>{avail}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-muted-foreground">{Number(s.reorder_point)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         )}
@@ -655,7 +685,7 @@ export default function InventoryDashboard({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-base">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
                 Low Stock Products
               </CardTitle>
@@ -663,21 +693,10 @@ export default function InventoryDashboard({
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Product</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="text-right">Available</TableHead>
-                    <TableHead className="text-right">Reorder</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Product</TableHead><TableHead>Location</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">Reorder</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {low_stock.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                        ✓ All products above reorder point
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">All products above reorder point</TableCell></TableRow>
                   ) : low_stock.map(s => {
                     const avail = s.available_stock ?? (s.current_stock - s.reserved_stock);
                     const isCritical = avail <= 0;
@@ -690,11 +709,7 @@ export default function InventoryDashboard({
                           </Link>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{s.warehouse?.name ?? '—'}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={`font-bold tabular-nums ${isCritical ? 'text-red-600' : 'text-amber-700'}`}>
-                            {avail}
-                          </span>
-                        </TableCell>
+                        <TableCell className="text-right"><span className={`font-bold tabular-nums ${isCritical ? 'text-red-600' : 'text-amber-700'}`}>{avail}</span></TableCell>
                         <TableCell className="text-right font-mono text-sm text-muted-foreground">{s.reorder_point}</TableCell>
                       </TableRow>
                     );
@@ -707,21 +722,14 @@ export default function InventoryDashboard({
           {expiring_lots.length > 0 ? (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="flex items-center gap-1.5 text-base">
+                <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                   <CalendarClock className="h-4 w-4 text-red-500" />Expiring Soon
                 </CardTitle>
                 <Link href="/procurement/receiving" className="text-xs text-blue-600 hover:underline">View all</Link>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Product</TableHead>
-                      <TableHead>Batch</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead>Expiry</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Product</TableHead><TableHead>Batch</TableHead><TableHead className="text-right">Qty</TableHead><TableHead>Expiry</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {expiring_lots.map(lot => {
                       const daysLeft = Math.ceil((new Date(lot.expiry_date).getTime() - Date.now()) / 86400000);
@@ -748,26 +756,17 @@ export default function InventoryDashboard({
           ) : (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="flex items-center gap-1.5 text-base">
+                <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                   <RefreshCw className="h-4 w-4 text-muted-foreground" />Recent Movements
                 </CardTitle>
                 <Link href="/inventory/movements" className="text-xs text-blue-600 hover:underline">View all</Link>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Time</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Time</TableHead><TableHead>Product</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Qty</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {recent_movements.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No movements yet.</TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">No movements yet.</TableCell></TableRow>
                     ) : recent_movements.slice(0, 8).map(m => (
                       <TableRow key={m.id}>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(m.created_at)}</TableCell>
@@ -789,23 +788,22 @@ export default function InventoryDashboard({
         {warehouse_stock_summary.length > 0 && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-base">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                 <Warehouse className="h-4 w-4 text-muted-foreground" />
                 Stock by Warehouse
               </CardTitle>
-              <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-primary hover:underline">
-                Manage <ArrowRight className="h-3 w-3" />
-              </Link>
+              <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-primary hover:underline">Manage <ArrowRight className="h-3 w-3" /></Link>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Warehouse</TableHead>
-                    <TableHead className="text-right">Product Units</TableHead>
-                    <TableHead className="text-right">Stock Value</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow className="hover:bg-transparent">
+                  <TableHead>Warehouse</TableHead>
+                  <TableHead className="text-right">Products</TableHead>
+                  <TableHead className="text-right">Materials</TableHead>
+                  <TableHead className="text-right">Product Value</TableHead>
+                  <TableHead className="text-right">Material Value</TableHead>
+                  <TableHead className="text-right">Total Value</TableHead>
+                </TableRow></TableHeader>
                 <TableBody>
                   {warehouse_stock_summary.map(wh => (
                     <TableRow key={wh.id}>
@@ -814,7 +812,10 @@ export default function InventoryDashboard({
                         <div className="font-mono text-xs text-muted-foreground">{wh.code}</div>
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{Number(wh.product_units).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums text-emerald-700">{formatCurrency(Number(wh.stock_value))}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{Number(wh.supply_units).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums text-emerald-700">{formatCurrency(Number(wh.product_value))}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums text-purple-700">{formatCurrency(Number(wh.supply_value))}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums text-emerald-800">{formatCurrency(Number(wh.product_value) + Number(wh.supply_value))}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -974,9 +975,10 @@ export default function InventoryDashboard({
   );
 }
 
-function KpiCard({ icon, label, value, accent }: {
+function KpiCard({ icon, label, value, accent, sub }: {
   icon: React.ReactNode; label: string; value: string | number;
   accent: 'blue' | 'purple' | 'emerald' | 'green';
+  sub?: string;
 }) {
   const borderCls = { blue: 'border-l-primary', purple: 'border-l-purple-500', emerald: 'border-l-emerald-500', green: 'border-l-green-500' }[accent];
   return (
@@ -987,49 +989,32 @@ function KpiCard({ icon, label, value, accent }: {
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
         </div>
         <span className="text-xl font-bold tabular-nums">{value}</span>
+        {sub && <p className="mt-1 text-[11px] text-muted-foreground truncate" title={sub}>{sub}</p>}
       </CardContent>
     </Card>
   );
 }
 
-function AlertCard({ href, icon, label, value, sub, tone }: {
-  href: string; icon: React.ReactNode; label: string; value: number; sub: string;
+function AlertPill({ href, icon, label, value, tone }: {
+  href: string; icon: React.ReactNode; label: string; value: number;
   tone: 'orange' | 'amber' | 'blue' | 'green' | 'red' | 'yellow';
 }) {
   const cls: Record<string, string> = {
-    orange: 'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300',
-    amber:  'border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300',
-    blue:   'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300',
-    green:  'border-green-200 bg-green-50 text-green-700 hover:border-green-300',
-    red:    'border-red-200 bg-red-50 text-red-700 hover:border-red-300',
-    yellow: 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:border-yellow-300',
+    orange: 'bg-orange-100 text-orange-700 border-orange-200',
+    amber:  'bg-amber-100 text-amber-700 border-amber-200',
+    blue:   'bg-blue-100 text-blue-700 border-blue-200',
+    green:  'bg-green-100 text-green-700 border-green-200',
+    red:    'bg-red-100 text-red-700 border-red-200',
+    yellow: 'bg-yellow-100 text-yellow-700 border-yellow-200',
   };
   return (
     <Link href={href}>
-      <Card className={`cursor-pointer border transition-all hover:shadow-sm ${cls[tone]}`}>
-        <CardContent className="flex items-center justify-between p-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums leading-none">{value}</p>
-            <p className="mt-1 text-xs opacity-60">{sub}</p>
-          </div>
-          <div className="opacity-50">{icon}</div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
-function MaterialStockBar({ available, reorderPoint }: { available: number; reorderPoint: number }) {
-  const percent = reorderPoint > 0 ? Math.min(Math.max((available / reorderPoint) * 100, 0), 100) : 0;
-  const fillClass = available <= 0 ? 'bg-red-500' : available <= reorderPoint * 0.5 ? 'bg-orange-500' : 'bg-amber-500';
-
-  return (
-    <div className="mt-3">
-      <div className="h-2 overflow-hidden rounded-full bg-white">
-        <div className={`h-full rounded-full ${fillClass}`} style={{ width: `${percent}%` }} />
+      <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all hover:shadow-sm ${cls[tone]}`}>
+        {icon}
+        <span className="font-medium">{label}</span>
+        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-white/60 px-1 text-[10px] font-bold">{value}</span>
       </div>
-    </div>
+    </Link>
   );
 }
 
