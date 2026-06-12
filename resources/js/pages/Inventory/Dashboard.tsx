@@ -2,9 +2,8 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
+import { KpiCard } from '@/components/KpiCard';
 import {
   Warehouse, AlertTriangle, ShoppingCart, FileText, TrendingUp,
   Box, SlidersHorizontal, ArrowRight, ArrowUpCircle,
@@ -16,6 +15,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
+import type { ColumnDef } from '@tanstack/react-table';
 
 interface MovementRow {
   id: number;
@@ -74,6 +74,72 @@ interface Props {
   top_supply_movers: { id: number; sku: string; name: string; total_qty: number }[];
 }
 
+const lowStockColumns: ColumnDef<SupplyLowStockRow>[] = [
+  {
+    accessorKey: 'sku',
+    header: 'SKU',
+    cell: ({ row }) => <span className="font-mono text-[11px] text-slate-300">{row.original.sku}</span>,
+  },
+  {
+    accessorKey: 'supply_name',
+    header: 'Material',
+    cell: ({ row }) => <span className="text-sm font-medium">{row.original.supply_name}</span>,
+  },
+  {
+    accessorKey: 'available_stock',
+    header: () => <span className="text-right w-full block">Available</span>,
+    cell: ({ row }) => {
+      const avail = Number(row.original.available_stock);
+      const isCritical = avail <= 0;
+      return (
+        <span className={`text-right block font-bold tabular-nums ${isCritical ? 'text-red-400' : 'text-amber-400'}`}>
+          {avail}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: 'reorder_point',
+    header: () => <span className="text-right w-full block">Reorder</span>,
+    cell: ({ row }) => (
+      <span className="text-right block font-mono text-sm text-slate-400">
+        {Number(row.original.reorder_point)}
+      </span>
+    ),
+  },
+];
+
+const warehouseColumns: ColumnDef<WarehouseStockSummary>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Warehouse',
+    cell: ({ row }) => (
+      <div>
+        <div className="font-medium">{row.original.name}</div>
+        <div className="font-mono text-xs text-muted-foreground">{row.original.code}</div>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'supply_units',
+    header: () => <span className="text-right w-full block">Materials</span>,
+    cell: ({ row }) => (
+      <span className="text-right block font-medium tabular-nums">
+        {Number(row.original.supply_units).toLocaleString()}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'supply_value',
+    header: () => <span className="text-right w-full block">Stock Value</span>,
+    cell: ({ row }) => (
+      <span className="text-right block font-bold tabular-nums text-emerald-400">
+        {formatCurrency(Number(row.original.supply_value))}
+      </span>
+    ),
+  },
+];
+
 export default function InventoryDashboard({
   stats, recent_supply_movements = [], supply_low_stock = [],
   warehouse_stock_summary = [], supply_movement_trend = [],
@@ -100,21 +166,21 @@ export default function InventoryDashboard({
 
       {/* Critical alert bar */}
       {(criticalCount > 0 || stats.pending_adjustments > 0) && (
-        <div className="border-b border-red-200 bg-red-50 px-6 py-2.5">
+        <div className="border-b border-red-900/50 bg-red-950/30 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             {criticalCount > 0 && (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-red-700">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-red-400">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 {criticalCount} material{criticalCount > 1 ? 's' : ''} out of stock
-                <Link href="/inventory/supplies" className="ml-1 underline underline-offset-2 hover:text-red-900">View →</Link>
+                <Link href="/inventory/supplies" className="ml-1 underline underline-offset-2 hover:text-red-300">View →</Link>
               </span>
             )}
             {stats.pending_adjustments > 0 && (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-orange-700">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-orange-400">
                 <SlidersHorizontal className="h-4 w-4 shrink-0" />
                 {stats.pending_adjustments} adjustment{stats.pending_adjustments > 1 ? 's' : ''} awaiting approval
                 {canUseMaterialsAndAdjustments && (
-                  <Link href="/inventory/adjustments?status=PENDING" className="ml-1 underline underline-offset-2 hover:text-orange-900">Review →</Link>
+                  <Link href="/inventory/adjustments?status=PENDING" className="ml-1 underline underline-offset-2 hover:text-orange-300">Review →</Link>
                 )}
               </span>
             )}
@@ -161,24 +227,24 @@ export default function InventoryDashboard({
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <KpiCard
-            accent="purple"
-            icon={<Box className="h-5 w-5 text-purple-600" />}
-            label="Active Materials"
+            title="Active Materials"
             value={stats.total_supplies.toLocaleString()}
-            sub={`${formatCurrency(supply_stock_value)} total value`}
+            subtitle={`${formatCurrency(supply_stock_value)} total value`}
+            icon={<Box className="h-5 w-5 text-purple-400" />}
+            variant="primary"
           />
           <KpiCard
-            accent="emerald"
-            icon={<Warehouse className="h-5 w-5 text-emerald-600" />}
-            label="Warehouses"
+            title="Warehouses"
             value={stats.total_warehouses.toLocaleString()}
+            icon={<Warehouse className="h-5 w-5 text-emerald-400" />}
+            variant="success"
           />
           <KpiCard
-            accent="green"
-            icon={<TrendingUp className="h-5 w-5 text-green-600" />}
-            label="Total Stock Value"
+            title="Total Stock Value"
             value={formatCurrency(stats.stock_value)}
-            sub={`${stats.total_supplies.toLocaleString()} materials`}
+            subtitle={`${stats.total_supplies.toLocaleString()} materials`}
+            icon={<TrendingUp className="h-5 w-5 text-green-400" />}
+            variant="default"
           />
         </div>
 
@@ -228,7 +294,7 @@ export default function InventoryDashboard({
                       <linearGradient id="mout" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/><stop offset="95%" stopColor="#f87171" stopOpacity={0}/></linearGradient>
                       <linearGradient id="madj" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#facc15" stopOpacity={0.3}/><stop offset="95%" stopColor="#facc15" stopOpacity={0}/></linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(supply_movement_trend.length / 6)} />
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number) => v.toLocaleString()} />
@@ -351,7 +417,7 @@ export default function InventoryDashboard({
                           <p className="truncate text-xs font-medium">{m.supply?.name ?? 'Unknown'}</p>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <MovementTypePill type={m.type} />
-                            <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                               {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                             </span>
                           </div>
@@ -378,23 +444,11 @@ export default function InventoryDashboard({
               )}
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader><TableRow className="hover:bg-transparent"><TableHead>SKU</TableHead><TableHead>Material</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">Reorder</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {supply_low_stock.map(s => {
-                    const avail = Number(s.available_stock);
-                    const isCritical = avail <= 0;
-                    return (
-                      <TableRow key={s.id} className={isCritical ? 'bg-red-950/40 hover:bg-red-950/40' : 'bg-amber-950/30 hover:bg-amber-950/40'}>
-                        <TableCell className="font-mono text-[11px] text-slate-300">{s.sku}</TableCell>
-                        <TableCell className="text-sm font-medium">{s.supply_name}</TableCell>
-                        <TableCell className={`text-right font-bold tabular-nums ${isCritical ? 'text-red-400' : 'text-amber-400'}`}>{avail}</TableCell>
-                        <TableCell className="text-right font-mono text-sm text-slate-400">{Number(s.reorder_point)}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={lowStockColumns}
+                data={supply_low_stock}
+                maxHeight={320}
+              />
             </CardContent>
           </Card>
         )}
@@ -410,25 +464,10 @@ export default function InventoryDashboard({
               <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-primary hover:underline">Manage <ArrowRight className="h-3 w-3" /></Link>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader><TableRow className="hover:bg-transparent">
-                  <TableHead>Warehouse</TableHead>
-                  <TableHead className="text-right">Materials</TableHead>
-                  <TableHead className="text-right">Stock Value</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {warehouse_stock_summary.map(wh => (
-                    <TableRow key={wh.id}>
-                      <TableCell>
-                        <div className="font-medium">{wh.name}</div>
-                        <div className="font-mono text-xs text-muted-foreground">{wh.code}</div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">{Number(wh.supply_units).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-bold tabular-nums text-emerald-800">{formatCurrency(Number(wh.supply_value))}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={warehouseColumns}
+                data={warehouse_stock_summary}
+              />
             </CardContent>
           </Card>
         )}
@@ -452,37 +491,17 @@ export default function InventoryDashboard({
   );
 }
 
-function KpiCard({ icon, label, value, accent, sub }: {
-  icon: React.ReactNode; label: string; value: string | number;
-  accent: 'blue' | 'purple' | 'emerald' | 'green';
-  sub?: string;
-}) {
-  const borderCls = { blue: 'border-l-primary', purple: 'border-l-purple-500', emerald: 'border-l-emerald-500', green: 'border-l-green-500' }[accent];
-  return (
-    <Card className={`border-l-4 ${borderCls}`}>
-      <CardContent className="p-4">
-        <div className="mb-2 flex items-center gap-2">
-          {icon}
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        </div>
-        <span className="text-xl font-bold tabular-nums">{value}</span>
-        {sub && <p className="mt-1 text-[11px] text-muted-foreground truncate" title={sub}>{sub}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 function AlertPill({ href, icon, label, value, tone }: {
   href: string; icon: React.ReactNode; label: string; value: number;
   tone: 'orange' | 'amber' | 'blue' | 'green' | 'red' | 'yellow';
 }) {
   const cls: Record<string, string> = {
-    orange: 'bg-orange-100 text-orange-700 border-orange-200',
-    amber:  'bg-amber-100 text-amber-700 border-amber-200',
-    blue:   'bg-blue-100 text-blue-700 border-blue-200',
-    green:  'bg-green-100 text-green-700 border-green-200',
-    red:    'bg-red-100 text-red-700 border-red-200',
-    yellow: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    orange: 'bg-orange-950/40 text-orange-300 border-orange-800',
+    amber:  'bg-amber-950/40 text-amber-300 border-amber-800',
+    blue:   'bg-blue-950/40 text-blue-300 border-blue-800',
+    green:  'bg-green-950/40 text-green-300 border-green-800',
+    red:    'bg-red-950/40 text-red-300 border-red-800',
+    yellow: 'bg-yellow-950/40 text-yellow-300 border-yellow-800',
   };
   return (
     <Link href={href}>
@@ -497,19 +516,19 @@ function AlertPill({ href, icon, label, value, tone }: {
 
 function MovementTypePill({ type }: { type: string }) {
   const cls: Record<string, string> = {
-    STOCK_IN:    'bg-emerald-100 text-emerald-700',
-    STOCK_OUT:   'bg-red-100 text-red-700',
-    ADJUSTMENT:  'bg-yellow-100 text-yellow-700',
-    RETURN:      'bg-blue-100 text-blue-700',
-    RESERVATION: 'bg-purple-100 text-purple-700',
-    RELEASE:     'bg-indigo-100 text-indigo-700',
+    STOCK_IN:    'bg-emerald-950/40 text-emerald-300 border border-emerald-800',
+    STOCK_OUT:   'bg-red-950/40 text-red-300 border border-red-800',
+    ADJUSTMENT:  'bg-yellow-950/40 text-yellow-300 border border-yellow-800',
+    RETURN:      'bg-blue-950/40 text-blue-300 border border-blue-800',
+    RESERVATION: 'bg-purple-950/40 text-purple-300 border border-purple-800',
+    RELEASE:     'bg-indigo-950/40 text-indigo-300 border border-indigo-800',
   };
   const label: Record<string, string> = {
     STOCK_IN: 'In', STOCK_OUT: 'Out', ADJUSTMENT: 'Adj',
     RETURN: 'Return', RESERVATION: 'Rsrv', RELEASE: 'Release',
   };
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls[type] ?? 'bg-gray-100 text-gray-700'}`}>
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls[type] ?? 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
       {label[type] ?? type}
     </span>
   );
