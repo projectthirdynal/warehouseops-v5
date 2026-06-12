@@ -12,10 +12,6 @@ use App\Domain\Procurement\Enums\PrStatus;
 use App\Domain\Procurement\Models\PurchaseOrder;
 use App\Domain\Procurement\Models\PurchaseRequest;
 use App\Domain\Inventory\Models\StockAdjustment;
-use App\Domain\Inventory\Models\StockCostLot;
-use App\Domain\Product\Models\InventoryMovement;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -27,42 +23,18 @@ class InventoryDashboardController extends Controller
     {
         $since30 = now()->subDays(30)->startOfDay();
 
-        // ── Stock value (products + supplies) ────────────────────────
-        $productStockValue = (float) DB::table('product_stocks as ps')
-            ->join('products as p', 'p.id', '=', 'ps.product_id')
-            ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
-
+        // ── Stock value (supplies only) ──────────────────────────────
         $supplyStockValue = (float) DB::table('supply_stocks as ss')
             ->join('supplies as s', 's.id', '=', 'ss.supply_id')
             ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
 
-        $stockValue = $productStockValue + $supplyStockValue;
-
-        // ── Low stock counts ─────────────────────────────────────────
-        $lowStockCount = ProductStock::whereRaw('(current_stock - reserved_stock) <= reorder_point')
-            ->where('reorder_point', '>', 0)
-            ->count();
-
+        // ── Low stock materials count ────────────────────────────────
         $supplyLowStockCount = SupplyStock::whereRaw('(current_stock - reserved_stock) <= reorder_point')
             ->where('reorder_point', '>', 0)
             ->count();
 
-        // ── Expiring lots (within 30 days) ───────────────────────────
-        $expiringSoon = StockCostLot::whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '<=', now()->addDays(30))
-            ->whereDate('expiry_date', '>=', now())
-            ->where('quantity_remaining', '>', 0)
-            ->count();
-
-        // ── Non-moving / dead stock counts (no movement in 90 days) ─
+        // ── Non-moving supplies (no movement in 90 days) ────────────
         $deadThreshold = now()->subDays(90);
-        $nonMovingProducts = DB::table('product_stocks as ps')
-            ->join('products as p', 'p.id', '=', 'ps.product_id')
-            ->where('ps.current_stock', '>', 0)
-            ->whereNull('p.deleted_at')
-            ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$deadThreshold])
-            ->count();
-
         $nonMovingSupplies = DB::table('supply_stocks as ss')
             ->join('supplies as s', 's.id', '=', 'ss.supply_id')
             ->where('ss.current_stock', '>', 0)
@@ -72,25 +44,15 @@ class InventoryDashboardController extends Controller
 
         // ── Stats ────────────────────────────────────────────────────
         $stats = [
-            'total_products'      => Product::where('is_active', true)->count(),
             'total_supplies'      => Supply::where('is_active', true)->count(),
             'total_warehouses'    => Warehouse::where('is_active', true)->count(),
-            'stock_value'         => $stockValue,
-            'low_stock_count'     => $lowStockCount,
+            'stock_value'         => $supplyStockValue,
             'supply_low_stock'    => $supplyLowStockCount,
-            'expiring_soon'       => $expiringSoon,
             'pending_adjustments' => StockAdjustment::where('status', 'PENDING')->count(),
             'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
             'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
-            'non_moving_products' => $nonMovingProducts,
             'non_moving_supplies' => $nonMovingSupplies,
         ];
-
-        // ── Recent product movements ─────────────────────────────────
-        $recentMovements = InventoryMovement::with(['product:id,sku,name', 'warehouse:id,name'])
-            ->latest()
-            ->limit(20)
-            ->get(['id', 'product_id', 'warehouse_id', 'type', 'quantity', 'created_at', 'notes']);
 
         // ── Recent supply movements ──────────────────────────────────
         $recentSupplyMovements = DB::table('supply_movements as sm')
@@ -114,14 +76,6 @@ class InventoryDashboardController extends Controller
                 'warehouse' => $m->warehouse_id ? ['id' => $m->warehouse_id, 'name' => $m->warehouse_name] : null,
             ]);
 
-        // ── Low stock products (detail) ──────────────────────────────
-        $lowStock = ProductStock::with(['product:id,sku,name', 'warehouse:id,name'])
-            ->whereRaw('(current_stock - reserved_stock) <= reorder_point')
-            ->where('reorder_point', '>', 0)
-            ->orderByRaw('(current_stock - reserved_stock) ASC')
-            ->limit(10)
-            ->get();
-
         // ── Low stock materials (detail) ─────────────────────────────
         $supplyLowStock = DB::table('supply_stocks as ss')
             ->join('supplies as s', 's.id', '=', 'ss.supply_id')
@@ -136,33 +90,6 @@ class InventoryDashboardController extends Controller
                 'ss.current_stock', 'ss.reserved_stock', 'ss.reorder_point',
                 DB::raw('CASE WHEN ss.current_stock - ss.reserved_stock > 0 THEN ss.current_stock - ss.reserved_stock ELSE 0 END as available_stock'),
             ])
-            ->get();
-
-        // ── Expiring lots (detail) ───────────────────────────────────
-        $expiringLots = DB::table('stock_cost_lots as scl')
-            ->join('products as p', 'p.id', '=', 'scl.product_id')
-            ->leftJoin('warehouses as w', 'w.id', '=', 'scl.warehouse_id')
-            ->whereNotNull('scl.expiry_date')
-            ->whereDate('scl.expiry_date', '<=', now()->addDays(30))
-            ->whereDate('scl.expiry_date', '>=', now())
-            ->where('scl.quantity_remaining', '>', 0)
-            ->orderBy('scl.expiry_date')
-            ->limit(10)
-            ->select([
-                'scl.id', 'p.name as product_name', 'p.sku',
-                'w.name as warehouse_name',
-                'scl.quantity_remaining', 'scl.expiry_date', 'scl.batch_number',
-            ])
-            ->get();
-
-        // ── 30-day product movement trend ────────────────────────────
-        $movementTrend = DB::table('inventory_movements')
-            ->where('created_at', '>=', $since30)
-            ->selectRaw("DATE(created_at) as date,
-                SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as stock_in,
-                SUM(CASE WHEN quantity < 0 THEN -quantity ELSE 0 END) as stock_out")
-            ->groupByRaw('DATE(created_at)')
-            ->orderBy('date')
             ->get();
 
         // ── 30-day supply movement trend ─────────────────────────────
@@ -194,57 +121,44 @@ class InventoryDashboardController extends Controller
             ->pluck('count', 'section')
             ->all();
 
-        // ── Top movers (products + supplies) ─────────────────────────
-        $topProductMovers = DB::table('inventory_movements as im')
-            ->join('products as p', 'p.id', '=', 'im.product_id')
-            ->where('im.created_at', '>=', $since30)
-            ->select('p.id', 'p.sku', 'p.name', DB::raw('SUM(ABS(im.quantity)) as total_qty'))
-            ->groupBy('p.id', 'p.sku', 'p.name')
-            ->orderByRaw('total_qty DESC')
-            ->limit(5)
-            ->get();
-
+        // ── Top supply movers (30d) ─────────────────────────────────
         $topSupplyMovers = DB::table('supply_movements as sm')
             ->join('supplies as s', 's.id', '=', 'sm.supply_id')
             ->where('sm.created_at', '>=', $since30)
+            ->whereNull('s.deleted_at')
+            ->where('s.is_active', true)
             ->select('s.id', 's.sku', 's.name', DB::raw('SUM(ABS(sm.quantity)) as total_qty'))
             ->groupBy('s.id', 's.sku', 's.name')
             ->orderByRaw('total_qty DESC')
             ->limit(5)
             ->get();
 
-        // ── Warehouse stock summary (products + supplies) ────────────
+        // ── Warehouse stock summary (supplies only, subquery to avoid Cartesian product) ─
         $warehouseStockSummary = DB::table('warehouses as w')
-            ->leftJoin('product_stocks as ps', 'ps.warehouse_id', '=', 'w.id')
-            ->leftJoin('products as p', 'p.id', '=', 'ps.product_id')
-            ->leftJoin('supply_stocks as ss', 'ss.warehouse_id', '=', 'w.id')
-            ->leftJoin('supplies as s', 's.id', '=', 'ss.supply_id')
             ->where('w.is_active', true)
-            ->groupBy('w.id', 'w.name', 'w.code')
+            ->leftJoinSub(
+                DB::table('supply_stocks as ss')
+                    ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                    ->select('ss.warehouse_id', DB::raw('COUNT(DISTINCT ss.supply_id) as supply_units'), DB::raw('SUM(ss.current_stock * COALESCE(s.cost_price, 0)) as supply_value'))
+                    ->groupBy('ss.warehouse_id'),
+                'sv', 'sv.warehouse_id', '=', 'w.id'
+            )
             ->select([
                 'w.id', 'w.name', 'w.code',
-                DB::raw('COALESCE(COUNT(DISTINCT ps.product_id), 0) as product_units'),
-                DB::raw('COALESCE(COUNT(DISTINCT ss.supply_id), 0) as supply_units'),
-                DB::raw('COALESCE(SUM(ps.current_stock * COALESCE(p.cost_price, 0)), 0) as product_value'),
-                DB::raw('COALESCE(SUM(ss.current_stock * COALESCE(s.cost_price, 0)), 0) as supply_value'),
+                DB::raw('COALESCE(sv.supply_units, 0) as supply_units'),
+                DB::raw('COALESCE(sv.supply_value, 0) as supply_value'),
             ])
             ->get();
 
         return Inertia::render('Inventory/Dashboard', [
             'stats'                       => $stats,
-            'recent_movements'            => $recentMovements,
             'recent_supply_movements'     => $recentSupplyMovements,
-            'low_stock'                   => $lowStock,
             'supply_low_stock'            => $supplyLowStock,
-            'expiring_lots'               => $expiringLots,
-            'movement_trend'              => $movementTrend,
             'supply_movement_trend'       => $supplyMovementTrend,
             'warehouse_stock_summary'     => $warehouseStockSummary,
-            'product_stock_value'         => $productStockValue,
             'supply_stock_value'          => $supplyStockValue,
             'stock_status_distribution'   => $stockStatusDistribution,
             'section_breakdown'           => $sectionBreakdown,
-            'top_product_movers'          => $topProductMovers,
             'top_supply_movers'           => $topSupplyMovers,
         ]);
     }
