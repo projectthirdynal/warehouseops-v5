@@ -80,7 +80,6 @@ interface Props {
     active: number;
     low_stock: number;
     trashed: number;
-    by_section: { STOCK: number; OPEX: number };
     by_stock_status: { MOVING: number; NON_MOVING: number; DEAD: number; OUT_OF_STOCK: number };
     categories: string[];
   };
@@ -88,7 +87,6 @@ interface Props {
     search?: string;
     category?: string;
     status?: string;
-    section?: string;
     stock_category?: string;
     opex_category?: string;
     stock_status?: string;
@@ -98,24 +96,18 @@ interface Props {
   recent_movements: SupplyMovement[];
 }
 
-const SECTION_TABS = [
-  { value: 'all',   label: 'All' },
-  { value: 'STOCK', label: 'Inventory Management' },
-  { value: 'OPEX',  label: 'Finance' },
-];
-
 const STOCK_CATEGORY_TABS = [
-  { value: 'all',                label: 'All Stock' },
+  { value: 'all',                label: 'All' },
   { value: 'RAW_MATERIAL',       label: 'Raw Materials' },
-  { value: 'PRODUCTION_MATERIAL',label: 'Production Materials' },
+  { value: 'PRODUCTION_MATERIAL',label: 'Production' },
   { value: 'MERCHANDISE',        label: 'Merchandise' },
-  { value: 'RD_SUPPLY',          label: 'R&D Supplies' },
+  { value: 'RD_SUPPLY',          label: 'R&D' },
 ];
 
 const OPEX_CATEGORY_TABS = [
-  { value: 'all',               label: 'All OPEX' },
+  { value: 'all',               label: 'All' },
   { value: 'OFFICE_SUPPLY',     label: 'Office Supplies' },
-  { value: 'CLEANING_MATERIAL', label: 'Cleaning Materials' },
+  { value: 'CLEANING_MATERIAL', label: 'Cleaning' },
 ];
 
 const STATUS_TABS = [
@@ -134,7 +126,6 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   const [deleteTarget, setDeleteTarget] = useState<Supply | null>(null);
   const [statusTarget, setStatusTarget] = useState<Supply | null>(null);
 
-  const section      = filters.section ?? 'all';
   const stockStatus  = filters.stock_status ?? 'all';
 
   function applyFilters(overrides: Record<string, string>) {
@@ -181,60 +172,39 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
           <StatCard label="Page Stock Value" value={formatCurrency(stockValue)} />
         </div>
 
-        {/* Section 1 / Section 2 tabs */}
-        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1 w-fit">
-          {SECTION_TABS.map(tab => (
+        {/* Stock category tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {STOCK_CATEGORY_TABS.map(tab => (
             <button
               key={tab.value}
-              onClick={() => applyFilters({ section: tab.value, stock_category: '', opex_category: '', page: '1' })}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-                section === tab.value
-                  ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+              onClick={() => applyFilters({ stock_category: tab.value, opex_category: '', page: '1' })}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                (filters.stock_category ?? 'all') === tab.value
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-input hover:bg-muted'
               }`}
             >
               {tab.label}
-              {tab.value === 'STOCK' && <span className="ml-1.5 text-xs opacity-60">{stats.by_section.STOCK}</span>}
-              {tab.value === 'OPEX'  && <span className="ml-1.5 text-xs opacity-60">{stats.by_section.OPEX}</span>}
             </button>
           ))}
         </div>
 
-        {/* Sub-category tabs */}
-        {section === 'STOCK' && (
-          <div className="flex flex-wrap gap-1.5">
-            {STOCK_CATEGORY_TABS.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => applyFilters({ stock_category: tab.value, page: '1' })}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  (filters.stock_category ?? 'all') === tab.value
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'border-input hover:bg-muted'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {section === 'OPEX' && (
-          <div className="flex flex-wrap gap-1.5">
-            {OPEX_CATEGORY_TABS.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => applyFilters({ opex_category: tab.value, page: '1' })}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  (filters.opex_category ?? 'all') === tab.value
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'border-input hover:bg-muted'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* OPEX category tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {OPEX_CATEGORY_TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => applyFilters({ opex_category: tab.value, stock_category: '', page: '1' })}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                (filters.opex_category ?? 'all') === tab.value
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-input hover:bg-muted'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
         {/* Stock status tabs */}
         <div className="flex flex-wrap gap-1.5">

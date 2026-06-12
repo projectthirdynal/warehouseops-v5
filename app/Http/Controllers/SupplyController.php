@@ -30,7 +30,6 @@ class SupplyController extends Controller
                 });
             })
             ->when($request->category, fn ($query, string $category) => $query->whereRaw('LOWER(category) = ?', [strtolower($category)]))
-            ->when($request->section && $request->section !== 'all', fn ($q) => $q->where('section', $request->section))
             ->when($request->stock_category && $request->stock_category !== 'all', fn ($q) => $q->where('stock_category', $request->stock_category))
             ->when($request->opex_category && $request->opex_category !== 'all', fn ($q) => $q->where('opex_category', $request->opex_category))
             ->when($request->stock_status && $request->stock_status !== 'all', function ($q) use ($request) {
@@ -104,10 +103,6 @@ class SupplyController extends Controller
                 'active'     => Supply::where('is_active', true)->count(),
                 'low_stock'  => $lowStock,
                 'trashed'    => Supply::onlyTrashed()->count(),
-                'by_section' => [
-                    'STOCK' => Supply::where('section', 'STOCK')->count(),
-                    'OPEX'  => Supply::where('section', 'OPEX')->count(),
-                ],
                 'by_stock_status' => [
                     'MOVING'       => Supply::where('stock_status', 'MOVING')->count(),
                     'NON_MOVING'   => Supply::where('stock_status', 'NON_MOVING')->count(),
@@ -123,7 +118,7 @@ class SupplyController extends Controller
                     ->sort()
                     ->values(),
             ],
-            'filters' => $request->only(['search', 'category', 'status', 'section', 'stock_category', 'opex_category', 'stock_status']),
+            'filters' => $request->only(['search', 'category', 'status', 'stock_category', 'opex_category', 'stock_status']),
             'uoms' => UnitOfMeasure::where('is_active', true)->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
             'recent_movements' => $recentMovements,
