@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,9 +82,15 @@ export default function AssetCreate({ asset, categories, warehouses, uoms, users
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (isEdit) {
-      form.put(`/inventory/assets/${asset.id}`);
+      form.put(`/inventory/assets/${asset.id}`, {
+        onSuccess: () => toast.success('Asset updated.'),
+        onError: () => toast.error('Failed to update asset.'),
+      });
     } else {
-      form.post('/inventory/assets');
+      form.post('/inventory/assets', {
+        onSuccess: () => toast.success('Asset created.'),
+        onError: () => toast.error('Failed to create asset.'),
+      });
     }
   }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -83,6 +84,8 @@ export default function StockAdjustments({
     if (!approveId) return;
     setApproving(true);
     router.post(`/inventory/adjustments/${approveId}/approve`, {}, {
+      onSuccess: () => toast.success('Adjustment approved.'),
+      onError: () => toast.error('Failed to approve adjustment.'),
       onFinish: () => { setApproveId(null); setApproving(false); },
       preserveScroll: true,
     });
@@ -91,7 +94,8 @@ export default function StockAdjustments({
   function reject() {
     if (!rejectId) return;
     router.post(`/inventory/adjustments/${rejectId}/reject`, { reason: rejectReason }, {
-      onSuccess: () => { setRejectId(null); setRejectReason(''); },
+      onSuccess: () => { setRejectId(null); setRejectReason(''); toast.success('Adjustment rejected.'); },
+      onError: () => toast.error('Failed to reject adjustment.'),
       preserveScroll: true,
     });
   }
@@ -364,7 +368,10 @@ function AdjustmentDialog({ open, onClose, warehouses, products, supplies }: {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    form.post('/inventory/adjustments', { onSuccess: () => { onClose(); form.reset(); } });
+    form.post('/inventory/adjustments', {
+      onSuccess: () => { onClose(); form.reset(); toast.success('Adjustment submitted.'); },
+      onError: () => toast.error('Failed to submit adjustment.'),
+    });
   }
 
   return (

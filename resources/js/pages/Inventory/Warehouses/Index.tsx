@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,7 +54,8 @@ export default function WarehousesIndex({ warehouses }: Props) {
   function submitWarehouse(e: React.FormEvent) {
     e.preventDefault();
     whForm.post('/warehouses', {
-      onSuccess: () => { setWhOpen(false); whForm.reset(); },
+      onSuccess: () => { setWhOpen(false); whForm.reset(); toast.success('Warehouse created.'); },
+      onError: () => toast.error('Failed to create warehouse.'),
     });
   }
 
@@ -155,7 +157,10 @@ export default function WarehousesIndex({ warehouses }: Props) {
                       <TableCell className="text-right text-sm">{loc.capacity ?? '—'}</TableCell>
                       <TableCell>
                         <Button size="icon" variant="ghost" onClick={() => {
-                          if (confirm('Remove this location?')) router.delete(`/warehouses/locations/${loc.id}`);
+                          if (confirm('Remove this location?')) router.delete(`/warehouses/locations/${loc.id}`, {
+                            onSuccess: () => toast.success('Location removed.'),
+                            onError: () => toast.error('Failed to remove location.'),
+                          });
                         }}>
                           <Trash2 className="h-3.5 w-3.5 text-red-500" />
                         </Button>
@@ -178,7 +183,8 @@ function LocationDialog({ warehouseId, onClose }: { warehouseId: number; onClose
   function submit(e: React.FormEvent) {
     e.preventDefault();
     form.post(`/warehouses/${warehouseId}/locations`, {
-      onSuccess: () => { onClose(); form.reset(); },
+      onSuccess: () => { onClose(); form.reset(); toast.success('Location added.'); },
+      onError: () => toast.error('Failed to add location.'),
     });
   }
 

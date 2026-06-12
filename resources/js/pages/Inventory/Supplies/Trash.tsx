@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -124,7 +125,10 @@ function RestoreButton({ id }: { id: number }) {
       size="sm"
       variant="outline"
       disabled={form.processing}
-      onClick={() => form.post(`/inventory/supplies/${id}/restore`)}
+      onClick={() => form.post(`/inventory/supplies/${id}/restore`, {
+        onSuccess: () => toast.success('Material restored.'),
+        onError: () => toast.error('Failed to restore material.'),
+      })}
     >
       <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Restore
     </Button>
