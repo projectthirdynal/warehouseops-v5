@@ -100,8 +100,8 @@ interface Props {
 
 const SECTION_TABS = [
   { value: 'all',   label: 'All' },
-  { value: 'STOCK', label: 'Section 1 — Stock' },
-  { value: 'OPEX',  label: 'Section 2 — OPEX' },
+  { value: 'STOCK', label: 'Inventory Management' },
+  { value: 'OPEX',  label: 'Finance' },
 ];
 
 const STOCK_CATEGORY_TABS = [
@@ -322,7 +322,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                       <div className="text-xs text-muted-foreground"><span className="font-mono">{supply.sku}</span>{supply.uom && ` / ${supply.uom.abbreviation}`}</div>
                     </TableCell>
                     <TableCell>
-                      <SectionBadge stockCategory={supply.stock_category} opexCategory={supply.opex_category} category={supply.category} />
+                      <SectionBadge section={supply.section} stockCategory={supply.stock_category} opexCategory={supply.opex_category} category={supply.category} />
                     </TableCell>
                     <TableCell>
                       <StockStatusBadge status={supply.stock_status} override={supply.stock_status_override} />
@@ -549,7 +549,8 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   );
 }
 
-function SectionBadge({ stockCategory, opexCategory, category }: {
+function SectionBadge({ section, stockCategory, opexCategory, category }: {
+  section: 'STOCK' | 'OPEX' | string;
   stockCategory?: string;
   opexCategory?: string;
   category?: string;
@@ -571,7 +572,18 @@ function SectionBadge({ stockCategory, opexCategory, category }: {
       ? (STOCK_LABELS[stockCategory] ?? stockCategory)
       : (category ?? null);
 
-  return <span className="text-xs text-muted-foreground">{label ?? '—'}</span>;
+  const dotColor = section === 'STOCK'
+    ? 'bg-emerald-400'
+    : section === 'OPEX'
+      ? 'bg-blue-400'
+      : 'bg-slate-400';
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+      {label ?? '—'}
+    </span>
+  );
 }
 
 function StockStatusBadge({ status, override }: { status: string; override: boolean }) {
