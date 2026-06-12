@@ -728,8 +728,10 @@ function NotificationBell() {
   const [notifications, setNotifications]     = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount]         = useState(0);
   const panelRef                              = useRef<HTMLDivElement>(null);
+  const networkErrorRef                       = useRef(false);
 
   const fetchNotifications = useCallback(async () => {
+    if (networkErrorRef.current) return;
     try {
       const res = await fetch('/api/notifications', {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -741,7 +743,7 @@ function NotificationBell() {
         setUnreadCount(data.unread_count ?? 0);
       }
     } catch {
-      // Silently fail
+      networkErrorRef.current = true;
     }
   }, []);
 
