@@ -128,7 +128,7 @@ export default function InventoryDashboard({
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Inventory Dashboard</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {formatCurrency(supply_stock_value)} materials · {stats.total_warehouses} warehouses
+              {stats.total_supplies.toLocaleString()} materials · {stats.total_warehouses} warehouses
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -165,7 +165,7 @@ export default function InventoryDashboard({
             icon={<Box className="h-5 w-5 text-purple-600" />}
             label="Active Materials"
             value={stats.total_supplies.toLocaleString()}
-            sub={formatCurrency(supply_stock_value)}
+            sub={`${formatCurrency(supply_stock_value)} total value`}
           />
           <KpiCard
             accent="emerald"
@@ -178,7 +178,7 @@ export default function InventoryDashboard({
             icon={<TrendingUp className="h-5 w-5 text-green-600" />}
             label="Total Stock Value"
             value={formatCurrency(stats.stock_value)}
-            sub={`${formatCurrency(supply_stock_value)} materials`}
+            sub={`${stats.total_supplies.toLocaleString()} materials`}
           />
         </div>
 
