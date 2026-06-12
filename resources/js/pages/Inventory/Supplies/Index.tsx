@@ -16,9 +16,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { AlertTriangle, Boxes, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, Download, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
 import Paginator from '@/components/Paginator';
+import { DataTable } from '@/components/ui/data-table';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import type { ColumnDef } from '@tanstack/react-table';
 import type { PaginatedResponse } from '@/types';
 
 interface Uom {
@@ -91,6 +93,7 @@ interface Props {
     stock_category?: string;
     opex_category?: string;
     stock_status?: string;
+    per_page?: number;
   };
   uoms: Uom[];
   warehouses: Warehouse[];
@@ -137,6 +140,101 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
     supplies.data.reduce((sum, supply) => sum + totalStock(supply) * Number(supply.cost_price), 0),
     [supplies.data]
   );
+
+  const columns = useMemo<ColumnDef<Supply>[]>(() => [
+    {
+      id: 'material',
+      header: 'Material',
+      enableHiding: false,
+      cell: ({ row }) => {
+        const s = row.original;
+        return (
+          <div className="min-w-[140px]">
+            <div className="font-medium leading-tight">{s.name}</div>
+            <div className="text-xs text-muted-foreground font-mono">{s.sku}{s.uom && ` / ${s.uom.abbreviation}`}</div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'category',
+      header: 'Category',
+      cell: ({ row }) => <SectionBadge section={row.original.section} stockCategory={row.original.stock_category} opexCategory={row.original.opex_category} category={row.original.category} />,
+    },
+    {
+      id: 'movement',
+      header: 'Movement',
+      cell: ({ row }) => <StockStatusBadge status={row.original.stock_status} override={row.original.stock_status_override} />,
+    },
+    {
+      id: 'available',
+      header: () => <span className="block text-right">Available</span>,
+      cell: ({ row }) => {
+        const supply = row.original;
+        const available = totalAvailable(supply);
+        const reorder = supply.stocks[0]?.reorder_point ?? supply.reorder_point;
+        const isLow = reorder > 0 && available <= reorder;
+        return (
+          <div className={`text-right font-medium ${isLow ? 'text-orange-400' : ''}`}>
+            {available}
+            {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'reorder',
+      header: () => <span className="block text-right">Reorder</span>,
+      cell: ({ row }) => <div className="text-right text-sm">{row.original.stocks[0]?.reorder_point ?? row.original.reorder_point}</div>,
+    },
+    {
+      id: 'unit_cost',
+      header: () => <span className="block text-right">Unit Cost</span>,
+      cell: ({ row }) => <div className="text-right text-sm">{formatCurrency(Number(row.original.cost_price))}</div>,
+    },
+    {
+      id: 'stock_value',
+      header: () => <span className="block text-right">Stock Value</span>,
+      cell: ({ row }) => {
+        const available = totalAvailable(row.original);
+        return <div className="text-right text-sm font-medium">{formatCurrency(available * Number(row.original.cost_price))}</div>;
+      },
+    },
+    {
+      id: 'warehouse',
+      header: 'Warehouse',
+      cell: ({ row }) => <div className="text-sm">{row.original.stocks.map(s => s.warehouse?.name).filter(Boolean).join(', ') || '—'}</div>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const s = row.original;
+        return (
+          <span className={`rounded-full px-2 py-0.5 text-xs ${s.is_active ? 'bg-green-950/40 text-green-300' : 'bg-slate-800 text-slate-400'}`}>
+            {s.is_active ? 'Active' : 'Inactive'}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableHiding: false,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const supply = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" title="Override stock status" onClick={() => setStatusTarget(supply)}><Tag className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTarget(supply)}><Trash2 className="h-4 w-4" /></Button>
+          </div>
+        );
+      },
+    },
+  ], []);
 
   return (
     <AppLayout>
@@ -257,77 +355,85 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         </Card>
 
         {/* Table */}
-        <Card>
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Movement</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-                <TableHead className="text-right">Reorder</TableHead>
-                <TableHead className="text-right">Unit Cost</TableHead>
-                <TableHead className="text-right">Stock Value</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-28"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {supplies.data.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
-                    <Boxes className="mx-auto mb-2 h-8 w-8 opacity-30" />
-                    No materials match these filters.
-                  </TableCell>
-                </TableRow>
-              ) : supplies.data.map(supply => {
-                const available = totalAvailable(supply);
-                const reorder = supply.stocks[0]?.reorder_point ?? supply.reorder_point;
-                const isLow = reorder > 0 && available <= reorder;
-
-                return (
-                  <TableRow key={supply.id}>
-                    <TableCell>
-                      <div className="font-medium">{supply.name}</div>
-                      <div className="text-xs text-muted-foreground"><span className="font-mono">{supply.sku}</span>{supply.uom && ` / ${supply.uom.abbreviation}`}</div>
-                    </TableCell>
-                    <TableCell>
-                      <SectionBadge section={supply.section} stockCategory={supply.stock_category} opexCategory={supply.opex_category} category={supply.category} />
-                    </TableCell>
-                    <TableCell>
-                      <StockStatusBadge status={supply.stock_status} override={supply.stock_status_override} />
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${isLow ? 'text-orange-400' : ''}`}>
-                      {available}
-                      {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">{reorder}</TableCell>
-                    <TableCell className="text-right text-sm">{formatCurrency(Number(supply.cost_price))}</TableCell>
-                    <TableCell className="text-right text-sm font-medium">{formatCurrency(available * Number(supply.cost_price))}</TableCell>
-                    <TableCell className="text-sm">{supply.stocks.map(stock => stock.warehouse?.name).filter(Boolean).join(', ') || '—'}</TableCell>
-                    <TableCell>
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${supply.is_active ? 'bg-green-950/40 text-green-300' : 'bg-slate-800 text-slate-400'}`}>
-                        {supply.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" title="Override stock status" onClick={() => setStatusTarget(supply)}><Tag className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTarget(supply)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        <Card className="p-4 space-y-3">
+          {/* Per-page + pagination row */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Show</span>
+              <Select
+                value={String(filters.per_page ?? 25)}
+                onValueChange={(v) => applyFilters({ per_page: v, page: '1' })}
+              >
+                <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <span>per page</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {supplies.from}–{supplies.to} of {supplies.total} materials
+            </span>
           </div>
+
+          <DataTable
+            columns={columns}
+            data={supplies.data}
+            storageKey="supplies_cols_v1"
+            emptyMessage="No materials match these filters."
+            toolbar={(table) => {
+              const selected = table.getFilteredSelectedRowModel().rows;
+              if (selected.length === 0) return null;
+              const selectedSupplies = selected.map(r => r.original);
+              return (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">{selected.length} selected</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => {
+                      const rows = selectedSupplies.map(s => ({
+                        SKU: s.sku,
+                        Name: s.name,
+                        Category: s.category ?? '',
+                        Available: totalAvailable(s),
+                        'Unit Cost': Number(s.cost_price),
+                        'Stock Value': totalAvailable(s) * Number(s.cost_price),
+                        Status: s.is_active ? 'Active' : 'Inactive',
+                        'Stock Status': s.stock_status,
+                      }));
+                      import('xlsx').then(({ utils, writeFile }) => {
+                        const ws = utils.json_to_sheet(rows);
+                        const wb = utils.book_new();
+                        utils.book_append_sheet(wb, ws, 'Materials');
+                        writeFile(wb, `materials-export-${Date.now()}.xlsx`);
+                      });
+                    }}
+                  >
+                    <Download className="h-3 w-3" />Export
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-xs text-red-500 hover:text-red-700"
+                    onClick={() => {
+                      if (!confirm(`Archive ${selected.length} selected material(s)?`)) return;
+                      selectedSupplies.forEach(s => {
+                        router.patch(`/inventory/supplies/${s.id}`, { is_active: false }, { preserveState: true });
+                      });
+                      table.resetRowSelection();
+                    }}
+                  >
+                    <Archive className="h-3 w-3" />Archive
+                  </Button>
+                </div>
+              );
+            }}
+          />
+
           {supplies.last_page > 1 && (
-            <div className="border-t p-3">
+            <div className="border-t pt-3">
               <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
             </div>
           )}

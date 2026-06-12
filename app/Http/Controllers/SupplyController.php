@@ -46,7 +46,7 @@ class SupplyController extends Controller
             ->when($request->status === 'active', fn ($query) => $query->where('is_active', true))
             ->when($request->status === 'inactive', fn ($query) => $query->where('is_active', false))
             ->orderBy('name')
-            ->paginate(25)
+            ->paginate(max(1, min(500, (int) ($request->per_page ?? 25))))
             ->withQueryString();
 
         $lowStock = SupplyStock::query()
@@ -124,7 +124,7 @@ class SupplyController extends Controller
                     ->sort()
                     ->values(),
             ],
-            'filters' => $request->only(['search', 'category', 'status', 'stock_category', 'opex_category', 'stock_status']),
+            'filters' => $request->only(['search', 'category', 'status', 'stock_category', 'opex_category', 'stock_status', 'per_page']),
             'uoms' => UnitOfMeasure::where('is_active', true)->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
             'recent_movements' => $recentMovements,
