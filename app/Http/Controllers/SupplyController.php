@@ -131,6 +131,71 @@ class SupplyController extends Controller
         ]);
     }
 
+    public function summary(Supply $supply): \Illuminate\Http\JsonResponse
+    {
+        $supply->load(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code']);
+
+        $totalStock     = $supply->stocks->sum('current_stock');
+        $reservedStock  = $supply->stocks->sum('reserved_stock');
+        $availableStock = max(0, $totalStock - $reservedStock);
+
+        $movements = DB::table('supply_movements as sm')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
+            ->leftJoin('users as u', 'u.id', '=', 'sm.performed_by')
+            ->where('sm.supply_id', $supply->id)
+            ->select([
+                'sm.id', 'sm.type', 'sm.quantity', 'sm.notes', 'sm.created_at',
+                'w.name as warehouse_name',
+                'u.name as performer_name',
+            ])
+            ->latest('sm.created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($m) => [
+                'id'             => $m->id,
+                'type'           => $m->type,
+                'quantity'       => (int) $m->quantity,
+                'notes'          => $m->notes,
+                'created_at'     => $m->created_at,
+                'warehouse_name' => $m->warehouse_name,
+                'performer_name' => $m->performer_name,
+            ]);
+
+        return response()->json([
+            'supply' => [
+                'id'             => $supply->id,
+                'sku'            => $supply->sku,
+                'name'           => $supply->name,
+                'category'       => $supply->category,
+                'section'        => $supply->section,
+                'stock_category' => $supply->stock_category,
+                'opex_category'  => $supply->opex_category,
+                'cost_price'     => $supply->cost_price,
+                'reorder_point'  => $supply->reorder_point,
+                'stock_status'   => $supply->stock_status,
+                'is_active'      => $supply->is_active,
+                'uom'            => $supply->uom,
+                'description'    => $supply->description,
+            ],
+            'stocks' => $supply->stocks->map(fn ($s) => [
+                'id'             => $s->id,
+                'warehouse_name' => $s->warehouse?->name,
+                'warehouse_code' => $s->warehouse?->code,
+                'current_stock'  => (int) $s->current_stock,
+                'reserved_stock' => (int) $s->reserved_stock,
+                'available'      => max(0, (int) $s->current_stock - (int) $s->reserved_stock),
+                'reorder_point'  => (int) $s->reorder_point,
+            ]),
+            'kpi' => [
+                'total_stock'     => (int) $totalStock,
+                'reserved_stock'  => (int) $reservedStock,
+                'available_stock' => $availableStock,
+                'reorder_point'   => (int) $supply->reorder_point,
+            ],
+            'recent_movements' => $movements,
+        ]);
+    }
+
     public function trash(Request $request): Response
     {
         $trashed = Supply::onlyTrashed()

@@ -19,6 +19,7 @@ import {
 import { AlertTriangle, Archive, Download, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
 import Paginator from '@/components/Paginator';
 import { DataTable } from '@/components/ui/data-table';
+import { SupplyDetailDrawer } from '@/components/SupplyDetailDrawer';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { PaginatedResponse } from '@/types';
@@ -129,6 +130,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   const [stockTarget, setStockTarget] = useState<Supply | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supply | null>(null);
   const [statusTarget, setStatusTarget] = useState<Supply | null>(null);
+  const [drawerSupplyId, setDrawerSupplyId] = useState<number | null>(null);
 
   const stockStatus  = filters.stock_status ?? 'all';
 
@@ -226,6 +228,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         const supply = row.original;
         return (
           <div className="flex justify-end gap-1">
+            <Button size="icon" variant="ghost" title="View detail" onClick={() => setDrawerSupplyId(supply.id)}><PackagePlus className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" title="Override stock status" onClick={() => setStatusTarget(supply)}><Tag className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
@@ -472,6 +475,26 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         )}
       </div>
 
+      <SupplyDetailDrawer
+        supplyId={drawerSupplyId}
+        onClose={() => setDrawerSupplyId(null)}
+        onEdit={(id) => {
+          const s = supplies.data.find(x => x.id === id) ?? null;
+          setEditing(s);
+          setMaterialOpen(true);
+          setDrawerSupplyId(null);
+        }}
+        onAdjustStock={(id) => {
+          const s = supplies.data.find(x => x.id === id) ?? null;
+          setStockTarget(s);
+          setDrawerSupplyId(null);
+        }}
+        onOverrideStatus={(id) => {
+          const s = supplies.data.find(x => x.id === id) ?? null;
+          setStatusTarget(s);
+          setDrawerSupplyId(null);
+        }}
+      />
       <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} onOverrideStatus={(s) => { setMaterialOpen(false); setStatusTarget(s); }} />
       <StockDialog supply={stockTarget} onClose={() => setStockTarget(null)} warehouses={warehouses} />
       <StatusOverrideDialog supply={statusTarget} onClose={() => setStatusTarget(null)} />
