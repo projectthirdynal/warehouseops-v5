@@ -11,10 +11,12 @@ use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SupplyController extends Controller
 {
@@ -128,6 +130,64 @@ class SupplyController extends Controller
             'uoms' => UnitOfMeasure::where('is_active', true)->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'warehouses' => Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']),
             'recent_movements' => $recentMovements,
+        ]);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $query = Supply::query()
+            ->with(['uom:id,name,abbreviation', 'stocks'])
+            ->when($request->search, fn ($q, $v) => $q->where(fn ($inner) =>
+                $inner->where('sku', 'like', "%{$v}%")->orWhere('name', 'like', "%{$v}%")
+            ))
+            ->when($request->status === 'active',   fn ($q) => $q->where('is_active', true))
+            ->when($request->status === 'inactive', fn ($q) => $q->where('is_active', false))
+            ->when($request->stock_category && $request->stock_category !== 'all',
+                fn ($q, $v) => $q->where('stock_category', $v))
+            ->when($request->opex_category && $request->opex_category !== 'all',
+                fn ($q, $v) => $q->where('opex_category', $v))
+            ->when($request->stock_status && $request->stock_status !== 'all',
+                fn ($q, $v) => $q->where('stock_status', $v))
+            ->orderBy('name');
+
+        $filename = 'materials-' . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $out = fopen('php://output', 'w');
+
+            fputcsv($out, [
+                'SKU', 'Name', 'Category', 'Section', 'UoM',
+                'Available Stock', 'Total Stock', 'Reserved Stock',
+                'Unit Cost', 'Stock Value', 'Stock Status', 'Is Active',
+            ]);
+
+            $query->chunk(500, function ($supplies) use ($out): void {
+                foreach ($supplies as $s) {
+                    $totalStock    = $s->stocks->sum('current_stock');
+                    $reservedStock = $s->stocks->sum('reserved_stock');
+                    $available     = max(0, $totalStock - $reservedStock);
+                    $stockValue    = $available * (float) $s->cost_price;
+
+                    fputcsv($out, [
+                        $s->sku,
+                        $s->name,
+                        $s->category ?? '',
+                        $s->section ?? '',
+                        $s->uom?->abbreviation ?? '',
+                        $available,
+                        (int) $totalStock,
+                        (int) $reservedStock,
+                        number_format((float) $s->cost_price, 2, '.', ''),
+                        number_format($stockValue, 2, '.', ''),
+                        $s->stock_status ?? '',
+                        $s->is_active ? 'Yes' : 'No',
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
         ]);
     }
 

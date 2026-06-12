@@ -352,6 +352,23 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (filters.search)        params.set('search',         filters.search);
+                if (filters.status)        params.set('status',         filters.status);
+                if (filters.stock_category && filters.stock_category !== 'all') params.set('stock_category', filters.stock_category);
+                if (filters.opex_category  && filters.opex_category  !== 'all') params.set('opex_category',  filters.opex_category);
+                if (filters.stock_status   && filters.stock_status   !== 'all') params.set('stock_status',   filters.stock_status);
+                window.location.href = `/inventory/supplies/export?${params.toString()}`;
+              }}
+            >
+              <Download className="h-3.5 w-3.5" />Export CSV
+            </Button>
           </CardContent>
         </Card>
 

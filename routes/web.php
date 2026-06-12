@@ -153,6 +153,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
         Route::post('/supplies/{supply}/stock',  [SupplyController::class, 'adjustStock'])->name('supplies.stock.adjust');
         Route::patch('/supplies/{supply}/status',[SupplyController::class, 'updateStatus'])->name('supplies.status.update');
         Route::get('/supplies/{supply}/summary', [SupplyController::class, 'summary'])->name('supplies.summary');
+        Route::get('/supplies/export',           [SupplyController::class, 'export'])->name('supplies.export');
         Route::get('/supplies/trash',        [SupplyController::class, 'trash'])->name('supplies.trash');
         Route::post('/supplies/{id}/restore',[SupplyController::class, 'restore'])->name('supplies.restore');
 
