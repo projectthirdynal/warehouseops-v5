@@ -60,7 +60,7 @@ export function DataTable<TData, TValue>({
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) return JSON.parse(stored) as VisibilityState;
-      } catch {}
+      } catch (_) { /* ignore parse/storage errors */ }
     }
     return {};
   })();
@@ -78,7 +78,7 @@ export function DataTable<TData, TValue>({
       setColumnVisibility((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         if (storageKey) {
-          try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+          try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch (_) { /* ignore storage errors */ }
         }
         return next;
       });

@@ -47,6 +47,17 @@ class InventoryDashboardController extends Controller
             ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$deadThreshold])
             ->count();
 
+        // ── Out-of-stock materials ───────────────────────────────────
+        $outOfStockCount = Supply::where('is_active', true)
+            ->whereNull('deleted_at')
+            ->whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0')
+            ->count();
+
+        // ── Today's scans ────────────────────────────────────────────
+        $todayScans = DB::table('supply_movements')
+            ->whereDate('created_at', now()->toDateString())
+            ->count();
+
         // ── Stats ────────────────────────────────────────────────────
         $stats = [
             'total_supplies'      => Supply::where('is_active', true)->count(),
@@ -57,6 +68,8 @@ class InventoryDashboardController extends Controller
             'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
             'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
             'non_moving_supplies' => $nonMovingSupplies,
+            'out_of_stock'        => $outOfStockCount,
+            'today_scans'         => $todayScans,
         ];
 
         // ── Recent supply movements ──────────────────────────────────

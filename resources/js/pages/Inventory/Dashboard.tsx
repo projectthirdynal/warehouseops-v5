@@ -13,7 +13,7 @@ import { formatDate, formatCurrency } from '@/lib/utils';
 import type { PageProps, User } from '@/types';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -63,6 +63,8 @@ interface Props {
     pending_prs: number;
     open_pos: number;
     non_moving_supplies: number;
+    out_of_stock: number;
+    today_scans: number;
   };
   recent_supply_movements: MovementRow[];
   supply_low_stock: SupplyLowStockRow[];
@@ -272,6 +274,46 @@ export default function InventoryDashboard({
           )}
         </div>
 
+        {/* Operations 4-up KPI row */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Out of Stock</span>
+            <span className={`text-2xl font-bold tabular-nums ${stats.out_of_stock > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {stats.out_of_stock.toLocaleString()}
+            </span>
+            <Link href="/inventory/supplies?stock_status=OUT_OF_STOCK" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+              View materials →
+            </Link>
+          </div>
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Low Stock</span>
+            <span className={`text-2xl font-bold tabular-nums ${stats.supply_low_stock > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {stats.supply_low_stock.toLocaleString()}
+            </span>
+            <Link href="/inventory/supplies?stock_status=NON_MOVING" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+              View materials →
+            </Link>
+          </div>
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Pending POs</span>
+            <span className={`text-2xl font-bold tabular-nums ${stats.open_pos > 0 ? 'text-blue-400' : 'text-muted-foreground'}`}>
+              {stats.open_pos.toLocaleString()}
+            </span>
+            <Link href="/procurement/orders" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+              View orders →
+            </Link>
+          </div>
+          <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Today's Movements</span>
+            <span className="text-2xl font-bold tabular-nums text-purple-400">
+              {stats.today_scans.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-muted-foreground mt-auto">
+              stock movements today
+            </span>
+          </div>
+        </div>
+
         {/* Charts row — Supply trend | Status donut */}
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Supply Movement Trend */}
@@ -365,7 +407,7 @@ export default function InventoryDashboard({
 
         {/* Top Movers + Recent Activity */}
         <div className="grid gap-4 lg:grid-cols-2">
-          {/* Top Material Movers */}
+          {/* Top Material Movers — Bar Chart */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
@@ -373,22 +415,26 @@ export default function InventoryDashboard({
                 Top Material Movers (30d)
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent>
               {top_supply_movers.length === 0 ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">No movement data.</div>
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">No movement data.</div>
               ) : (
-                <ul className="divide-y divide-border">
-                  {top_supply_movers.map((m, i) => (
-                    <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium">{m.name}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{m.sku}</p>
-                      </div>
-                      <span className="text-xs font-semibold tabular-nums text-purple-600">{Number(m.total_qty).toLocaleString()} units</span>
-                    </li>
-                  ))}
-                </ul>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={top_supply_movers.map(m => ({ name: m.sku, full_name: m.name, qty: Number(m.total_qty) }))}
+                    layout="vertical"
+                    margin={{ top: 0, right: 12, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={55} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                      formatter={(v: number) => [`${Number(v).toLocaleString()} units`, 'Qty']}
+                    />
+                    <Bar dataKey="qty" fill="#a78bfa" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
