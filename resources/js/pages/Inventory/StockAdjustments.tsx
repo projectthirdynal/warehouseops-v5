@@ -181,12 +181,12 @@ export default function StockAdjustments({
 
         {/* Pending banner */}
         {stats.pending > 0 && !filters.status && (
-          <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-600" />
-            <p className="text-sm text-orange-700">
+          <div className="flex items-center gap-2 rounded-lg border border-orange-800 bg-orange-950/30 px-4 py-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
+            <p className="text-sm text-orange-300">
               <strong>{stats.pending}</strong> adjustment{stats.pending > 1 ? 's' : ''} pending approval — review and approve or reject below.
             </p>
-            <Button size="sm" variant="outline" className="ml-auto border-orange-300 text-orange-700 hover:bg-orange-100"
+            <Button size="sm" variant="outline" className="ml-auto border-orange-700 text-orange-300 hover:bg-orange-950/50 hover:text-orange-200"
               onClick={() => applyFilters({ status: 'PENDING', page: '1' })}>
               Show pending
             </Button>
@@ -227,7 +227,7 @@ export default function StockAdjustments({
                   </TableCell>
                 </TableRow>
               ) : data.map(adj => (
-                <TableRow key={adj.id} className={adj.status === 'PENDING' ? 'bg-orange-50/50 hover:bg-orange-50' : ''}>
+                <TableRow key={adj.id} className={adj.status === 'PENDING' ? 'bg-orange-950/20 hover:bg-orange-950/30' : ''}>
                   <TableCell>
                     <div className="text-sm font-medium leading-tight">
                       {adj.product_name ?? adj.supply_name ?? '—'}
@@ -249,7 +249,7 @@ export default function StockAdjustments({
                   <TableCell className="text-right font-mono tabular-nums">{adj.quantity_after}</TableCell>
                   <TableCell className="text-right">
                     <span className={`inline-flex items-center gap-0.5 font-bold tabular-nums ${
-                      adj.variance > 0 ? 'text-emerald-600' : adj.variance < 0 ? 'text-red-600' : 'text-muted-foreground'
+                      adj.variance > 0 ? 'text-emerald-400' : adj.variance < 0 ? 'text-red-400' : 'text-muted-foreground'
                     }`}>
                       {adj.variance > 0
                         ? <TrendingUp className="h-3.5 w-3.5" />
@@ -266,13 +266,13 @@ export default function StockAdjustments({
                     {adj.status === 'PENDING' && (
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost"
-                          className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                          className="h-8 w-8 p-0 text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300"
                           title="Approve"
                           onClick={() => setApproveId(adj.id)}>
                           <CheckCircle className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="ghost"
-                          className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          className="h-8 w-8 p-0 text-red-400 hover:bg-red-950/40 hover:text-red-300"
                           title="Reject"
                           onClick={() => { setRejectId(adj.id); setRejectReason(''); }}>
                           <XCircle className="h-4 w-4" />

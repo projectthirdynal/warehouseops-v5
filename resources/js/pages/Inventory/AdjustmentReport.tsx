@@ -141,13 +141,13 @@ export default function AdjustmentReport({
 
       {/* Pending action banner */}
       {summary.pending > 0 && (
-        <div className="border-b border-orange-200 bg-orange-50 px-6 py-2.5">
+        <div className="border-b border-orange-800 bg-orange-950/30 px-6 py-2.5">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-600" />
-            <span className="text-sm font-medium text-orange-700">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
+            <span className="text-sm font-medium text-orange-300">
               <strong>{summary.pending}</strong> adjustment{summary.pending > 1 ? 's' : ''} still pending approval in this period.
             </span>
-            <Link href="/inventory/adjustments?status=PENDING" className="ml-auto text-xs text-orange-700 underline underline-offset-2 hover:text-orange-900">
+            <Link href="/inventory/adjustments?status=PENDING" className="ml-auto text-xs text-orange-300 underline underline-offset-2 hover:text-orange-200">
               Review →
             </Link>
           </div>

@@ -324,7 +324,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                     <TableCell>
                       <StockStatusBadge status={supply.stock_status} override={supply.stock_status_override} />
                     </TableCell>
-                    <TableCell className={`text-right font-medium ${isLow ? 'text-orange-700' : ''}`}>
+                    <TableCell className={`text-right font-medium ${isLow ? 'text-orange-400' : ''}`}>
                       {available}
                       {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
                     </TableCell>
@@ -333,7 +333,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                     <TableCell className="text-right text-sm font-medium">{formatCurrency(available * Number(supply.cost_price))}</TableCell>
                     <TableCell className="text-sm">{supply.stocks.map(stock => stock.warehouse?.name).filter(Boolean).join(', ') || '—'}</TableCell>
                     <TableCell>
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${supply.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${supply.is_active ? 'bg-green-950/40 text-green-300' : 'bg-slate-800 text-slate-400'}`}>
                         {supply.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </TableCell>
@@ -377,8 +377,8 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                     <TableRow key={movement.id}>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(movement.created_at)}</TableCell>
                       <TableCell className="text-sm">{movement.supply ? <><span className="font-mono">{movement.supply.sku}</span> — {movement.supply.name}</> : '—'}</TableCell>
-                      <TableCell><span className={`rounded px-2 py-0.5 text-xs ${movement.quantity < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{movement.type}</span></TableCell>
-                      <TableCell className={`text-right font-medium ${movement.quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>{movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}</TableCell>
+                      <TableCell><span className={`rounded px-2 py-0.5 text-xs ${movement.quantity < 0 ? 'bg-red-950/40 text-red-300' : 'bg-green-950/40 text-green-300'}`}>{movement.type}</span></TableCell>
+                      <TableCell className={`text-right font-medium ${movement.quantity < 0 ? 'text-red-400' : 'text-green-400'}`}>{movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}</TableCell>
                       <TableCell className="text-sm">{movement.warehouse?.name ?? '—'}</TableCell>
                       <TableCell className="max-w-xs truncate text-xs text-muted-foreground">{movement.notes ?? ''}</TableCell>
                     </TableRow>
@@ -517,9 +517,9 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
         <DialogHeader><DialogTitle>Remove Material</DialogTitle></DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-3">
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-              <div className="font-medium text-red-800">{supply.name}</div>
-              <div className="font-mono text-xs text-red-500">{supply.sku}</div>
+            <div className="rounded-md border border-red-800 bg-red-950/30 p-3 text-sm">
+              <div className="font-medium text-red-300">{supply.name}</div>
+              <div className="font-mono text-xs text-red-400">{supply.sku}</div>
             </div>
             <p className="text-sm text-muted-foreground">This will soft-delete the material. A reason is required for audit purposes.</p>
             <div className="space-y-1">
@@ -567,7 +567,7 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
     const subLabel = opexCategory ? (OPEX_LABELS[opexCategory] ?? opexCategory) : (category ?? null);
     return (
       <div>
-        <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium">OPEX</span>
+        <span className="rounded-full bg-blue-950/40 text-blue-300 px-2 py-0.5 text-xs font-medium">OPEX</span>
         {subLabel && <div className="mt-0.5 text-xs text-muted-foreground">{subLabel}</div>}
       </div>
     );
@@ -576,7 +576,7 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
   const subLabel = stockCategory ? (STOCK_LABELS[stockCategory] ?? stockCategory) : (category ?? null);
   return (
     <div>
-      <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-medium">STOCK</span>
+      <span className="rounded-full bg-emerald-950/40 text-emerald-300 px-2 py-0.5 text-xs font-medium">STOCK</span>
       {subLabel && <div className="mt-0.5 text-xs text-muted-foreground">{subLabel}</div>}
     </div>
   );
@@ -584,11 +584,11 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
 
 function StockStatusBadge({ status, override }: { status: string; override: boolean }) {
   const cfg: Record<string, { cls: string; label: string }> = {
-    MOVING:     { cls: 'bg-green-100 text-green-700',  label: 'Moving' },
-    NON_MOVING: { cls: 'bg-amber-100 text-amber-700',  label: 'Non-Moving' },
-    DEAD:       { cls: 'bg-red-100 text-red-700',      label: 'Dead Stock' },
+    MOVING:     { cls: 'bg-green-950/40 text-green-300',  label: 'Moving' },
+    NON_MOVING: { cls: 'bg-amber-950/40 text-amber-300',  label: 'Non-Moving' },
+    DEAD:       { cls: 'bg-red-950/40 text-red-300',      label: 'Dead Stock' },
   };
-  const { cls, label } = cfg[status] ?? { cls: 'bg-gray-100 text-gray-600', label: status };
+  const { cls, label } = cfg[status] ?? { cls: 'bg-slate-800 text-slate-400', label: status };
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
       {label}{override && <span title="Manually set" className="opacity-60">★</span>}
@@ -760,14 +760,14 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
             <div className="rounded-md border bg-muted/40 p-3 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock Status</span>
-                {editing.stock_status_override && <span className="text-xs text-amber-600 font-medium">★ Manually locked</span>}
+                {editing.stock_status_override && <span className="text-xs text-amber-400 font-medium">★ Manually locked</span>}
               </div>
               <div className="flex items-center justify-between">
                 <StockStatusBadge status={editing.stock_status} override={editing.stock_status_override} />
                 <button
                   type="button"
                   onClick={() => editing && onOverrideStatus?.(editing)}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-blue-400 hover:underline"
                 >
                   Override status →
                 </button>
@@ -932,7 +932,7 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
     <Card>
       <CardContent className="p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`mt-1 text-2xl font-bold ${tone === 'warn' ? 'text-orange-700' : ''}`}>{value}</p>
+        <p className={`mt-1 text-2xl font-bold ${tone === 'warn' ? 'text-orange-400' : ''}`}>{value}</p>
       </CardContent>
     </Card>
   );

@@ -75,9 +75,9 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
           </div>
 
           {/* Dead value KPI */}
-          <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-500">Total Dead Value</p>
-            <p className="mt-0.5 text-2xl font-bold tabular-nums text-red-700">{formatCurrency(total_dead_value)}</p>
+          <div className="rounded-lg border border-red-800 bg-red-950/30 px-5 py-3 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400">Total Dead Value</p>
+            <p className="mt-0.5 text-2xl font-bold tabular-nums text-red-300">{formatCurrency(total_dead_value)}</p>
           </div>
         </div>
 
@@ -203,16 +203,16 @@ function NonMovingTable({ rows, emptyLabel }: { rows: NonMovingItem[]; emptyLabe
               <TableCell className="text-sm">{row.warehouse_name ?? '—'}</TableCell>
               <TableCell className="text-right tabular-nums font-medium">{Number(row.current_stock).toLocaleString()}</TableCell>
               <TableCell className="text-right tabular-nums">
-                <span className={Number(row.available_stock) <= 0 ? 'text-red-600 font-bold' : ''}>
+                <span className={Number(row.available_stock) <= 0 ? 'text-red-400 font-bold' : ''}>
                   {Number(row.available_stock).toLocaleString()}
                 </span>
               </TableCell>
-              <TableCell className="text-right tabular-nums text-amber-700 font-medium">
+              <TableCell className="text-right tabular-nums text-amber-400 font-medium">
                 {formatCurrency(Number(row.stock_value))}
               </TableCell>
               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                 {isNeverMoved
-                  ? <span className="inline-flex items-center gap-1 text-red-600 font-medium"><AlertTriangle className="h-3 w-3" />Never</span>
+                  ? <span className="inline-flex items-center gap-1 text-red-400 font-medium"><AlertTriangle className="h-3 w-3" />Never</span>
                   : formatDate(row.last_movement_at!)}
               </TableCell>
               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">

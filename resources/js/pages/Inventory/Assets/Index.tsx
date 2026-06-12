@@ -45,9 +45,9 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE:       'bg-green-100 text-green-700',
-  DISPOSED:     'bg-gray-200 text-gray-600',
-  UNDER_REPAIR: 'bg-amber-100 text-amber-700',
+  ACTIVE:       'bg-green-950/40 text-green-300',
+  DISPOSED:     'bg-slate-800 text-slate-400',
+  UNDER_REPAIR: 'bg-amber-950/40 text-amber-300',
 };
 
 export default function AssetsIndex({ assets, stats, filters, categories }: Props) {
@@ -195,7 +195,7 @@ function KpiCard({ label, value, tone }: { label: string; value: string | number
     <Card>
       <CardContent className="p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`mt-1 text-xl font-bold ${tone === 'warn' ? 'text-amber-700' : ''}`}>{value}</p>
+        <p className={`mt-1 text-xl font-bold ${tone === 'warn' ? 'text-amber-400' : ''}`}>{value}</p>
       </CardContent>
     </Card>
   );

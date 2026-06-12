@@ -92,7 +92,7 @@ export default function SuppliesTrash({ trashed, filters }: Props) {
                     <div className="font-mono text-xs text-muted-foreground">{item.sku}</div>
                   </TableCell>
                   <TableCell>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.section === 'OPEX' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.section === 'OPEX' ? 'bg-blue-950/40 text-blue-300' : 'bg-emerald-950/40 text-emerald-300'}`}>
                       {item.section}
                     </span>
                   </TableCell>

@@ -181,9 +181,9 @@ export default function DeadStockIndex({ entries, total_dead_value, dead_supplie
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-right dark:border-red-900 dark:bg-red-950/30">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-500">Total Dead Value</p>
-              <p className="mt-0.5 text-2xl font-bold tabular-nums text-red-700 dark:text-red-400">
+            <div className="rounded-lg border border-red-800 bg-red-950/30 px-5 py-3 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400">Total Dead Value</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums text-red-300">
                 {formatCurrency(total_dead_value)}
               </p>
             </div>
@@ -202,7 +202,7 @@ export default function DeadStockIndex({ entries, total_dead_value, dead_supplie
                   <p className="text-sm font-semibold flex items-center gap-2">
                     <Tag className="h-4 w-4 text-red-500" />
                     Classified as Dead Stock
-                    <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{dead_supplies.length}</span>
+                    <span className="ml-1 rounded-full bg-red-950/40 px-2 py-0.5 text-xs font-bold text-red-300">{dead_supplies.length}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">Materials tagged DEAD via the override or auto-classification. Use the Tag button in Materials to reclassify.</p>
                 </div>
@@ -234,11 +234,11 @@ export default function DeadStockIndex({ entries, total_dead_value, dead_supplie
                           : '—'}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">{s.total_stock.toLocaleString()}{s.uom ? ` ${s.uom}` : ''}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold text-red-600">{formatCurrency(s.total_value)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold text-red-400">{formatCurrency(s.total_value)}</TableCell>
                       <TableCell>
                         {s.stock_status_override
-                          ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"><Tag className="h-3 w-3" />Manual</span>
-                          : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Auto</span>}
+                          ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/40 px-2 py-0.5 text-xs text-amber-300"><Tag className="h-3 w-3" />Manual</span>
+                          : <span className="inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">Auto</span>}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -343,8 +343,8 @@ export default function DeadStockIndex({ entries, total_dead_value, dead_supplie
                     <TableCell>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                         entry.item_type === 'supply'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-blue-100 text-blue-700'
+                          ? 'bg-amber-950/40 text-amber-300'
+                          : 'bg-blue-950/40 text-blue-300'
                       }`}>
                         {entry.item_type === 'supply' ? 'Material' : 'Product'}
                       </span>
@@ -362,7 +362,7 @@ export default function DeadStockIndex({ entries, total_dead_value, dead_supplie
                     <TableCell className="text-right tabular-nums text-sm">
                       {formatCurrency(Number(entry.unit_cost))}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold text-red-600">
+                    <TableCell className="text-right tabular-nums font-semibold text-red-400">
                       {formatCurrency(Number(entry.total_value))}
                     </TableCell>
                     <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground">

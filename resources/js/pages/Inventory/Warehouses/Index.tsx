@@ -118,8 +118,8 @@ export default function WarehousesIndex({ warehouses }: Props) {
                   <Building2 className="h-5 w-5 text-blue-500" />
                   {wh.name}
                   <span className="font-mono text-xs text-muted-foreground">({wh.code})</span>
-                  {wh.is_default && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Default</span>}
-                  {!wh.is_active && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs">Inactive</span>}
+                  {wh.is_default && <span className="rounded-full bg-emerald-950/40 px-2 py-0.5 text-xs font-medium text-emerald-300">Default</span>}
+                  {!wh.is_active && <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">Inactive</span>}
                 </CardTitle>
                 {wh.address && <p className="mt-1 text-xs text-muted-foreground">{wh.address}</p>}
               </div>
@@ -151,7 +151,7 @@ export default function WarehousesIndex({ warehouses }: Props) {
                     <TableRow key={loc.id}>
                       <TableCell className="font-mono text-sm">{loc.code}</TableCell>
                       <TableCell className="text-sm">{loc.name ?? '—'}</TableCell>
-                      <TableCell><span className="rounded bg-gray-100 px-2 py-0.5 text-xs">{loc.type}</span></TableCell>
+                      <TableCell><span className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{loc.type}</span></TableCell>
                       <TableCell className="text-right text-sm">{loc.capacity ?? '—'}</TableCell>
                       <TableCell>
                         <Button size="icon" variant="ghost" onClick={() => {

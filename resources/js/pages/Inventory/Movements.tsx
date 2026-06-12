@@ -201,7 +201,7 @@ export default function MovementsPage({ movements, filters }: Props) {
                   {isProducts && (
                     <TableCell className="font-mono text-xs text-muted-foreground">{m.location_code ?? '—'}</TableCell>
                   )}
-                  <TableCell className={`text-right font-semibold tabular-nums ${m.quantity < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  <TableCell className={`text-right font-semibold tabular-nums ${m.quantity < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{m.batch_number ?? '—'}</TableCell>
