@@ -11,9 +11,51 @@ import {
   Shield, FileText, ShoppingCart, PackageCheck, Building2,
   TrendingUp, Store, BookUser, ScanLine, Upload, ShieldAlert,
   AlertOctagon, HelpCircle, ChevronRight, Search, Clock,
-  Zap, Plus,
+  Zap, Plus, Loader2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+
+/* ── Supply record search ── */
+interface SupplyHit {
+  id: number;
+  sku: string;
+  name: string;
+  stock_status: string;
+  is_active: boolean;
+}
+
+const STATUS_CLS: Record<string, string> = {
+  MOVING:       'bg-emerald-950/40 text-emerald-300',
+  NON_MOVING:   'bg-amber-950/40 text-amber-300',
+  DEAD:         'bg-red-950/40 text-red-300',
+  OUT_OF_STOCK: 'bg-slate-800 text-slate-400',
+};
+
+function useSupplySearch(q: string) {
+  const [hits, setHits] = useState<SupplyHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (q.length < 2) { setHits([]); return; }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setLoading(true);
+      fetch(`/inventory/supplies?search=${encodeURIComponent(q)}&per_page=6`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-Inertia': 'true', 'X-Inertia-Version': '1' },
+      })
+        .then(r => r.json())
+        .then((data: { props?: { supplies?: { data?: SupplyHit[] } } }) => {
+          setHits(data?.props?.supplies?.data ?? []);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }, 280);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [q]);
+
+  return { hits, loading };
+}
 
 /* ── Recent Items localStorage ── */
 const RECENTS_KEY = 'cmdp_recents_v1';
@@ -114,6 +156,11 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
   const { scope, q } = useMemo(() => parseQuery(query), [query]);
 
+  /* Live supply search — fires when q ≥ 2 chars and no scope filter */
+  const { hits: supplyHits, loading: supplyLoading } = useSupplySearch(
+    !scope && q.length >= 2 ? q : ''
+  );
+
   /* Recent items (hydrated from localStorage) */
   const [recents, setRecents] = useState<string[]>([]);
   useEffect(() => { if (open) setRecents(getRecents()); }, [open]);
@@ -204,7 +251,35 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
           </kbd>
         </div>
         <div className="max-h-[60vh] overflow-y-auto py-2">
-          {grouped.length === 0 ? (
+          {/* ── Live material record hits ── */}
+          {(supplyHits.length > 0 || supplyLoading) && (
+            <div className="mb-1">
+              <div className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Package className="h-3 w-3" />
+                Materials
+                {supplyLoading && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
+              </div>
+              {supplyHits.map(hit => (
+                <button
+                  key={`supply-${hit.id}`}
+                  onClick={() => navigate(`/inventory/supplies?search=${encodeURIComponent(hit.sku)}`)}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-muted"
+                >
+                  <Package className="h-4 w-4 shrink-0 text-purple-400" />
+                  <span className="flex-1 min-w-0">
+                    <span className="font-medium">{hit.name}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">{hit.sku}</span>
+                  </span>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', STATUS_CLS[hit.stock_status] ?? 'bg-muted text-muted-foreground')}>
+                    {hit.stock_status?.replace('_', ' ')}
+                  </span>
+                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {grouped.length === 0 && !supplyLoading && supplyHits.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Search className="h-8 w-8 mb-3 opacity-40" />
               <p className="text-sm">No results for "{query}"</p>
