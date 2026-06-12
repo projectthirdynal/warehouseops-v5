@@ -385,11 +385,11 @@ export default function InventoryDashboard({
                     const avail = Number(s.available_stock);
                     const isCritical = avail <= 0;
                     return (
-                      <TableRow key={s.id} className={isCritical ? 'bg-red-50 hover:bg-red-50' : 'bg-amber-50/60 hover:bg-amber-50'}>
-                        <TableCell className="font-mono text-[11px] text-muted-foreground">{s.sku}</TableCell>
+                      <TableRow key={s.id} className={isCritical ? 'bg-red-950/40 hover:bg-red-950/40' : 'bg-amber-950/30 hover:bg-amber-950/40'}>
+                        <TableCell className="font-mono text-[11px] text-slate-300">{s.sku}</TableCell>
                         <TableCell className="text-sm font-medium">{s.supply_name}</TableCell>
-                        <TableCell className={`text-right font-bold tabular-nums ${isCritical ? 'text-red-600' : 'text-amber-700'}`}>{avail}</TableCell>
-                        <TableCell className="text-right font-mono text-sm text-muted-foreground">{Number(s.reorder_point)}</TableCell>
+                        <TableCell className={`text-right font-bold tabular-nums ${isCritical ? 'text-red-400' : 'text-amber-400'}`}>{avail}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-slate-400">{Number(s.reorder_point)}</TableCell>
                       </TableRow>
                     );
                   })}
