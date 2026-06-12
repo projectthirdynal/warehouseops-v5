@@ -81,7 +81,7 @@ interface Props {
     low_stock: number;
     trashed: number;
     by_section: { STOCK: number; OPEX: number };
-    by_stock_status: { MOVING: number; NON_MOVING: number; DEAD: number };
+    by_stock_status: { MOVING: number; NON_MOVING: number; DEAD: number; OUT_OF_STOCK: number };
     categories: string[];
   };
   filters: {
@@ -119,10 +119,11 @@ const OPEX_CATEGORY_TABS = [
 ];
 
 const STATUS_TABS = [
-  { value: 'all',        label: 'All' },
-  { value: 'MOVING',     label: 'Moving' },
-  { value: 'NON_MOVING', label: 'Non-Moving' },
-  { value: 'DEAD',       label: 'Dead Stock' },
+  { value: 'all',          label: 'All' },
+  { value: 'MOVING',       label: 'Moving' },
+  { value: 'NON_MOVING',   label: 'Non-Moving' },
+  { value: 'DEAD',         label: 'Dead Stock' },
+  { value: 'OUT_OF_STOCK', label: 'Out of Stock' },
 ];
 
 export default function SuppliesIndex({ supplies, stats, filters, uoms, warehouses, recent_movements }: Props) {
@@ -241,10 +242,12 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             const count = tab.value === 'all' ? null
               : tab.value === 'MOVING' ? stats.by_stock_status.MOVING
               : tab.value === 'NON_MOVING' ? stats.by_stock_status.NON_MOVING
-              : stats.by_stock_status.DEAD;
+              : tab.value === 'DEAD' ? stats.by_stock_status.DEAD
+              : stats.by_stock_status.OUT_OF_STOCK;
             const activeClass = stockStatus === tab.value
               ? tab.value === 'DEAD' ? 'bg-red-600 text-white border-red-600'
                 : tab.value === 'NON_MOVING' ? 'bg-amber-500 text-white border-amber-500'
+                : tab.value === 'OUT_OF_STOCK' ? 'bg-red-600 text-white border-red-600'
                 : 'bg-primary text-primary-foreground border-primary'
               : 'border-input hover:bg-muted';
             return (

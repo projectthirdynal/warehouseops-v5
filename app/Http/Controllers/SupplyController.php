@@ -33,7 +33,13 @@ class SupplyController extends Controller
             ->when($request->section && $request->section !== 'all', fn ($q) => $q->where('section', $request->section))
             ->when($request->stock_category && $request->stock_category !== 'all', fn ($q) => $q->where('stock_category', $request->stock_category))
             ->when($request->opex_category && $request->opex_category !== 'all', fn ($q) => $q->where('opex_category', $request->opex_category))
-            ->when($request->stock_status && $request->stock_status !== 'all', fn ($q) => $q->where('stock_status', $request->stock_status))
+            ->when($request->stock_status && $request->stock_status !== 'all', function ($q) use ($request) {
+                if ($request->stock_status === 'OUT_OF_STOCK') {
+                    $q->whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0');
+                } else {
+                    $q->where('stock_status', $request->stock_status);
+                }
+            })
             ->when($request->status === 'active', fn ($query) => $query->where('is_active', true))
             ->when($request->status === 'inactive', fn ($query) => $query->where('is_active', false))
             ->orderBy('name')
@@ -103,9 +109,10 @@ class SupplyController extends Controller
                     'OPEX'  => Supply::where('section', 'OPEX')->count(),
                 ],
                 'by_stock_status' => [
-                    'MOVING'     => Supply::where('stock_status', 'MOVING')->count(),
-                    'NON_MOVING' => Supply::where('stock_status', 'NON_MOVING')->count(),
-                    'DEAD'       => Supply::where('stock_status', 'DEAD')->count(),
+                    'MOVING'       => Supply::where('stock_status', 'MOVING')->count(),
+                    'NON_MOVING'   => Supply::where('stock_status', 'NON_MOVING')->count(),
+                    'DEAD'         => Supply::where('stock_status', 'DEAD')->count(),
+                    'OUT_OF_STOCK' => Supply::whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0')->count(),
                 ],
                 'categories' => Supply::query()
                     ->whereNotNull('category')
