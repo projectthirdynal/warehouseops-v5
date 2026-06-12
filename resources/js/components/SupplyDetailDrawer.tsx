@@ -87,8 +87,13 @@ export function SupplyDetailDrawer({ supplyId, onClose, onEdit, onAdjustStock, o
         <Drawer.Overlay className="fixed inset-0 z-40 bg-black/50" />
         <Drawer.Content
           className="fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-md flex-col bg-background shadow-xl outline-none"
-          aria-label="Supply detail"
         >
+          <Drawer.Title className="sr-only">
+            {loading ? 'Material Detail' : (data?.supply.name ?? 'Material Detail')}
+          </Drawer.Title>
+          <Drawer.Description className="sr-only">
+            Material details including stock levels, warehouse breakdown, and recent movements.
+          </Drawer.Description>
           {/* Header */}
           <div className="flex items-center justify-between border-b px-5 py-4">
             <div className="flex items-center gap-2">
