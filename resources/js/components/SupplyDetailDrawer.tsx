@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Drawer } from 'vaul';
 import { AlertTriangle, Box, Edit2, SlidersHorizontal, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { ActivityTimeline } from '@/components/ActivityTimeline';
 
 interface SupplySummary {
   supply: {
@@ -53,12 +54,6 @@ interface Props {
   onAdjustStock: (id: number) => void;
   onOverrideStatus: (id: number) => void;
 }
-
-const MOVEMENT_COLORS: Record<string, string> = {
-  STOCK_IN:   'text-emerald-400',
-  STOCK_OUT:  'text-red-400',
-  ADJUSTMENT: 'text-amber-400',
-};
 
 const STATUS_BADGES: Record<string, string> = {
   MOVING:       'bg-emerald-950/40 text-emerald-300 border-emerald-800',
@@ -216,29 +211,18 @@ export function SupplyDetailDrawer({ supplyId, onClose, onEdit, onAdjustStock, o
                 {/* Recent movements */}
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent Movements</h3>
-                  {data.recent_movements.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No movements recorded.</p>
-                  ) : (
-                    <ul className="divide-y divide-border rounded-md border">
-                      {data.recent_movements.map(m => (
-                        <li key={m.id} className="px-3 py-2 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className={`font-semibold ${MOVEMENT_COLORS[m.type] ?? ''}`}>
-                              {m.type.replace('_', ' ')}
-                            </span>
-                            <span className={`font-mono font-bold tabular-nums ${m.quantity > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {m.quantity > 0 ? '+' : ''}{m.quantity.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center justify-between text-muted-foreground">
-                            <span>{m.warehouse_name ?? '—'}{m.performer_name ? ` · ${m.performer_name}` : ''}</span>
-                            <span>{formatDate(m.created_at)}</span>
-                          </div>
-                          {m.notes && <p className="mt-0.5 italic text-muted-foreground">{m.notes}</p>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <ActivityTimeline
+                    events={data.recent_movements.map(m => ({
+                      id: m.id,
+                      type: m.type,
+                      quantity: m.quantity,
+                      notes: m.notes,
+                      created_at: m.created_at,
+                      warehouse_name: m.warehouse_name,
+                      performer_name: m.performer_name,
+                    }))}
+                    emptyMessage="No movements recorded."
+                  />
                 </section>
               </div>
             </div>

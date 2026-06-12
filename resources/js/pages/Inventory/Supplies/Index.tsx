@@ -13,14 +13,12 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { AlertTriangle, Archive, Download, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
 import Paginator from '@/components/Paginator';
 import { DataTable } from '@/components/ui/data-table';
 import { SupplyDetailDrawer } from '@/components/SupplyDetailDrawer';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { ActivityTimeline } from '@/components/ActivityTimeline';
+import { formatCurrency } from '@/lib/utils';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { PaginatedResponse } from '@/types';
 
@@ -446,30 +444,21 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
           <Card>
             <CardContent className="p-0">
               <div className="border-b px-4 py-3 text-sm font-medium">Recent Material Movements</div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>When</TableHead>
-                    <TableHead>Material</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Warehouse</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recent_movements.map(movement => (
-                    <TableRow key={movement.id}>
-                      <TableCell className="text-xs text-muted-foreground">{formatDate(movement.created_at)}</TableCell>
-                      <TableCell className="text-sm">{movement.supply ? <><span className="font-mono">{movement.supply.sku}</span> — {movement.supply.name}</> : '—'}</TableCell>
-                      <TableCell><span className={`rounded px-2 py-0.5 text-xs ${movement.quantity < 0 ? 'bg-red-950/40 text-red-300' : 'bg-green-950/40 text-green-300'}`}>{movement.type}</span></TableCell>
-                      <TableCell className={`text-right font-medium ${movement.quantity < 0 ? 'text-red-400' : 'text-green-400'}`}>{movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity}</TableCell>
-                      <TableCell className="text-sm">{movement.warehouse?.name ?? '—'}</TableCell>
-                      <TableCell className="max-w-xs truncate text-xs text-muted-foreground">{movement.notes ?? ''}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="p-5">
+                <ActivityTimeline
+                  showSupply
+                  events={recent_movements.map(m => ({
+                    id: m.id,
+                    type: m.type,
+                    quantity: m.quantity,
+                    notes: m.notes,
+                    created_at: m.created_at,
+                    warehouse_name: m.warehouse?.name,
+                    supply_name: m.supply?.name,
+                    supply_sku: m.supply?.sku,
+                  }))}
+                />
+              </div>
             </CardContent>
           </Card>
         )}
