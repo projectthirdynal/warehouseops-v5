@@ -57,7 +57,7 @@ export default function ReceivingShow({ grn }: Props) {
   return (
     <AppLayout>
       <Head title={grn.grn_number} />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/procurement/receiving"><Button variant="ghost" size="sm"><ArrowLeft className="mr-1 h-4 w-4" />Back</Button></Link>

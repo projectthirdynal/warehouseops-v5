@@ -240,14 +240,14 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   return (
     <AppLayout>
       <Head title="Materials" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Materials</h1>
             <p className="text-sm text-muted-foreground">Stock, OPEX, and asset items across all warehouses.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
             <Link href="/inventory/assets">
               <Button variant="outline" size="sm">CAPEX Assets</Button>
             </Link>
@@ -336,7 +336,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         {/* Search + filters bar */}
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex min-w-64 flex-1 gap-2">
+            <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex w-full flex-1 gap-2 sm:min-w-64">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input className="pl-9" placeholder="Search SKU or material name..." value={search} onChange={e => setSearch(e.target.value)} />
