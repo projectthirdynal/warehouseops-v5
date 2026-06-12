@@ -280,6 +280,9 @@ class SupplyController extends Controller
     {
         Supply::onlyTrashed()->findOrFail($id)->restore();
 
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
+
         return back()->with('success', 'Material restored.');
     }
 
@@ -312,12 +315,18 @@ class SupplyController extends Controller
             app(StockStatusService::class)->recompute($supply->fresh());
         });
 
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
+
         return back()->with('success', 'Material created.');
     }
 
     public function update(Request $request, Supply $supply): RedirectResponse
     {
         $supply->update($this->normaliseCategory($this->validatedSupply($request, $supply)));
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         return back()->with('success', 'Material updated.');
     }
@@ -329,6 +338,9 @@ class SupplyController extends Controller
         ]);
 
         $supply->deleteWithReason($data['delete_reason']);
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         return back()->with('success', 'Material removed.');
     }
@@ -347,6 +359,9 @@ class SupplyController extends Controller
         if (! $data['stock_status_override']) {
             app(StockStatusService::class)->recompute($supply->fresh());
         }
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         return back()->with('success', 'Stock status updated.');
     }
@@ -406,6 +421,9 @@ class SupplyController extends Controller
 
             app(StockStatusService::class)->recompute($supply->fresh());
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         return back()->with('success', 'Material stock updated.');
     }

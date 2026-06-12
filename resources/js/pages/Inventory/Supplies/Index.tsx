@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
@@ -135,6 +136,9 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   function applyFilters(overrides: Record<string, string>) {
     router.get('/inventory/supplies', { ...filters, ...overrides }, { preserveState: true, replace: true });
   }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSearch = useDebounce((val: string) => applyFilters({ search: val, page: '1' }), 400);
 
   const stockValue = useMemo(() =>
     supplies.data.reduce((sum, supply) => sum + totalStock(supply) * Number(supply.cost_price), 0),
@@ -339,7 +343,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex w-full flex-1 gap-2 sm:min-w-64">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search SKU or material name..." value={search} onChange={e => setSearch(e.target.value)} />
+                <Input className="pl-9" placeholder="Search SKU or material name..." value={search} onChange={e => { setSearch(e.target.value); debouncedSearch(e.target.value); }} />
               </div>
               <Button type="submit" variant="secondary">Search</Button>
             </form>

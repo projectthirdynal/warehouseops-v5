@@ -14,6 +14,7 @@ use App\Domain\Procurement\Models\PurchaseRequest;
 use App\Domain\Inventory\Models\StockAdjustment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -23,56 +24,55 @@ class InventoryDashboardController extends Controller
     {
         $since30 = now()->subDays(30)->startOfDay();
 
-        // ── Stock value (supplies only, assigned to active warehouses) ─
-        $supplyStockValue = (float) DB::table('supply_stocks as ss')
-            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
-            ->whereNotNull('ss.warehouse_id')
-            ->where('s.is_active', true)
-            ->whereNull('s.deleted_at')
-            ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+        // ── Stats (2-minute cache — counts change frequently) ────────
+        $stats = Cache::remember('inv_dashboard_stats', 120, function () {
+            $supplyStockValue = (float) DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->whereNotNull('ss.warehouse_id')
+                ->where('s.is_active', true)
+                ->whereNull('s.deleted_at')
+                ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
 
-        // ── Low stock materials count ────────────────────────────────
-        $supplyLowStockCount = SupplyStock::whereRaw('(supply_stocks.current_stock - supply_stocks.reserved_stock) <= supply_stocks.reorder_point')
-            ->where('supply_stocks.reorder_point', '>', 0)
-            ->whereHas('supply', fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
-            ->whereNotNull('warehouse_id')
-            ->count();
+            $supplyLowStockCount = SupplyStock::whereRaw('(supply_stocks.current_stock - supply_stocks.reserved_stock) <= supply_stocks.reorder_point')
+                ->where('supply_stocks.reorder_point', '>', 0)
+                ->whereHas('supply', fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+                ->whereNotNull('warehouse_id')
+                ->count();
 
-        // ── Non-moving supplies (no movement in 90 days) ────────────
-        $deadThreshold = now()->subDays(90);
-        $nonMovingSupplies = DB::table('supply_stocks as ss')
-            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
-            ->where('ss.current_stock', '>', 0)
-            ->whereNull('s.deleted_at')
-            ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$deadThreshold])
-            ->count();
+            $deadThreshold = now()->subDays(90);
+            $nonMovingSupplies = DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->where('ss.current_stock', '>', 0)
+                ->whereNull('s.deleted_at')
+                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$deadThreshold])
+                ->count();
 
-        // ── Out-of-stock materials ───────────────────────────────────
-        $outOfStockCount = Supply::where('is_active', true)
-            ->whereNull('deleted_at')
-            ->whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0')
-            ->count();
+            $outOfStockCount = Supply::where('is_active', true)
+                ->whereNull('deleted_at')
+                ->whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0')
+                ->count();
 
-        // ── Today's scans ────────────────────────────────────────────
-        $todayScans = DB::table('supply_movements')
+            return [
+                'total_supplies'      => Supply::where('is_active', true)->count(),
+                'total_warehouses'    => Warehouse::where('is_active', true)->count(),
+                'stock_value'         => $supplyStockValue,
+                'supply_low_stock'    => $supplyLowStockCount,
+                'pending_adjustments' => StockAdjustment::where('status', 'PENDING')->count(),
+                'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
+                'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
+                'non_moving_supplies' => $nonMovingSupplies,
+                'out_of_stock'        => $outOfStockCount,
+                // today_scans intentionally excluded — added live below
+                'today_scans'         => 0,
+            ];
+        });
+
+        // ── Today's scans — always live ──────────────────────────────
+        $stats['today_scans'] = DB::table('supply_movements')
             ->whereDate('created_at', now()->toDateString())
             ->count();
 
-        // ── Stats ────────────────────────────────────────────────────
-        $stats = [
-            'total_supplies'      => Supply::where('is_active', true)->count(),
-            'total_warehouses'    => Warehouse::where('is_active', true)->count(),
-            'stock_value'         => $supplyStockValue,
-            'supply_low_stock'    => $supplyLowStockCount,
-            'pending_adjustments' => StockAdjustment::where('status', 'PENDING')->count(),
-            'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
-            'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
-            'non_moving_supplies' => $nonMovingSupplies,
-            'out_of_stock'        => $outOfStockCount,
-            'today_scans'         => $todayScans,
-        ];
-
-        // ── Recent supply movements ──────────────────────────────────
+        // ── Recent supply movements — always live (last 20) ──────────
         $recentSupplyMovements = DB::table('supply_movements as sm')
             ->leftJoin('supplies as s', 's.id', '=', 'sm.supply_id')
             ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
@@ -85,95 +85,117 @@ class InventoryDashboardController extends Controller
             ->limit(20)
             ->get()
             ->map(fn ($m) => [
-                'id'        => $m->id,
-                'type'      => $m->type,
-                'quantity'  => (int) $m->quantity,
-                'notes'     => $m->notes,
+                'id'         => $m->id,
+                'type'       => $m->type,
+                'quantity'   => (int) $m->quantity,
+                'notes'      => $m->notes,
                 'created_at' => $m->created_at,
-                'supply'    => $m->supply_id ? ['id' => $m->supply_id, 'sku' => $m->supply_sku, 'name' => $m->supply_name] : null,
-                'warehouse' => $m->warehouse_id ? ['id' => $m->warehouse_id, 'name' => $m->warehouse_name] : null,
+                'supply'     => $m->supply_id ? ['id' => $m->supply_id, 'sku' => $m->supply_sku, 'name' => $m->supply_name] : null,
+                'warehouse'  => $m->warehouse_id ? ['id' => $m->warehouse_id, 'name' => $m->warehouse_name] : null,
             ]);
 
-        // ── Low stock materials (detail) ─────────────────────────────
-        $supplyLowStock = DB::table('supply_stocks as ss')
-            ->join('supplies as s', 's.id', '=', 'ss.supply_id')
-            ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
-            ->whereNotNull('ss.warehouse_id')
-            ->where('s.is_active', true)
-            ->whereNull('s.deleted_at')
-            ->where('ss.reorder_point', '>', 0)
-            ->whereRaw('(ss.current_stock - ss.reserved_stock) <= ss.reorder_point')
-            ->orderByRaw('(ss.current_stock - ss.reserved_stock) ASC')
-            ->limit(10)
-            ->select([
-                'ss.id', 's.name as supply_name', 's.sku',
-                'w.name as warehouse_name',
-                'ss.current_stock', 'ss.reserved_stock', 'ss.reorder_point',
-                DB::raw('CASE WHEN ss.current_stock - ss.reserved_stock > 0 THEN ss.current_stock - ss.reserved_stock ELSE 0 END as available_stock'),
-            ])
-            ->get();
+        // ── Chart / table data (5-minute cache) ──────────────────────
+        [
+            $supplyLowStock,
+            $supplyMovementTrend,
+            $stockStatusDistribution,
+            $sectionBreakdown,
+            $topSupplyMovers,
+            $warehouseStockSummary,
+            $supplyStockValue,
+        ] = Cache::remember('inv_dashboard_charts', 300, function () use ($since30) {
+            $supplyLowStock = DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
+                ->whereNotNull('ss.warehouse_id')
+                ->where('s.is_active', true)
+                ->whereNull('s.deleted_at')
+                ->where('ss.reorder_point', '>', 0)
+                ->whereRaw('(ss.current_stock - ss.reserved_stock) <= ss.reorder_point')
+                ->orderByRaw('(ss.current_stock - ss.reserved_stock) ASC')
+                ->limit(10)
+                ->select([
+                    'ss.id', 's.name as supply_name', 's.sku',
+                    'w.name as warehouse_name',
+                    'ss.current_stock', 'ss.reserved_stock', 'ss.reorder_point',
+                    DB::raw('CASE WHEN ss.current_stock - ss.reserved_stock > 0 THEN ss.current_stock - ss.reserved_stock ELSE 0 END as available_stock'),
+                ])
+                ->get();
 
-        // ── 30-day supply movement trend ─────────────────────────────
-        $supplyMovementTrend = DB::table('supply_movements')
-            ->where('created_at', '>=', $since30)
-            ->selectRaw("DATE(created_at) as date,
-                SUM(CASE WHEN type = 'STOCK_IN' AND quantity > 0 THEN quantity ELSE 0 END) as stock_in,
-                SUM(CASE WHEN type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out,
-                SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments")
-            ->groupByRaw('DATE(created_at)')
-            ->orderBy('date')
-            ->get();
+            $supplyMovementTrend = DB::table('supply_movements')
+                ->where('created_at', '>=', $since30)
+                ->selectRaw("DATE(created_at) as date,
+                    SUM(CASE WHEN type = 'STOCK_IN' AND quantity > 0 THEN quantity ELSE 0 END) as stock_in,
+                    SUM(CASE WHEN type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out,
+                    SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments")
+                ->groupByRaw('DATE(created_at)')
+                ->orderBy('date')
+                ->get();
 
-        // ── Stock status distribution ────────────────────────────────
-        $stockStatusDistribution = DB::table('supplies')
-            ->where('is_active', true)
-            ->whereNull('deleted_at')
-            ->select('stock_status', DB::raw('COUNT(*) as count'))
-            ->groupBy('stock_status')
-            ->pluck('count', 'stock_status')
-            ->all();
+            $stockStatusDistribution = DB::table('supplies')
+                ->where('is_active', true)
+                ->whereNull('deleted_at')
+                ->select('stock_status', DB::raw('COUNT(*) as count'))
+                ->groupBy('stock_status')
+                ->pluck('count', 'stock_status')
+                ->all();
 
-        // ── Section breakdown ──────────────────────────────────────
-        $sectionBreakdown = DB::table('supplies')
-            ->where('is_active', true)
-            ->whereNull('deleted_at')
-            ->select('section', DB::raw('COUNT(*) as count'))
-            ->groupBy('section')
-            ->pluck('count', 'section')
-            ->all();
+            $sectionBreakdown = DB::table('supplies')
+                ->where('is_active', true)
+                ->whereNull('deleted_at')
+                ->select('section', DB::raw('COUNT(*) as count'))
+                ->groupBy('section')
+                ->pluck('count', 'section')
+                ->all();
 
-        // ── Top supply movers (30d) ─────────────────────────────────
-        $topSupplyMovers = DB::table('supply_movements as sm')
-            ->join('supplies as s', 's.id', '=', 'sm.supply_id')
-            ->where('sm.created_at', '>=', $since30)
-            ->whereNotNull('sm.warehouse_id')
-            ->whereNull('s.deleted_at')
-            ->where('s.is_active', true)
-            ->select('s.id', 's.sku', 's.name', DB::raw('SUM(ABS(sm.quantity)) as total_qty'))
-            ->groupBy('s.id', 's.sku', 's.name')
-            ->orderByRaw('total_qty DESC')
-            ->limit(5)
-            ->get();
+            $topSupplyMovers = DB::table('supply_movements as sm')
+                ->join('supplies as s', 's.id', '=', 'sm.supply_id')
+                ->where('sm.created_at', '>=', $since30)
+                ->whereNotNull('sm.warehouse_id')
+                ->whereNull('s.deleted_at')
+                ->where('s.is_active', true)
+                ->select('s.id', 's.sku', 's.name', DB::raw('SUM(ABS(sm.quantity)) as total_qty'))
+                ->groupBy('s.id', 's.sku', 's.name')
+                ->orderByRaw('total_qty DESC')
+                ->limit(5)
+                ->get();
 
-        // ── Warehouse stock summary (supplies only, subquery to avoid Cartesian product) ─
-        $warehouseStockSummary = DB::table('warehouses as w')
-            ->where('w.is_active', true)
-            ->leftJoinSub(
-                DB::table('supply_stocks as ss')
-                    ->join('supplies as s', 's.id', '=', 'ss.supply_id')
-                    ->whereNotNull('ss.warehouse_id')
-                    ->where('s.is_active', true)
-                    ->whereNull('s.deleted_at')
-                    ->select('ss.warehouse_id', DB::raw('COUNT(DISTINCT ss.supply_id) as supply_units'), DB::raw('SUM(ss.current_stock * COALESCE(s.cost_price, 0)) as supply_value'))
-                    ->groupBy('ss.warehouse_id'),
-                'sv', 'sv.warehouse_id', '=', 'w.id'
-            )
-            ->select([
-                'w.id', 'w.name', 'w.code',
-                DB::raw('COALESCE(sv.supply_units, 0) as supply_units'),
-                DB::raw('COALESCE(sv.supply_value, 0) as supply_value'),
-            ])
-            ->get();
+            $warehouseStockSummary = DB::table('warehouses as w')
+                ->where('w.is_active', true)
+                ->leftJoinSub(
+                    DB::table('supply_stocks as ss')
+                        ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                        ->whereNotNull('ss.warehouse_id')
+                        ->where('s.is_active', true)
+                        ->whereNull('s.deleted_at')
+                        ->select('ss.warehouse_id', DB::raw('COUNT(DISTINCT ss.supply_id) as supply_units'), DB::raw('SUM(ss.current_stock * COALESCE(s.cost_price, 0)) as supply_value'))
+                        ->groupBy('ss.warehouse_id'),
+                    'sv', 'sv.warehouse_id', '=', 'w.id'
+                )
+                ->select([
+                    'w.id', 'w.name', 'w.code',
+                    DB::raw('COALESCE(sv.supply_units, 0) as supply_units'),
+                    DB::raw('COALESCE(sv.supply_value, 0) as supply_value'),
+                ])
+                ->get();
+
+            $supplyStockValue = (float) DB::table('supply_stocks as ss')
+                ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                ->whereNotNull('ss.warehouse_id')
+                ->where('s.is_active', true)
+                ->whereNull('s.deleted_at')
+                ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
+
+            return [
+                $supplyLowStock,
+                $supplyMovementTrend,
+                $stockStatusDistribution,
+                $sectionBreakdown,
+                $topSupplyMovers,
+                $warehouseStockSummary,
+                $supplyStockValue,
+            ];
+        });
 
         return Inertia::render('Inventory/Dashboard', [
             'stats'                       => $stats,
