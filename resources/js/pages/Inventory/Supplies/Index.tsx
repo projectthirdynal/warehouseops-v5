@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
+import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -257,6 +258,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
 
         {/* Table */}
         <Card>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -323,6 +325,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
               })}
             </TableBody>
           </Table>
+          </div>
           {supplies.last_page > 1 && (
             <div className="border-t p-3">
               <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
@@ -390,7 +393,10 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!supply) return;
-    form.patch(`/inventory/supplies/${supply.id}/status`, { onSuccess: onClose });
+    form.patch(`/inventory/supplies/${supply.id}/status`, {
+      onSuccess: () => { toast.success('Status override applied.'); onClose(); },
+      onError: () => toast.error('Failed to update status.'),
+    });
   }
 
   function clearOverride() {
@@ -398,7 +404,8 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
     form.setData({ stock_status: supply.stock_status, stock_status_override: false });
     form.patch(`/inventory/supplies/${supply.id}/status`, {
       data: { stock_status: supply.stock_status, stock_status_override: false },
-      onSuccess: onClose,
+      onSuccess: () => { toast.success('Status override cleared.'); onClose(); },
+      onError: () => toast.error('Failed to clear status override.'),
     });
   }
 
@@ -481,7 +488,10 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!supply) return;
-    form.delete(`/inventory/supplies/${supply.id}`, { onSuccess: onClose });
+    form.delete(`/inventory/supplies/${supply.id}`, {
+      onSuccess: () => { toast.success('Material removed successfully.'); onClose(); },
+      onError: () => toast.error('Failed to remove material. Please try again.'),
+    });
   }
 
   return (
@@ -620,9 +630,15 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
     e.preventDefault();
 
     if (editing) {
-      form.put(`/inventory/supplies/${editing.id}`, { onSuccess: onClose });
+      form.put(`/inventory/supplies/${editing.id}`, {
+        onSuccess: () => { toast.success('Material updated successfully.'); onClose(); },
+        onError: () => toast.error('Failed to update material. Check the form for errors.'),
+      });
     } else {
-      form.post('/inventory/supplies', { onSuccess: () => { onClose(); form.reset(); } });
+      form.post('/inventory/supplies', {
+        onSuccess: () => { toast.success('Material created successfully.'); onClose(); form.reset(); },
+        onError: () => toast.error('Failed to create material. Check the form for errors.'),
+      });
     }
   }
 
@@ -781,7 +797,10 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
     e.preventDefault();
     if (!supply) return;
 
-    form.post(`/inventory/supplies/${supply.id}/stock`, { onSuccess: onClose });
+    form.post(`/inventory/supplies/${supply.id}/stock`, {
+      onSuccess: () => { toast.success('Stock adjusted successfully.'); onClose(); },
+      onError: () => toast.error('Failed to adjust stock. Please try again.'),
+    });
   }
 
   return (

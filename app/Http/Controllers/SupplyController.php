@@ -11,6 +11,7 @@ use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,7 +20,10 @@ class SupplyController extends Controller
 {
     public function index(Request $request): Response
     {
-        app(StockStatusService::class)->recomputeAll();
+        Cache::remember('supply_status_recompute', 300, function () {
+            app(StockStatusService::class)->recomputeAll();
+            return true;
+        });
 
         $supplies = Supply::query()
             ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
@@ -54,6 +58,8 @@ class SupplyController extends Controller
             ->leftJoin('supplies as s', 's.id', '=', 'sm.supply_id')
             ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
             ->leftJoin('users as u', 'u.id', '=', 'sm.performed_by')
+            ->whereNull('s.deleted_at')
+            ->where('s.is_active', true)
             ->select([
                 'sm.id',
                 'sm.type',

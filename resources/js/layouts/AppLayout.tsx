@@ -164,10 +164,10 @@ const navigation: NavEntry[] = [
     icon: BookUser,
     roles: CRM_ROLES,
     children: [
-      { name: 'All Contacts', href: '/crm/contacts', icon: BookUser },
-      { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users },
-      { name: 'Suppliers', href: '/crm/contacts?type=supplier', icon: Building2 },
-      { name: 'Prospects', href: '/crm/contacts?type=prospect', icon: TrendingUp },
+      { name: 'All Contacts', href: '/crm/contacts', icon: BookUser, roles: CRM_ROLES },
+      { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users, roles: CRM_ROLES },
+      { name: 'Suppliers', href: '/crm/contacts?type=supplier', icon: Building2, roles: CRM_ROLES },
+      { name: 'Prospects', href: '/crm/contacts?type=prospect', icon: TrendingUp, roles: CRM_ROLES },
     ],
   },
 
