@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,14 +55,21 @@ export default function PrShow({ pr }: Props) {
   const [reason, setReason] = useState('');
 
   function submit() {
-    router.post(`/procurement/requests/${pr.id}/submit`);
+    router.post(`/procurement/requests/${pr.id}/submit`, {}, {
+      onSuccess: () => toast.success('PR submitted for approval.'),
+      onError:   () => toast.error('Failed to submit PR.'),
+    });
   }
   function approve() {
-    router.post(`/procurement/requests/${pr.id}/approve`);
+    router.post(`/procurement/requests/${pr.id}/approve`, {}, {
+      onSuccess: () => toast.success('PR approved.'),
+      onError:   () => toast.error('Failed to approve PR.'),
+    });
   }
   function reject() {
     router.post(`/procurement/requests/${pr.id}/reject`, { reason }, {
-      onSuccess: () => { setRejectOpen(false); setReason(''); },
+      onSuccess: () => { setRejectOpen(false); setReason(''); toast.success('PR rejected.'); },
+      onError:   () => toast.error('Failed to reject PR.'),
     });
   }
 

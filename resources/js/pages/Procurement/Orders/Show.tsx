@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,10 +76,16 @@ export default function PoShow({ po }: Props) {
     (po.currency_code === 'PHP' ? '₱' : po.currency_code + ' ') +
     Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
-  function send()   { router.post(`/procurement/orders/${po.id}/send`); }
+  function send() {
+    router.post(`/procurement/orders/${po.id}/send`, {}, {
+      onSuccess: () => toast.success('PO sent to supplier.'),
+      onError:   () => toast.error('Failed to send PO.'),
+    });
+  }
   function cancel() {
     router.post(`/procurement/orders/${po.id}/cancel`, { reason }, {
-      onSuccess: () => { setCancelOpen(false); setReason(''); },
+      onSuccess: () => { setCancelOpen(false); setReason(''); toast.success('PO cancelled.'); },
+      onError:   () => toast.error('Failed to cancel PO.'),
     });
   }
 

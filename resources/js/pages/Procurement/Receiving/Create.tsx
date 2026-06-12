@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +80,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
       items: lines.filter(l => l.quantity_received > 0 || l.quantity_rejected > 0),
     };
     router.post('/procurement/receiving', payload as never, {
+      onError: () => { toast.error('Failed to record goods receipt.'); setSaving(false); },
       onFinish: () => setSaving(false),
     });
   }

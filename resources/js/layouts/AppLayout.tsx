@@ -26,6 +26,7 @@ import type { PageProps } from '@/types';
 import CommandPalette from '@/components/CommandPalette';
 import { HotkeyCheatSheet } from '@/components/HotkeyCheatSheet';
 import { useGlobalHotkeys } from '@/hooks/use-hotkeys';
+import { toast } from 'sonner';
 
 /* ─── Role-based navigation ─── */
 const ALL_STAFF = ['superadmin','admin','supervisor','finance','accounting','warehouse','agent'];
@@ -222,6 +223,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+
+  /* ── Global flash toasts (driven by Laravel ->with('success'|'error')) ── */
+  useEffect(() => {
+    const flash = page.flash as { success?: string; error?: string } | undefined;
+    if (flash?.success) toast.success(flash.success);
+    if (flash?.error)   toast.error(flash.error);
+  }, [page.flash]);
 
   /* ── Global hotkeys ── */
   useGlobalHotkeys(

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Head, Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -100,6 +101,7 @@ export default function PoCreate({ suppliers, warehouses, products, supplies, uo
       items: lines.filter(l => l.product_id || l.supply_id),
     };
     router.post('/procurement/orders', payload as never, {
+      onError: () => { toast.error('Failed to create purchase order.'); setSaving(false); },
       onFinish: () => setSaving(false),
     });
   }
