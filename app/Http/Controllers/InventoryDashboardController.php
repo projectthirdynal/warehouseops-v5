@@ -23,14 +23,19 @@ class InventoryDashboardController extends Controller
     {
         $since30 = now()->subDays(30)->startOfDay();
 
-        // ── Stock value (supplies only) ──────────────────────────────
+        // ── Stock value (supplies only, assigned to active warehouses) ─
         $supplyStockValue = (float) DB::table('supply_stocks as ss')
             ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+            ->whereNotNull('ss.warehouse_id')
+            ->where('s.is_active', true)
+            ->whereNull('s.deleted_at')
             ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
 
         // ── Low stock materials count ────────────────────────────────
-        $supplyLowStockCount = SupplyStock::whereRaw('(current_stock - reserved_stock) <= reorder_point')
-            ->where('reorder_point', '>', 0)
+        $supplyLowStockCount = SupplyStock::whereRaw('(supply_stocks.current_stock - supply_stocks.reserved_stock) <= supply_stocks.reorder_point')
+            ->where('supply_stocks.reorder_point', '>', 0)
+            ->whereHas('supply', fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+            ->whereNotNull('warehouse_id')
             ->count();
 
         // ── Non-moving supplies (no movement in 90 days) ────────────
@@ -80,6 +85,9 @@ class InventoryDashboardController extends Controller
         $supplyLowStock = DB::table('supply_stocks as ss')
             ->join('supplies as s', 's.id', '=', 'ss.supply_id')
             ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
+            ->whereNotNull('ss.warehouse_id')
+            ->where('s.is_active', true)
+            ->whereNull('s.deleted_at')
             ->where('ss.reorder_point', '>', 0)
             ->whereRaw('(ss.current_stock - ss.reserved_stock) <= ss.reorder_point')
             ->orderByRaw('(ss.current_stock - ss.reserved_stock) ASC')
@@ -125,6 +133,7 @@ class InventoryDashboardController extends Controller
         $topSupplyMovers = DB::table('supply_movements as sm')
             ->join('supplies as s', 's.id', '=', 'sm.supply_id')
             ->where('sm.created_at', '>=', $since30)
+            ->whereNotNull('sm.warehouse_id')
             ->whereNull('s.deleted_at')
             ->where('s.is_active', true)
             ->select('s.id', 's.sku', 's.name', DB::raw('SUM(ABS(sm.quantity)) as total_qty'))
@@ -139,6 +148,9 @@ class InventoryDashboardController extends Controller
             ->leftJoinSub(
                 DB::table('supply_stocks as ss')
                     ->join('supplies as s', 's.id', '=', 'ss.supply_id')
+                    ->whereNotNull('ss.warehouse_id')
+                    ->where('s.is_active', true)
+                    ->whereNull('s.deleted_at')
                     ->select('ss.warehouse_id', DB::raw('COUNT(DISTINCT ss.supply_id) as supply_units'), DB::raw('SUM(ss.current_stock * COALESCE(s.cost_price, 0)) as supply_value'))
                     ->groupBy('ss.warehouse_id'),
                 'sv', 'sv.warehouse_id', '=', 'w.id'
