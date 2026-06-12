@@ -137,7 +137,6 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
     router.get('/inventory/supplies', { ...filters, ...overrides }, { preserveState: true, replace: true });
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSearch = useDebounce((val: string) => applyFilters({ search: val, page: '1' }), 400);
 
   const stockValue = useMemo(() =>

@@ -41,12 +41,12 @@ function useSupplySearch(q: string) {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       setLoading(true);
-      fetch(`/inventory/supplies?search=${encodeURIComponent(q)}&per_page=6`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-Inertia': 'true', 'X-Inertia-Version': '1' },
+      fetch(`/inventory/supplies/search?q=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
       })
         .then(r => r.json())
-        .then((data: { props?: { supplies?: { data?: SupplyHit[] } } }) => {
-          setHits(data?.props?.supplies?.data ?? []);
+        .then((data: SupplyHit[]) => {
+          setHits(Array.isArray(data) ? data : []);
           setLoading(false);
         })
         .catch(() => setLoading(false));

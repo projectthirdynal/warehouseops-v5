@@ -146,16 +146,17 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting,finance'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/supplies',              [SupplyController::class, 'index'])->name('supplies.index');
-        Route::post('/supplies',             [SupplyController::class, 'store'])->name('supplies.store');
-        Route::put('/supplies/{supply}',     [SupplyController::class, 'update'])->name('supplies.update');
-        Route::delete('/supplies/{supply}',  [SupplyController::class, 'destroy'])->name('supplies.destroy');
+        Route::get('/supplies',                  [SupplyController::class, 'index'])->name('supplies.index');
+        Route::post('/supplies',                 [SupplyController::class, 'store'])->name('supplies.store');
+        Route::get('/supplies/search',           [SupplyController::class, 'search'])->name('supplies.search');
+        Route::get('/supplies/export',           [SupplyController::class, 'export'])->name('supplies.export');
+        Route::get('/supplies/trash',            [SupplyController::class, 'trash'])->name('supplies.trash');
+        Route::put('/supplies/{supply}',         [SupplyController::class, 'update'])->name('supplies.update');
+        Route::delete('/supplies/{supply}',      [SupplyController::class, 'destroy'])->name('supplies.destroy');
         Route::post('/supplies/{supply}/stock',  [SupplyController::class, 'adjustStock'])->name('supplies.stock.adjust');
         Route::patch('/supplies/{supply}/status',[SupplyController::class, 'updateStatus'])->name('supplies.status.update');
         Route::get('/supplies/{supply}/summary', [SupplyController::class, 'summary'])->name('supplies.summary');
-        Route::get('/supplies/export',           [SupplyController::class, 'export'])->name('supplies.export');
-        Route::get('/supplies/trash',        [SupplyController::class, 'trash'])->name('supplies.trash');
-        Route::post('/supplies/{id}/restore',[SupplyController::class, 'restore'])->name('supplies.restore');
+        Route::post('/supplies/{id}/restore',    [SupplyController::class, 'restore'])->name('supplies.restore');
 
         Route::prefix('assets')->name('assets.')->group(function () {
             Route::get('/',                             [CapexAssetController::class, 'index'])->name('index');

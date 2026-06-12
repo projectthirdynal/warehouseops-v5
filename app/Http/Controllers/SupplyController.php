@@ -133,6 +133,27 @@ class SupplyController extends Controller
         ]);
     }
 
+    public function search(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $q = trim((string) $request->input('q', ''));
+
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $hits = Supply::where('is_active', true)
+            ->whereNull('deleted_at')
+            ->where(fn ($query) =>
+                $query->where('sku',  'like', "%{$q}%")
+                      ->orWhere('name', 'like', "%{$q}%")
+            )
+            ->orderBy('name')
+            ->limit(6)
+            ->get(['id', 'sku', 'name', 'stock_status', 'is_active']);
+
+        return response()->json($hits);
+    }
+
     public function export(Request $request): StreamedResponse
     {
         $query = Supply::query()
