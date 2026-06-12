@@ -291,7 +291,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             <TableHeader>
               <TableRow>
                 <TableHead>Material</TableHead>
-                <TableHead>Section / Category</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Movement</TableHead>
                 <TableHead className="text-right">Available</TableHead>
                 <TableHead className="text-right">Reorder</TableHead>
@@ -322,7 +322,7 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                       <div className="text-xs text-muted-foreground"><span className="font-mono">{supply.sku}</span>{supply.uom && ` / ${supply.uom.abbreviation}`}</div>
                     </TableCell>
                     <TableCell>
-                      <SectionBadge section={supply.section} stockCategory={supply.stock_category} opexCategory={supply.opex_category} category={supply.category} />
+                      <SectionBadge stockCategory={supply.stock_category} opexCategory={supply.opex_category} category={supply.category} />
                     </TableCell>
                     <TableCell>
                       <StockStatusBadge status={supply.stock_status} override={supply.stock_status_override} />
@@ -549,8 +549,7 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   );
 }
 
-function SectionBadge({ section, stockCategory, opexCategory, category }: {
-  section: string;
+function SectionBadge({ stockCategory, opexCategory, category }: {
   stockCategory?: string;
   opexCategory?: string;
   category?: string;
@@ -566,23 +565,13 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
     CLEANING_MATERIAL: 'Cleaning',
   };
 
-  if (section === 'OPEX') {
-    const subLabel = opexCategory ? (OPEX_LABELS[opexCategory] ?? opexCategory) : (category ?? null);
-    return (
-      <div>
-        <span className="rounded-full bg-blue-950/40 text-blue-300 px-2 py-0.5 text-xs font-medium">OPEX</span>
-        {subLabel && <div className="mt-0.5 text-xs text-muted-foreground">{subLabel}</div>}
-      </div>
-    );
-  }
+  const label = opexCategory
+    ? (OPEX_LABELS[opexCategory] ?? opexCategory)
+    : stockCategory
+      ? (STOCK_LABELS[stockCategory] ?? stockCategory)
+      : (category ?? null);
 
-  const subLabel = stockCategory ? (STOCK_LABELS[stockCategory] ?? stockCategory) : (category ?? null);
-  return (
-    <div>
-      <span className="rounded-full bg-emerald-950/40 text-emerald-300 px-2 py-0.5 text-xs font-medium">STOCK</span>
-      {subLabel && <div className="mt-0.5 text-xs text-muted-foreground">{subLabel}</div>}
-    </div>
-  );
+  return <span className="text-xs text-muted-foreground">{label ?? '—'}</span>;
 }
 
 function StockStatusBadge({ status, override }: { status: string; override: boolean }) {
