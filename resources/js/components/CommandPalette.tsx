@@ -39,19 +39,24 @@ function useSupplySearch(q: string) {
   useEffect(() => {
     if (q.length < 2) { setHits([]); return; }
     if (timerRef.current) clearTimeout(timerRef.current);
+    const controller = new AbortController();
     timerRef.current = setTimeout(() => {
       setLoading(true);
       fetch(`/inventory/supplies/search?q=${encodeURIComponent(q)}`, {
         headers: { Accept: 'application/json' },
+        signal: controller.signal,
       })
         .then(r => r.json())
         .then((data: SupplyHit[]) => {
           setHits(Array.isArray(data) ? data : []);
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch((err) => { if (err.name !== 'AbortError') setLoading(false); });
     }, 280);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      controller.abort();
+    };
   }, [q]);
 
   return { hits, loading };

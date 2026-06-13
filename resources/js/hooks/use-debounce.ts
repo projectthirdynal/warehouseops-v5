@@ -1,15 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 export function useDebounce<T extends (...args: never[]) => void>(
   fn: T,
   delay: number
 ): (...args: Parameters<T>) => void {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fnRef = useRef<T>(fn);
 
+  useEffect(() => { fnRef.current = fn; });
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  return (...args: Parameters<T>) => {
+  return useCallback((...args: Parameters<T>) => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => fn(...args), delay);
-  };
+    timer.current = setTimeout(() => fnRef.current(...args), delay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delay]);
 }
