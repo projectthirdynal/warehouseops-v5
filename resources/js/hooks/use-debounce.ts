@@ -13,6 +13,5 @@ export function useDebounce<T extends (...args: never[]) => void>(
   return useCallback((...args: Parameters<T>) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => fnRef.current(...args), delay);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [delay]);
 }
