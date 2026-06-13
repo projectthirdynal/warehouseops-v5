@@ -30,7 +30,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
+import { DateRangePicker } from '@/components/DateRangePicker';
+import { usePersistedDateRange } from '@/hooks/use-persisted-date-range';
 import type { PaginatedResponse, Waybill } from '@/types';
 
 interface Props {

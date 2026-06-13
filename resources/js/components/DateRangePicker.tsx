@@ -9,13 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface DateRange {
-  from: string; // YYYY-MM-DD
-  to: string;   // YYYY-MM-DD
-}
+import type { DateRange } from '@/hooks/use-persisted-date-range';
 
 interface Props {
   value: DateRange;
@@ -169,19 +163,3 @@ export function DateRangePicker({ value, onChange, storageKey, className }: Prop
   );
 }
 
-// ─── Hook: restore persisted range from localStorage ─────────────────────────
-
-export function usePersistedDateRange(
-  storageKey: string,
-  urlFrom?: string,
-  urlTo?: string,
-): DateRange {
-  if (urlFrom || urlTo) {
-    return { from: urlFrom ?? '', to: urlTo ?? '' };
-  }
-  try {
-    const stored = localStorage.getItem(storageKey);
-    if (stored) return JSON.parse(stored) as DateRange;
-  } catch { /* ignore */ }
-  return { from: offsetDate(-29), to: today() };
-}

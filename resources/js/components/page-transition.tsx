@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { PropsWithChildren } from 'react';
 
-export const pageVariants = {
+const pageVariants = {
   initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,

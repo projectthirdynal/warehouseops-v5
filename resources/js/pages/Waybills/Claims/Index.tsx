@@ -27,7 +27,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, AlertTriangle, CheckCircle, Clock, Plus, Download, ChevronDown } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { DateRangePicker, usePersistedDateRange } from '@/components/DateRangePicker';
+import { DateRangePicker } from '@/components/DateRangePicker';
+import { usePersistedDateRange } from '@/hooks/use-persisted-date-range';
 import type { Claim, ClaimStatus, ClaimType, PaginatedResponse } from '@/types';
 
 interface Props {

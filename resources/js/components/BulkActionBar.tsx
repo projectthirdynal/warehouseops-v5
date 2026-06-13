@@ -6,14 +6,14 @@ import {
   Trash2, Download, Archive,
 } from 'lucide-react';
 
-export interface BulkAction {
+export type BulkAction = {
   id: string;
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
   variant?: 'default' | 'destructive' | 'outline' | 'ghost';
   onClick: (ids: string[]) => void;
   disabled?: (ids: string[]) => boolean;
-}
+};
 
 interface BulkActionBarProps {
   selectedIds: string[];
@@ -24,7 +24,7 @@ interface BulkActionBarProps {
   className?: string;
 }
 
-export const DEFAULT_BULK_ACTIONS: BulkAction[] = [
+const DEFAULT_BULK_ACTIONS: BulkAction[] = [
   {
     id: 'delete',
     label: 'Delete',

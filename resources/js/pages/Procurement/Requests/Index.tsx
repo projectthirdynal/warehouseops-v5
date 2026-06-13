@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
+import { useDebounce } from '@/hooks/use-debounce';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,8 @@ export default function PrIndex({ requests, stats, filters }: Props) {
     router.get('/procurement/requests', { ...filters, ...o }, { preserveState: true, replace: true });
   }
 
+  const debouncedSearch = useDebounce((val: string) => applyFilters({ search: val, page: '1' }), 400);
+
   return (
     <AppLayout>
       <Head title="Purchase Requests" />
@@ -79,7 +82,7 @@ export default function PrIndex({ requests, stats, filters }: Props) {
 
         <div className="flex flex-wrap gap-2">
           <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex gap-2">
-            <Input placeholder="PR # search..." value={search} onChange={e => setSearch(e.target.value)} className="w-56" />
+            <Input placeholder="PR # search..." value={search} onChange={e => { setSearch(e.target.value); debouncedSearch(e.target.value); }} className="w-56" />
             <Button type="submit" variant="secondary" size="sm">Search</Button>
           </form>
           <Select value={filters.status ?? 'all'} onValueChange={(v) => applyFilters({ status: v === 'all' ? '' : v, page: '1' })}>

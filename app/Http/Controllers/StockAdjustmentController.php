@@ -15,6 +15,7 @@ use App\Notifications\StockAdjustmentNotification;
 use App\Services\ApprovalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
@@ -171,6 +172,9 @@ class StockAdjustmentController extends Controller
                 ]);
             }
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         $adjustment->load(['product', 'supply', 'warehouse']);
         if ($adjustment->submittedBy) {

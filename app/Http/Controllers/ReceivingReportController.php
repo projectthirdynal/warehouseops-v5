@@ -11,6 +11,7 @@ use App\Domain\Procurement\Models\PurchaseOrder;
 use App\Domain\Procurement\Models\ReceivingReport;
 use App\Domain\Procurement\Services\ProcurementService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -130,6 +131,10 @@ class ReceivingReportController extends Controller
     public function confirm(ReceivingReport $receiving)
     {
         $this->procurement->confirmGrn($receiving);
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
+
         return back()->with('success', 'GRN confirmed; stock posted.');
     }
 }
