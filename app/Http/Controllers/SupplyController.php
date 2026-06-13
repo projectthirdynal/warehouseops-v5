@@ -31,8 +31,8 @@ class SupplyController extends Controller
             ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
             ->when($request->search, function ($query, string $search): void {
                 $query->where(function ($inner) use ($search): void {
-                    $inner->where('sku', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%");
+                    $inner->where('sku', 'ILIKE', "%{$search}%")
+                        ->orWhere('name', 'ILIKE', "%{$search}%");
                 });
             })
             ->when($request->category, fn ($query, string $category) => $query->whereRaw('LOWER(category) = ?', [strtolower($category)]))
@@ -144,8 +144,8 @@ class SupplyController extends Controller
         $hits = Supply::where('is_active', true)
             ->whereNull('deleted_at')
             ->where(fn ($query) =>
-                $query->where('sku',  'like', "%{$q}%")
-                      ->orWhere('name', 'like', "%{$q}%")
+                $query->where('sku',  'ILIKE', "%{$q}%")
+                      ->orWhere('name', 'ILIKE', "%{$q}%")
             )
             ->orderBy('name')
             ->limit(6)
