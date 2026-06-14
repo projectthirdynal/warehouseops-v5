@@ -218,5 +218,5 @@ test('report download returns csv', function () {
     actingAs($user)
         ->get(route('inventory.adjustments.report.download'))
         ->assertOk()
-        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        ->assertHeader('content-type', 'text/csv; charset=utf-8');
 });

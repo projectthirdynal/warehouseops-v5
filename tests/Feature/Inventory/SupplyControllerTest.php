@@ -89,16 +89,17 @@ test('search ignores soft-deleted supplies', function () {
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 test('admin can create a supply', function () {
-    $user      = makeAdminUser();
-    $warehouse = makeWarehouse();
+    $user = makeAdminUser();
+    makeWarehouse(['is_default' => true]);
 
     actingAs($user)
         ->post(route('inventory.supplies.store'), [
-            'sku'        => 'NEW-001',
-            'name'       => 'New Material',
-            'cost_price' => 25.50,
-            'section'    => 'STOCK',
-            'is_active'  => true,
+            'sku'           => 'NEW-001',
+            'name'          => 'New Material',
+            'cost_price'    => 25.50,
+            'section'       => 'STOCK',
+            'reorder_point' => 5,
+            'is_active'     => true,
         ])
         ->assertRedirect();
 
@@ -114,6 +115,7 @@ test('store creates initial stock movement when initial_stock provided', functio
             'sku'           => 'INIT-001',
             'name'          => 'With Initial Stock',
             'cost_price'    => 10,
+            'reorder_point' => 5,
             'is_active'     => true,
             'initial_stock' => 50,
             'warehouse_id'  => $warehouse->id,
@@ -306,5 +308,5 @@ test('export returns csv download', function () {
     actingAs($user)
         ->get(route('inventory.supplies.export'))
         ->assertOk()
-        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        ->assertHeader('content-type', 'text/csv; charset=utf-8');
 });
