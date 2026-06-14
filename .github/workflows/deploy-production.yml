@@ -1,13 +1,13 @@
 name: Deploy to Production
 
 on:
-  # Disabled auto-deploy until codebase is fully synced
-  # push:
-  #   branches: [main]
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       rollback:
-        description: "Rollback to previous backup timestamp (leave empty for normal deploy)"
+        description: 'Rollback to previous backup timestamp (leave empty for normal deploy)'
         required: false
         type: string
 
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   ci:
-    name: CI Gate
+    name: CI Gate (Tests must pass before deploy)
     uses: ./.github/workflows/ci.yml
 
   deploy:
@@ -28,18 +28,19 @@ jobs:
     environment: production
 
     steps:
+      - name: Fix workspace permissions
+        run: |
+          sudo chown -R $(whoami):$(whoami) $GITHUB_WORKSPACE 2>/dev/null || true
+
       - name: Checkout code
-        if: github.event.inputs.rollback == ''
+        if: ${{ github.event.inputs.rollback == '' || github.event.inputs.rollback == null }}
         uses: actions/checkout@v4
 
       - name: Build frontend assets
-        if: github.event.inputs.rollback == ''
+        if: ${{ github.event.inputs.rollback == '' || github.event.inputs.rollback == null }}
         run: |
           npm ci
           npm run build
-          # public/index.php is not tracked in git — restore from /opt/warehouseops/public/
-          # The nginx container mounts this workspace as /var/www/html, so index.php
-          # must exist here or nginx returns 403 (directory listing forbidden).
           mkdir -p public
           cp -f /opt/warehouseops/public/index.php public/index.php
           cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
@@ -75,9 +76,9 @@ jobs:
           echo "Rollback completed from $ROLLBACK_DIR"
 
       - name: Sync code to production
-        if: github.event.inputs.rollback == ''
+        if: ${{ github.event.inputs.rollback == '' || github.event.inputs.rollback == null }}
         run: |
-          APP_DIR=/opt/warehouseops
+          sudo chown -R $(whoami):$(whoami) /opt/warehouseops 2>/dev/null || true
           sudo rsync -a --delete \
             --exclude='.env' \
             --exclude='.git/' \
@@ -90,15 +91,13 @@ jobs:
             --exclude='public/favicon.ico' \
             --exclude='public/robots.txt' \
             --exclude='public/images/' \
-            ./ "$APP_DIR"/
+            ./ /opt/warehouseops/
 
       - name: Copy build to app container
-        if: github.event.inputs.rollback == ''
+        if: ${{ github.event.inputs.rollback == '' || github.event.inputs.rollback == null }}
         run: |
-          # public/index.php already restored in "Build frontend assets" step above.
-          # Copy the compiled build/ into the app container as well.
           sudo docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
-          echo "public/ final state (served by nginx):"
+          echo "public/ final state:"
           ls -la "$GITHUB_WORKSPACE/public/"
 
       - name: Install Composer dependencies
