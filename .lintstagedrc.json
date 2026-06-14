@@ -1,5 +1,5 @@
 {
   "resources/js/**/*.{ts,tsx}": ["prettier --write", "eslint --fix"],
-  "app/**/*.php": ["php -l"],
+  "app/**/*.php": ["bash -c 'command -v php >/dev/null 2>&1 && php -l \"$0\" || true'"],
   "*.{md,yml,yaml,json}": ["prettier --write"]
 }

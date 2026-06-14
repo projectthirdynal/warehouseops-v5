@@ -16,6 +16,7 @@ use App\Services\ApprovalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
@@ -61,9 +62,50 @@ class StockAdjustmentController extends Controller
         ]);
     }
 
-    public function downloadReport(): RedirectResponse
+    public function downloadReport(Request $request): StreamedResponse
     {
-        return back()->with('info', 'Export feature coming soon.');
+        $filename = 'adjustment-report-' . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($request): void {
+            $out = fopen('php://output', 'w');
+
+            fputcsv($out, [
+                'ID', 'Date', 'Type', 'Item', 'SKU', 'Warehouse',
+                'Qty Before', 'Qty After', 'Variance',
+                'Reason', 'Notes', 'Status', 'Submitted By', 'Approved By', 'Approved At',
+            ]);
+
+            $this->adjustmentQuery($request)
+                ->when($request->from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
+                ->when($request->to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+                ->chunk(200, function ($adjustments) use ($out): void {
+                    foreach ($adjustments as $a) {
+                        $itemName = $a->supply?->name ?? $a->product?->name ?? '-';
+                        $itemSku  = $a->supply?->sku  ?? $a->product?->sku  ?? '-';
+                        fputcsv($out, [
+                            $a->id,
+                            $a->created_at?->format('Y-m-d H:i:s'),
+                            $a->supply_id ? 'Supply' : 'Product',
+                            $itemName,
+                            $itemSku,
+                            $a->warehouse?->name ?? '-',
+                            $a->quantity_before,
+                            $a->quantity_after,
+                            $a->variance,
+                            $a->reason_code,
+                            $a->reason_notes ?? '',
+                            $a->status,
+                            $a->submittedBy?->name ?? '-',
+                            $a->approvedBy?->name ?? '-',
+                            $a->approved_at?->format('Y-m-d H:i:s') ?? '',
+                        ]);
+                    }
+                });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

@@ -30,9 +30,10 @@ class SupplyController extends Controller
         $supplies = Supply::query()
             ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
             ->when($request->search, function ($query, string $search): void {
-                $query->where(function ($inner) use ($search): void {
-                    $inner->where('sku', 'ILIKE', "%{$search}%")
-                        ->orWhere('name', 'ILIKE', "%{$search}%");
+                $like = '%' . mb_strtolower($search) . '%';
+                $query->where(function ($inner) use ($like): void {
+                    $inner->whereRaw('LOWER(sku) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(name) LIKE ?', [$like]);
                 });
             })
             ->when($request->category, fn ($query, string $category) => $query->whereRaw('LOWER(category) = ?', [strtolower($category)]))
@@ -141,11 +142,12 @@ class SupplyController extends Controller
             return response()->json([]);
         }
 
+        $like = '%' . mb_strtolower($q) . '%';
         $hits = Supply::where('is_active', true)
             ->whereNull('deleted_at')
             ->where(fn ($query) =>
-                $query->where('sku',  'ILIKE', "%{$q}%")
-                      ->orWhere('name', 'ILIKE', "%{$q}%")
+                $query->whereRaw('LOWER(sku) LIKE ?', [$like])
+                      ->orWhereRaw('LOWER(name) LIKE ?', [$like])
             )
             ->orderBy('name')
             ->limit(6)
@@ -390,11 +392,15 @@ class SupplyController extends Controller
     public function adjustStock(Request $request, Supply $supply): RedirectResponse
     {
         $data = $request->validate([
-            'type' => ['required', 'in:stock_in,stock_out,adjustment'],
-            'quantity' => ['required', 'integer', 'min:0'],
+            'type'         => ['required', 'in:stock_in,stock_out,adjustment'],
+            'quantity'     => ['required', 'integer', 'min:0'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
-            'notes' => ['nullable', 'string', 'max:1000'],
+            'notes'        => ['nullable', 'string', 'max:1000'],
         ]);
+
+        if (in_array($data['type'], ['stock_in', 'stock_out']) && (int) $data['quantity'] < 1) {
+            return back()->withErrors(['quantity' => 'Quantity must be at least 1 for stock in/out.']);
+        }
 
         $warehouseId = $this->warehouseId($request);
         $quantity = (int) $data['quantity'];
