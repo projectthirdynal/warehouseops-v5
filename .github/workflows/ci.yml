@@ -52,7 +52,7 @@ jobs:
           php artisan migrate --force
 
       - name: Run tests
-        run: php artisan test --exclude-group=broken
+        run: vendor/bin/pest --no-coverage --exclude-group=broken
 
       # TODO: Re-enable after codebase cleanup
       # - name: Run static analysis
