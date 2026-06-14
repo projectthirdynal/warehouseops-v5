@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,7 +24,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.3"
+          php-version: '8.3'
           extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
           coverage: none
 
@@ -72,7 +73,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
           cache: npm
 
       - name: Install Node dependencies

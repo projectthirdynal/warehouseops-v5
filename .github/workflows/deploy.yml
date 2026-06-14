@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 # Cancel any in-progress deploy if a new push arrives
 concurrency:
