@@ -8,8 +8,8 @@ on:
   workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow_ref || github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   backend:
