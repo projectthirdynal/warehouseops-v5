@@ -44,7 +44,7 @@ class ReceivingReportController extends Controller
     {
         $request->validate(['po_id' => 'required|integer|exists:purchase_orders,id']);
 
-        $po = PurchaseOrder::with(['items.product:id,sku,name', 'supplier:id,name'])
+        $po = PurchaseOrder::with(['items.product:id,sku,name', 'items.supply:id,sku,name', 'supplier:id,name'])
             ->findOrFail($request->po_id);
 
         if (! in_array($po->status, [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED], true)) {
@@ -120,6 +120,7 @@ class ReceivingReportController extends Controller
     {
         $receiving->load([
             'items.purchaseOrderItem.product:id,sku,name',
+            'items.purchaseOrderItem.supply:id,sku,name',
             'purchaseOrder.supplier:id,name',
             'warehouse:id,name',
             'location:id,code,name',

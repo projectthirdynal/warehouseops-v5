@@ -129,8 +129,17 @@ class JntWaybillFastImport
                 }
 
                 $flushed = count($batch);
-                $counts = $this->bulkUpsert($batch);
+                $currentBatch = $batch;
                 $batch = [];
+                try {
+                    $counts = $this->bulkUpsert($currentBatch);
+                } catch (\Throwable $e) {
+                    if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                        $this->errors[] = ['row' => $rowNumber, 'error' => $this->sanitizeDbError($e->getMessage())];
+                    }
+                    $this->errorCount += $flushed;
+                    $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
+                }
 
                 // Single combined write — increments collapsed to 1 UPDATE
                 DB::table('uploads')->where('id', $this->upload->id)->update([
@@ -146,7 +155,15 @@ class JntWaybillFastImport
 
         if (!empty($batch)) {
             $flushed = count($batch);
-            $counts = $this->bulkUpsert($batch);
+            try {
+                $counts = $this->bulkUpsert($batch);
+            } catch (\Throwable $e) {
+                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                    $this->errors[] = ['row' => 'final_batch', 'error' => $this->sanitizeDbError($e->getMessage())];
+                }
+                $this->errorCount += $flushed;
+                $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
+            }
             $totalRows = $this->successCount + $this->errorCount;
             DB::table('uploads')->where('id', $this->upload->id)->update([
                 'success_rows'   => DB::raw("success_rows + {$flushed}"),
@@ -379,5 +396,12 @@ class JntWaybillFastImport
     public function getSkippedCount(): int
     {
         return $this->skippedCount;
+    }
+
+    private function sanitizeDbError(string $message): string
+    {
+        // Strip SQL statement from DB exception messages to prevent raw SQL leaking into error logs
+        $truncated = preg_replace('/\s+SQL:.*$/s', '', $message);
+        return mb_substr($truncated ?: $message, 0, 500);
     }
 }

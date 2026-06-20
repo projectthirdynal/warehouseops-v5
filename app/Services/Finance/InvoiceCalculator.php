@@ -75,11 +75,15 @@ class InvoiceCalculator
         Invoice $invoice,
         array $data,
     ): InvoiceLine {
+        $lineTaxRate = isset($data['tax_rate']) && (float) $data['tax_rate'] > 0
+            ? (float) $data['tax_rate']
+            : (float) $invoice->tax_rate;
+
         $totals = self::calculateLineTotals(
             (float) $data['qty'],
             (float) $data['unit_price'],
             (float) ($data['discount_pct'] ?? 0),
-            (float) ($data['tax_rate'] ?? 0),
+            $lineTaxRate,
         );
 
         return InvoiceLine::create([
@@ -88,7 +92,7 @@ class InvoiceCalculator
             'description'     => $data['description'],
             'qty'             => $data['qty'],
             'unit_price'      => $data['unit_price'],
-            'tax_rate'        => $data['tax_rate'] ?? 0,
+            'tax_rate'        => $lineTaxRate,
             'discount_pct'    => $data['discount_pct'] ?? 0,
             'discount_amount' => $totals['discount_amount'],
             'tax_amount'      => $totals['tax_amount'],

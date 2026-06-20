@@ -136,7 +136,7 @@ class JntExpressService implements CourierServiceInterface
                     }
                 }
 
-                usleep(200_000); // 200ms between batches
+                usleep(50_000); // 50ms between batches
             } catch (\Exception $e) {
                 Log::warning('J&T tracking query failed for batch', [
                     'count' => count($chunk),

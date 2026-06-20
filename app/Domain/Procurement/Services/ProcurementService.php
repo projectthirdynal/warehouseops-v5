@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Procurement\Services;
 
 use App\Domain\Finance\Services\QboSyncService;
+use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Procurement\Enums\GrnStatus;
 use App\Domain\Procurement\Enums\PoStatus;
@@ -133,21 +134,47 @@ class ProcurementService
             foreach ($grn->items as $grnItem) {
                 $poItem = $grnItem->purchaseOrderItem;
 
-                if ($grnItem->quantity_received > 0 && $grnItem->condition === 'GOOD' && $poItem->product_id) {
-                    $this->stockService->stockIn(
-                        productId:    (int) $poItem->product_id,
-                        variantId:    $poItem->variant_id ? (int) $poItem->variant_id : null,
-                        warehouseId:  (int) $grn->warehouse_id,
-                        locationId:   $grn->location_id ? (int) $grn->location_id : null,
-                        quantity:     (int) $grnItem->quantity_received,
-                        unitCost:     (float) $poItem->unit_price,
-                        grnItemId:    (int) $grnItem->id,
-                        batchNumber:  $grnItem->batch_number,
-                        expiryDate:   $grnItem->expiry_date?->toDateString(),
-                        performedBy:  (int) $grn->received_by,
-                        currencyCode: $grn->purchaseOrder->currency_code,
-                        exchangeRate: (float) $grn->exchange_rate,
-                    );
+                if ($grnItem->quantity_received > 0 && $grnItem->condition === 'GOOD') {
+                    if ($poItem->product_id) {
+                        $this->stockService->stockIn(
+                            productId:    (int) $poItem->product_id,
+                            variantId:    $poItem->variant_id ? (int) $poItem->variant_id : null,
+                            warehouseId:  (int) $grn->warehouse_id,
+                            locationId:   $grn->location_id ? (int) $grn->location_id : null,
+                            quantity:     (int) $grnItem->quantity_received,
+                            unitCost:     (float) $poItem->unit_price,
+                            grnItemId:    (int) $grnItem->id,
+                            batchNumber:  $grnItem->batch_number,
+                            expiryDate:   $grnItem->expiry_date?->toDateString(),
+                            performedBy:  (int) $grn->received_by,
+                            currencyCode: $grn->purchaseOrder->currency_code,
+                            exchangeRate: (float) $grn->exchange_rate,
+                        );
+                    } elseif ($poItem->supply_id) {
+                        $qty = (int) $grnItem->quantity_received;
+                        $supplyStock = SupplyStock::firstOrCreate(
+                            ['supply_id' => $poItem->supply_id, 'warehouse_id' => $grn->warehouse_id, 'location_id' => null],
+                            ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 0]
+                        );
+                        $supplyStock->current_stock  += $qty;
+                        $supplyStock->last_restock_at  = now();
+                        $supplyStock->last_movement_at = now();
+                        $supplyStock->save();
+
+                        DB::table('supply_movements')->insert([
+                            'supply_id'      => $poItem->supply_id,
+                            'warehouse_id'   => $grn->warehouse_id,
+                            'type'           => 'STOCK_IN',
+                            'quantity'       => $qty,
+                            'batch_number'   => $grnItem->batch_number,
+                            'reference_type' => 'grn_item',
+                            'reference_id'   => $grnItem->id,
+                            'notes'          => "Received via GRN {$grn->grn_number}",
+                            'performed_by'   => $grn->received_by,
+                            'created_at'     => now(),
+                            'updated_at'     => now(),
+                        ]);
+                    }
                 }
 
                 if ($grnItem->condition === 'GOOD') {

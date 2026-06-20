@@ -21,8 +21,8 @@ class SyncTrackingStatusJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 300;
-    public int $tries = 3;
+    public int $timeout = 600;
+    public int $tries = 1;
 
     public function __construct(
         private ?string $courierCode = null
@@ -30,23 +30,30 @@ class SyncTrackingStatusJob implements ShouldQueue
 
     public function handle(CourierServiceManager $manager): void
     {
+        if (empty(config('services.couriers.jnt.api_key')) && empty(config('services.couriers.flash.api_key'))) {
+            Log::warning('SyncTrackingStatusJob: no courier API keys configured, skipping.');
+            return;
+        }
+
         $terminalStatuses = [
             WaybillStatus::DELIVERED->value,
             WaybillStatus::RETURNED->value,
             WaybillStatus::CANCELLED->value,
+            WaybillStatus::PENDING->value,
         ];
 
         $query = Waybill::query()
             ->whereNotIn('status', $terminalStatuses)
             ->where('courier_provider', '!=', 'MANUAL')
-            ->whereNotNull('waybill_number');
+            ->whereNotNull('waybill_number')
+            ->where('submitted_at', '>=', now()->subDays(21));
 
         if ($this->courierCode) {
             $query->where('courier_provider', $this->courierCode);
         }
 
         $query->select('id', 'waybill_number', 'courier_provider', 'status')
-            ->chunkById(200, function ($waybills) use ($manager) {
+            ->chunkById(60, function ($waybills) use ($manager) {
                 $grouped = $waybills->groupBy('courier_provider');
 
                 foreach ($grouped as $code => $batch) {
