@@ -129,10 +129,13 @@ class GenerateLeadsFromUpload implements ShouldQueue
             }
         }
 
-        // Record results on the upload record
+        // Store results in metadata (leads_created/leads_updated columns don't exist on uploads table)
         $upload->update([
-            'leads_created' => $leadsCreated,
-            'leads_updated' => $leadsUpdated,
+            'metadata' => array_merge($upload->metadata ?? [], [
+                'leads_created' => $leadsCreated,
+                'leads_updated' => $leadsUpdated,
+                'leads_skipped' => $skipped,
+            ]),
         ]);
     }
 }

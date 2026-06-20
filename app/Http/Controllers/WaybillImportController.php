@@ -309,35 +309,16 @@ class WaybillImportController extends Controller
             'Notes',
         ];
 
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet       = $spreadsheet->getActiveSheet();
-
-        foreach ($headers as $col => $header) {
-            $sheet->setCellValueByColumnAndRow($col + 1, 1, $header);
-        }
-
-        $headerStyle = [
-            'font' => ['bold' => true],
-            'fill' => [
-                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'E0E0E0'],
-            ],
-        ];
-        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray($headerStyle);
-
-        foreach (range('A', $sheet->getHighestColumn()) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        $writer   = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
         $filename = "waybill_import_template_{$courier}.xlsx";
-        $tempPath = storage_path('app/temp/' . $filename);
+        $tempDir  = storage_path('app/temp');
+        $tempPath = $tempDir . '/' . $filename;
 
-        if (!is_dir(dirname($tempPath))) {
-            mkdir(dirname($tempPath), 0755, true);
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
         }
 
-        $writer->save($tempPath);
+        (new FastExcel(collect([array_fill_keys($headers, '')])
+        ))->export($tempPath);
 
         return response()->download($tempPath, $filename)->deleteFileAfterSend(true);
     }
