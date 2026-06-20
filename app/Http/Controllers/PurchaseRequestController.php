@@ -104,7 +104,7 @@ class PurchaseRequestController extends Controller
 
     public function show(PurchaseRequest $request)
     {
-        $request->load(['items.product:id,sku,name', 'requester:id,name', 'approver:id,name']);
+        $request->load(['items.product:id,sku,name', 'items.supply:id,sku,name', 'requester:id,name', 'approver:id,name']);
         return Inertia::render('Procurement/Requests/Show', [
             'pr' => $request,
         ]);

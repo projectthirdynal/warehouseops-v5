@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Procurement\Models;
 
+use App\Domain\Inventory\Models\Supply;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,11 @@ class PurchaseRequestItem extends Model
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'variant_id');
+    }
+
+    public function supply(): BelongsTo
+    {
+        return $this->belongsTo(Supply::class);
     }
 
     public function lineTotal(): float

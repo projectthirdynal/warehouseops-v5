@@ -51,7 +51,7 @@ class PurchaseOrderController extends Controller
 
     public function create(Request $request)
     {
-        $pr = $request->pr_id ? PurchaseRequest::with('items.product')->find($request->pr_id) : null;
+        $pr = $request->pr_id ? PurchaseRequest::with(['items.product:id,sku,name', 'items.supply:id,sku,name'])->find($request->pr_id) : null;
 
         return Inertia::render('Procurement/Orders/Create', [
             'suppliers'  => Supplier::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'payment_terms']),
@@ -133,6 +133,7 @@ class PurchaseOrderController extends Controller
     {
         $order->load([
             'items.product:id,sku,name',
+            'items.supply:id,sku,name',
             'supplier:id,name,code,contact_person,email,phone,payment_terms',
             'warehouse:id,name,code',
             'creator:id,name',
