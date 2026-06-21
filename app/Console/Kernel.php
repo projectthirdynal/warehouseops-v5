@@ -30,6 +30,7 @@ class Kernel extends ConsoleKernel
             ->onOneServer();
 
         $schedule->command('inventory:recompute-stock-status')->daily()->withoutOverlapping();
+        $schedule->command('inventory:release-expired-reservations')->hourly()->withoutOverlapping();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {
