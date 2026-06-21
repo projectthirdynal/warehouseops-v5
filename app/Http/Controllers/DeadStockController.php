@@ -129,6 +129,61 @@ class DeadStockController extends Controller
         $unitCost = (float) $data['unit_cost'];
 
         DB::transaction(function () use ($data, $qty, $unitCost, $request): void {
+            // Auto write-off: deduct from stock with row locking and available check
+            if ($data['item_type'] === 'supply') {
+                $stock = SupplyStock::lockForUpdate()
+                    ->where('supply_id', $data['supply_id'])
+                    ->when($data['warehouse_id'], fn ($q) => $q->where('warehouse_id', $data['warehouse_id']))
+                    ->first();
+
+                $available = $stock ? ($stock->current_stock - $stock->reserved_stock) : 0;
+                if ($available < $qty) {
+                    throw new \RuntimeException("Insufficient available supply stock. Available: {$available}, requested: {$qty}");
+                }
+
+                $stock->current_stock    = max(0, $stock->current_stock - $qty);
+                $stock->last_movement_at = now();
+                $stock->save();
+
+                DB::table('supply_movements')->insert([
+                    'supply_id'    => $data['supply_id'],
+                    'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
+                    'type'         => 'WRITE_OFF',
+                    'quantity'     => -$qty,
+                    'notes'        => 'Dead stock write-off: ' . ($data['reason'] ?? 'No reason'),
+                    'performed_by' => $request->user()?->id,
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ]);
+            } else {
+                $stock = ProductStock::lockForUpdate()
+                    ->where('product_id', $data['product_id'])
+                    ->whereNull('variant_id')
+                    ->when($data['warehouse_id'], fn ($q) => $q->where('warehouse_id', $data['warehouse_id']))
+                    ->first();
+
+                $available = $stock ? ($stock->current_stock - $stock->reserved_stock) : 0;
+                if ($available < $qty) {
+                    throw new \RuntimeException("Insufficient available product stock. Available: {$available}, requested: {$qty}");
+                }
+
+                $stock->current_stock    = max(0, $stock->current_stock - $qty);
+                $stock->last_movement_at = now();
+                $stock->save();
+
+                DB::table('inventory_movements')->insert([
+                    'product_id'   => $data['product_id'],
+                    'variant_id'   => null,
+                    'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
+                    'type'         => 'WRITE_OFF',
+                    'quantity'     => -$qty,
+                    'notes'        => 'Dead stock write-off: ' . ($data['reason'] ?? 'No reason'),
+                    'performed_by' => $request->user()?->id,
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ]);
+            }
+
             DeadStock::create([
                 'item_type'    => $data['item_type'],
                 'supply_id'    => $data['supply_id'] ?? null,
@@ -140,30 +195,6 @@ class DeadStockController extends Controller
                 'reason'       => $data['reason'] ?? null,
                 'recorded_by'  => $request->user()?->id,
             ]);
-
-            // Auto write-off: deduct from stock
-            if ($data['item_type'] === 'supply') {
-                $stock = SupplyStock::where('supply_id', $data['supply_id'])
-                    ->when($data['warehouse_id'], fn ($q) => $q->where('warehouse_id', $data['warehouse_id']))
-                    ->first();
-
-                if ($stock) {
-                    $stock->current_stock = max(0, $stock->current_stock - $qty);
-                    $stock->last_movement_at = now();
-                    $stock->save();
-                }
-            } else {
-                $stock = ProductStock::where('product_id', $data['product_id'])
-                    ->whereNull('variant_id')
-                    ->when($data['warehouse_id'], fn ($q) => $q->where('warehouse_id', $data['warehouse_id']))
-                    ->first();
-
-                if ($stock) {
-                    $stock->current_stock = max(0, $stock->current_stock - $qty);
-                    $stock->last_movement_at = now();
-                    $stock->save();
-                }
-            }
         });
 
         return back()->with('success', 'Dead stock entry recorded and stock written off.');

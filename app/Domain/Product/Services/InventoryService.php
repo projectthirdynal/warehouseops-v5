@@ -278,7 +278,7 @@ class InventoryService
 
     private function getOrCreateStock(int $productId, ?int $variantId, ?int $warehouseId = null): ProductStock
     {
-        return ProductStock::firstOrCreate(
+        return ProductStock::lockForUpdate()->firstOrCreate(
             ['product_id' => $productId, 'variant_id' => $variantId, 'warehouse_id' => $warehouseId],
             ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
         );

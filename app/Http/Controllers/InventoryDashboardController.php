@@ -44,7 +44,7 @@ class InventoryDashboardController extends Controller
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
                 ->where('ss.current_stock', '>', 0)
                 ->whereNull('s.deleted_at')
-                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$deadThreshold])
+                ->whereRaw('CASE WHEN COALESCE(ss.last_movement_at, s.created_at) > s.created_at THEN COALESCE(ss.last_movement_at, s.created_at) ELSE s.created_at END < ?', [$deadThreshold])
                 ->count();
 
             $outOfStockCount = Supply::where('is_active', true)
@@ -330,7 +330,7 @@ class InventoryDashboardController extends Controller
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
                 ->leftJoin('warehouses as w', 'w.id', '=', 'ps.warehouse_id')
                 ->where('ps.current_stock', '>', 0)
-                ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$threshold])
+                ->whereRaw('CASE WHEN COALESCE(ps.last_movement_at, p.created_at) > p.created_at THEN COALESCE(ps.last_movement_at, p.created_at) ELSE p.created_at END < ?', [$threshold])
                 ->whereNull('p.deleted_at')
                 ->select([
                     'p.id as product_id',
@@ -357,7 +357,7 @@ class InventoryDashboardController extends Controller
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
                 ->leftJoin('warehouses as w', 'w.id', '=', 'ss.warehouse_id')
                 ->where('ss.current_stock', '>', 0)
-                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$threshold])
+                ->whereRaw('CASE WHEN COALESCE(ss.last_movement_at, s.created_at) > s.created_at THEN COALESCE(ss.last_movement_at, s.created_at) ELSE s.created_at END < ?', [$threshold])
                 ->whereNull('s.deleted_at')
                 ->select([
                     's.id as supply_id',
@@ -384,7 +384,7 @@ class InventoryDashboardController extends Controller
             $productDeadValue = DB::table('product_stocks as ps')
                 ->join('products as p', 'p.id', '=', 'ps.product_id')
                 ->where('ps.current_stock', '>', 0)
-                ->whereRaw('GREATEST(COALESCE(ps.last_movement_at, p.created_at), p.created_at) < ?', [$threshold])
+                ->whereRaw('CASE WHEN COALESCE(ps.last_movement_at, p.created_at) > p.created_at THEN COALESCE(ps.last_movement_at, p.created_at) ELSE p.created_at END < ?', [$threshold])
                 ->whereNull('p.deleted_at')
                 ->sum(DB::raw('ps.current_stock * COALESCE(p.cost_price, 0)'));
         }
@@ -394,7 +394,7 @@ class InventoryDashboardController extends Controller
             $supplyDeadValue = DB::table('supply_stocks as ss')
                 ->join('supplies as s', 's.id', '=', 'ss.supply_id')
                 ->where('ss.current_stock', '>', 0)
-                ->whereRaw('GREATEST(COALESCE(ss.last_movement_at, s.created_at), s.created_at) < ?', [$threshold])
+                ->whereRaw('CASE WHEN COALESCE(ss.last_movement_at, s.created_at) > s.created_at THEN COALESCE(ss.last_movement_at, s.created_at) ELSE s.created_at END < ?', [$threshold])
                 ->whereNull('s.deleted_at')
                 ->sum(DB::raw('ss.current_stock * COALESCE(s.cost_price, 0)'));
         }
