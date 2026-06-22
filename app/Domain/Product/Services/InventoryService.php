@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Product\Services;
 
+use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
@@ -27,6 +28,13 @@ class InventoryService
     ): InventoryMovement {
         return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $performedBy, $referenceType, $referenceId, $warehouseId) {
             $warehouseId ??= $this->defaultWarehouseId();
+
+            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
+            $stock->current_stock += abs($quantity);
+            $stock->last_restock_at  = now();
+            $stock->last_movement_at = now();
+            $stock->save();
+
             $movement = InventoryMovement::create([
                 'product_id'     => $productId,
                 'variant_id'     => $variantId,
@@ -38,12 +46,6 @@ class InventoryService
                 'reference_type' => $referenceType,
                 'reference_id'   => $referenceId,
             ]);
-
-            $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->current_stock += abs($quantity);
-            $stock->last_restock_at  = now();
-            $stock->last_movement_at = now();
-            $stock->save();
 
             return $movement;
         });
@@ -126,6 +128,18 @@ class InventoryService
             $stock->last_movement_at = now();
             $stock->save();
 
+            StockReservation::create([
+                'product_id'     => $productId,
+                'variant_id'     => $variantId,
+                'warehouse_id'   => $warehouseId,
+                'quantity'       => abs($quantity),
+                'reference_type' => $referenceType,
+                'reference_id'   => $referenceId,
+                'reserved_at'    => now(),
+                'expires_at'     => now()->addHours(24),
+                'status'         => 'ACTIVE',
+            ]);
+
             return $movement;
         });
     }
@@ -159,6 +173,15 @@ class InventoryService
             $stock->last_movement_at = now();
             $stock->save();
 
+            StockReservation::where('reference_type', $referenceType)
+                ->where('reference_id', $referenceId)
+                ->where('status', 'ACTIVE')
+                ->update([
+                    'status'          => 'RELEASED',
+                    'released_at'     => now(),
+                    'released_reason' => 'manual',
+                ]);
+
             return $movement;
         });
     }
@@ -189,10 +212,23 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
+            if ($stock->current_stock < abs($quantity)) {
+                throw new \RuntimeException(
+                    "Insufficient stock for reservation confirmation. Current: {$stock->current_stock}, requested: {$quantity}"
+                );
+            }
             $stock->current_stock   -= abs($quantity);
             $stock->reserved_stock   = max(0, $stock->reserved_stock - abs($quantity));
             $stock->last_movement_at = now();
             $stock->save();
+
+            StockReservation::where('reference_type', $referenceType)
+                ->where('reference_id', $referenceId)
+                ->where('status', 'ACTIVE')
+                ->update([
+                    'status'          => 'CONFIRMED',
+                    'released_at'     => now(),
+                ]);
 
             return $movement;
         });

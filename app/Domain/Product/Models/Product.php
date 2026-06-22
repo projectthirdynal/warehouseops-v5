@@ -75,9 +75,9 @@ class Product extends Model
     public function scopeSearch($query, string $term)
     {
         return $query->where(function ($q) use ($term) {
-            $q->where('name', 'ILIKE', "%{$term}%")
-              ->orWhere('sku', 'ILIKE', "%{$term}%")
-              ->orWhere('brand', 'ILIKE', "%{$term}%");
+            $q->whereRaw('LOWER(name) LIKE ?', ['%' . mb_strtolower($term) . '%'])
+              ->orWhereRaw('LOWER(sku) LIKE ?', ['%' . mb_strtolower($term) . '%'])
+              ->orWhereRaw('LOWER(brand) LIKE ?', ['%' . mb_strtolower($term) . '%']);
         });
     }
 

@@ -54,12 +54,30 @@ class InventoryScannerController extends Controller
             ], 404);
         }
 
-        $stock = ProductStock::where('product_id', $product->id)
+        $stocks = ProductStock::where('product_id', $product->id)
             ->whereNull('variant_id')
             ->with('warehouse:id,name,code')
-            ->first();
+            ->get();
 
         $defaultWarehouse = Warehouse::default();
+
+        $stockData = $stocks->isNotEmpty()
+            ? $stocks->map(fn ($s) => [
+                'warehouse_id'   => $s->warehouse_id,
+                'warehouse_name' => $s->warehouse?->name ?? 'Default',
+                'current_stock'  => $s->current_stock,
+                'available_stock' => $s->available_stock,
+                'reorder_point'  => $s->reorder_point,
+                'is_low_stock'   => $s->is_low_stock,
+            ])->toArray()
+            : [[
+                'warehouse_id'   => $defaultWarehouse?->id,
+                'warehouse_name' => $defaultWarehouse?->name ?? 'Default',
+                'current_stock'  => 0,
+                'available_stock' => 0,
+                'reorder_point'  => 0,
+                'is_low_stock'   => false,
+            ]];
 
         return response()->json([
             'status' => 'found',
@@ -72,21 +90,7 @@ class InventoryScannerController extends Controller
                 'selling_price' => $product->selling_price,
                 'cost_price' => $product->cost_price,
             ],
-            'stock' => $stock ? [
-                'warehouse_id' => $stock->warehouse_id,
-                'warehouse_name' => $stock->warehouse?->name ?? 'Default',
-                'current_stock' => $stock->current_stock,
-                'available_stock' => $stock->available_stock,
-                'reorder_point' => $stock->reorder_point,
-                'is_low_stock' => $stock->is_low_stock,
-            ] : [
-                'warehouse_id' => $defaultWarehouse?->id,
-                'warehouse_name' => $defaultWarehouse?->name ?? 'Default',
-                'current_stock' => 0,
-                'available_stock' => 0,
-                'reorder_point' => 0,
-                'is_low_stock' => false,
-            ],
+            'stocks' => $stockData,
             'audio' => 'success',
         ]);
     }

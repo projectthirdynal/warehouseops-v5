@@ -25,7 +25,7 @@ class ReceivingReportController extends Controller
             ->with(['purchaseOrder:id,po_number,supplier_id', 'purchaseOrder.supplier:id,name', 'warehouse:id,name', 'receiver:id,name'])
             ->withCount('items')
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
-            ->when($request->search, fn ($q, $v) => $q->where('grn_number', 'ILIKE', "%{$v}%"))
+            ->when($request->search, fn ($q, $v) => $q->whereRaw('LOWER(grn_number) LIKE ?', ['%' . mb_strtolower($v) . '%']))
             ->latest()
             ->paginate(25)
             ->withQueryString();

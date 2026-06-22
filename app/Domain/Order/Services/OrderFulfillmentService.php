@@ -18,6 +18,7 @@ use App\Models\Lead;
 use App\Models\Waybill;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -171,6 +172,9 @@ class OrderFulfillmentService
                 );
             }
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
     }
 
     /**
@@ -288,6 +292,9 @@ class OrderFulfillmentService
                 }
             }
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
     }
 
     /**
@@ -333,6 +340,9 @@ class OrderFulfillmentService
                 }
             }
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
     }
 
     /**
@@ -364,6 +374,9 @@ class OrderFulfillmentService
                 $this->leadPoolService->markAsAvailable($order->lead);
             }
         });
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
     }
 
     /**
@@ -377,8 +390,8 @@ class OrderFulfillmentService
 
         return Product::where('is_active', true)
             ->where(function ($q) use ($lead) {
-                $q->where('name', 'ILIKE', "%{$lead->product_name}%")
-                  ->orWhere('brand', 'ILIKE', "%{$lead->product_name}%");
+                $q->whereRaw('LOWER(name) LIKE ?', ['%' . mb_strtolower($lead->product_name) . '%'])
+                  ->orWhereRaw('LOWER(brand) LIKE ?', ['%' . mb_strtolower($lead->product_name) . '%']);
             })
             ->first();
     }

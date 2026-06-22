@@ -28,7 +28,7 @@ class LeadPoolService
                 $query->where('city', $filters['city']);
             }
             if (isset($filters['product_name'])) {
-                $query->where('product_name', 'ILIKE', "%{$filters['product_name']}%");
+                $query->whereRaw('LOWER(product_name) LIKE ?', ['%' . mb_strtolower($filters['product_name']) . '%']);
             }
         }
 

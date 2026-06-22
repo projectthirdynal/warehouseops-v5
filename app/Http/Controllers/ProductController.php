@@ -7,6 +7,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Product\Services\InventoryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -219,6 +220,9 @@ class ProductController extends Controller
                 warehouseId: $warehouseId,
             ),
         };
+
+        Cache::forget('inv_dashboard_stats');
+        Cache::forget('inv_dashboard_charts');
 
         return back()->with('success', 'Stock updated successfully.');
     }

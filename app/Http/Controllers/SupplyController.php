@@ -406,7 +406,7 @@ class SupplyController extends Controller
         $quantity = (int) $data['quantity'];
 
         DB::transaction(function () use ($supply, $warehouseId, $quantity, $data, $request): void {
-            $stock = SupplyStock::firstOrCreate(
+            $stock = SupplyStock::lockForUpdate()->firstOrCreate(
                 ['supply_id' => $supply->id, 'warehouse_id' => $warehouseId, 'location_id' => null],
                 ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => $supply->reorder_point]
             );
