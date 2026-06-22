@@ -34,8 +34,8 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
             ->with(['claims'])
             ->when($this->filters['to'] ?? null, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
             ->when($this->filters['search'] ?? null, fn ($q, $v) =>
-                $q->where('waybill_number', 'ILIKE', "%{$v}%")
-                  ->orWhere('receiver_name', 'ILIKE', "%{$v}%"))
+                $q->whereRaw('LOWER(waybill_number) LIKE ?', ['%' . mb_strtolower($v) . '%'])
+                  ->orWhereRaw('LOWER(receiver_name) LIKE ?', ['%' . mb_strtolower($v) . '%']))
             ->latest('returned_at');
 
         return $q->get();

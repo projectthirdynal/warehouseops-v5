@@ -46,7 +46,7 @@ class ProductStock extends Model
 
     public function getAvailableStockAttribute(): int
     {
-        return $this->current_stock - $this->reserved_stock;
+        return max(0, $this->current_stock - $this->reserved_stock);
     }
 
     public function getIsLowStockAttribute(): bool

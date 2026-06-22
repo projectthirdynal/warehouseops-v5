@@ -174,7 +174,9 @@ class StockService
             if ($rows === 0) {
                 $available = (int) (ProductStock::where('product_id', $productId)
                     ->where('warehouse_id', $warehouseId)
-                    ->where('variant_id', $variantId)
+                    ->where(function ($q) use ($variantId) {
+                        $variantId === null ? $q->whereNull('variant_id') : $q->where('variant_id', $variantId);
+                    })
                     ->value(DB::raw('COALESCE(current_stock - reserved_stock, 0)')) ?? 0);
                 throw new InsufficientStockException($productId, $quantity, $available);
             }

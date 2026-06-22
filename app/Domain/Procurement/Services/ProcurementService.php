@@ -152,7 +152,7 @@ class ProcurementService
                         );
                     } elseif ($poItem->supply_id) {
                         $qty = (int) $grnItem->quantity_received;
-                        $supplyStock = SupplyStock::firstOrCreate(
+                        $supplyStock = SupplyStock::lockForUpdate()->firstOrCreate(
                             ['supply_id' => $poItem->supply_id, 'warehouse_id' => $grn->warehouse_id, 'location_id' => null],
                             ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 0]
                         );

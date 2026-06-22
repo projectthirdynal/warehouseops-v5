@@ -165,16 +165,22 @@ class StockAdjustmentController extends Controller
             ]);
 
             if ($adjustment->supply_id) {
-                SupplyStock::firstOrCreate(
+                $stock = SupplyStock::lockForUpdate()->firstOrCreate(
                     [
                         'supply_id'    => $adjustment->supply_id,
                         'warehouse_id' => $adjustment->warehouse_id,
                         'location_id'  => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
-                )->update(['current_stock' => $adjustment->quantity_after, 'last_movement_at' => now()]);
+                );
+                if ($adjustment->quantity_after < (int) $stock->reserved_stock) {
+                    throw new \RuntimeException("Adjustment rejected: quantity_after ({$adjustment->quantity_after}) is below reserved_stock ({$stock->reserved_stock}). Release reservations first.");
+                }
+                $stock->current_stock    = $adjustment->quantity_after;
+                $stock->last_movement_at = now();
+                $stock->save();
             } else {
-                ProductStock::firstOrCreate(
+                $stock = ProductStock::lockForUpdate()->firstOrCreate(
                     [
                         'product_id'   => $adjustment->product_id,
                         'variant_id'   => $adjustment->variant_id,
@@ -182,7 +188,13 @@ class StockAdjustmentController extends Controller
                         'location_id'  => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
-                )->update(['current_stock' => $adjustment->quantity_after, 'last_movement_at' => now()]);
+                );
+                if ($adjustment->quantity_after < (int) $stock->reserved_stock) {
+                    throw new \RuntimeException("Adjustment rejected: quantity_after ({$adjustment->quantity_after}) is below reserved_stock ({$stock->reserved_stock}). Release reservations first.");
+                }
+                $stock->current_stock    = $adjustment->quantity_after;
+                $stock->last_movement_at = now();
+                $stock->save();
             }
 
             // Write the movement ledger entry so the Movements page reflects this

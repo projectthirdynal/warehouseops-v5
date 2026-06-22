@@ -127,7 +127,8 @@ class InventoryDashboardController extends Controller
                 ->selectRaw("DATE(created_at) as date,
                     SUM(CASE WHEN type = 'STOCK_IN' AND quantity > 0 THEN quantity ELSE 0 END) as stock_in,
                     SUM(CASE WHEN type = 'STOCK_OUT' THEN ABS(quantity) ELSE 0 END) as stock_out,
-                    SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments")
+                    SUM(CASE WHEN type = 'ADJUSTMENT' THEN ABS(quantity) ELSE 0 END) as adjustments,
+                    SUM(CASE WHEN type = 'WRITE_OFF' THEN ABS(quantity) ELSE 0 END) as write_offs")
                 ->groupByRaw('DATE(created_at)')
                 ->orderBy('date')
                 ->get();

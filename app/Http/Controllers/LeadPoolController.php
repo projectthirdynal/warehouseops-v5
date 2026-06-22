@@ -59,10 +59,10 @@ class LeadPoolController extends Controller
             $query->where('source', $filters['source']);
         }
         if (isset($filters['city'])) {
-            $query->where('city', 'ILIKE', "%{$filters['city']}%");
+            $query->whereRaw('LOWER(city) LIKE ?', ['%' . mb_strtolower($filters['city']) . '%']);
         }
         if (isset($filters['product_name'])) {
-            $query->where('product_name', 'ILIKE', "%{$filters['product_name']}%");
+            $query->whereRaw('LOWER(product_name) LIKE ?', ['%' . mb_strtolower($filters['product_name']) . '%']);
         }
 
         $leads = $query->orderBy('created_at', 'asc')->paginate(50);
