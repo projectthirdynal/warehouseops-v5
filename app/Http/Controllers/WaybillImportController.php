@@ -67,6 +67,29 @@ class WaybillImportController extends Controller
 
         $fileHash = hash_file('sha256', storage_path('app/' . $path));
 
+        $existing = Upload::where('type', 'waybill')
+            ->where('file_hash', $fileHash)
+            ->whereIn('status', [
+                Upload::STATUS_PENDING,
+                Upload::STATUS_QUEUED,
+                Upload::STATUS_VALIDATING,
+                Upload::STATUS_READY_TO_PROCESS,
+                Upload::STATUS_PROCESSING,
+                Upload::STATUS_COMPLETED,
+                Upload::STATUS_COMPLETED_WITH_ERRORS,
+            ])
+            ->first();
+
+        if ($existing) {
+            Storage::disk('local')->delete('uploads/waybills/' . $filename);
+            return response()->json([
+                'error' => 'This file has already been uploaded.',
+                'existing_upload_id' => $existing->id,
+                'existing_filename'  => $existing->original_filename,
+                'existing_status'    => $existing->status,
+            ], 422);
+        }
+
         $upload = Upload::create([
             'filename'          => $filename,
             'original_filename' => $file->getClientOriginalName(),

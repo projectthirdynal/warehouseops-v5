@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Upload;
+use App\Models\WaybillTrackingHistory;
 use Illuminate\Support\Facades\DB;
 use Rap2hpoutre\FastExcel\FastExcel;
 
@@ -35,6 +36,10 @@ class FlashWaybillFastImport
     protected int $batchSize = 1500;
     protected int $batchCount = 0;
     protected ?\App\Domain\Courier\Services\StatusMapper $statusMapper = null;
+
+    // Limit error collection to prevent memory exhaustion on large files with many errors
+    protected const MAX_ERRORS_COLLECTED = 1000;
+    protected const MAX_ERRORS_RETURNED = 100;
 
     protected const COLUMN_MAP = [
         'waybill_number'  => ['Tracking No.', 'tracking_no', 'Tracking No', 'PNO'],
@@ -96,6 +101,7 @@ class FlashWaybillFastImport
         // SET (not SET LOCAL) applies session-wide; SET LOCAL would revert immediately in autocommit.
         DB::statement('SET synchronous_commit = OFF');
 
+        try {
         (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
             $rowNumber++;
 
@@ -107,7 +113,9 @@ class FlashWaybillFastImport
                     $this->successCount++;
                 }
             } catch (\Throwable $e) {
-                $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                    $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+                }
                 $this->errorCount++;
             }
 
@@ -155,6 +163,9 @@ class FlashWaybillFastImport
             'processed_rows' => $this->successCount + $this->errorCount,
             'total_rows'     => $this->successCount + $this->errorCount,
         ]);
+        } finally {
+            DB::statement('SET synchronous_commit = ON');
+        }
     }
 
     protected function mapRow(array $row, string $now): ?array
@@ -258,7 +269,7 @@ class FlashWaybillFastImport
 
         // Flash address format often has dashes separating province-city-barangay
         // e.g. "... Surigao-del-sur Tagbina Sayon Sayon Tagbina Surigao del Sur"
-        // or "... - Sultan-kudarat - Tacurong-city - Buenaflor ..."
+        // or: "... - Sultan-kudarat - Tacurong-city - Buenaflor ..."
 
         // Try dash-separated format first
         $parts = preg_split('/\s*-\s*/', $address);
@@ -275,6 +286,16 @@ class FlashWaybillFastImport
             return $result;
         }
 
+        // Try comma-separated format: "address, barangay, city, province"
+        $commaParts = array_map('trim', explode(',', $address));
+        if (count($commaParts) >= 4) {
+            $result['barangay'] = $commaParts[count($commaParts) - 3];
+            $result['city'] = $commaParts[count($commaParts) - 2];
+            $result['state'] = $commaParts[count($commaParts) - 1];
+            return $result;
+        }
+
+        // Unable to parse — store full address in receiver_address, leave components null
         return $result;
     }
 
@@ -370,6 +391,12 @@ class FlashWaybillFastImport
             ->flip()
             ->all();
 
+        // Fetch existing statuses to detect changes for tracking history
+        $existingStatuses = DB::table('waybills')
+            ->whereIn('waybill_number', $waybillNumbers)
+            ->pluck('status', 'waybill_number')
+            ->all();
+
         $rows = DB::select("
             INSERT INTO waybills ({$colList})
             VALUES {$valuesList}
@@ -404,6 +431,54 @@ class FlashWaybillFastImport
         $batchUpdated  = count(array_filter($returnedNumbers, fn($n) => isset($existing[$n])));
         $batchSkipped  = count($data) - count($returnedNumbers);
 
+        // Create tracking history entries for status changes
+        $nowTs = now()->toDateTimeString();
+        $historyEntries = [];
+        $dataByNumber = array_column($data, null, 'waybill_number');
+        foreach ($returnedNumbers as $wbNumber) {
+            $newStatus = $dataByNumber[$wbNumber]['status'] ?? null;
+            $oldStatus = $existingStatuses[$wbNumber] ?? null;
+
+            if ($newStatus && $newStatus !== $oldStatus) {
+                $historyEntries[] = [
+                    'waybill_number' => $wbNumber,
+                    'status' => $newStatus,
+                    'previous_status' => $oldStatus,
+                    'reason' => 'Bulk import: ' . $this->upload->original_filename,
+                    'tracked_at' => $nowTs,
+                    'created_at' => $nowTs,
+                    'updated_at' => $nowTs,
+                ];
+            }
+        }
+
+        if (!empty($historyEntries)) {
+            $waybillIds = DB::table('waybills')
+                ->whereIn('waybill_number', array_column($historyEntries, 'waybill_number'))
+                ->pluck('id', 'waybill_number')
+                ->all();
+
+            $insertData = [];
+            foreach ($historyEntries as $entry) {
+                $wbId = $waybillIds[$entry['waybill_number']] ?? null;
+                if ($wbId) {
+                    $insertData[] = [
+                        'waybill_id' => $wbId,
+                        'status' => $entry['status'],
+                        'previous_status' => $entry['previous_status'],
+                        'reason' => $entry['reason'],
+                        'tracked_at' => $entry['tracked_at'],
+                        'created_at' => $entry['created_at'],
+                        'updated_at' => $entry['updated_at'],
+                    ];
+                }
+            }
+
+            if (!empty($insertData)) {
+                WaybillTrackingHistory::insert($insertData);
+            }
+        }
+
         $this->insertedCount += $batchInserted;
         $this->updatedCount  += $batchUpdated;
         $this->skippedCount  += $batchSkipped;
@@ -423,7 +498,7 @@ class FlashWaybillFastImport
 
     public function getErrors(): array
     {
-        return array_slice($this->errors, 0, 100);
+        return array_slice($this->errors, 0, self::MAX_ERRORS_RETURNED);
     }
 
     public function getInsertedCount(): int

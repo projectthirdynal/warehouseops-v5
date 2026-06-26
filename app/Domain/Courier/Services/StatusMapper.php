@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Courier\Services;
 
 use App\Domain\Waybill\Enums\WaybillStatus;
+use Illuminate\Support\Facades\Log;
 
 class StatusMapper
 {
@@ -16,8 +17,14 @@ class StatusMapper
     public function resolve(string $courierCode, string|int $courierStatus): WaybillStatus
     {
         $map = $this->loadMap($courierCode);
+        $key = (string) $courierStatus;
 
-        return $map[$courierStatus] ?? WaybillStatus::PENDING;
+        if (!isset($map[$courierStatus]) && !isset($map[$key])) {
+            Log::warning("StatusMapper: unknown {$courierCode} status '{$courierStatus}', falling back to PENDING");
+            return WaybillStatus::PENDING;
+        }
+
+        return $map[$courierStatus] ?? $map[$key];
     }
 
     private function loadMap(string $courierCode): array
