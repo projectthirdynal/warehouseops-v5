@@ -35,7 +35,8 @@ class SyncTrackingStatusJob implements ShouldQueue
             return;
         }
 
-        $terminalStatuses = [
+        // Skip terminal statuses (DELIVERED, RETURNED, CANCELLED) and PENDING (not yet dispatched).
+        $skipStatuses = [
             WaybillStatus::DELIVERED->value,
             WaybillStatus::RETURNED->value,
             WaybillStatus::CANCELLED->value,
@@ -43,7 +44,7 @@ class SyncTrackingStatusJob implements ShouldQueue
         ];
 
         $query = Waybill::query()
-            ->whereNotIn('status', $terminalStatuses)
+            ->whereNotIn('status', $skipStatuses)
             ->where('courier_provider', '!=', 'MANUAL')
             ->whereNotNull('waybill_number')
             ->where('submitted_at', '>=', now()->subDays(21));

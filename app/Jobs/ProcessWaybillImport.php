@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
 use App\Jobs\GenerateLeadsFromUpload;
@@ -61,6 +62,10 @@ class ProcessWaybillImport implements ShouldQueue
             ]);
 
             GenerateLeadsFromUpload::dispatch($this->uploadId);
+
+            SyncTrackingStatusJob::dispatch(strtoupper($this->courier))
+                ->onQueue('default')
+                ->delay(now()->addSeconds(30));
 
         } catch (\Throwable $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);

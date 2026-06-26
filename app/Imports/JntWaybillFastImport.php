@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Upload;
+use App\Models\WaybillTrackingHistory;
 use Illuminate\Support\Facades\DB;
 use Rap2hpoutre\FastExcel\FastExcel;
 
@@ -100,6 +101,7 @@ class JntWaybillFastImport
         // SET (not SET LOCAL) applies session-wide; SET LOCAL would revert immediately in autocommit.
         DB::statement('SET synchronous_commit = OFF');
 
+        try {
         (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
             $rowNumber++;
 
@@ -148,7 +150,7 @@ class JntWaybillFastImport
                     'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
                     'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
                     'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                    'total_rows'     => DB::raw("GREATEST(total_rows, {$rowNumber})"),
+                    'total_rows'     => DB::raw("CASE WHEN total_rows > {$rowNumber} THEN total_rows ELSE {$rowNumber} END"),
                 ]);
             }
         });
@@ -171,7 +173,7 @@ class JntWaybillFastImport
                 'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
                 'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
                 'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                'total_rows'     => DB::raw("GREATEST(total_rows, {$totalRows})"),
+                'total_rows'     => DB::raw("CASE WHEN total_rows > {$totalRows} THEN total_rows ELSE {$totalRows} END"),
             ]);
         }
 
@@ -179,9 +181,12 @@ class JntWaybillFastImport
         $finalTotal = $this->successCount + $this->errorCount;
         DB::table('uploads')->where('id', $this->upload->id)->update([
             'error_rows'     => $this->errorCount,
-            'processed_rows' => DB::raw("GREATEST(processed_rows, {$finalTotal})"),
-            'total_rows'     => DB::raw("GREATEST(total_rows, {$finalTotal})"),
+            'processed_rows' => DB::raw("CASE WHEN processed_rows > {$finalTotal} THEN processed_rows ELSE {$finalTotal} END"),
+            'total_rows'     => DB::raw("CASE WHEN total_rows > {$finalTotal} THEN total_rows ELSE {$finalTotal} END"),
         ]);
+        } finally {
+            DB::statement('SET synchronous_commit = ON');
+        }
     }
 
     protected function mapRow(array $row, string $now): ?array
@@ -325,6 +330,12 @@ class JntWaybillFastImport
             ->flip()
             ->all();
 
+        // Fetch existing statuses to detect changes for tracking history
+        $existingStatuses = DB::table('waybills')
+            ->whereIn('waybill_number', $waybillNumbers)
+            ->pluck('status', 'waybill_number')
+            ->all();
+
         // Skip the update entirely when courier-sync fields are unchanged — avoids
         // writing ~20 columns worth of WAL for rows that haven't moved.
         $rows = DB::select("
@@ -360,6 +371,54 @@ class JntWaybillFastImport
         $batchInserted = count(array_filter($returnedNumbers, fn($n) => !isset($existing[$n])));
         $batchUpdated  = count(array_filter($returnedNumbers, fn($n) => isset($existing[$n])));
         $batchSkipped  = count($data) - count($returnedNumbers);
+
+        // Create tracking history entries for status changes
+        $nowTs = now()->toDateTimeString();
+        $historyEntries = [];
+        $dataByNumber = array_column($data, null, 'waybill_number');
+        foreach ($returnedNumbers as $wbNumber) {
+            $newStatus = $dataByNumber[$wbNumber]['status'] ?? null;
+            $oldStatus = $existingStatuses[$wbNumber] ?? null;
+
+            if ($newStatus && $newStatus !== $oldStatus) {
+                $historyEntries[] = [
+                    'waybill_number' => $wbNumber,
+                    'status' => $newStatus,
+                    'previous_status' => $oldStatus,
+                    'reason' => 'Bulk import: ' . $this->upload->original_filename,
+                    'tracked_at' => $nowTs,
+                    'created_at' => $nowTs,
+                    'updated_at' => $nowTs,
+                ];
+            }
+        }
+
+        if (!empty($historyEntries)) {
+            $waybillIds = DB::table('waybills')
+                ->whereIn('waybill_number', array_column($historyEntries, 'waybill_number'))
+                ->pluck('id', 'waybill_number')
+                ->all();
+
+            $insertData = [];
+            foreach ($historyEntries as $entry) {
+                $wbId = $waybillIds[$entry['waybill_number']] ?? null;
+                if ($wbId) {
+                    $insertData[] = [
+                        'waybill_id' => $wbId,
+                        'status' => $entry['status'],
+                        'previous_status' => $entry['previous_status'],
+                        'reason' => $entry['reason'],
+                        'tracked_at' => $entry['tracked_at'],
+                        'created_at' => $entry['created_at'],
+                        'updated_at' => $entry['updated_at'],
+                    ];
+                }
+            }
+
+            if (!empty($insertData)) {
+                WaybillTrackingHistory::insert($insertData);
+            }
+        }
 
         $this->insertedCount += $batchInserted;
         $this->updatedCount  += $batchUpdated;
