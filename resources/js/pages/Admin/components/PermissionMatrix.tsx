@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Loader2, ShieldCheck } from 'lucide-react';
 
@@ -19,7 +23,8 @@ interface Props {
 
 export default function PermissionMatrix({ permissions, roles, rolePermissions }: Props) {
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? 'superadmin');
-  const [selectedPermissionIds, setSelectedPermissionIds] = useState<Record<string, number[]>>(rolePermissions);
+  const [selectedPermissionIds, setSelectedPermissionIds] =
+    useState<Record<string, number[]>>(rolePermissions);
   const [savingPermissions, setSavingPermissions] = useState(false);
 
   useEffect(() => {
@@ -30,7 +35,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
 
   // Track which roles have unsaved changes
   const dirtyRoles = useMemo(() => {
-    return roles.filter(role => {
+    return roles.filter((role) => {
       const original = new Set(rolePermissions[role] ?? []);
       const current = new Set(selectedPermissionIds[role] ?? []);
       if (original.size !== current.size) return true;
@@ -43,7 +48,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
 
   const togglePermission = (role: string, permissionId: number) => {
     if (role === 'superadmin') return; // superadmin is always full access
-    setSelectedPermissionIds(prev => {
+    setSelectedPermissionIds((prev) => {
       const current = new Set(prev[role] ?? []);
       if (current.has(permissionId)) {
         current.delete(permissionId);
@@ -57,13 +62,17 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
   const saveRolePermissions = (role: string) => {
     if (role === 'superadmin') return;
     setSavingPermissions(true);
-    router.post('/admin/roles/permissions', {
-      role,
-      permissions: selectedPermissionIds[role] ?? [],
-    }, {
-      onFinish: () => setSavingPermissions(false),
-      preserveScroll: true,
-    });
+    router.post(
+      '/admin/roles/permissions',
+      {
+        role,
+        permissions: selectedPermissionIds[role] ?? [],
+      },
+      {
+        onFinish: () => setSavingPermissions(false),
+        preserveScroll: true,
+      }
+    );
   };
 
   return (
@@ -75,11 +84,11 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {roles.map(r => (
+            {roles.map((r) => (
               <SelectItem key={r} value={r} className="capitalize">
                 <span>{r.replace('_', ' ')}</span>
                 {dirtyRoles.includes(r) && r !== 'superadmin' && (
-                  <span className="ml-2 inline-block h-2 w-2 rounded-full bg-amber-500" />
+                  <span className="ml-2 inline-block h-2 w-2 rounded-full bg-warning/50" />
                 )}
               </SelectItem>
             ))}
@@ -88,7 +97,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
 
         {isSuperadminSelected ? (
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <ShieldCheck className="h-4 w-4 text-green-600" />
+            <ShieldCheck className="h-4 w-4 text-success" />
             Superadmin always has full access — permissions cannot be modified.
           </div>
         ) : (
@@ -104,7 +113,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
         )}
 
         {isDirty && !isSuperadminSelected && (
-          <Badge variant="outline" className="border-amber-400 text-amber-600 text-xs">
+          <Badge variant="outline" className="border-warning/40 text-warning text-xs">
             Unsaved changes
           </Badge>
         )}
@@ -119,7 +128,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {perms.map(perm => {
+              {perms.map((perm) => {
                 const isChecked = isSuperadminSelected
                   ? true
                   : (selectedPermissionIds[selectedRole] ?? []).includes(perm.id);
@@ -134,7 +143,11 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
                     />
                     <label
                       htmlFor={`perm-${selectedRole}-${perm.id}`}
-                      className={isSuperadminSelected ? 'text-sm leading-tight opacity-50' : 'cursor-pointer text-sm leading-tight'}
+                      className={
+                        isSuperadminSelected
+                          ? 'text-sm leading-tight opacity-50'
+                          : 'cursor-pointer text-sm leading-tight'
+                      }
                     >
                       <span className="font-medium">{perm.label}</span>
                       {perm.description && (

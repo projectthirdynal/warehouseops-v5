@@ -28,13 +28,13 @@ export default function VerifyEmail({ status, email }: Props) {
           </div>
           <CardTitle className="text-2xl">Check your inbox</CardTitle>
           <CardDescription>
-            We sent a verification link to <strong>{email}</strong>.
-            Click the link in that email to activate your account.
+            We sent a verification link to <strong>{email}</strong>. Click the link in that email to
+            activate your account.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {status && (
-            <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300">
+            <div className="flex items-center gap-2 rounded-md border border-success/20 bg-success/5 px-4 py-3 text-sm text-success dark:bg-success/20 dark:border-success/30 dark:text-success">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {status}
             </div>
@@ -57,11 +57,7 @@ export default function VerifyEmail({ status, email }: Props) {
             <div className="flex-1 border-t" />
           </div>
 
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => router.post('/logout')}
-          >
+          <Button variant="outline" className="w-full" onClick={() => router.post('/logout')}>
             <LogOut className="mr-2 h-4 w-4" />
             Sign in with a different account
           </Button>

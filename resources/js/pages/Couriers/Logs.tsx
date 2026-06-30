@@ -3,14 +3,7 @@ import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  ChevronDown,
-  ChevronUp,
-  FileText,
-} from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import type { CourierProvider, CourierApiLog, PaginatedResponse, PageProps } from '@/types';
 
@@ -106,18 +99,23 @@ export default function CourierLogs({ provider, logs, filters }: Props) {
                   onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                 >
                   {log.is_success ? (
-                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-success shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                    <XCircle className="h-4 w-4 text-destructive shrink-0" />
                   )}
                   <Badge variant="outline" className="text-xs font-mono shrink-0">
                     {log.action.replace(/_/g, ' ')}
                   </Badge>
-                  <Badge variant={log.direction === 'inbound' ? 'secondary' : 'outline'} className="text-[10px]">
+                  <Badge
+                    variant={log.direction === 'inbound' ? 'secondary' : 'outline'}
+                    className="text-[10px]"
+                  >
                     {log.direction}
                   </Badge>
                   {log.http_status && (
-                    <span className={`text-xs font-mono ${log.http_status >= 400 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    <span
+                      className={`text-xs font-mono ${log.http_status >= 400 ? 'text-destructive' : 'text-muted-foreground'}`}
+                    >
                       HTTP {log.http_status}
                     </span>
                   )}
@@ -125,7 +123,9 @@ export default function CourierLogs({ provider, logs, filters }: Props) {
                     <span className="text-xs text-muted-foreground">{log.response_time_ms}ms</span>
                   )}
                   {log.error_message && (
-                    <span className="text-xs text-red-500 truncate max-w-[200px]">{log.error_message}</span>
+                    <span className="text-xs text-destructive truncate max-w-[200px]">
+                      {log.error_message}
+                    </span>
                   )}
                   <span className="ml-auto text-xs text-muted-foreground shrink-0">
                     {formatDateTime(log.created_at)}
@@ -140,13 +140,17 @@ export default function CourierLogs({ provider, logs, filters }: Props) {
                   <div className="px-5 pb-4 space-y-3">
                     {log.endpoint && (
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Endpoint</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                          Endpoint
+                        </p>
                         <p className="font-mono text-xs bg-muted p-2 rounded">{log.endpoint}</p>
                       </div>
                     )}
                     {log.request_data && (
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Request</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                          Request
+                        </p>
                         <pre className="font-mono text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
                           {JSON.stringify(log.request_data, null, 2)}
                         </pre>
@@ -154,7 +158,9 @@ export default function CourierLogs({ provider, logs, filters }: Props) {
                     )}
                     {log.response_data && (
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Response</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                          Response
+                        </p>
                         <pre className="font-mono text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
                           {JSON.stringify(log.response_data, null, 2)}
                         </pre>

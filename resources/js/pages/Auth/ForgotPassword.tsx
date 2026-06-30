@@ -34,7 +34,7 @@ export default function ForgotPassword({ status }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {status && (
-            <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300">
+            <div className="flex items-center gap-2 rounded-md border border-success/20 bg-success/5 px-4 py-3 text-sm text-success dark:bg-success/20 dark:border-success/30 dark:text-success">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {status}
             </div>
@@ -47,7 +47,7 @@ export default function ForgotPassword({ status }: Props) {
                 id="email"
                 type="email"
                 value={data.email}
-                onChange={e => setData('email', e.target.value)}
+                onChange={(e) => setData('email', e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
                 autoFocus
@@ -59,7 +59,10 @@ export default function ForgotPassword({ status }: Props) {
             </Button>
           </form>
 
-          <a href="/login" className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <a
+            href="/login"
+            className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to login
           </a>
