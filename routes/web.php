@@ -44,7 +44,6 @@ use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\CapexAssetController;
-use App\Http\Controllers\InventoryScannerController;
 use App\Http\Controllers\DeadStockController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -140,7 +139,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
     Route::get('/inventory/non-moving', [InventoryDashboardController::class, 'nonMoving'])->name('inventory.non-moving');
-    Route::get('/inventory/live-movements', [InventoryDashboardController::class, 'liveMovements'])->name('inventory.live-movements');
 });
 
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
@@ -181,15 +179,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
 
         Route::get('/dead-stock',  [DeadStockController::class, 'index'])->name('dead-stock.index');
         Route::post('/dead-stock', [DeadStockController::class, 'store'])->name('dead-stock.store');
-
-        Route::post('/scan', [InventoryScannerController::class, 'scan'])->name('scan');
-        Route::post('/scan/adjust', [InventoryScannerController::class, 'quickAdjust'])->name('scan.adjust');
     });
-});
-
-// ── INVENTORY SCANNER AUTO-ADJUST: supervisors/admins only ───────────────────
-Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function () {
-    Route::post('/inventory/scan/auto-adjust', [InventoryScannerController::class, 'autoAdjust'])->name('scan.auto-adjust');
 });
 
 // ── INVENTORY + PROCUREMENT: warehouse staff, supervisors, admins ─────────────

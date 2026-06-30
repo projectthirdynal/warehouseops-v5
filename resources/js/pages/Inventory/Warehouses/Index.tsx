@@ -7,13 +7,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Building2, Plus, MapPin, Trash2 } from 'lucide-react';
 
@@ -47,14 +60,23 @@ export default function WarehousesIndex({ warehouses }: Props) {
   const [locOpen, setLocOpen] = useState<number | null>(null);
 
   const whForm = useForm({
-    name: '', code: '', address: '', contact_person: '', contact_phone: '',
-    is_active: true, is_default: false,
+    name: '',
+    code: '',
+    address: '',
+    contact_person: '',
+    contact_phone: '',
+    is_active: true,
+    is_default: false,
   });
 
   function submitWarehouse(e: React.FormEvent) {
     e.preventDefault();
     whForm.post('/warehouses', {
-      onSuccess: () => { setWhOpen(false); whForm.reset(); toast.success('Warehouse created.'); },
+      onSuccess: () => {
+        setWhOpen(false);
+        whForm.reset();
+        toast.success('Warehouse created.');
+      },
       onError: () => toast.error('Failed to create warehouse.'),
     });
   }
@@ -66,68 +88,113 @@ export default function WarehousesIndex({ warehouses }: Props) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Warehouses</h1>
-            <p className="text-sm text-muted-foreground">Manage warehouses and storage locations.</p>
+            <p className="text-sm text-muted-foreground">
+              Manage warehouses and storage locations.
+            </p>
           </div>
           <Dialog open={whOpen} onOpenChange={setWhOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />New Warehouse</Button>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Warehouse
+              </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Create Warehouse</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Create Warehouse</DialogTitle>
+              </DialogHeader>
               <form onSubmit={submitWarehouse} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Name *</Label>
-                    <Input value={whForm.data.name} onChange={e => whForm.setData('name', e.target.value)} required />
+                    <Input
+                      value={whForm.data.name}
+                      onChange={(e) => whForm.setData('name', e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Code *</Label>
-                    <Input value={whForm.data.code} onChange={e => whForm.setData('code', e.target.value.toUpperCase())} required maxLength={20} className="uppercase font-mono" />
+                    <Input
+                      value={whForm.data.code}
+                      onChange={(e) => whForm.setData('code', e.target.value.toUpperCase())}
+                      required
+                      maxLength={20}
+                      className="uppercase font-mono"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label>Address</Label>
-                  <Input value={whForm.data.address} onChange={e => whForm.setData('address', e.target.value)} />
+                  <Input
+                    value={whForm.data.address}
+                    onChange={(e) => whForm.setData('address', e.target.value)}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Contact Person</Label>
-                    <Input value={whForm.data.contact_person} onChange={e => whForm.setData('contact_person', e.target.value)} />
+                    <Input
+                      value={whForm.data.contact_person}
+                      onChange={(e) => whForm.setData('contact_person', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Contact Phone</Label>
-                    <Input value={whForm.data.contact_phone} onChange={e => whForm.setData('contact_phone', e.target.value)} />
+                    <Input
+                      value={whForm.data.contact_phone}
+                      onChange={(e) => whForm.setData('contact_phone', e.target.value)}
+                    />
                   </div>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={whForm.data.is_default} onChange={e => whForm.setData('is_default', e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={whForm.data.is_default}
+                    onChange={(e) => whForm.setData('is_default', e.target.checked)}
+                  />
                   Set as default warehouse
                 </label>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setWhOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={whForm.processing}>Create</Button>
+                  <Button type="button" variant="outline" onClick={() => setWhOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={whForm.processing}>
+                    Create
+                  </Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        {warehouses.map(wh => (
+        {warehouses.map((wh) => (
           <Card key={wh.id}>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Building2 className="h-5 w-5 text-blue-500" />
+                  <Building2 className="h-5 w-5 text-info" />
                   {wh.name}
                   <span className="font-mono text-xs text-muted-foreground">({wh.code})</span>
-                  {wh.is_default && <span className="rounded-full bg-emerald-950/40 px-2 py-0.5 text-xs font-medium text-emerald-300">Default</span>}
-                  {!wh.is_active && <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">Inactive</span>}
+                  {wh.is_default && (
+                    <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                      Default
+                    </span>
+                  )}
+                  {!wh.is_active && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      Inactive
+                    </span>
+                  )}
                 </CardTitle>
                 {wh.address && <p className="mt-1 text-xs text-muted-foreground">{wh.address}</p>}
               </div>
               <Dialog open={locOpen === wh.id} onOpenChange={(o) => setLocOpen(o ? wh.id : null)}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm"><Plus className="mr-1 h-3.5 w-3.5" />Location</Button>
+                  <Button variant="outline" size="sm">
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Location
+                  </Button>
                 </DialogTrigger>
                 <LocationDialog warehouseId={wh.id} onClose={() => setLocOpen(null)} />
               </Dialog>
@@ -145,28 +212,44 @@ export default function WarehousesIndex({ warehouses }: Props) {
                 </TableHeader>
                 <TableBody>
                   {wh.locations.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                      <MapPin className="mx-auto mb-1 h-5 w-5 opacity-30" />
-                      No locations defined yet
-                    </TableCell></TableRow>
-                  ) : wh.locations.map(loc => (
-                    <TableRow key={loc.id}>
-                      <TableCell className="font-mono text-sm">{loc.code}</TableCell>
-                      <TableCell className="text-sm">{loc.name ?? '—'}</TableCell>
-                      <TableCell><span className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{loc.type}</span></TableCell>
-                      <TableCell className="text-right text-sm">{loc.capacity ?? '—'}</TableCell>
-                      <TableCell>
-                        <Button size="icon" variant="ghost" onClick={() => {
-                          if (confirm('Remove this location?')) router.delete(`/warehouses/locations/${loc.id}`, {
-                            onSuccess: () => toast.success('Location removed.'),
-                            onError: () => toast.error('Failed to remove location.'),
-                          });
-                        }}>
-                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                        </Button>
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="py-8 text-center text-sm text-muted-foreground"
+                      >
+                        <MapPin className="mx-auto mb-1 h-5 w-5 opacity-30" />
+                        No locations defined yet
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    wh.locations.map((loc) => (
+                      <TableRow key={loc.id}>
+                        <TableCell className="font-mono text-sm">{loc.code}</TableCell>
+                        <TableCell className="text-sm">{loc.name ?? '—'}</TableCell>
+                        <TableCell>
+                          <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            {loc.type}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{loc.capacity ?? '—'}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm('Remove this location?'))
+                                router.delete(`/warehouses/locations/${loc.id}`, {
+                                  onSuccess: () => toast.success('Location removed.'),
+                                  onError: () => toast.error('Failed to remove location.'),
+                                });
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -183,24 +266,37 @@ function LocationDialog({ warehouseId, onClose }: { warehouseId: number; onClose
   function submit(e: React.FormEvent) {
     e.preventDefault();
     form.post(`/warehouses/${warehouseId}/locations`, {
-      onSuccess: () => { onClose(); form.reset(); toast.success('Location added.'); },
+      onSuccess: () => {
+        onClose();
+        form.reset();
+        toast.success('Location added.');
+      },
       onError: () => toast.error('Failed to add location.'),
     });
   }
 
   return (
     <DialogContent>
-      <DialogHeader><DialogTitle>Add Location</DialogTitle></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>Add Location</DialogTitle>
+      </DialogHeader>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>Code *</Label>
-            <Input value={form.data.code} onChange={e => form.setData('code', e.target.value.toUpperCase())} required className="font-mono uppercase" />
+            <Input
+              value={form.data.code}
+              onChange={(e) => form.setData('code', e.target.value.toUpperCase())}
+              required
+              className="font-mono uppercase"
+            />
           </div>
           <div className="space-y-1">
             <Label>Type *</Label>
             <Select value={form.data.type} onValueChange={(v) => form.setData('type', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="BIN">Bin</SelectItem>
                 <SelectItem value="SHELF">Shelf</SelectItem>
@@ -211,15 +307,24 @@ function LocationDialog({ warehouseId, onClose }: { warehouseId: number; onClose
         </div>
         <div className="space-y-1">
           <Label>Name</Label>
-          <Input value={form.data.name} onChange={e => form.setData('name', e.target.value)} />
+          <Input value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>Capacity</Label>
-          <Input type="number" min={0} value={form.data.capacity} onChange={e => form.setData('capacity', e.target.value)} />
+          <Input
+            type="number"
+            min={0}
+            value={form.data.capacity}
+            onChange={(e) => form.setData('capacity', e.target.value)}
+          />
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={form.processing}>Add</Button>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={form.processing}>
+            Add
+          </Button>
         </div>
       </form>
     </DialogContent>

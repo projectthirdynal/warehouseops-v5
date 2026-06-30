@@ -16,9 +16,9 @@ interface KpiCardProps {
 const variantStyles = {
   default: 'border-border',
   primary: 'border-primary/20 bg-primary/5',
-  success: 'border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20',
-  warning: 'border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20',
-  destructive: 'border-red-500/20 bg-red-50/50 dark:bg-red-950/20',
+  success: 'border-success/20 bg-success/5',
+  warning: 'border-warning/20 bg-warning/5',
+  destructive: 'border-destructive/20 bg-destructive/5',
 };
 
 export function KpiCard({
@@ -34,7 +34,7 @@ export function KpiCard({
   const isUp = trend !== undefined && trend > 0;
   const isDown = trend !== undefined && trend < 0;
   const TrendIcon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
-  const trendColor = isUp ? 'text-emerald-600' : isDown ? 'text-red-600' : 'text-muted-foreground';
+  const trendColor = isUp ? 'text-success' : isDown ? 'text-destructive' : 'text-muted-foreground';
 
   return (
     <Card className={cn(variantStyles[variant], className)}>
@@ -51,7 +51,8 @@ export function KpiCard({
           <div className="mt-3 flex items-center gap-1.5">
             <TrendIcon className={cn('h-3.5 w-3.5', trendColor)} />
             <span className={cn('text-xs font-medium', trendColor)}>
-              {isUp ? '+' : ''}{trend}%
+              {isUp ? '+' : ''}
+              {trend}%
             </span>
             {trendLabel && <span className="text-xs text-muted-foreground">{trendLabel}</span>}
           </div>

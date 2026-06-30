@@ -3,10 +3,19 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Package, Box, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -47,24 +56,30 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
   const [type, setType] = useState(filters.type);
 
   function applyFilters(overrides: Record<string, string>) {
-    router.get('/inventory/non-moving', { days, type, ...overrides }, { preserveState: true, replace: true });
+    router.get(
+      '/inventory/non-moving',
+      { days, type, ...overrides },
+      { preserveState: true, replace: true }
+    );
   }
 
-  const productData       = products?.data ?? [];
-  const supplyData        = supplies?.data ?? [];
+  const productData = products?.data ?? [];
+  const supplyData = supplies?.data ?? [];
   const productPagination = products ?? null;
-  const supplyPagination  = supplies ?? null;
+  const supplyPagination = supplies ?? null;
 
   return (
     <AppLayout>
       <Head title="Non-Moving Stock" />
       <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
-
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <Link href="/inventory" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <Link
+                href="/inventory"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
                 <ArrowLeft className="h-3 w-3" /> Dashboard
               </Link>
             </div>
@@ -75,40 +90,60 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
           </div>
 
           {/* Dead value KPI */}
-          <div className="rounded-lg border border-red-800 bg-red-950/30 px-5 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400">Total Dead Value</p>
-            <p className="mt-0.5 text-2xl font-bold tabular-nums text-red-300">{formatCurrency(total_dead_value)}</p>
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-5 py-3 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-destructive">
+              Total Dead Value
+            </p>
+            <p className="mt-0.5 text-2xl font-bold tabular-nums text-destructive">
+              {formatCurrency(total_dead_value)}
+            </p>
           </div>
         </div>
 
         {/* Filters */}
         <Card>
           <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Threshold (days)</label>
-            <Select value={days} onValueChange={(v) => { setDays(v); applyFilters({ days: v, page: '1' }); }}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 days</SelectItem>
-                <SelectItem value="60">60 days</SelectItem>
-                <SelectItem value="90">90 days</SelectItem>
-                <SelectItem value="120">120 days</SelectItem>
-                <SelectItem value="180">180 days</SelectItem>
-                <SelectItem value="365">1 year</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Show</label>
-            <Select value={type} onValueChange={(v) => { setType(v); applyFilters({ type: v, page: '1' }); }}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Products &amp; Materials</SelectItem>
-                <SelectItem value="products">Products only</SelectItem>
-                <SelectItem value="supplies">Materials only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Threshold (days)</label>
+              <Select
+                value={days}
+                onValueChange={(v) => {
+                  setDays(v);
+                  applyFilters({ days: v, page: '1' });
+                }}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 days</SelectItem>
+                  <SelectItem value="60">60 days</SelectItem>
+                  <SelectItem value="90">90 days</SelectItem>
+                  <SelectItem value="120">120 days</SelectItem>
+                  <SelectItem value="180">180 days</SelectItem>
+                  <SelectItem value="365">1 year</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Show</label>
+              <Select
+                value={type}
+                onValueChange={(v) => {
+                  setType(v);
+                  applyFilters({ type: v, page: '1' });
+                }}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Products &amp; Materials</SelectItem>
+                  <SelectItem value="products">Products only</SelectItem>
+                  <SelectItem value="supplies">Materials only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
@@ -120,7 +155,9 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
               <CardTitle className="text-base">
                 Non-Moving Products
                 {productPagination && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">({productPagination.total.toLocaleString()} total)</span>
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({productPagination.total.toLocaleString()} total)
+                  </span>
                 )}
               </CardTitle>
             </CardHeader>
@@ -146,7 +183,9 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
               <CardTitle className="text-base">
                 Non-Moving Materials
                 {supplyPagination && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">({supplyPagination.total.toLocaleString()} total)</span>
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({supplyPagination.total.toLocaleString()} total)
+                  </span>
                 )}
               </CardTitle>
             </CardHeader>
@@ -163,7 +202,6 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
             )}
           </Card>
         )}
-
       </div>
     </AppLayout>
   );
@@ -192,41 +230,65 @@ function NonMovingTable({ rows, emptyLabel }: { rows: NonMovingItem[]; emptyLabe
               {emptyLabel}
             </TableCell>
           </TableRow>
-        ) : rows.map((row, i) => {
-          const isNeverMoved = row.last_movement_at === null;
-          return (
-            <TableRow key={`${row.item_type}-${row.product_id ?? row.supply_id}-${i}`}
-              className={isNeverMoved ? 'border-l-2 border-red-500 bg-red-50 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/30' : ''}>
-              <TableCell className="font-mono text-xs text-muted-foreground">{row.sku}</TableCell>
-              <TableCell className="font-medium text-sm max-w-[180px] truncate">{row.item_name}</TableCell>
-              <TableCell className="text-sm text-muted-foreground">{row.category ?? '—'}</TableCell>
-              <TableCell className="text-sm">{row.warehouse_name ?? '—'}</TableCell>
-              <TableCell className="text-right tabular-nums font-medium">{Number(row.current_stock).toLocaleString()}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                <span className={Number(row.available_stock) <= 0 ? 'text-red-400 font-bold' : ''}>
-                  {Number(row.available_stock).toLocaleString()}
-                </span>
-              </TableCell>
-              <TableCell className="text-right tabular-nums text-amber-400 font-medium">
-                {formatCurrency(Number(row.stock_value))}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                {isNeverMoved
-                  ? <span className="inline-flex items-center gap-1 text-red-400 font-medium"><AlertTriangle className="h-3 w-3" />Never</span>
-                  : formatDate(row.last_movement_at!)}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                {row.last_restock_at ? formatDate(row.last_restock_at) : '—'}
-              </TableCell>
-            </TableRow>
-          );
-        })}
+        ) : (
+          rows.map((row, i) => {
+            const isNeverMoved = row.last_movement_at === null;
+            return (
+              <TableRow
+                key={`${row.item_type}-${row.product_id ?? row.supply_id}-${i}`}
+                className={
+                  isNeverMoved
+                    ? 'border-l-2 border-destructive bg-destructive/5 hover:bg-destructive/5'
+                    : ''
+                }
+              >
+                <TableCell className="font-mono text-xs text-muted-foreground">{row.sku}</TableCell>
+                <TableCell className="font-medium text-sm max-w-[180px] truncate">
+                  {row.item_name}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {row.category ?? '—'}
+                </TableCell>
+                <TableCell className="text-sm">{row.warehouse_name ?? '—'}</TableCell>
+                <TableCell className="text-right tabular-nums font-medium">
+                  {Number(row.current_stock).toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <span
+                    className={Number(row.available_stock) <= 0 ? 'text-destructive font-bold' : ''}
+                  >
+                    {Number(row.available_stock).toLocaleString()}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-warning font-medium">
+                  {formatCurrency(Number(row.stock_value))}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {isNeverMoved ? (
+                    <span className="inline-flex items-center gap-1 text-destructive font-medium">
+                      <AlertTriangle className="h-3 w-3" />
+                      Never
+                    </span>
+                  ) : (
+                    formatDate(row.last_movement_at!)
+                  )}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  {row.last_restock_at ? formatDate(row.last_restock_at) : '—'}
+                </TableCell>
+              </TableRow>
+            );
+          })
+        )}
       </TableBody>
     </Table>
   );
 }
 
-function PaginationBar({ pagination, onPage }: {
+function PaginationBar({
+  pagination,
+  onPage,
+}: {
   pagination: PaginatedResponse<NonMovingItem>;
   onPage: (page: number) => void;
 }) {
@@ -238,7 +300,8 @@ function PaginationBar({ pagination, onPage }: {
   } else {
     pages.push(1);
     if (current_page > 3) pages.push(-1);
-    for (let i = Math.max(2, current_page - 1); i <= Math.min(last_page - 1, current_page + 1); i++) pages.push(i);
+    for (let i = Math.max(2, current_page - 1); i <= Math.min(last_page - 1, current_page + 1); i++)
+      pages.push(i);
     if (current_page < last_page - 2) pages.push(-2);
     pages.push(last_page);
   }
@@ -246,9 +309,20 @@ function PaginationBar({ pagination, onPage }: {
   return (
     <>
       {pages.map((p, idx) =>
-        p < 0
-          ? <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">…</span>
-          : <Button key={p} size="sm" variant={p === current_page ? 'default' : 'outline'} onClick={() => onPage(p)}>{p}</Button>
+        p < 0 ? (
+          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">
+            …
+          </span>
+        ) : (
+          <Button
+            key={p}
+            size="sm"
+            variant={p === current_page ? 'default' : 'outline'}
+            onClick={() => onPage(p)}
+          >
+            {p}
+          </Button>
+        )
       )}
     </>
   );
