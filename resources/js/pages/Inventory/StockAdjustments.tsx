@@ -577,7 +577,7 @@ function AdjustmentDialog({
           {form.data.item_type === 'product' ? (
             <div className="space-y-1.5">
               <Label>
-                Product <span className="text-red-500">*</span>
+                Product <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={form.data.product_id || 'none'}
@@ -596,13 +596,13 @@ function AdjustmentDialog({
                 </SelectContent>
               </Select>
               {form.errors.product_id && (
-                <p className="text-xs text-red-600">{form.errors.product_id}</p>
+                <p className="text-xs text-destructive">{form.errors.product_id}</p>
               )}
             </div>
           ) : (
             <div className="space-y-1.5">
               <Label>
-                Supply / Material <span className="text-red-500">*</span>
+                Supply / Material <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={form.data.supply_id || 'none'}
@@ -621,7 +621,7 @@ function AdjustmentDialog({
                 </SelectContent>
               </Select>
               {form.errors.supply_id && (
-                <p className="text-xs text-red-600">{form.errors.supply_id}</p>
+                <p className="text-xs text-destructive">{form.errors.supply_id}</p>
               )}
             </div>
           )}
@@ -630,7 +630,7 @@ function AdjustmentDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>
-                Warehouse <span className="text-red-500">*</span>
+                Warehouse <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={form.data.warehouse_id}
@@ -648,12 +648,12 @@ function AdjustmentDialog({
                 </SelectContent>
               </Select>
               {form.errors.warehouse_id && (
-                <p className="text-xs text-red-600">{form.errors.warehouse_id}</p>
+                <p className="text-xs text-destructive">{form.errors.warehouse_id}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label>
-                New Physical Qty <span className="text-red-500">*</span>
+                New Physical Qty <span className="text-destructive">*</span>
               </Label>
               <Input
                 type="number"
@@ -663,7 +663,7 @@ function AdjustmentDialog({
                 required
               />
               {form.errors.quantity_after && (
-                <p className="text-xs text-red-600">{form.errors.quantity_after}</p>
+                <p className="text-xs text-destructive">{form.errors.quantity_after}</p>
               )}
             </div>
           </div>
@@ -671,7 +671,7 @@ function AdjustmentDialog({
           {/* Reason */}
           <div className="space-y-1.5">
             <Label>
-              Reason Code <span className="text-red-500">*</span>
+              Reason Code <span className="text-destructive">*</span>
             </Label>
             <Select
               value={form.data.reason_code}

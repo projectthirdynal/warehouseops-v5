@@ -329,7 +329,7 @@ export default function SuppliesIndex({
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-red-500 hover:text-red-700"
+                className="text-destructive hover:text-destructive/80"
                 onClick={() => setDeleteTarget(supply)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -446,11 +446,11 @@ export default function SuppliesIndex({
             const activeClass =
               stockStatus === tab.value
                 ? tab.value === 'DEAD'
-                  ? 'bg-red-600 text-white border-red-600'
+                  ? 'bg-destructive text-destructive-foreground border-destructive'
                   : tab.value === 'NON_MOVING'
-                    ? 'bg-amber-500 text-white border-amber-500'
+                    ? 'bg-warning text-warning-foreground border-warning'
                     : tab.value === 'OUT_OF_STOCK'
-                      ? 'bg-red-600 text-white border-red-600'
+                      ? 'bg-destructive text-destructive-foreground border-destructive'
                       : 'bg-primary text-primary-foreground border-primary'
                 : 'border-input hover:bg-muted';
             return (
@@ -601,7 +601,7 @@ export default function SuppliesIndex({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 gap-1 text-xs text-red-500 hover:text-red-700"
+                    className="h-7 gap-1 text-xs text-destructive hover:text-destructive/80"
                     onClick={() => {
                       if (!confirm(`Archive ${selected.length} selected material(s)?`)) return;
                       selectedSupplies.forEach((s) => {
@@ -879,7 +879,7 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
                 required
               />
               {form.errors.delete_reason && (
-                <p className="text-xs text-red-600">{form.errors.delete_reason}</p>
+                <p className="text-xs text-destructive">{form.errors.delete_reason}</p>
               )}
             </div>
             <div className="flex justify-end gap-2 pt-2">

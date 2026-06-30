@@ -100,7 +100,7 @@ export default function MovementsPage({ movements, filters }: Props) {
                 <ArrowLeft className="h-3 w-3" /> Dashboard
               </Link>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Inventory Movements</h1>
+            <h1 className="text-2xl font-bold tracking-tight font-display">Inventory Movements</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Append-only movement ledger for all stock changes across warehouses.
             </p>

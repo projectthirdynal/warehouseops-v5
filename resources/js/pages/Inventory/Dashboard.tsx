@@ -100,7 +100,7 @@ const lowStockColumns: ColumnDef<SupplyLowStockRow>[] = [
     accessorKey: 'sku',
     header: 'SKU',
     cell: ({ row }) => (
-      <span className="font-mono text-[11px] text-slate-300">{row.original.sku}</span>
+      <span className="font-mono text-[11px] text-muted-foreground">{row.original.sku}</span>
     ),
   },
   {
@@ -233,7 +233,7 @@ export default function InventoryDashboard({
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Inventory Dashboard</h1>
+            <h1 className="text-2xl font-bold tracking-tight font-display">Inventory Dashboard</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {stats.total_supplies.toLocaleString()} materials · {stats.total_warehouses}{' '}
               warehouses
@@ -423,16 +423,16 @@ export default function InventoryDashboard({
                   >
                     <defs>
                       <linearGradient id="min" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="mout" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f87171" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="madj" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#facc15" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#facc15" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(var(--warning))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--warning))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -450,7 +450,7 @@ export default function InventoryDashboard({
                     <Area
                       type="monotone"
                       dataKey="stock_in"
-                      stroke="#34d399"
+                      stroke="hsl(var(--success))"
                       fill="url(#min)"
                       strokeWidth={2}
                       name="Stock In"
@@ -458,7 +458,7 @@ export default function InventoryDashboard({
                     <Area
                       type="monotone"
                       dataKey="stock_out"
-                      stroke="#f87171"
+                      stroke="hsl(var(--destructive))"
                       fill="url(#mout)"
                       strokeWidth={2}
                       name="Stock Out"
@@ -466,7 +466,7 @@ export default function InventoryDashboard({
                     <Area
                       type="monotone"
                       dataKey="adjustments"
-                      stroke="#facc15"
+                      stroke="hsl(var(--warning))"
                       fill="url(#madj)"
                       strokeWidth={2}
                       name="Adjusted"
@@ -500,17 +500,17 @@ export default function InventoryDashboard({
                           {
                             name: 'Moving',
                             value: stock_status_distribution.MOVING ?? 0,
-                            color: '#34d399',
+                            color: 'hsl(var(--success))',
                           },
                           {
                             name: 'Non-Moving',
                             value: stock_status_distribution.NON_MOVING ?? 0,
-                            color: '#facc15',
+                            color: 'hsl(var(--warning))',
                           },
                           {
                             name: 'Dead',
                             value: stock_status_distribution.DEAD ?? 0,
-                            color: '#f87171',
+                            color: 'hsl(var(--destructive))',
                           },
                         ].filter((d) => d.value > 0)}
                         cx="50%"
@@ -528,17 +528,17 @@ export default function InventoryDashboard({
                           {
                             name: 'Moving',
                             value: stock_status_distribution.MOVING ?? 0,
-                            color: '#34d399',
+                            color: 'hsl(var(--success))',
                           },
                           {
                             name: 'Non-Moving',
                             value: stock_status_distribution.NON_MOVING ?? 0,
-                            color: '#facc15',
+                            color: 'hsl(var(--warning))',
                           },
                           {
                             name: 'Dead',
                             value: stock_status_distribution.DEAD ?? 0,
-                            color: '#f87171',
+                            color: 'hsl(var(--destructive))',
                           },
                         ]
                           .filter((d) => d.value > 0)
@@ -608,7 +608,12 @@ export default function InventoryDashboard({
                       contentStyle={{ fontSize: 12, borderRadius: 6 }}
                       formatter={(v: number) => [`${Number(v).toLocaleString()} units`, 'Qty']}
                     />
-                    <Bar dataKey="qty" fill="#a78bfa" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                    <Bar
+                      dataKey="qty"
+                      fill="hsl(var(--chart-1))"
+                      radius={[0, 4, 4, 0]}
+                      maxBarSize={18}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
