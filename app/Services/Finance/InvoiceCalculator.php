@@ -77,7 +77,7 @@ class InvoiceCalculator
     ): InvoiceLine {
         $lineTaxRate = isset($data['tax_rate']) && (float) $data['tax_rate'] > 0
             ? (float) $data['tax_rate']
-            : (float) $invoice->tax_rate;
+            : (float) ($invoice->tax_rate ?? config('finance.default_tax_rate', 0));
 
         $totals = self::calculateLineTotals(
             (float) $data['qty'],
