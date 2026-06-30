@@ -89,10 +89,8 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Create Sequence</h1>
-            <p className="text-muted-foreground">
-              Set up automated follow-up messages
-            </p>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Create Sequence</h1>
+            <p className="text-muted-foreground">Set up automated follow-up messages</p>
           </div>
         </div>
 
@@ -114,9 +112,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
                       value={data.name}
                       onChange={(e) => setData('name', e.target.value)}
                     />
-                    {errors.name && (
-                      <p className="text-sm text-destructive">{errors.name}</p>
-                    )}
+                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -164,10 +160,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {steps.map((step, index) => (
-                    <div
-                      key={step.id}
-                      className="border rounded-lg p-4 space-y-4"
-                    >
+                    <div key={step.id} className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
@@ -220,18 +213,20 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
                         <div className="flex items-center justify-between">
                           <Label>Message</Label>
                           <div className="flex gap-1">
-                            {Object.keys(variables).slice(0, 3).map((variable) => (
-                              <Button
-                                key={variable}
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-xs"
-                                onClick={() => insertVariable(step.id, variable)}
-                              >
-                                {variable}
-                              </Button>
-                            ))}
+                            {Object.keys(variables)
+                              .slice(0, 3)
+                              .map((variable) => (
+                                <Button
+                                  key={variable}
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-xs"
+                                  onClick={() => insertVariable(step.id, variable)}
+                                >
+                                  {variable}
+                                </Button>
+                              ))}
                           </div>
                         </div>
                         <Textarea
@@ -262,17 +257,12 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
               <Card>
                 <CardHeader>
                   <CardTitle>Available Variables</CardTitle>
-                  <CardDescription>
-                    Click to insert into the active step
-                  </CardDescription>
+                  <CardDescription>Click to insert into the active step</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     {Object.entries(variables).map(([variable, description]) => (
-                      <div
-                        key={variable}
-                        className="flex justify-between items-center text-sm"
-                      >
+                      <div key={variable} className="flex justify-between items-center text-sm">
                         <code className="bg-muted px-2 py-0.5 rounded">{variable}</code>
                         <span className="text-muted-foreground text-xs">{description}</span>
                       </div>
@@ -292,7 +282,9 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
                       <div key={step.id} className="relative pl-4 border-l-2 border-muted">
                         <div className="absolute -left-[5px] top-0 h-2 w-2 rounded-full bg-primary" />
                         <div className="text-xs text-muted-foreground mb-1">
-                          {index === 0 ? 'Immediately' : `${step.delay_minutes} ${step.delay_type} later`}
+                          {index === 0
+                            ? 'Immediately'
+                            : `${step.delay_minutes} ${step.delay_type} later`}
                         </div>
                         <div className="text-sm bg-muted p-2 rounded truncate">
                           {step.message || 'Empty message...'}

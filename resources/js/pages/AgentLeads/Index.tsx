@@ -119,9 +119,7 @@ export default function AgentLeadsIndex({
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg transition-all ${
-            toast.type === 'success'
-              ? 'bg-green-600 text-white'
-              : 'bg-red-600 text-white'
+            toast.type === 'success' ? 'bg-success text-white' : 'bg-destructive text-white'
           }`}
         >
           {toast.message}
@@ -132,7 +130,7 @@ export default function AgentLeadsIndex({
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">My Leads</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">My Leads</h1>
             <p className="text-muted-foreground">
               Manage your assigned leads and track your performance
             </p>
@@ -157,43 +155,59 @@ export default function AgentLeadsIndex({
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.assigned || 0}</div>
+              <div className="text-2xl font-bold font-display">{stats?.assigned || 0}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Called Today</CardTitle>
-              <Phone className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Called Today
+              </CardTitle>
+              <Phone className="h-4 w-4 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats?.called_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-info">
+                {stats?.called_today || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Sold Today</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Sold Today
+              </CardTitle>
+              <CheckCircle className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.sold_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.sold_today || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Callbacks Due</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Callbacks Due
+              </CardTitle>
+              <Clock className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats?.callbacks_due || 0}</div>
+              <div className="text-2xl font-bold font-display text-warning">
+                {stats?.callbacks_due || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Conversion</CardTitle>
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Conversion
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{stats?.conversion_rate || 0}%</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.conversion_rate || 0}%
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -218,9 +232,7 @@ export default function AgentLeadsIndex({
                     >
                       <div>
                         <span className="text-sm font-medium">{skill}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {count} in pool
-                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">{count} in pool</span>
                       </div>
                       <Button
                         size="sm"
@@ -244,7 +256,8 @@ export default function AgentLeadsIndex({
               </div>
               {Object.values(matchingInPool ?? {}).every((c) => c === 0) && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  No matching product leads in pool right now. You can still request general leads above.
+                  No matching product leads in pool right now. You can still request general leads
+                  above.
                 </p>
               )}
             </CardContent>
@@ -253,9 +266,9 @@ export default function AgentLeadsIndex({
 
         {/* Callbacks Alert */}
         {callbacksToday && callbacksToday.length > 0 && (
-          <Card className="border-yellow-200 bg-yellow-50">
+          <Card className="border-warning/20 bg-warning/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-yellow-800">
+              <CardTitle className="flex items-center gap-2 text-warning">
                 <AlertCircle className="h-5 w-5" />
                 Callbacks Due Today ({callbacksToday.length})
               </CardTitle>
@@ -266,9 +279,11 @@ export default function AgentLeadsIndex({
                   <Badge
                     key={lead.id}
                     variant="outline"
-                    className="cursor-pointer hover:bg-yellow-100"
+                    className="cursor-pointer hover:bg-warning/10"
                     onClick={() => {
-                      document.getElementById(`lead-${lead.id}`)?.scrollIntoView({ behavior: 'smooth' });
+                      document
+                        .getElementById(`lead-${lead.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth' });
                     }}
                   >
                     {lead.name}
@@ -287,19 +302,19 @@ export default function AgentLeadsIndex({
           <CardContent>
             <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-green-500" />
+                <div className="h-3 w-3 rounded-full bg-success/50" />
                 <span>Available: {poolStats?.available || 0}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-blue-500" />
+                <div className="h-3 w-3 rounded-full bg-info/50" />
                 <span>Assigned: {poolStats?.assigned || 0}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                <div className="h-3 w-3 rounded-full bg-warning/50" />
                 <span>Cooldown: {poolStats?.cooldown || 0}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-red-500" />
+                <div className="h-3 w-3 rounded-full bg-destructive/50" />
                 <span>Exhausted: {poolStats?.exhausted || 0}</span>
               </div>
             </div>
@@ -356,7 +371,11 @@ export default function AgentLeadsIndex({
                     ? `Pull leads from your product lines above, or request any available lead.`
                     : 'Request new leads to get started.'}
                 </p>
-                <Button className="mt-4" onClick={() => requestLeads()} disabled={requestingProduct !== null}>
+                <Button
+                  className="mt-4"
+                  onClick={() => requestLeads()}
+                  disabled={requestingProduct !== null}
+                >
                   <Users className="mr-2 h-4 w-4" />
                   Request Leads
                 </Button>

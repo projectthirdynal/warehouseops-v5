@@ -60,7 +60,10 @@ interface Props {
   };
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
+const statusConfig: Record<
+  string,
+  { label: string; color: string; icon: React.ComponentType<any> }
+> = {
   pending: { label: 'Pending', color: 'secondary', icon: Clock },
   sent: { label: 'Sent', color: 'default', icon: Send },
   delivered: { label: 'Delivered', color: 'default', icon: CheckCircle },
@@ -99,7 +102,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">SMS Logs</h1>
+              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Logs</h1>
               <p className="text-muted-foreground">
                 View all sent messages and their delivery status
               </p>
@@ -114,16 +117,16 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">{stats.total.toLocaleString()}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Sent</CardTitle>
+              <CardTitle className="text-sm font-medium text-success">Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold font-display text-success">
                 {stats.sent.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -134,10 +137,10 @@ export default function Logs({ logs, stats, filters }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-red-600">Failed</CardTitle>
+              <CardTitle className="text-sm font-medium text-destructive">Failed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold font-display text-destructive">
                 {stats.failed.toLocaleString()}
               </div>
             </CardContent>
@@ -148,7 +151,9 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pending.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats.pending.toLocaleString()}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -164,9 +169,7 @@ export default function Logs({ logs, stats, filters }: Props) {
                 <Input
                   placeholder="Search by phone..."
                   value={localFilters.phone || ''}
-                  onChange={(e) =>
-                    setLocalFilters({ ...localFilters, phone: e.target.value })
-                  }
+                  onChange={(e) => setLocalFilters({ ...localFilters, phone: e.target.value })}
                   onKeyPress={handleKeyPress}
                 />
               </div>
@@ -194,9 +197,7 @@ export default function Logs({ logs, stats, filters }: Props) {
                 placeholder="From"
                 className="w-[150px]"
                 value={localFilters.date_from || ''}
-                onChange={(e) =>
-                  setLocalFilters({ ...localFilters, date_from: e.target.value })
-                }
+                onChange={(e) => setLocalFilters({ ...localFilters, date_from: e.target.value })}
               />
 
               <Input
@@ -204,9 +205,7 @@ export default function Logs({ logs, stats, filters }: Props) {
                 placeholder="To"
                 className="w-[150px]"
                 value={localFilters.date_to || ''}
-                onChange={(e) =>
-                  setLocalFilters({ ...localFilters, date_to: e.target.value })
-                }
+                onChange={(e) => setLocalFilters({ ...localFilters, date_to: e.target.value })}
               />
 
               <Button onClick={applyFilters}>
@@ -289,7 +288,7 @@ export default function Logs({ logs, stats, filters }: Props) {
                             '-'
                           )}
                         </TableCell>
-                        <TableCell className="text-red-600 text-xs max-w-[150px] truncate">
+                        <TableCell className="text-destructive text-xs max-w-[150px] truncate">
                           {log.error_message || '-'}
                         </TableCell>
                       </TableRow>

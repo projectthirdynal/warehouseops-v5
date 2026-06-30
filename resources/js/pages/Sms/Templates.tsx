@@ -83,7 +83,7 @@ export default function Templates({ templates }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">SMS Templates</h1>
+              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Templates</h1>
               <p className="text-muted-foreground">
                 Reusable message templates for quick campaign creation
               </p>
@@ -115,9 +115,7 @@ export default function Templates({ templates }: Props) {
                       value={data.name}
                       onChange={(e) => setData('name', e.target.value)}
                     />
-                    {errors.name && (
-                      <p className="text-sm text-destructive">{errors.name}</p>
-                    )}
+                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -146,11 +144,10 @@ export default function Templates({ templates }: Props) {
                       rows={4}
                       className="font-mono"
                     />
-                    {errors.message && (
-                      <p className="text-sm text-destructive">{errors.message}</p>
-                    )}
+                    {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
                     <p className="text-xs text-muted-foreground">
-                      Use {'{name}'}, {'{waybill}'}, {'{status}'}, {'{amount}'}, {'{cod}'} for personalization
+                      Use {'{name}'}, {'{waybill}'}, {'{status}'}, {'{amount}'}, {'{cod}'} for
+                      personalization
                     </p>
                   </div>
                 </div>

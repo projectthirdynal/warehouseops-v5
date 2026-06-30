@@ -63,7 +63,10 @@ interface Props {
   recentLogs: SmsLog[];
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
+const statusConfig: Record<
+  string,
+  { label: string; color: string; icon: React.ComponentType<any> }
+> = {
   draft: { label: 'Draft', color: 'secondary', icon: FileText },
   scheduled: { label: 'Scheduled', color: 'default', icon: Clock },
   sending: { label: 'Sending', color: 'default', icon: Send },
@@ -87,7 +90,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">SMS Messaging</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">SMS Messaging</h1>
             <p className="text-muted-foreground">
               Send bulk SMS, manage sequences, and track delivery
             </p>
@@ -122,7 +125,9 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <Send className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total_sent.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats.total_sent.toLocaleString()}
+              </div>
               <p className="text-xs text-muted-foreground">All time messages</p>
             </CardContent>
           </Card>
@@ -133,7 +138,9 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <XCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total_failed.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats.total_failed.toLocaleString()}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {stats.total_sent > 0
                   ? `${((stats.total_failed / (stats.total_sent + stats.total_failed)) * 100).toFixed(1)}% failure rate`
@@ -148,7 +155,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.campaigns_active}</div>
+              <div className="text-2xl font-bold font-display">{stats.campaigns_active}</div>
               <p className="text-xs text-muted-foreground">Sending or scheduled</p>
             </CardContent>
           </Card>
@@ -159,7 +166,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <GitBranch className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.sequences_active}</div>
+              <div className="text-2xl font-bold font-display">{stats.sequences_active}</div>
               <p className="text-xs text-muted-foreground">Automated follow-ups</p>
             </CardContent>
           </Card>
@@ -211,10 +218,10 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
                         <TableCell className="text-right">
                           {campaign.total_recipients.toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right text-green-600">
+                        <TableCell className="text-right text-success">
                           {campaign.sent_count.toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right text-red-600">
+                        <TableCell className="text-right text-destructive">
                           {campaign.failed_count.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -268,9 +275,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
           <CardContent>
             <div className="space-y-3">
               {recentLogs.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  No messages sent yet
-                </p>
+                <p className="text-center text-muted-foreground py-4">No messages sent yet</p>
               ) : (
                 recentLogs.map((log) => (
                   <div
@@ -285,17 +290,15 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
                             log.status === 'sent' || log.status === 'delivered'
                               ? 'default'
                               : log.status === 'failed'
-                              ? 'destructive'
-                              : 'secondary'
+                                ? 'destructive'
+                                : 'secondary'
                           }
                           className="text-xs"
                         >
                           {log.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate mt-1">
-                        {log.message}
-                      </p>
+                      <p className="text-sm text-muted-foreground truncate mt-1">{log.message}</p>
                     </div>
                     <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
                       {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}

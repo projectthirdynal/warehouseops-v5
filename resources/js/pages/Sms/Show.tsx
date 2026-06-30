@@ -52,7 +52,10 @@ interface Props {
   };
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
+const statusConfig: Record<
+  string,
+  { label: string; color: string; icon: React.ComponentType<any> }
+> = {
   draft: { label: 'Draft', color: 'secondary', icon: FileText },
   scheduled: { label: 'Scheduled', color: 'default', icon: Clock },
   sending: { label: 'Sending', color: 'default', icon: Send },
@@ -98,14 +101,15 @@ export default function CampaignShow({ campaign, logs }: Props) {
             </Link>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold tracking-tight">{campaign.name}</h1>
+                <h1 className="text-2xl font-bold font-display tracking-tight">{campaign.name}</h1>
                 <Badge variant={status.color as any} className="gap-1">
                   <StatusIcon className="h-3 w-3" />
                   {status.label}
                 </Badge>
               </div>
               <p className="text-muted-foreground">
-                Created by {campaign.creator.name} {formatDistanceToNow(new Date(campaign.created_at), { addSuffix: true })}
+                Created by {campaign.creator.name}{' '}
+                {formatDistanceToNow(new Date(campaign.created_at), { addSuffix: true })}
               </p>
             </div>
           </div>
@@ -125,16 +129,18 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium">Total Recipients</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{campaign.total_recipients.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">
+                {campaign.total_recipients.toLocaleString()}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Sent</CardTitle>
+              <CardTitle className="text-sm font-medium text-success">Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold font-display text-success">
                 {campaign.sent_count.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">{successRate}% success rate</p>
@@ -143,10 +149,10 @@ export default function CampaignShow({ campaign, logs }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-red-600">Failed</CardTitle>
+              <CardTitle className="text-sm font-medium text-destructive">Failed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold font-display text-destructive">
                 {campaign.failed_count.toLocaleString()}
               </div>
             </CardContent>
@@ -157,7 +163,9 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium">Delivered</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{campaign.delivered_count.toLocaleString()}</div>
+              <div className="text-2xl font-bold font-display">
+                {campaign.delivered_count.toLocaleString()}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -184,7 +192,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-blue-500" />
+                <div className="h-2 w-2 rounded-full bg-info/50" />
                 <div>
                   <p className="font-medium">Created</p>
                   <p className="text-sm text-muted-foreground">
@@ -195,7 +203,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
 
               {campaign.scheduled_at && (
                 <div className="flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                  <div className="h-2 w-2 rounded-full bg-warning/50" />
                   <div>
                     <p className="font-medium">Scheduled</p>
                     <p className="text-sm text-muted-foreground">
@@ -207,7 +215,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
 
               {campaign.started_at && (
                 <div className="flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <div className="h-2 w-2 rounded-full bg-success/50" />
                   <div>
                     <p className="font-medium">Started Sending</p>
                     <p className="text-sm text-muted-foreground">
@@ -219,7 +227,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
 
               {campaign.completed_at && (
                 <div className="flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-purple-500" />
+                  <div className="h-2 w-2 rounded-full bg-primary" />
                   <div>
                     <p className="font-medium">Completed</p>
                     <p className="text-sm text-muted-foreground">
@@ -262,14 +270,14 @@ export default function CampaignShow({ campaign, logs }: Props) {
                     <TableRow key={log.id}>
                       <TableCell className="font-mono">{log.phone}</TableCell>
                       <TableCell>
-                        <Badge variant={logStatusConfig[log.status]?.color as any || 'secondary'}>
+                        <Badge variant={(logStatusConfig[log.status]?.color as any) || 'secondary'}>
                           {log.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {log.sent_at ? format(new Date(log.sent_at), 'PPpp') : '-'}
                       </TableCell>
-                      <TableCell className="text-red-600 text-sm max-w-xs truncate">
+                      <TableCell className="text-destructive text-sm max-w-xs truncate">
                         {log.error_message || '-'}
                       </TableCell>
                     </TableRow>

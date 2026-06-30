@@ -77,7 +77,7 @@ export default function Sequences({ sequences }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">SMS Sequences</h1>
+              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Sequences</h1>
               <p className="text-muted-foreground">
                 Automated follow-up messages triggered by events
               </p>
@@ -92,17 +92,15 @@ export default function Sequences({ sequences }: Props) {
         </div>
 
         {/* Info Card */}
-        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <Card className="bg-info/5 dark:bg-info/20 border-info/20 dark:border-info/30">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <Zap className="h-5 w-5 text-blue-600 mt-0.5" />
+              <Zap className="h-5 w-5 text-info mt-0.5" />
               <div>
-                <h3 className="font-medium text-blue-900 dark:text-blue-100">
-                  How Sequences Work
-                </h3>
-                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                  Sequences automatically send SMS messages when specific events occur.
-                  For example, send a delivery notification when a waybill status changes to "Out for Delivery",
+                <h3 className="font-medium text-info dark:text-info">How Sequences Work</h3>
+                <p className="text-sm text-info dark:text-info/80 mt-1">
+                  Sequences automatically send SMS messages when specific events occur. For example,
+                  send a delivery notification when a waybill status changes to "Out for Delivery",
                   then a follow-up thank you message 24 hours after delivery.
                 </p>
               </div>
@@ -136,10 +134,7 @@ export default function Sequences({ sequences }: Props) {
             ) : (
               <div className="space-y-4">
                 {sequences.data.map((sequence) => (
-                  <div
-                    key={sequence.id}
-                    className="border rounded-lg p-4 space-y-4"
-                  >
+                  <div key={sequence.id} className="border rounded-lg p-4 space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
@@ -156,7 +151,8 @@ export default function Sequences({ sequences }: Props) {
                         <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Zap className="h-4 w-4" />
-                            Trigger: {triggerLabels[sequence.trigger_event] || sequence.trigger_event}
+                            Trigger:{' '}
+                            {triggerLabels[sequence.trigger_event] || sequence.trigger_event}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="h-4 w-4" />
@@ -189,7 +185,8 @@ export default function Sequences({ sequences }: Props) {
                                 {index > 0 && (
                                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                     <Clock className="h-3 w-3" />
-                                    {formatDelay(step.delay_minutes, step.delay_type)} after previous
+                                    {formatDelay(step.delay_minutes, step.delay_type)} after
+                                    previous
                                   </span>
                                 )}
                               </div>
@@ -201,7 +198,8 @@ export default function Sequences({ sequences }: Props) {
                     </div>
 
                     <div className="text-xs text-muted-foreground">
-                      Created by {sequence.creator.name} {formatDistanceToNow(new Date(sequence.created_at), { addSuffix: true })}
+                      Created by {sequence.creator.name}{' '}
+                      {formatDistanceToNow(new Date(sequence.created_at), { addSuffix: true })}
                     </div>
                   </div>
                 ))}

@@ -55,7 +55,8 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'X-CSRF-TOKEN':
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         },
         body: JSON.stringify({
           target_audience: data.target_audience,
@@ -100,10 +101,8 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Create Campaign</h1>
-            <p className="text-muted-foreground">
-              Send bulk SMS to your customers
-            </p>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Create Campaign</h1>
+            <p className="text-muted-foreground">Send bulk SMS to your customers</p>
           </div>
         </div>
 
@@ -125,17 +124,12 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                       value={data.name}
                       onChange={(e) => setData('name', e.target.value)}
                     />
-                    {errors.name && (
-                      <p className="text-sm text-destructive">{errors.name}</p>
-                    )}
+                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="type">Campaign Type</Label>
-                    <Select
-                      value={data.type}
-                      onValueChange={(value) => setData('type', value)}
-                    >
+                    <Select value={data.type} onValueChange={(value) => setData('type', value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -207,12 +201,12 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                       rows={5}
                       className="font-mono"
                     />
-                    {errors.message && (
-                      <p className="text-sm text-destructive">{errors.message}</p>
-                    )}
+                    {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>{charCount} characters</span>
-                      <span>{smsCount} SMS segment{smsCount > 1 ? 's' : ''}</span>
+                      <span>
+                        {smsCount} SMS segment{smsCount > 1 ? 's' : ''}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -222,9 +216,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
               <Card>
                 <CardHeader>
                   <CardTitle>Audience</CardTitle>
-                  <CardDescription>
-                    Select who will receive this message
-                  </CardDescription>
+                  <CardDescription>Select who will receive this message</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -277,25 +269,28 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                       <div className="space-y-2">
                         <Label>Waybill Status</Label>
                         <div className="flex flex-wrap gap-2">
-                          {['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'RETURNED'].map(
-                            (status) => (
-                              <Badge
-                                key={status}
-                                variant={
-                                  data.filters.status.includes(status) ? 'default' : 'outline'
-                                }
-                                className="cursor-pointer"
-                                onClick={() => {
-                                  const newStatus = data.filters.status.includes(status)
-                                    ? data.filters.status.filter((s) => s !== status)
-                                    : [...data.filters.status, status];
-                                  setData('filters', { ...data.filters, status: newStatus });
-                                }}
-                              >
-                                {status.replace('_', ' ')}
-                              </Badge>
-                            )
-                          )}
+                          {[
+                            'PENDING',
+                            'DISPATCHED',
+                            'IN_TRANSIT',
+                            'OUT_FOR_DELIVERY',
+                            'DELIVERED',
+                            'RETURNED',
+                          ].map((status) => (
+                            <Badge
+                              key={status}
+                              variant={data.filters.status.includes(status) ? 'default' : 'outline'}
+                              className="cursor-pointer"
+                              onClick={() => {
+                                const newStatus = data.filters.status.includes(status)
+                                  ? data.filters.status.filter((s) => s !== status)
+                                  : [...data.filters.status, status];
+                                setData('filters', { ...data.filters, status: newStatus });
+                              }}
+                            >
+                              {status.replace('_', ' ')}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -354,9 +349,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                       onChange={(e) => setData('scheduled_at', e.target.value)}
                       min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to save as draft
-                    </p>
+                    <p className="text-xs text-muted-foreground">Leave empty to save as draft</p>
                   </div>
                 </CardContent>
               </Card>
@@ -373,9 +366,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                         {data.message || 'Your message will appear here...'}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      SMS Preview
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">SMS Preview</p>
                   </div>
                 </CardContent>
               </Card>
@@ -417,8 +408,8 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
               </div>
 
               {/* Info */}
-              <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm">
-                <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2 p-3 bg-info/5 dark:bg-info/20 rounded-lg text-sm">
+                <Info className="h-4 w-4 text-info mt-0.5 shrink-0" />
                 <p className="text-muted-foreground">
                   After saving, you can review and send the campaign from the campaign details page.
                 </p>

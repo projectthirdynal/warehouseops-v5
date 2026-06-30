@@ -65,7 +65,10 @@ interface Props {
   };
 }
 
-const statusConfig: Record<Ticket['status'], { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+const statusConfig: Record<
+  Ticket['status'],
+  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+> = {
   open: { label: 'Open', variant: 'destructive' },
   in_progress: { label: 'In Progress', variant: 'default' },
   waiting: { label: 'Waiting', variant: 'secondary' },
@@ -74,10 +77,10 @@ const statusConfig: Record<Ticket['status'], { label: string; variant: 'default'
 };
 
 const priorityConfig: Record<Ticket['priority'], { label: string; color: string }> = {
-  low: { label: 'Low', color: 'text-gray-600' },
-  medium: { label: 'Medium', color: 'text-yellow-600' },
-  high: { label: 'High', color: 'text-orange-600' },
-  urgent: { label: 'Urgent', color: 'text-red-600' },
+  low: { label: 'Low', color: 'text-muted-foreground' },
+  medium: { label: 'Medium', color: 'text-warning' },
+  high: { label: 'High', color: 'text-warning' },
+  urgent: { label: 'Urgent', color: 'text-destructive' },
 };
 
 export default function TicketsIndex({ tickets, stats }: Props) {
@@ -92,10 +95,8 @@ export default function TicketsIndex({ tickets, stats }: Props) {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Support Tickets</h1>
-            <p className="text-muted-foreground">
-              Manage customer and internal support requests
-            </p>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Support Tickets</h1>
+            <p className="text-muted-foreground">Manage customer and internal support requests</p>
           </div>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
@@ -112,37 +113,45 @@ export default function TicketsIndex({ tickets, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.total || tickets?.length || 0}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats?.total || tickets?.length || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-red-600" /> Open
+                <AlertCircle className="h-4 w-4 text-destructive" /> Open
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats?.open || 0}</div>
+              <div className="text-2xl font-bold font-display text-destructive">
+                {stats?.open || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-600" /> In Progress
+                <Clock className="h-4 w-4 text-info" /> In Progress
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats?.in_progress || 0}</div>
+              <div className="text-2xl font-bold font-display text-info">
+                {stats?.in_progress || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" /> Resolved Today
+                <CheckCircle className="h-4 w-4 text-success" /> Resolved Today
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.resolved_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.resolved_today || 0}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -194,11 +203,15 @@ export default function TicketsIndex({ tickets, stats }: Props) {
                       key={ticket.id}
                       className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                     >
-                      <div className={`mt-1 p-2 rounded-full ${
-                        ticket.priority === 'urgent' ? 'bg-red-100' :
-                        ticket.priority === 'high' ? 'bg-orange-100' :
-                        'bg-gray-100'
-                      }`}>
+                      <div
+                        className={`mt-1 p-2 rounded-full ${
+                          ticket.priority === 'urgent'
+                            ? 'bg-destructive/10'
+                            : ticket.priority === 'high'
+                              ? 'bg-warning/10'
+                              : 'bg-muted'
+                        }`}
+                      >
                         <Headphones className={`h-4 w-4 ${priorityCfg.color}`} />
                       </div>
 
@@ -276,7 +289,9 @@ export default function TicketsIndex({ tickets, stats }: Props) {
                 <div className="flex flex-col items-center justify-center py-12">
                   <Headphones className="h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No tickets found</h3>
-                  <p className="text-muted-foreground">All caught up! No support tickets to review.</p>
+                  <p className="text-muted-foreground">
+                    All caught up! No support tickets to review.
+                  </p>
                 </div>
               )}
             </div>

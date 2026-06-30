@@ -1,13 +1,6 @@
 import { useState, useRef } from 'react';
 import { Head, router } from '@inertiajs/react';
-import {
-  Upload,
-  FileText,
-  CheckCircle,
-  AlertCircle,
-  Info,
-  ArrowLeft,
-} from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Info, ArrowLeft } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,7 +80,7 @@ export default function LeadPoolImport({ flash }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Import Leads</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Import Leads</h1>
             <p className="text-muted-foreground">
               Upload a CSV file to bulk-add leads to the available pool
             </p>
@@ -96,13 +89,13 @@ export default function LeadPoolImport({ flash }: Props) {
 
         {/* Flash messages */}
         {flash?.success && (
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-200 text-green-800">
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-success/5 border border-success/20 text-success">
             <CheckCircle className="h-5 w-5 shrink-0 mt-0.5" />
             <p className="text-sm">{flash.success}</p>
           </div>
         )}
         {flash?.error && (
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800">
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20 text-destructive">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
             <p className="text-sm">{flash.error}</p>
           </div>
@@ -123,9 +116,12 @@ export default function LeadPoolImport({ flash }: Props) {
                 className={`
                   border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
                   ${isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-                  ${file ? 'border-green-400 bg-green-50' : ''}
+                  ${file ? 'border-success/40 bg-success/5' : ''}
                 `}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => inputRef.current?.click()}
@@ -140,14 +136,17 @@ export default function LeadPoolImport({ flash }: Props) {
 
                 {file ? (
                   <div className="space-y-2">
-                    <FileText className="mx-auto h-10 w-10 text-green-600" />
-                    <p className="font-medium text-green-700">{file.name}</p>
+                    <FileText className="mx-auto h-10 w-10 text-success" />
+                    <p className="font-medium text-success">{file.name}</p>
                     <p className="text-sm text-muted-foreground">{formatBytes(file.size)}</p>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFile(null);
+                      }}
                     >
                       Remove
                     </Button>
@@ -161,11 +160,7 @@ export default function LeadPoolImport({ flash }: Props) {
                 )}
               </div>
 
-              <Button
-                type="submit"
-                disabled={!file || isSubmitting}
-                className="w-full"
-              >
+              <Button type="submit" disabled={!file || isSubmitting} className="w-full">
                 {isSubmitting ? 'Importing...' : 'Import Leads'}
               </Button>
             </form>
@@ -197,7 +192,9 @@ export default function LeadPoolImport({ flash }: Props) {
               <div className="grid grid-cols-2 gap-2">
                 {OPTIONAL_COLUMNS.map(({ field, desc }) => (
                   <div key={field} className="flex items-start gap-2 text-sm">
-                    <Badge variant="outline" className="font-mono shrink-0">{field}</Badge>
+                    <Badge variant="outline" className="font-mono shrink-0">
+                      {field}
+                    </Badge>
                     <span className="text-muted-foreground">{desc}</span>
                   </div>
                 ))}
@@ -207,19 +204,19 @@ export default function LeadPoolImport({ flash }: Props) {
             <div className="p-3 bg-muted rounded-lg">
               <p className="text-sm font-medium mb-1">Example CSV</p>
               <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre">
-{`name,phone,city,state,barangay,product_interest,amount
+                {`name,phone,city,state,barangay,product_interest,amount
 Juan Dela Cruz,09171234567,Davao City,Davao del Sur,Poblacion,Sneakers,1200
 Maria Santos,09281234567,Cebu City,Cebu,Lahug,Running Shoes,1500`}
               </pre>
             </div>
 
-            <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <div className="flex items-start gap-2 p-3 bg-info/5 rounded-lg text-sm text-info">
               <Info className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Deduplication</p>
-                <p className="text-blue-700">
-                  Leads are deduplicated by phone number. Existing leads with the same phone
-                  will have their city and product info updated — they won't be duplicated.
+                <p className="text-info">
+                  Leads are deduplicated by phone number. Existing leads with the same phone will
+                  have their city and product info updated — they won't be duplicated.
                 </p>
               </div>
             </div>
