@@ -1,7 +1,5 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import {
-  ArrowLeft, Plus, Trash2, FileText,
-} from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 
 interface Product {
@@ -48,14 +50,28 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
     payment_terms: 'NET30',
     notes: '',
     lines: [
-      { product_id: '', description: '', qty: '1', unit_price: '', tax_rate: '12', discount_pct: '0' },
+      {
+        product_id: '',
+        description: '',
+        qty: '1',
+        unit_price: '',
+        tax_rate: '12',
+        discount_pct: '0',
+      },
     ] as Line[],
   });
 
   function addLine() {
     setData('lines', [
       ...data.lines,
-      { product_id: '', description: '', qty: '1', unit_price: '', tax_rate: '12', discount_pct: '0' },
+      {
+        product_id: '',
+        description: '',
+        qty: '1',
+        unit_price: '',
+        tax_rate: '12',
+        discount_pct: '0',
+      },
     ]);
   }
 
@@ -111,7 +127,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold">New Invoice</h1>
+          <h1 className="text-2xl font-bold font-display">New Invoice</h1>
         </div>
 
         <form onSubmit={submit} className="space-y-6">
@@ -139,7 +155,9 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.third_party_id && <p className="text-red-500 text-sm">{errors.third_party_id}</p>}
+                {errors.third_party_id && (
+                  <p className="text-destructive text-sm">{errors.third_party_id}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -164,7 +182,9 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
                   value={data.date_invoice}
                   onChange={(e) => setData('date_invoice', e.target.value)}
                 />
-                {errors.date_invoice && <p className="text-red-500 text-sm">{errors.date_invoice}</p>}
+                {errors.date_invoice && (
+                  <p className="text-destructive text-sm">{errors.date_invoice}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -178,7 +198,10 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
 
               <div className="space-y-2">
                 <Label>Payment Terms</Label>
-                <Select value={data.payment_terms} onValueChange={(v) => setData('payment_terms', v)}>
+                <Select
+                  value={data.payment_terms}
+                  onValueChange={(v) => setData('payment_terms', v)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -286,7 +309,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
                       onClick={() => removeLine(idx)}
                       disabled={data.lines.length <= 1}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </div>
@@ -295,7 +318,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
               <div className="flex justify-end">
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Grand Total</p>
-                  <p className="text-2xl font-bold">
+                  <p className="text-2xl font-bold font-display">
                     ₱{grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -303,7 +326,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
             </CardContent>
           </Card>
 
-          {errors.lines && <p className="text-red-500 text-sm">{errors.lines}</p>}
+          {errors.lines && <p className="text-destructive text-sm">{errors.lines}</p>}
 
           <div className="flex justify-end gap-3">
             <Button variant="outline" asChild>

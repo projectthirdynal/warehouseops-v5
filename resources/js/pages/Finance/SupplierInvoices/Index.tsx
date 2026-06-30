@@ -41,12 +41,12 @@ interface Props {
 }
 
 const statusBadge: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  VALIDATED: 'bg-blue-100 text-blue-700',
-  PARTIAL: 'bg-yellow-100 text-yellow-700',
-  PAID: 'bg-green-100 text-green-700',
-  OVERDUE: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-gray-200 text-gray-500',
+  DRAFT: 'bg-muted text-muted-foreground',
+  VALIDATED: 'bg-info/10 text-info',
+  PARTIAL: 'bg-warning/10 text-warning',
+  PAID: 'bg-success/10 text-success',
+  OVERDUE: 'bg-destructive/10 text-destructive',
+  CANCELLED: 'bg-muted/80 text-muted-foreground',
 };
 
 export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Props) {
@@ -84,7 +84,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Supplier Invoices</h1>
+            <h1 className="text-2xl font-bold font-display">Supplier Invoices</h1>
             <p className="text-muted-foreground text-sm">{invoices.total} total</p>
           </div>
           <Button asChild>
@@ -101,7 +101,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-red-600">
+            <p className="text-2xl font-bold font-display text-destructive">
               ₱{totalOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </p>
           </CardContent>
@@ -210,7 +210,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
                     })}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge className={statusBadge[inv.status] ?? 'bg-gray-100'}>{inv.status}</Badge>
+                    <Badge className={statusBadge[inv.status] ?? 'bg-muted'}>{inv.status}</Badge>
                   </td>
                 </tr>
               ))}

@@ -54,7 +54,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold">New Supplier Invoice</h1>
+          <h1 className="text-2xl font-bold font-display">New Supplier Invoice</h1>
         </div>
 
         <form onSubmit={submit} className="space-y-6">
@@ -82,7 +82,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
                   </SelectContent>
                 </Select>
                 {errors.third_party_id && (
-                  <p className="text-red-500 text-sm">{errors.third_party_id}</p>
+                  <p className="text-destructive text-sm">{errors.third_party_id}</p>
                 )}
               </div>
 
@@ -94,7 +94,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
                   onChange={(e) => setData('date_invoice', e.target.value)}
                 />
                 {errors.date_invoice && (
-                  <p className="text-red-500 text-sm">{errors.date_invoice}</p>
+                  <p className="text-destructive text-sm">{errors.date_invoice}</p>
                 )}
               </div>
 
@@ -118,7 +118,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
                   placeholder="0.00"
                 />
                 {errors.total_amount && (
-                  <p className="text-red-500 text-sm">{errors.total_amount}</p>
+                  <p className="text-destructive text-sm">{errors.total_amount}</p>
                 )}
               </div>
 
@@ -132,7 +132,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
                   value={data.tax_rate}
                   onChange={(e) => setData('tax_rate', e.target.value)}
                 />
-                {errors.tax_rate && <p className="text-red-500 text-sm">{errors.tax_rate}</p>}
+                {errors.tax_rate && <p className="text-destructive text-sm">{errors.tax_rate}</p>}
               </div>
 
               <div className="space-y-2 md:col-span-2">

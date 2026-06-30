@@ -1,15 +1,16 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import {
-  Plus, Search, Filter,
-  CheckCircle, XCircle, Clock, Send, AlertCircle,
-} from 'lucide-react';
+import { Plus, Search, Filter, CheckCircle, XCircle, Clock, Send, AlertCircle } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -36,28 +37,34 @@ interface Props {
     per_page: number;
     links: { url: string | null; label: string; active: boolean }[];
   };
-  filters: { status?: string; type?: string; search?: string; date_from?: string; date_to?: string };
+  filters: {
+    status?: string;
+    type?: string;
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+  };
   statuses: string[];
   types: string[];
 }
 
 const statusBadge: Record<string, string> = {
-  DRAFT:     'bg-gray-100 text-gray-700',
-  VALIDATED: 'bg-blue-100 text-blue-700',
-  SENT:      'bg-purple-100 text-purple-700',
-  PARTIAL:   'bg-yellow-100 text-yellow-700',
-  PAID:      'bg-green-100 text-green-700',
-  OVERDUE:   'bg-red-100 text-red-700',
-  CANCELLED: 'bg-gray-200 text-gray-500',
+  DRAFT: 'bg-muted text-muted-foreground',
+  VALIDATED: 'bg-info/10 text-info',
+  SENT: 'bg-primary/10 text-primary',
+  PARTIAL: 'bg-warning/10 text-warning',
+  PAID: 'bg-success/10 text-success',
+  OVERDUE: 'bg-destructive/10 text-destructive',
+  CANCELLED: 'bg-muted/80 text-muted-foreground',
 };
 
 const statusIcon: Record<string, React.ReactNode> = {
-  DRAFT:     <Clock className="h-3 w-3" />,
+  DRAFT: <Clock className="h-3 w-3" />,
   VALIDATED: <CheckCircle className="h-3 w-3" />,
-  SENT:      <Send className="h-3 w-3" />,
-  PARTIAL:   <AlertCircle className="h-3 w-3" />,
-  PAID:      <CheckCircle className="h-3 w-3" />,
-  OVERDUE:   <AlertCircle className="h-3 w-3" />,
+  SENT: <Send className="h-3 w-3" />,
+  PARTIAL: <AlertCircle className="h-3 w-3" />,
+  PAID: <CheckCircle className="h-3 w-3" />,
+  OVERDUE: <AlertCircle className="h-3 w-3" />,
   CANCELLED: <XCircle className="h-3 w-3" />,
 };
 
@@ -69,27 +76,31 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
   const [dateTo, setDateTo] = useState(filters.date_to ?? '');
 
   function applyFilters() {
-    router.get('/finance/invoices', {
-      search, status, type,
-      date_from: dateFrom,
-      date_to: dateTo,
-    }, { preserveState: true });
+    router.get(
+      '/finance/invoices',
+      {
+        search,
+        status,
+        type,
+        date_from: dateFrom,
+        date_to: dateTo,
+      },
+      { preserveState: true }
+    );
   }
 
   function clearFilters() {
-    setSearch(''); setStatus(''); setType(''); setDateFrom(''); setDateTo('');
+    setSearch('');
+    setStatus('');
+    setType('');
+    setDateFrom('');
+    setDateTo('');
     router.get('/finance/invoices', {}, { preserveState: true });
   }
 
-  const totalOutstanding = invoices.data.reduce(
-    (sum, i) => sum + parseFloat(i.amount_due), 0
-  );
-  const totalPaid = invoices.data.reduce(
-    (sum, i) => sum + parseFloat(i.amount_paid), 0
-  );
-  const totalAll = invoices.data.reduce(
-    (sum, i) => sum + parseFloat(i.total_amount), 0
-  );
+  const totalOutstanding = invoices.data.reduce((sum, i) => sum + parseFloat(i.amount_due), 0);
+  const totalPaid = invoices.data.reduce((sum, i) => sum + parseFloat(i.amount_paid), 0);
+  const totalAll = invoices.data.reduce((sum, i) => sum + parseFloat(i.total_amount), 0);
 
   return (
     <AppLayout>
@@ -98,10 +109,8 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Invoices</h1>
-            <p className="text-muted-foreground text-sm">
-              {invoices.total} total invoices
-            </p>
+            <h1 className="text-2xl font-bold font-display">Invoices</h1>
+            <p className="text-muted-foreground text-sm">{invoices.total} total invoices</p>
           </div>
           <Button asChild>
             <Link href="/finance/invoices/create">
@@ -119,7 +128,9 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">₱{totalAll.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold font-display">
+                ₱{totalAll.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -129,7 +140,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-2xl font-bold font-display text-success">
                 ₱{totalPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
@@ -141,7 +152,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-2xl font-bold font-display text-destructive">
                 ₱{totalOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
@@ -160,30 +171,56 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
             />
           </div>
-          <Select value={status} onValueChange={(v) => { setStatus(v); applyFilters(); }}>
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setStatus(v);
+              applyFilters();
+            }}
+          >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All statuses</SelectItem>
               {statuses.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={type} onValueChange={(v) => { setType(v); applyFilters(); }}>
+          <Select
+            value={type}
+            onValueChange={(v) => {
+              setType(v);
+              applyFilters();
+            }}
+          >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All types</SelectItem>
               {types.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input type="date" className="w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <Input type="date" className="w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <Input
+            type="date"
+            className="w-40"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+          <Input
+            type="date"
+            className="w-40"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
           <Button variant="outline" size="sm" onClick={applyFilters}>
             <Filter className="mr-1 h-3 w-3" /> Filter
           </Button>
@@ -229,16 +266,25 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
                   <td className="px-4 py-3">{inv.date_invoice}</td>
                   <td className="px-4 py-3">{inv.date_due ?? '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    ₱{parseFloat(inv.total_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    ₱
+                    {parseFloat(inv.total_amount).toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    ₱{parseFloat(inv.amount_paid).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    ₱
+                    {parseFloat(inv.amount_paid).toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    ₱{parseFloat(inv.amount_due).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    ₱
+                    {parseFloat(inv.amount_due).toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge className={`${statusBadge[inv.status] ?? 'bg-gray-100'} gap-1`}>
+                    <Badge className={`${statusBadge[inv.status] ?? 'bg-muted'} gap-1`}>
                       {statusIcon[inv.status]} {inv.status}
                     </Badge>
                   </td>

@@ -47,19 +47,23 @@ interface Props {
 }
 
 const SALES_STATUS_COLORS: Record<string, string> = {
-  'New': 'bg-gray-100 text-gray-700',
-  'Contacted': 'bg-blue-100 text-blue-700',
+  New: 'bg-muted text-muted-foreground',
+  Contacted: 'bg-info/10 text-info',
   'Agent Confirmed': 'bg-indigo-100 text-indigo-700',
-  'QA Pending': 'bg-yellow-100 text-yellow-700',
-  'QA Approved': 'bg-green-100 text-green-700',
-  'QA Rejected': 'bg-red-100 text-red-700',
-  'Ops Approved': 'bg-emerald-100 text-emerald-700',
-  'Waybill Created': 'bg-purple-100 text-purple-700',
-  'Cancelled': 'bg-gray-100 text-gray-500',
+  'QA Pending': 'bg-warning/10 text-warning',
+  'QA Approved': 'bg-success/10 text-success',
+  'QA Rejected': 'bg-destructive/10 text-destructive',
+  'Ops Approved': 'bg-success/10 text-success',
+  'Waybill Created': 'bg-primary/10 text-primary',
+  Cancelled: 'bg-muted text-muted-foreground',
 };
 
 function StatCard({
-  title, value, sub, icon: Icon, color,
+  title,
+  value,
+  sub,
+  icon: Icon,
+  color,
 }: {
   title: string;
   value: string | number;
@@ -76,7 +80,7 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-bold font-display">{value}</div>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
@@ -84,17 +88,30 @@ function StatCard({
 }
 
 export default function SalesIndex({
-  stats, dailyTrend, agentSales, funnelData, salesLeads, agents, filters,
+  stats,
+  dailyTrend,
+  agentSales,
+  funnelData,
+  salesLeads,
+  agents,
+  filters,
 }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
 
-  const applyFilters = useCallback((overrides: Partial<SalesFilters>) => {
-    router.get('/sales', { ...filters, ...overrides }, {
-      preserveState: true,
-      preserveScroll: true,
-      replace: true,
-    });
-  }, [filters]);
+  const applyFilters = useCallback(
+    (overrides: Partial<SalesFilters>) => {
+      router.get(
+        '/sales',
+        { ...filters, ...overrides },
+        {
+          preserveState: true,
+          preserveScroll: true,
+          replace: true,
+        }
+      );
+    },
+    [filters]
+  );
 
   const handleDateChange = (field: 'from' | 'to', value: string) => {
     applyFilters({ [field]: value, page: undefined } as Partial<SalesFilters>);
@@ -116,9 +133,11 @@ export default function SalesIndex({
 
   const SortIcon = ({ col }: { col: string }) => {
     if (filters.sort !== col) return <ChevronUp className="h-3 w-3 opacity-30" />;
-    return filters.dir === 'asc'
-      ? <ChevronUp className="h-3 w-3 text-primary" />
-      : <ChevronDown className="h-3 w-3 text-primary" />;
+    return filters.dir === 'asc' ? (
+      <ChevronUp className="h-3 w-3 text-primary" />
+    ) : (
+      <ChevronDown className="h-3 w-3 text-primary" />
+    );
   };
 
   const funnelMax = Math.max(...funnelData.map((s) => s.count), 1);
@@ -131,7 +150,7 @@ export default function SalesIndex({
         {/* Header + Date Range */}
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Sales Tracking</h1>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Sales Tracking</h1>
             <p className="text-muted-foreground">Revenue pipeline and agent performance</p>
           </div>
 
@@ -170,28 +189,28 @@ export default function SalesIndex({
             value={stats.total_sales.toLocaleString()}
             sub="In selected period"
             icon={TrendingUp}
-            color="bg-green-500/10 text-green-600"
+            color="bg-success/10 text-success"
           />
           <StatCard
             title="Conversion Rate"
             value={`${stats.conversion_rate}%`}
             sub="Leads → Sales"
             icon={Target}
-            color="bg-blue-500/10 text-blue-600"
+            color="bg-info/10 text-info"
           />
           <StatCard
             title="Avg / Day"
             value={stats.avg_per_day}
             sub="Sales per day"
             icon={TrendingUp}
-            color="bg-purple-500/10 text-purple-600"
+            color="bg-primary/10 text-primary"
           />
           <StatCard
             title="Top Agent"
             value={stats.top_agent}
             sub="Most sales in period"
             icon={Award}
-            color="bg-yellow-500/10 text-yellow-600"
+            color="bg-warning/50/10 text-warning"
           />
         </div>
 
@@ -267,7 +286,11 @@ export default function SalesIndex({
                     layout="vertical"
                     margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                      stroke="hsl(var(--border))"
+                    />
                     <XAxis
                       type="number"
                       allowDecimals={false}
@@ -291,7 +314,12 @@ export default function SalesIndex({
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="count" name="Sales" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    <Bar
+                      dataKey="count"
+                      name="Sales"
+                      fill="hsl(var(--primary))"
+                      radius={[0, 4, 4, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -315,7 +343,9 @@ export default function SalesIndex({
                     <div key={stage.stage} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{stage.stage}</span>
-                        <span className="font-medium tabular-nums">{stage.count.toLocaleString()}</span>
+                        <span className="font-medium tabular-nums">
+                          {stage.count.toLocaleString()}
+                        </span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                         <div
@@ -337,9 +367,7 @@ export default function SalesIndex({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Sales Records</CardTitle>
-                <CardDescription>
-                  {salesLeads.total.toLocaleString()} sales found
-                </CardDescription>
+                <CardDescription>{salesLeads.total.toLocaleString()} sales found</CardDescription>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -353,7 +381,9 @@ export default function SalesIndex({
                   >
                     <option value="">All Agents</option>
                     {agents.map((a) => (
-                      <option key={a.id} value={String(a.id)}>{a.name}</option>
+                      <option key={a.id} value={String(a.id)}>
+                        {a.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -370,7 +400,9 @@ export default function SalesIndex({
                       className="h-9 w-48 rounded-md border border-input bg-background pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
-                  <Button type="submit" size="sm" variant="outline">Search</Button>
+                  <Button type="submit" size="sm" variant="outline">
+                    Search
+                  </Button>
                   {(filters.search || filters.agent) && (
                     <Button
                       type="button"
@@ -378,7 +410,11 @@ export default function SalesIndex({
                       variant="ghost"
                       onClick={() => {
                         setSearch('');
-                        applyFilters({ search: '', agent: '', page: undefined } as Partial<SalesFilters>);
+                        applyFilters({
+                          search: '',
+                          agent: '',
+                          page: undefined,
+                        } as Partial<SalesFilters>);
                       }}
                     >
                       Clear
@@ -402,13 +438,13 @@ export default function SalesIndex({
                     <thead>
                       <tr className="border-b bg-muted/40">
                         {[
-                          { key: 'name',        label: 'Customer' },
-                          { key: null,          label: 'Phone' },
+                          { key: 'name', label: 'Customer' },
+                          { key: null, label: 'Phone' },
                           { key: 'product_name', label: 'Product' },
-                          { key: 'amount',      label: 'Amount' },
+                          { key: 'amount', label: 'Amount' },
                           { key: 'sales_status', label: 'Stage' },
-                          { key: null,          label: 'Agent' },
-                          { key: 'updated_at',  label: 'Date' },
+                          { key: null, label: 'Agent' },
+                          { key: 'updated_at', label: 'Date' },
                         ].map(({ key, label }) => (
                           <th
                             key={label}
@@ -427,25 +463,37 @@ export default function SalesIndex({
                       {salesLeads.data.map((lead) => (
                         <tr key={lead.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-medium">{lead.name}</td>
-                          <td className="px-4 py-3 text-muted-foreground tabular-nums">{lead.phone}</td>
+                          <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                            {lead.phone}
+                          </td>
                           <td className="px-4 py-3 text-muted-foreground">
                             {lead.product_name ?? <span className="italic opacity-50">—</span>}
                           </td>
                           <td className="px-4 py-3 tabular-nums">
-                            {lead.amount
-                              ? `₱${parseFloat(lead.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-                              : <span className="italic opacity-50">—</span>}
+                            {lead.amount ? (
+                              `₱${parseFloat(lead.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                            ) : (
+                              <span className="italic opacity-50">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SALES_STATUS_COLORS[lead.sales_status] ?? 'bg-gray-100 text-gray-700'}`}>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SALES_STATUS_COLORS[lead.sales_status] ?? 'bg-muted text-muted-foreground'}`}
+                            >
                               {lead.sales_status}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
-                            {lead.agent_name ?? <span className="italic opacity-50">Unassigned</span>}
+                            {lead.agent_name ?? (
+                              <span className="italic opacity-50">Unassigned</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
-                            {new Date(lead.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {new Date(lead.updated_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
                           </td>
                         </tr>
                       ))}
@@ -464,7 +512,11 @@ export default function SalesIndex({
                         variant="outline"
                         size="sm"
                         disabled={salesLeads.current_page <= 1}
-                        onClick={() => applyFilters({ page: salesLeads.current_page - 1 } as Partial<SalesFilters>)}
+                        onClick={() =>
+                          applyFilters({
+                            page: salesLeads.current_page - 1,
+                          } as Partial<SalesFilters>)
+                        }
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
@@ -475,7 +527,11 @@ export default function SalesIndex({
                         variant="outline"
                         size="sm"
                         disabled={salesLeads.current_page >= salesLeads.last_page}
-                        onClick={() => applyFilters({ page: salesLeads.current_page + 1 } as Partial<SalesFilters>)}
+                        onClick={() =>
+                          applyFilters({
+                            page: salesLeads.current_page + 1,
+                          } as Partial<SalesFilters>)
+                        }
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
