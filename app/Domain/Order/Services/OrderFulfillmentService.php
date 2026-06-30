@@ -275,6 +275,8 @@ class OrderFulfillmentService
             $this->commissionService->createForOrder($order);
 
             // Record COGS (FIFO lot consumption) + push journal entry to QBO
+            // warehouseId not passed — Order/Waybill models have no warehouse_id column yet.
+            // Forward-compatible: when warehouse assignment is added, pass it here to isolate FIFO lots per warehouse.
             if ($order->product_id) {
                 try {
                     $cogs = $this->cogsService->record(
