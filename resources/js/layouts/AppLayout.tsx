@@ -1,5 +1,4 @@
 import { PropsWithChildren, useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard,
@@ -9,7 +8,6 @@ import {
   ClipboardCheck,
   BarChart3,
   Settings,
-  ChevronLeft,
   ChevronDown,
   LogOut,
   Menu,
@@ -45,9 +43,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -344,9 +340,8 @@ export default function AppLayout({ children }: PropsWithChildren) {
   type SharedUser = PageProps['auth']['user'];
   const page = usePage<PageProps & { user?: SharedUser }>().props;
   const authUser = page.auth?.user ?? page.user ?? null;
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
 
@@ -386,18 +381,6 @@ export default function AppLayout({ children }: PropsWithChildren) {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
-
-  // Auto-expand groups that contain the active path
-  useEffect(() => {
-    const autoExpand: Record<string, boolean> = {};
-    navigation.forEach((entry) => {
-      if (isNavGroup(entry)) {
-        const hasActive = entry.children.some((child) => currentPath.startsWith(child.href));
-        if (hasActive) autoExpand[entry.name] = true;
-      }
-    });
-    setOpenGroups((prev) => ({ ...prev, ...autoExpand }));
-  }, [currentPath]);
 
   useEffect(() => {
     const theme = authUser?.theme ?? 'light';
@@ -439,8 +422,6 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const isGroupActive = (group: NavGroup) =>
     visibleChildren(group).some((child) => child.href && isActive(child.href));
 
-  const toggleGroup = (name: string) => setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
-
   const getInitials = (name: string) =>
     name
       .split(' ')
@@ -453,157 +434,107 @@ export default function AppLayout({ children }: PropsWithChildren) {
     const Icon = item.icon;
     const active = isActive(item.href);
 
-    if (collapsed) {
-      return (
-        <Tooltip key={item.name}>
-          <TooltipTrigger asChild>
-            <Link
-              href={item.href}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-              )}
-            >
-              <Icon className="h-5 w-5" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>{item.name}</p>
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
     return (
-      <Link
-        key={item.name}
-        href={item.href}
-        className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-          active
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-        )}
-      >
-        <Icon className="h-5 w-5 shrink-0" />
-        <span className="flex-1">{item.name}</span>
-        {item.badge && item.badge > 0 && (
-          <Badge variant="destructive" className="h-5 px-1.5">
-            {item.badge}
-          </Badge>
-        )}
-      </Link>
+      <Tooltip key={item.name}>
+        <TooltipTrigger asChild>
+          <Link
+            href={item.href}
+            className={cn(
+              'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+              active
+                ? 'bg-primary/10 text-primary'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )}
+          >
+            {active && (
+              <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-primary" />
+            )}
+            <Icon className="h-5 w-5" />
+            {item.badge && item.badge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-destructive">
+                {item.badge}
+              </span>
+            )}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{item.name}</p>
+        </TooltipContent>
+      </Tooltip>
     );
   };
 
   const renderNavGroup = (group: NavGroup) => {
     const Icon = group.icon;
     const active = isGroupActive(group);
-    const open = openGroups[group.name] ?? false;
+    const isHovered = hoveredGroup === group.name;
+    const children = visibleChildren(group);
 
-    if (collapsed) {
-      const firstVisibleChild = visibleChildren(group).find((child) => !child.divider);
-      // Show group icon as a tooltip trigger, clicking navigates to first child
-      return (
-        <Tooltip key={group.name}>
+    return (
+      <div
+        key={group.name}
+        className="relative"
+        onMouseEnter={() => setHoveredGroup(group.name)}
+        onMouseLeave={() => setHoveredGroup(null)}
+      >
+        <Tooltip>
           <TooltipTrigger asChild>
-            <Link
-              href={firstVisibleChild?.href ?? '/'}
+            <button
               className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               )}
             >
+              {active && (
+                <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-primary" />
+              )}
               <Icon className="h-5 w-5" />
-            </Link>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="right">
             <p>{group.name}</p>
           </TooltipContent>
         </Tooltip>
-      );
-    }
 
-    return (
-      <div key={group.name}>
-        <button
-          onClick={() => toggleGroup(group.name)}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-            active
-              ? 'text-sidebar-accent-foreground font-medium'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-          )}
-        >
-          <Icon className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-left">{group.name}</span>
-          <ChevronDown
-            className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
-          />
-        </button>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div
-              key="children"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{
-                height: 'auto',
-                opacity: 1,
-                transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] },
-              }}
-              exit={{ height: 0, opacity: 0, transition: { duration: 0.16 } }}
-              className="overflow-hidden"
-            >
-              <motion.div
-                className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2"
-                variants={{ animate: { transition: { staggerChildren: 0.04 } } }}
-                initial="initial"
-                animate="animate"
-              >
-                {visibleChildren(group).map((child) => {
-                  if (child.divider) {
-                    return (
-                      <div
-                        key={child.name}
-                        className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50"
-                      >
-                        {child.name}
-                      </div>
-                    );
-                  }
-                  const ChildIcon = child.icon;
-                  const childActive = isActive(child.href);
-                  return (
-                    <motion.div
-                      key={child.name}
-                      variants={{
-                        initial: { opacity: 0, x: -6 },
-                        animate: { opacity: 1, x: 0, transition: { duration: 0.18 } },
-                      }}
-                    >
-                      <Link
-                        href={child.href}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
-                          childActive
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        )}
-                      >
-                        <ChildIcon className="h-4 w-4 shrink-0" />
-                        <span className="flex-1">{child.name}</span>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Flyout submenu */}
+        {isHovered && children.length > 0 && (
+          <div className="absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border bg-popover p-2 shadow-lg">
+            <p className="mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {group.name}
+            </p>
+            {children.map((child) => {
+              if (child.divider) {
+                return (
+                  <div
+                    key={child.name}
+                    className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50"
+                  >
+                    {child.name}
+                  </div>
+                );
+              }
+              const ChildIcon = child.icon;
+              const childActive = isActive(child.href);
+              return (
+                <Link
+                  key={child.name}
+                  href={child.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                    childActive
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  <ChildIcon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{child.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -614,137 +545,61 @@ export default function AppLayout({ children }: PropsWithChildren) {
         {/* Mobile overlay */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-ink/80 lg:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar — Icon Rail */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-sidebar transition-all duration-300 lg:relative',
-            collapsed ? 'w-16' : 'w-64',
+            'fixed inset-y-0 left-0 z-50 flex w-16 flex-col items-center border-r bg-sidebar py-3 lg:relative',
             mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           )}
         >
           {/* Logo */}
-          <div className="flex h-16 items-center justify-between px-4">
-            {!collapsed && (
-              <Link href="/" className="flex items-center">
-                <img src="/images/tecc-banner.png" alt="TECS" className="h-9 object-contain" />
-              </Link>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden lg:flex"
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <ChevronLeft
-                className={cn('h-5 w-5 transition-transform', collapsed && 'rotate-180')}
-              />
-            </Button>
-          </div>
-
-          <Separator />
+          <Link href="/" className="mb-3 flex h-10 w-10 items-center justify-center">
+            <img
+              src="/images/tecc-banner.png"
+              alt="TECS"
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+          </Link>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
+          <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
             {navigation
               .filter((entry) => canSee(entry))
               .map((entry) => (isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)))}
           </nav>
 
-          <Separator />
-
           {/* Bottom Navigation */}
-          <div className="p-2 space-y-1">
-            {bottomNav.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              if (collapsed) {
-                return (
-                  <Tooltip key={item.name}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                          active
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{item.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                    active
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
+          <div className="flex flex-col items-center gap-1 pt-2">
+            {bottomNav.map((item) => renderNavItem(item))}
           </div>
 
-          <Separator />
-
-          {/* User */}
-          <div className="p-2">
-            <div
-              className={cn(
-                'flex items-center gap-3 rounded-lg p-2',
-                collapsed && 'justify-center'
-              )}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={authUser?.avatar_url} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {authUser?.name ? getInitials(authUser.name) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">
-                    {authUser?.name || 'User'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {authUser?.role || 'No role'}
-                  </p>
-                </div>
-              )}
-              {!collapsed && (
-                <Link href="/logout" method="post" as="button">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
+          {/* User Avatar */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/logout" method="post" as="button">
+                <Avatar className="mt-2 h-8 w-8">
+                  <AvatarImage src={authUser?.avatar_url} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {authUser?.name ? getInitials(authUser.name) : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{authUser?.name || 'User'} — Logout</p>
+            </TooltipContent>
+          </Tooltip>
         </aside>
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header */}
-          <header className="flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+          <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6 shadow-card">
             <Button
               variant="ghost"
               size="icon"
@@ -776,7 +631,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             <Button
               variant="outline"
               size="sm"
-              className="hidden md:flex h-9 w-64 items-center justify-between rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
+              className="hidden md:flex h-9 w-64 items-center justify-between rounded-lg border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <span className="flex items-center gap-2">
@@ -940,7 +795,7 @@ function NotificationBell() {
       >
         <Bell className="h-5 w-5 text-muted-foreground" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-red-500">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-destructive">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}

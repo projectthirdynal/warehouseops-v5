@@ -34,7 +34,7 @@ export function PageHeader({
             </Link>
           </div>
         )}
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight font-display">
           {icon}
           {title}
         </h1>

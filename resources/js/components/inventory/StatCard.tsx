@@ -21,7 +21,9 @@ export function StatCard({ label, value, tone = 'default', className }: StatCard
     <Card className={className}>
       <CardContent className="p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={cn('mt-1 text-xl font-bold tabular-nums', toneStyles[tone])}>{value}</p>
+        <p className={cn('mt-1 text-xl font-bold tabular-nums font-display', toneStyles[tone])}>
+          {value}
+        </p>
       </CardContent>
     </Card>
   );

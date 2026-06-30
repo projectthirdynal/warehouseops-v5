@@ -43,13 +43,7 @@ export function Skeleton({
 }
 
 /* Composed skeleton patterns */
-export function SkeletonText({
-  lines = 1,
-  className,
-}: {
-  lines?: number;
-  className?: string;
-}) {
+export function SkeletonText({ lines = 1, className }: { lines?: number; className?: string }) {
   return (
     <div className={cn('space-y-2', className)}>
       {Array.from({ length: lines }).map((_, i) => (
@@ -69,7 +63,7 @@ export function SkeletonAvatar({ size = 40 }: { size?: number }) {
 
 export function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className={cn('space-y-4 rounded-lg border p-4', className)}>
+    <div className={cn('space-y-4 rounded-xl border p-4', className)}>
       <div className="flex items-center gap-3">
         <SkeletonAvatar size={40} />
         <div className="flex-1 space-y-2">
@@ -86,12 +80,7 @@ export function SkeletonTableRow({ columns = 4 }: { columns?: number }) {
   return (
     <div className="flex items-center gap-4 py-3">
       {Array.from({ length: columns }).map((_, i) => (
-        <Skeleton
-          key={i}
-          className="flex-1"
-          height={16}
-          animate="shimmer"
-        />
+        <Skeleton key={i} className="flex-1" height={16} animate="shimmer" />
       ))}
     </div>
   );
