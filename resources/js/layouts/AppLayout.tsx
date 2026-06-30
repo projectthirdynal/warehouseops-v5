@@ -1,26 +1,56 @@
 import { PropsWithChildren, useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Link, usePage } from '@inertiajs/react';
 import {
-  LayoutDashboard, Package, Users, Truck, ClipboardCheck, BarChart3,
-  Settings, ChevronLeft, ChevronDown, LogOut, Menu, Phone,
-  Recycle, UserCog, Headphones, MessageSquare, ShieldAlert,
-  Shield, AlertOctagon, ScanLine, HelpCircle, Warehouse as WarehouseIcon,
-  ShoppingCart, FileText, PackageCheck, Building2, TrendingUp,
-  Store, BookUser, Search, ChevronRight, Home, ArrowUpDown, Upload,
-  CheckSquare, Bell, Skull,
+  LayoutDashboard,
+  Package,
+  Users,
+  Truck,
+  ClipboardCheck,
+  BarChart3,
+  Settings,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Phone,
+  Recycle,
+  UserCog,
+  Headphones,
+  MessageSquare,
+  ShieldAlert,
+  Shield,
+  AlertOctagon,
+  ScanLine,
+  HelpCircle,
+  Warehouse as WarehouseIcon,
+  ShoppingCart,
+  FileText,
+  PackageCheck,
+  Building2,
+  TrendingUp,
+  Store,
+  BookUser,
+  Search,
+  ChevronRight,
+  Home,
+  ArrowUpDown,
+  Upload,
+  CheckSquare,
+  Bell,
+  Skull,
+  SlidersHorizontal,
+  FileBarChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { PageProps } from '@/types';
 import CommandPalette from '@/components/CommandPalette';
@@ -29,10 +59,25 @@ import { useGlobalHotkeys } from '@/hooks/use-hotkeys';
 import { toast } from 'sonner';
 
 /* ─── Role-based navigation ─── */
-const ALL_STAFF = ['superadmin','admin','supervisor','finance','accounting','warehouse','agent'];
-const ADMIN_ONLY = ['superadmin','admin'];
-const OPS_ROLES = ['superadmin','admin','supervisor','warehouse'];
-const INVENTORY_MATERIAL_ROLES = ['superadmin','admin','supervisor','warehouse','finance','accounting'];
+const ALL_STAFF = [
+  'superadmin',
+  'admin',
+  'supervisor',
+  'finance',
+  'accounting',
+  'warehouse',
+  'agent',
+];
+const ADMIN_ONLY = ['superadmin', 'admin'];
+const OPS_ROLES = ['superadmin', 'admin', 'supervisor', 'warehouse'];
+const INVENTORY_MATERIAL_ROLES = [
+  'superadmin',
+  'admin',
+  'supervisor',
+  'warehouse',
+  'finance',
+  'accounting',
+];
 const AGENT_ONLY = ['agent'];
 
 interface NavItem {
@@ -57,8 +102,8 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
   return 'children' in entry;
 }
 
-const FINANCE_ROLES = ['superadmin','admin','finance','accounting'];
-const CRM_ROLES = ['superadmin','admin','supervisor','finance','accounting'];
+const FINANCE_ROLES = ['superadmin', 'admin', 'finance', 'accounting'];
+const CRM_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'];
 
 /* ─── Breadcrumb map ─── */
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -110,7 +155,12 @@ const BREADCRUMB_MAP: Record<string, string> = {
 const navigation: NavEntry[] = [
   /* ── General ── */
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ALL_STAFF },
-  { name: 'Approvals', href: '/approvals', icon: CheckSquare, roles: ['superadmin','admin','supervisor','finance','warehouse'] },
+  {
+    name: 'Approvals',
+    href: '/approvals',
+    icon: CheckSquare,
+    roles: ['superadmin', 'admin', 'supervisor', 'finance', 'warehouse'],
+  },
   { name: 'Shop', href: '/shop', icon: Store, roles: ADMIN_ONLY },
 
   /* ── Operations ── */
@@ -119,11 +169,48 @@ const navigation: NavEntry[] = [
     icon: WarehouseIcon,
     roles: INVENTORY_MATERIAL_ROLES,
     children: [
-      { name: 'Inventory Dashboard', href: '/inventory', icon: BarChart3, roles: INVENTORY_MATERIAL_ROLES },
-      { name: 'Movements', href: '/inventory/movements', icon: Recycle, roles: INVENTORY_MATERIAL_ROLES },
-      { name: 'Supplies', href: '/inventory/supplies', icon: Package, roles: INVENTORY_MATERIAL_ROLES },
-      { name: 'Non-Moving', href: '/inventory/non-moving', icon: AlertOctagon, roles: INVENTORY_MATERIAL_ROLES },
-      { name: 'Dead Stock', href: '/inventory/dead-stock', icon: Skull, roles: INVENTORY_MATERIAL_ROLES },
+      {
+        name: 'Inventory Dashboard',
+        href: '/inventory',
+        icon: BarChart3,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Movements',
+        href: '/inventory/movements',
+        icon: Recycle,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Supplies',
+        href: '/inventory/supplies',
+        icon: Package,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Non-Moving',
+        href: '/inventory/non-moving',
+        icon: AlertOctagon,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Dead Stock',
+        href: '/inventory/dead-stock',
+        icon: Skull,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Stock Adjustments',
+        href: '/inventory/adjustments',
+        icon: SlidersHorizontal,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Adjustment Report',
+        href: '/inventory/adjustments/report',
+        icon: FileBarChart,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
       { name: 'Products', href: '/products', icon: Package, roles: OPS_ROLES },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
     ],
@@ -136,9 +223,24 @@ const navigation: NavEntry[] = [
     roles: OPS_ROLES,
     children: [
       { name: 'Suppliers', href: '/procurement/suppliers', icon: Building2, roles: OPS_ROLES },
-      { name: 'Purchase Requests', href: '/procurement/requests', icon: FileText, roles: OPS_ROLES },
-      { name: 'Purchase Orders', href: '/procurement/orders', icon: ShoppingCart, roles: OPS_ROLES },
-      { name: 'Receiving (GR)', href: '/procurement/receiving', icon: PackageCheck, roles: OPS_ROLES },
+      {
+        name: 'Purchase Requests',
+        href: '/procurement/requests',
+        icon: FileText,
+        roles: OPS_ROLES,
+      },
+      {
+        name: 'Purchase Orders',
+        href: '/procurement/orders',
+        icon: ShoppingCart,
+        roles: OPS_ROLES,
+      },
+      {
+        name: 'Receiving (GR)',
+        href: '/procurement/receiving',
+        icon: PackageCheck,
+        roles: OPS_ROLES,
+      },
     ],
   },
 
@@ -150,8 +252,18 @@ const navigation: NavEntry[] = [
     children: [
       { name: 'Finance Overview', href: '/finance', icon: BarChart3, roles: FINANCE_ROLES },
       { name: 'Invoices', href: '/finance/invoices', icon: FileText, roles: FINANCE_ROLES },
-      { name: 'Supplier Invoices', href: '/finance/supplier-invoices', icon: Building2, roles: FINANCE_ROLES },
-      { name: 'Cost of Goods', href: '/finance/cost-of-goods', icon: Package, roles: FINANCE_ROLES },
+      {
+        name: 'Supplier Invoices',
+        href: '/finance/supplier-invoices',
+        icon: Building2,
+        roles: FINANCE_ROLES,
+      },
+      {
+        name: 'Cost of Goods',
+        href: '/finance/cost-of-goods',
+        icon: Package,
+        roles: FINANCE_ROLES,
+      },
       { name: 'QuickBooks', href: '/finance/quickbooks', icon: Building2, roles: FINANCE_ROLES },
       { name: 'Sales', href: '/sales', icon: TrendingUp, roles: ADMIN_ONLY },
       { name: 'Orders', href: '/orders', icon: ClipboardCheck, roles: OPS_ROLES },
@@ -168,7 +280,12 @@ const navigation: NavEntry[] = [
       { name: 'All Contacts', href: '/crm/contacts', icon: BookUser, roles: CRM_ROLES },
       { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users, roles: CRM_ROLES },
       { name: 'Suppliers', href: '/crm/contacts?type=supplier', icon: Building2, roles: CRM_ROLES },
-      { name: 'Prospects', href: '/crm/contacts?type=prospect', icon: TrendingUp, roles: CRM_ROLES },
+      {
+        name: 'Prospects',
+        href: '/crm/contacts?type=prospect',
+        icon: TrendingUp,
+        roles: CRM_ROLES,
+      },
     ],
   },
 
@@ -187,7 +304,12 @@ const navigation: NavEntry[] = [
       { name: 'Leads & Pool', href: '/lead-pool', icon: Users, roles: ADMIN_ONLY },
       { name: 'Telesales Import', href: '/telesales/import', icon: Upload, roles: ADMIN_ONLY },
       { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: ADMIN_ONLY },
-      { name: 'Distribution Analytics', href: '/distribution/analytics', icon: BarChart3, roles: ADMIN_ONLY },
+      {
+        name: 'Distribution Analytics',
+        href: '/distribution/analytics',
+        icon: BarChart3,
+        roles: ADMIN_ONLY,
+      },
       { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ROLES },
       { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
     ],
@@ -218,9 +340,8 @@ export default function AppLayout({ children }: PropsWithChildren) {
   type SharedUser = PageProps['auth']['user'];
   const page = usePage<PageProps & { user?: SharedUser }>().props;
   const authUser = page.auth?.user ?? page.user ?? null;
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
 
@@ -228,7 +349,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
   useEffect(() => {
     const flash = page.flash as { success?: string; error?: string } | undefined;
     if (flash?.success) toast.success(flash.success);
-    if (flash?.error)   toast.error(flash.error);
+    if (flash?.error) toast.error(flash.error);
   }, [page.flash]);
 
   /* ── Global hotkeys ── */
@@ -260,18 +381,6 @@ export default function AppLayout({ children }: PropsWithChildren) {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
-
-  // Auto-expand groups that contain the active path
-  useEffect(() => {
-    const autoExpand: Record<string, boolean> = {};
-    navigation.forEach((entry) => {
-      if (isNavGroup(entry)) {
-        const hasActive = entry.children.some((child) => currentPath.startsWith(child.href));
-        if (hasActive) autoExpand[entry.name] = true;
-      }
-    });
-    setOpenGroups((prev) => ({ ...prev, ...autoExpand }));
-  }, [currentPath]);
 
   useEffect(() => {
     const theme = authUser?.theme ?? 'light';
@@ -313,160 +422,119 @@ export default function AppLayout({ children }: PropsWithChildren) {
   const isGroupActive = (group: NavGroup) =>
     visibleChildren(group).some((child) => child.href && isActive(child.href));
 
-  const toggleGroup = (name: string) =>
-    setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
-
   const getInitials = (name: string) =>
-    name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+    name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
 
   const renderNavItem = (item: NavItem) => {
     const Icon = item.icon;
     const active = isActive(item.href);
 
-    if (collapsed) {
-      return (
-        <Tooltip key={item.name}>
-          <TooltipTrigger asChild>
-            <Link
-              href={item.href}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-              )}
-            >
-              <Icon className="h-5 w-5" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <p>{item.name}</p>
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
     return (
-      <Link
-        key={item.name}
-        href={item.href}
-        className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-          active
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-        )}
-      >
-        <Icon className="h-5 w-5 shrink-0" />
-        <span className="flex-1">{item.name}</span>
-        {item.badge && item.badge > 0 && (
-          <Badge variant="destructive" className="h-5 px-1.5">
-            {item.badge}
-          </Badge>
-        )}
-      </Link>
+      <Tooltip key={item.name}>
+        <TooltipTrigger asChild>
+          <Link
+            href={item.href}
+            className={cn(
+              'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+              active
+                ? 'bg-primary/10 text-primary'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )}
+          >
+            {active && (
+              <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-primary" />
+            )}
+            <Icon className="h-5 w-5" />
+            {item.badge && item.badge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-destructive">
+                {item.badge}
+              </span>
+            )}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{item.name}</p>
+        </TooltipContent>
+      </Tooltip>
     );
   };
 
   const renderNavGroup = (group: NavGroup) => {
     const Icon = group.icon;
     const active = isGroupActive(group);
-    const open = openGroups[group.name] ?? false;
+    const isHovered = hoveredGroup === group.name;
+    const children = visibleChildren(group);
 
-    if (collapsed) {
-      const firstVisibleChild = visibleChildren(group).find((child) => !child.divider);
-      // Show group icon as a tooltip trigger, clicking navigates to first child
-      return (
-        <Tooltip key={group.name}>
+    return (
+      <div
+        key={group.name}
+        className="relative"
+        onMouseEnter={() => setHoveredGroup(group.name)}
+        onMouseLeave={() => setHoveredGroup(null)}
+      >
+        <Tooltip>
           <TooltipTrigger asChild>
-            <Link
-              href={firstVisibleChild?.href ?? '/'}
+            <button
               className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               )}
             >
+              {active && (
+                <span className="absolute -left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-primary" />
+              )}
               <Icon className="h-5 w-5" />
-            </Link>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="right">
             <p>{group.name}</p>
           </TooltipContent>
         </Tooltip>
-      );
-    }
 
-    return (
-      <div key={group.name}>
-        <button
-          onClick={() => toggleGroup(group.name)}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-            active
-              ? 'text-sidebar-accent-foreground font-medium'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-          )}
-        >
-          <Icon className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-left">{group.name}</span>
-          <ChevronDown
-            className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
-          />
-        </button>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div
-              key="children"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1, transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] } }}
-              exit={{ height: 0, opacity: 0, transition: { duration: 0.16 } }}
-              className="overflow-hidden"
-            >
-              <motion.div
-                className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2"
-                variants={{ animate: { transition: { staggerChildren: 0.04 } } }}
-                initial="initial"
-                animate="animate"
-              >
-                {visibleChildren(group).map((child) => {
-                  if (child.divider) {
-                    return (
-                      <div key={child.name} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                        {child.name}
-                      </div>
-                    );
-                  }
-                  const ChildIcon = child.icon;
-                  const childActive = isActive(child.href);
-                  return (
-                    <motion.div
-                      key={child.name}
-                      variants={{
-                        initial: { opacity: 0, x: -6 },
-                        animate: { opacity: 1, x: 0, transition: { duration: 0.18 } },
-                      }}
-                    >
-                      <Link
-                        href={child.href}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
-                          childActive
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        )}
-                      >
-                        <ChildIcon className="h-4 w-4 shrink-0" />
-                        <span className="flex-1">{child.name}</span>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Flyout submenu */}
+        {isHovered && children.length > 0 && (
+          <div className="absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border bg-popover p-2 shadow-lg">
+            <p className="mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {group.name}
+            </p>
+            {children.map((child) => {
+              if (child.divider) {
+                return (
+                  <div
+                    key={child.name}
+                    className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50"
+                  >
+                    {child.name}
+                  </div>
+                );
+              }
+              const ChildIcon = child.icon;
+              const childActive = isActive(child.href);
+              return (
+                <Link
+                  key={child.name}
+                  href={child.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                    childActive
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  <ChildIcon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{child.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -477,148 +545,61 @@ export default function AppLayout({ children }: PropsWithChildren) {
         {/* Mobile overlay */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="fixed inset-0 z-40 bg-ink/80 lg:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar — Icon Rail */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-sidebar transition-all duration-300 lg:relative',
-            collapsed ? 'w-16' : 'w-64',
+            'fixed inset-y-0 left-0 z-50 flex w-16 flex-col items-center border-r bg-sidebar py-3 lg:relative',
             mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           )}
         >
           {/* Logo */}
-          <div className="flex h-16 items-center justify-between px-4">
-            {!collapsed && (
-              <Link href="/" className="flex items-center">
-                <img
-                  src="/images/tecc-banner.png"
-                  alt="TECS"
-                  className="h-9 object-contain"
-                />
-              </Link>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden lg:flex"
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <ChevronLeft
-                className={cn(
-                  'h-5 w-5 transition-transform',
-                  collapsed && 'rotate-180'
-                )}
-              />
-            </Button>
-          </div>
-
-          <Separator />
+          <Link href="/" className="mb-3 flex h-10 w-10 items-center justify-center">
+            <img
+              src="/images/tecc-banner.png"
+              alt="TECS"
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+          </Link>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
+          <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
             {navigation
               .filter((entry) => canSee(entry))
-              .map((entry) =>
-                isNavGroup(entry)
-                  ? renderNavGroup(entry)
-                  : renderNavItem(entry)
-              )}
+              .map((entry) => (isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)))}
           </nav>
 
-          <Separator />
-
           {/* Bottom Navigation */}
-          <div className="p-2 space-y-1">
-            {bottomNav.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              if (collapsed) {
-                return (
-                  <Tooltip key={item.name}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                          active
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{item.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                    active
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
+          <div className="flex flex-col items-center gap-1 pt-2">
+            {bottomNav.map((item) => renderNavItem(item))}
           </div>
 
-          <Separator />
-
-          {/* User */}
-          <div className="p-2">
-            <div
-              className={cn(
-                'flex items-center gap-3 rounded-lg p-2',
-                collapsed && 'justify-center'
-              )}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={authUser?.avatar_url} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {authUser?.name ? getInitials(authUser.name) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">
-                    {authUser?.name || 'User'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {authUser?.role || 'No role'}
-                  </p>
-                </div>
-              )}
-              {!collapsed && (
-                <Link href="/logout" method="post" as="button">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
+          {/* User Avatar */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/logout" method="post" as="button">
+                <Avatar className="mt-2 h-8 w-8">
+                  <AvatarImage src={authUser?.avatar_url} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {authUser?.name ? getInitials(authUser.name) : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{authUser?.name || 'User'} — Logout</p>
+            </TooltipContent>
+          </Tooltip>
         </aside>
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header */}
-          <header className="flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+          <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6 shadow-card">
             <Button
               variant="ghost"
               size="icon"
@@ -650,7 +631,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             <Button
               variant="outline"
               size="sm"
-              className="hidden md:flex h-9 w-64 items-center justify-between rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
+              className="hidden md:flex h-9 w-64 items-center justify-between rounded-lg border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <span className="flex items-center gap-2">
@@ -675,7 +656,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
                       {authUser?.name ? getInitials(authUser.name) : 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-sm font-medium">{authUser?.name || 'User'}</span>
+                  <span className="hidden sm:inline text-sm font-medium">
+                    {authUser?.name || 'User'}
+                  </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
@@ -695,7 +678,12 @@ export default function AppLayout({ children }: PropsWithChildren) {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/logout" method="post" as="button" className="cursor-pointer w-full text-destructive focus:text-destructive">
+                  <Link
+                    href="/logout"
+                    method="post"
+                    as="button"
+                    className="cursor-pointer w-full text-destructive focus:text-destructive"
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                   </Link>
@@ -724,11 +712,11 @@ interface AppNotification {
 }
 
 function NotificationBell() {
-  const [open, setOpen]                       = useState(false);
-  const [notifications, setNotifications]     = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount]         = useState(0);
-  const panelRef                              = useRef<HTMLDivElement>(null);
-  const networkErrorRef                       = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const networkErrorRef = useRef(false);
 
   const fetchNotifications = useCallback(async () => {
     if (networkErrorRef.current) return;
@@ -766,20 +754,28 @@ function NotificationBell() {
   async function markRead(id: string) {
     await fetch(`/api/notifications/${id}/read`, {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '' },
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN':
+          (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '',
+      },
       credentials: 'same-origin',
     });
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   }
 
   async function markAllRead() {
     await fetch('/api/notifications/read-all', {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '' },
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN':
+          (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content ?? '',
+      },
       credentials: 'same-origin',
     });
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   }
 
@@ -793,13 +789,13 @@ function NotificationBell() {
   return (
     <div className="relative" ref={panelRef}>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="relative inline-flex items-center justify-center rounded-full p-2 hover:bg-accent transition-colors"
         aria-label={`${unreadCount} unread notifications`}
       >
         <Bell className="h-5 w-5 text-muted-foreground" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-red-500">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white bg-destructive">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -818,25 +814,31 @@ function NotificationBell() {
           <div className="max-h-96 overflow-y-auto divide-y">
             {notifications.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No notifications yet</p>
-            ) : notifications.map(n => (
-              <div
-                key={n.id}
-                className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}
-                onClick={() => {
-                  markRead(n.id);
-                  if (n.url) window.location.href = n.url;
-                  setOpen(false);
-                }}
-              >
-                <span className="mt-0.5 text-lg">{typeIcon[n.type] ?? '🔔'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${!n.read ? 'font-semibold' : 'font-medium'} leading-tight`}>{n.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{n.created_at}</p>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}
+                  onClick={() => {
+                    markRead(n.id);
+                    if (n.url) window.location.href = n.url;
+                    setOpen(false);
+                  }}
+                >
+                  <span className="mt-0.5 text-lg">{typeIcon[n.type] ?? '🔔'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm ${!n.read ? 'font-semibold' : 'font-medium'} leading-tight`}
+                    >
+                      {n.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">{n.created_at}</p>
+                  </div>
+                  {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
                 </div>
-                {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}

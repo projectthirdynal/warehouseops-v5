@@ -7,7 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 
 export default function CrmContactsCreate() {
@@ -56,10 +60,12 @@ export default function CrmContactsCreate() {
       <div className="p-6 max-w-3xl space-y-6">
         <div className="flex items-center gap-3">
           <Link href="/crm/contacts">
-            <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">New Contact</h1>
+            <h1 className="text-2xl font-bold font-display">New Contact</h1>
             <p className="text-sm text-muted-foreground">Add a customer, supplier, or prospect</p>
           </div>
         </div>
@@ -67,7 +73,9 @@ export default function CrmContactsCreate() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Basic Information</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Basic Information</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 md:col-span-1">
@@ -78,7 +86,7 @@ export default function CrmContactsCreate() {
                     placeholder="Company or person name"
                     required
                   />
-                  {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+                  {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
                 </div>
                 <div>
                   <Label>Alias / Short Name</Label>
@@ -94,7 +102,9 @@ export default function CrmContactsCreate() {
                 <div>
                   <Label>Type *</Label>
                   <Select value={data.type} onValueChange={(v) => setData('type', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="customer">Customer</SelectItem>
                       <SelectItem value="supplier">Supplier</SelectItem>
@@ -107,7 +117,9 @@ export default function CrmContactsCreate() {
                 <div>
                   <Label>Status</Label>
                   <Select value={data.status} onValueChange={(v) => setData('status', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="prospect">Prospect</SelectItem>
@@ -121,27 +133,45 @@ export default function CrmContactsCreate() {
 
           {/* Contact Info */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Contact Information</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Contact Information</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Phone</Label>
-                  <Input value={data.phone} onChange={(e) => setData('phone', e.target.value)} placeholder="+63..." />
+                  <Input
+                    value={data.phone}
+                    onChange={(e) => setData('phone', e.target.value)}
+                    placeholder="+63..."
+                  />
                 </div>
                 <div>
                   <Label>Alternate Phone</Label>
-                  <Input value={data.phone_alt} onChange={(e) => setData('phone_alt', e.target.value)} />
+                  <Input
+                    value={data.phone_alt}
+                    onChange={(e) => setData('phone_alt', e.target.value)}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Email</Label>
-                  <Input type="email" value={data.email} onChange={(e) => setData('email', e.target.value)} />
-                  {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
+                  <Input
+                    type="email"
+                    value={data.email}
+                    onChange={(e) => setData('email', e.target.value)}
+                  />
+                  {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                 </div>
                 <div>
                   <Label>Website</Label>
-                  <Input type="url" value={data.website} onChange={(e) => setData('website', e.target.value)} placeholder="https://..." />
+                  <Input
+                    type="url"
+                    value={data.website}
+                    onChange={(e) => setData('website', e.target.value)}
+                    placeholder="https://..."
+                  />
                 </div>
               </div>
             </CardContent>
@@ -149,11 +179,16 @@ export default function CrmContactsCreate() {
 
           {/* Address */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Primary Address</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Primary Address</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label>Address Line 1</Label>
-                <Input value={data.address_line1} onChange={(e) => setData('address_line1', e.target.value)} />
+                <Input
+                  value={data.address_line1}
+                  onChange={(e) => setData('address_line1', e.target.value)}
+                />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -162,11 +197,17 @@ export default function CrmContactsCreate() {
                 </div>
                 <div>
                   <Label>Province</Label>
-                  <Input value={data.state_province} onChange={(e) => setData('state_province', e.target.value)} />
+                  <Input
+                    value={data.state_province}
+                    onChange={(e) => setData('state_province', e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>Postal Code</Label>
-                  <Input value={data.postal_code} onChange={(e) => setData('postal_code', e.target.value)} />
+                  <Input
+                    value={data.postal_code}
+                    onChange={(e) => setData('postal_code', e.target.value)}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -174,7 +215,9 @@ export default function CrmContactsCreate() {
 
           {/* Business Details */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Business Details</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -183,14 +226,19 @@ export default function CrmContactsCreate() {
                 </div>
                 <div>
                   <Label>Industry</Label>
-                  <Input value={data.industry} onChange={(e) => setData('industry', e.target.value)} />
+                  <Input
+                    value={data.industry}
+                    onChange={(e) => setData('industry', e.target.value)}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Currency</Label>
                   <Select value={data.currency} onValueChange={(v) => setData('currency', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="PHP">PHP — Philippine Peso</SelectItem>
                       <SelectItem value="USD">USD — US Dollar</SelectItem>
@@ -199,8 +247,13 @@ export default function CrmContactsCreate() {
                 </div>
                 <div>
                   <Label>Payment Terms</Label>
-                  <Select value={data.payment_terms} onValueChange={(v) => setData('payment_terms', v)}>
-                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <Select
+                    value={data.payment_terms}
+                    onValueChange={(v) => setData('payment_terms', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="COD">COD</SelectItem>
                       <SelectItem value="IMMEDIATE">Immediate</SelectItem>
@@ -212,7 +265,13 @@ export default function CrmContactsCreate() {
                 </div>
                 <div>
                   <Label>Credit Limit (₱)</Label>
-                  <Input type="number" min="0" value={data.credit_limit} onChange={(e) => setData('credit_limit', e.target.value)} placeholder="0.00" />
+                  <Input
+                    type="number"
+                    min="0"
+                    value={data.credit_limit}
+                    onChange={(e) => setData('credit_limit', e.target.value)}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
             </CardContent>
@@ -220,30 +279,51 @@ export default function CrmContactsCreate() {
 
           {/* Primary Contact Person */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Primary Contact Person <span className="text-muted-foreground font-normal text-sm">(optional)</span></CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Primary Contact Person{' '}
+                <span className="text-muted-foreground font-normal text-sm">(optional)</span>
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>First Name</Label>
-                  <Input value={data['contact.first_name']} onChange={(e) => setData('contact.first_name', e.target.value)} />
+                  <Input
+                    value={data['contact.first_name']}
+                    onChange={(e) => setData('contact.first_name', e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>Last Name</Label>
-                  <Input value={data['contact.last_name']} onChange={(e) => setData('contact.last_name', e.target.value)} />
+                  <Input
+                    value={data['contact.last_name']}
+                    onChange={(e) => setData('contact.last_name', e.target.value)}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Position</Label>
-                  <Input value={data['contact.position']} onChange={(e) => setData('contact.position', e.target.value)} />
+                  <Input
+                    value={data['contact.position']}
+                    onChange={(e) => setData('contact.position', e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <Input type="email" value={data['contact.email']} onChange={(e) => setData('contact.email', e.target.value)} />
+                  <Input
+                    type="email"
+                    value={data['contact.email']}
+                    onChange={(e) => setData('contact.email', e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>Phone</Label>
-                  <Input value={data['contact.phone']} onChange={(e) => setData('contact.phone', e.target.value)} />
+                  <Input
+                    value={data['contact.phone']}
+                    onChange={(e) => setData('contact.phone', e.target.value)}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -251,7 +331,9 @@ export default function CrmContactsCreate() {
 
           {/* Notes */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Notes</CardTitle>
+            </CardHeader>
             <CardContent>
               <Textarea
                 value={data.notes}
@@ -265,7 +347,9 @@ export default function CrmContactsCreate() {
           {/* Actions */}
           <div className="flex gap-3 justify-end">
             <Link href="/crm/contacts">
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
             </Link>
             <Button type="submit" disabled={processing}>
               {processing ? 'Saving...' : 'Create Contact'}

@@ -77,7 +77,7 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">File New Claim</h1>
+            <h1 className="text-2xl font-bold font-display">File New Claim</h1>
             <p className="text-sm text-muted-foreground">Submit a claim against J&T Express</p>
           </div>
         </div>
@@ -97,21 +97,32 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchWaybill())}
                   className="flex-1"
                 />
-                <Button type="button" variant="secondary" onClick={searchWaybill} disabled={searching}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={searchWaybill}
+                  disabled={searching}
+                >
                   <Search className="mr-2 h-4 w-4" />
                   {searching ? 'Searching...' : 'Find'}
                 </Button>
               </div>
 
-              {searchError && <p className="text-sm text-red-600">{searchError}</p>}
-              {errors.waybill_id && <p className="text-sm text-red-600">{errors.waybill_id}</p>}
+              {searchError && <p className="text-sm text-destructive">{searchError}</p>}
+              {errors.waybill_id && <p className="text-sm text-destructive">{errors.waybill_id}</p>}
 
               {foundWaybill && (
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-1">
                   <p className="font-mono text-sm font-medium">{foundWaybill.waybill_number}</p>
-                  <p className="text-sm">{foundWaybill.receiver_name} — {foundWaybill.city}</p>
+                  <p className="text-sm">
+                    {foundWaybill.receiver_name} — {foundWaybill.city}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    COD: ₱{Number(foundWaybill.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })} · Status: {foundWaybill.status}
+                    COD: ₱
+                    {Number(foundWaybill.amount).toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                    })}{' '}
+                    · Status: {foundWaybill.status}
                   </p>
                 </div>
               )}
@@ -133,10 +144,12 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
                   <SelectContent>
                     <SelectItem value="LOST">Lost Parcel — parcel was lost in transit</SelectItem>
                     <SelectItem value="DAMAGED">Damaged Parcel — parcel arrived damaged</SelectItem>
-                    <SelectItem value="BEYOND_SLA">Beyond SLA — not returned by next calendar day</SelectItem>
+                    <SelectItem value="BEYOND_SLA">
+                      Beyond SLA — not returned by next calendar day
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.type && <p className="text-sm text-red-600">{errors.type}</p>}
+                {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
               </div>
 
               <div className="space-y-1">
@@ -150,11 +163,15 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
                   onChange={(e) => setData('claim_amount', e.target.value)}
                   placeholder="0.00"
                 />
-                {errors.claim_amount && <p className="text-sm text-red-600">{errors.claim_amount}</p>}
+                {errors.claim_amount && (
+                  <p className="text-sm text-destructive">{errors.claim_amount}</p>
+                )}
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="description">Description <span className="text-muted-foreground">(optional)</span></Label>
+                <Label htmlFor="description">
+                  Description <span className="text-muted-foreground">(optional)</span>
+                </Label>
                 <Textarea
                   id="description"
                   value={data.description}
@@ -162,7 +179,9 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
                   placeholder="Describe the issue, timeline, and any relevant details..."
                   rows={4}
                 />
-                {errors.description && <p className="text-sm text-red-600">{errors.description}</p>}
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description}</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -172,7 +191,9 @@ export default function ClaimsCreate({ prefill_waybill, prefill_type }: Props) {
               {processing ? 'Creating...' : 'Create Claim'}
             </Button>
             <Link href="/waybills/claims">
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
             </Link>
           </div>
         </form>

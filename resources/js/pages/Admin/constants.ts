@@ -1,11 +1,11 @@
 export const ROLE_COLORS: Record<string, string> = {
-  superadmin: 'bg-red-100 text-red-700 border-red-200',
-  admin: 'bg-blue-100 text-blue-700 border-blue-200',
-  supervisor: 'bg-purple-100 text-purple-700 border-purple-200',
-  finance: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  accounting: 'bg-amber-100 text-amber-700 border-amber-200',
-  warehouse: 'bg-orange-100 text-orange-700 border-orange-200',
-  agent: 'bg-gray-100 text-gray-700 border-gray-200',
+  superadmin: 'bg-destructive/10 text-destructive border-destructive/20',
+  admin: 'bg-info/10 text-info border-info/20',
+  supervisor: 'bg-primary/10 text-primary border-primary/20',
+  finance: 'bg-success/10 text-success border-success/20',
+  accounting: 'bg-warning/10 text-warning border-warning/20',
+  warehouse: 'bg-warning/10 text-warning border-warning/20',
+  agent: 'bg-muted text-muted-foreground border-border',
 };
 
 export const ACTION_ICONS: Record<string, string> = {

@@ -5,15 +5,34 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { KpiCard } from '@/components/KpiCard';
 import {
-  Warehouse, AlertTriangle, ShoppingCart, FileText, TrendingUp,
-  Box, SlidersHorizontal, ArrowRight, ArrowUpCircle,
-  RefreshCw, Zap, Tag, MoveRight, Skull, Layers,
+  Warehouse,
+  AlertTriangle,
+  ShoppingCart,
+  FileText,
+  TrendingUp,
+  Box,
+  SlidersHorizontal,
+  ArrowRight,
+  RefreshCw,
+  Tag,
+  MoveRight,
+  Layers,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { PageProps, User } from '@/types';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
 } from 'recharts';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -80,7 +99,9 @@ const lowStockColumns: ColumnDef<SupplyLowStockRow>[] = [
   {
     accessorKey: 'sku',
     header: 'SKU',
-    cell: ({ row }) => <span className="font-mono text-[11px] text-slate-300">{row.original.sku}</span>,
+    cell: ({ row }) => (
+      <span className="font-mono text-[11px] text-muted-foreground">{row.original.sku}</span>
+    ),
   },
   {
     accessorKey: 'supply_name',
@@ -94,7 +115,9 @@ const lowStockColumns: ColumnDef<SupplyLowStockRow>[] = [
       const avail = Number(row.original.available_stock);
       const isCritical = avail <= 0;
       return (
-        <span className={`text-right block font-bold tabular-nums ${isCritical ? 'text-red-400' : 'text-amber-400'}`}>
+        <span
+          className={`text-right block font-bold tabular-nums ${isCritical ? 'text-destructive' : 'text-warning'}`}
+        >
           {avail}
         </span>
       );
@@ -104,7 +127,7 @@ const lowStockColumns: ColumnDef<SupplyLowStockRow>[] = [
     accessorKey: 'reorder_point',
     header: () => <span className="text-right w-full block">Reorder</span>,
     cell: ({ row }) => (
-      <span className="text-right block font-mono text-sm text-slate-400">
+      <span className="text-right block font-mono text-sm text-muted-foreground">
         {Number(row.original.reorder_point)}
       </span>
     ),
@@ -135,7 +158,7 @@ const warehouseColumns: ColumnDef<WarehouseStockSummary>[] = [
     accessorKey: 'supply_value',
     header: () => <span className="text-right w-full block">Stock Value</span>,
     cell: ({ row }) => (
-      <span className="text-right block font-bold tabular-nums text-emerald-400">
+      <span className="text-right block font-bold tabular-nums text-success">
         {formatCurrency(Number(row.original.supply_value))}
       </span>
     ),
@@ -143,9 +166,14 @@ const warehouseColumns: ColumnDef<WarehouseStockSummary>[] = [
 ];
 
 export default function InventoryDashboard({
-  stats, recent_supply_movements = [], supply_low_stock = [],
-  warehouse_stock_summary = [], supply_movement_trend = [],
-  supply_stock_value, stock_status_distribution, section_breakdown,
+  stats,
+  recent_supply_movements = [],
+  supply_low_stock = [],
+  warehouse_stock_summary = [],
+  supply_movement_trend = [],
+  supply_stock_value,
+  stock_status_distribution,
+  section_breakdown,
   top_supply_movers,
 }: Props) {
   const { auth } = usePage<PageProps>().props;
@@ -157,7 +185,7 @@ export default function InventoryDashboard({
   const materialIn = supply_movement_trend.reduce((s, d) => s + Number(d.stock_in), 0);
   const materialOut = supply_movement_trend.reduce((s, d) => s + Number(d.stock_out), 0);
 
-  const criticalCount = supply_low_stock.filter(s => {
+  const criticalCount = supply_low_stock.filter((s) => {
     const avail = Number(s.available_stock);
     return avail <= 0;
   }).length;
@@ -168,21 +196,32 @@ export default function InventoryDashboard({
 
       {/* Critical alert bar */}
       {(criticalCount > 0 || stats.pending_adjustments > 0) && (
-        <div className="border-b border-red-900/50 bg-red-950/30 px-6 py-2.5">
+        <div className="border-b border-destructive/30 bg-destructive/5 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             {criticalCount > 0 && (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-red-400">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-destructive">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 {criticalCount} material{criticalCount > 1 ? 's' : ''} out of stock
-                <Link href="/inventory/supplies" className="ml-1 underline underline-offset-2 hover:text-red-300">View →</Link>
+                <Link
+                  href="/inventory/supplies"
+                  className="ml-1 underline underline-offset-2 hover:text-destructive/80"
+                >
+                  View →
+                </Link>
               </span>
             )}
             {stats.pending_adjustments > 0 && (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-orange-400">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-warning">
                 <SlidersHorizontal className="h-4 w-4 shrink-0" />
-                {stats.pending_adjustments} adjustment{stats.pending_adjustments > 1 ? 's' : ''} awaiting approval
+                {stats.pending_adjustments} adjustment{stats.pending_adjustments > 1 ? 's' : ''}{' '}
+                awaiting approval
                 {canUseMaterialsAndAdjustments && (
-                  <Link href="/inventory/adjustments?status=PENDING" className="ml-1 underline underline-offset-2 hover:text-orange-300">Review →</Link>
+                  <Link
+                    href="/inventory/adjustments?status=PENDING"
+                    className="ml-1 underline underline-offset-2 hover:text-warning/80"
+                  >
+                    Review →
+                  </Link>
                 )}
               </span>
             )}
@@ -194,9 +233,10 @@ export default function InventoryDashboard({
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Inventory Dashboard</h1>
+            <h1 className="text-2xl font-bold tracking-tight font-display">Inventory Dashboard</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {stats.total_supplies.toLocaleString()} materials · {stats.total_warehouses} warehouses
+              {stats.total_supplies.toLocaleString()} materials · {stats.total_warehouses}{' '}
+              warehouses
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -206,7 +246,7 @@ export default function InventoryDashboard({
                   <SlidersHorizontal className="mr-1.5 h-4 w-4" />
                   Adjustments
                   {stats.pending_adjustments > 0 && (
-                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-warning/50 text-[10px] font-bold text-white">
                       {stats.pending_adjustments}
                     </span>
                   )}
@@ -216,10 +256,16 @@ export default function InventoryDashboard({
             {canUseProcurement && (
               <>
                 <Link href="/procurement/requests/create">
-                  <Button variant="outline" size="sm"><FileText className="mr-1.5 h-4 w-4" />New PR</Button>
+                  <Button variant="outline" size="sm">
+                    <FileText className="mr-1.5 h-4 w-4" />
+                    New PR
+                  </Button>
                 </Link>
                 <Link href="/procurement/orders/create">
-                  <Button size="sm"><ShoppingCart className="mr-1.5 h-4 w-4" />New PO</Button>
+                  <Button size="sm">
+                    <ShoppingCart className="mr-1.5 h-4 w-4" />
+                    New PO
+                  </Button>
                 </Link>
               </>
             )}
@@ -232,20 +278,20 @@ export default function InventoryDashboard({
             title="Active Materials"
             value={stats.total_supplies.toLocaleString()}
             subtitle={`${formatCurrency(supply_stock_value)} total value`}
-            icon={<Box className="h-5 w-5 text-purple-400" />}
+            icon={<Box className="h-5 w-5 text-primary" />}
             variant="primary"
           />
           <KpiCard
             title="Warehouses"
             value={stats.total_warehouses.toLocaleString()}
-            icon={<Warehouse className="h-5 w-5 text-emerald-400" />}
+            icon={<Warehouse className="h-5 w-5 text-success" />}
             variant="success"
           />
           <KpiCard
             title="Total Stock Value"
             value={formatCurrency(stats.stock_value)}
             subtitle={`${stats.total_supplies.toLocaleString()} materials`}
-            icon={<TrendingUp className="h-5 w-5 text-green-400" />}
+            icon={<TrendingUp className="h-5 w-5 text-success" />}
             variant="default"
           />
         </div>
@@ -253,64 +299,101 @@ export default function InventoryDashboard({
         {/* Alert pills row */}
         <div className="flex flex-wrap gap-2">
           {stats.supply_low_stock > 0 && (
-            <AlertPill href="/inventory/supplies" tone="amber"
+            <AlertPill
+              href="/inventory/supplies"
+              tone="warning"
               icon={<Box className="h-3.5 w-3.5" />}
-              label="Low Stock Materials" value={stats.supply_low_stock} />
+              label="Low Stock Materials"
+              value={stats.supply_low_stock}
+            />
           )}
           {stats.non_moving_supplies > 0 && (
-            <AlertPill href="/inventory/non-moving?type=supplies" tone="red"
+            <AlertPill
+              href="/inventory/non-moving?type=supplies"
+              tone="danger"
               icon={<Box className="h-3.5 w-3.5" />}
-              label="Non-Moving Materials" value={stats.non_moving_supplies} />
+              label="Non-Moving Materials"
+              value={stats.non_moving_supplies}
+            />
           )}
           {canUseProcurement && stats.pending_prs > 0 && (
-            <AlertPill href="/procurement/requests?status=SUBMITTED" tone="blue"
+            <AlertPill
+              href="/procurement/requests?status=SUBMITTED"
+              tone="info"
               icon={<FileText className="h-3.5 w-3.5" />}
-              label="Pending PRs" value={stats.pending_prs} />
+              label="Pending PRs"
+              value={stats.pending_prs}
+            />
           )}
           {canUseProcurement && stats.open_pos > 0 && (
-            <AlertPill href="/procurement/orders?status=SENT" tone="green"
+            <AlertPill
+              href="/procurement/orders?status=SENT"
+              tone="success"
               icon={<ShoppingCart className="h-3.5 w-3.5" />}
-              label="Open POs" value={stats.open_pos} />
+              label="Open POs"
+              value={stats.open_pos}
+            />
           )}
         </div>
 
         {/* Operations 4-up KPI row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Out of Stock</span>
-            <span className={`text-2xl font-bold tabular-nums ${stats.out_of_stock > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              Out of Stock
+            </span>
+            <span
+              className={`text-2xl font-bold tabular-nums ${stats.out_of_stock > 0 ? 'text-destructive' : 'text-success'}`}
+            >
               {stats.out_of_stock.toLocaleString()}
             </span>
-            <Link href="/inventory/supplies?stock_status=OUT_OF_STOCK" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+            <Link
+              href="/inventory/supplies?stock_status=OUT_OF_STOCK"
+              className="text-[11px] text-muted-foreground hover:text-foreground mt-auto"
+            >
               View materials →
             </Link>
           </div>
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Low Stock</span>
-            <span className={`text-2xl font-bold tabular-nums ${stats.supply_low_stock > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              Low Stock
+            </span>
+            <span
+              className={`text-2xl font-bold tabular-nums ${stats.supply_low_stock > 0 ? 'text-warning' : 'text-success'}`}
+            >
               {stats.supply_low_stock.toLocaleString()}
             </span>
-            <Link href="/inventory/supplies?stock_status=NON_MOVING" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+            <Link
+              href="/inventory/supplies?stock_status=NON_MOVING"
+              className="text-[11px] text-muted-foreground hover:text-foreground mt-auto"
+            >
               View materials →
             </Link>
           </div>
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Pending POs</span>
-            <span className={`text-2xl font-bold tabular-nums ${stats.open_pos > 0 ? 'text-blue-400' : 'text-muted-foreground'}`}>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              Pending POs
+            </span>
+            <span
+              className={`text-2xl font-bold tabular-nums ${stats.open_pos > 0 ? 'text-info' : 'text-muted-foreground'}`}
+            >
               {stats.open_pos.toLocaleString()}
             </span>
-            <Link href="/procurement/orders" className="text-[11px] text-muted-foreground hover:text-foreground mt-auto">
+            <Link
+              href="/procurement/orders"
+              className="text-[11px] text-muted-foreground hover:text-foreground mt-auto"
+            >
               View orders →
             </Link>
           </div>
           <div className="rounded-lg border bg-card p-4 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Today's Movements</span>
-            <span className="text-2xl font-bold tabular-nums text-purple-400">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              Today's Movements
+            </span>
+            <span className="text-2xl font-bold tabular-nums text-primary">
               {stats.today_scans.toLocaleString()}
             </span>
-            <span className="text-[11px] text-muted-foreground mt-auto">
-              stock movements today
-            </span>
+            <span className="text-[11px] text-muted-foreground mt-auto">stock movements today</span>
           </div>
         </div>
 
@@ -320,29 +403,74 @@ export default function InventoryDashboard({
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-                <Box className="h-4 w-4 text-purple-500" />
+                <Box className="h-4 w-4 text-primary" />
                 Material Movement (30d)
               </CardTitle>
-              <span className="text-xs text-muted-foreground">+{materialIn.toLocaleString()} in · -{materialOut.toLocaleString()} out</span>
+              <span className="text-xs text-muted-foreground">
+                +{materialIn.toLocaleString()} in · -{materialOut.toLocaleString()} out
+              </span>
             </CardHeader>
             <CardContent>
               {supply_movement_trend.length === 0 ? (
-                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">No material movement data.</div>
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                  No material movement data.
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={supply_movement_trend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <AreaChart
+                    data={supply_movement_trend}
+                    margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                  >
                     <defs>
-                      <linearGradient id="min" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3}/><stop offset="95%" stopColor="#34d399" stopOpacity={0}/></linearGradient>
-                      <linearGradient id="mout" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/><stop offset="95%" stopColor="#f87171" stopOpacity={0}/></linearGradient>
-                      <linearGradient id="madj" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#facc15" stopOpacity={0.3}/><stop offset="95%" stopColor="#facc15" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="min" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="mout" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="madj" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--warning))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--warning))" stopOpacity={0} />
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval={Math.floor(supply_movement_trend.length / 6)} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v: string) => v.slice(5)}
+                      interval={Math.floor(supply_movement_trend.length / 6)}
+                    />
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number) => v.toLocaleString()} />
-                    <Area type="monotone" dataKey="stock_in" stroke="#34d399" fill="url(#min)" strokeWidth={2} name="Stock In" />
-                    <Area type="monotone" dataKey="stock_out" stroke="#f87171" fill="url(#mout)" strokeWidth={2} name="Stock Out" />
-                    <Area type="monotone" dataKey="adjustments" stroke="#facc15" fill="url(#madj)" strokeWidth={2} name="Adjusted" />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                      formatter={(v: number) => v.toLocaleString()}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="stock_in"
+                      stroke="hsl(var(--success))"
+                      fill="url(#min)"
+                      strokeWidth={2}
+                      name="Stock In"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="stock_out"
+                      stroke="hsl(var(--destructive))"
+                      fill="url(#mout)"
+                      strokeWidth={2}
+                      name="Stock Out"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="adjustments"
+                      stroke="hsl(var(--warning))"
+                      fill="url(#madj)"
+                      strokeWidth={2}
+                      name="Adjusted"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -353,10 +481,12 @@ export default function InventoryDashboard({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-                <Tag className="h-4 w-4 text-amber-500" />
+                <Tag className="h-4 w-4 text-warning" />
                 Material Status
               </CardTitle>
-              <Link href="/inventory/supplies" className="text-xs text-blue-600 hover:underline">View all</Link>
+              <Link href="/inventory/supplies" className="text-xs text-primary hover:underline">
+                View all
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="flex h-48 items-center justify-center">
@@ -367,26 +497,59 @@ export default function InventoryDashboard({
                     <PieChart>
                       <Pie
                         data={[
-                          { name: 'Moving', value: stock_status_distribution.MOVING ?? 0, color: '#34d399' },
-                          { name: 'Non-Moving', value: stock_status_distribution.NON_MOVING ?? 0, color: '#facc15' },
-                          { name: 'Dead', value: stock_status_distribution.DEAD ?? 0, color: '#f87171' },
-                        ].filter(d => d.value > 0)}
-                        cx="50%" cy="50%"
-                        innerRadius={40} outerRadius={60}
+                          {
+                            name: 'Moving',
+                            value: stock_status_distribution.MOVING ?? 0,
+                            color: 'hsl(var(--success))',
+                          },
+                          {
+                            name: 'Non-Moving',
+                            value: stock_status_distribution.NON_MOVING ?? 0,
+                            color: 'hsl(var(--warning))',
+                          },
+                          {
+                            name: 'Dead',
+                            value: stock_status_distribution.DEAD ?? 0,
+                            color: 'hsl(var(--destructive))',
+                          },
+                        ].filter((d) => d.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
                         paddingAngle={3}
                         dataKey="value"
-                        label={({ name, value }: { name: string; value: number }) => value > 0 ? `${name}: ${value}` : ''}
+                        label={({ name, value }: { name: string; value: number }) =>
+                          value > 0 ? `${name}: ${value}` : ''
+                        }
                         labelLine={false}
                       >
                         {[
-                          { name: 'Moving', value: stock_status_distribution.MOVING ?? 0, color: '#34d399' },
-                          { name: 'Non-Moving', value: stock_status_distribution.NON_MOVING ?? 0, color: '#facc15' },
-                          { name: 'Dead', value: stock_status_distribution.DEAD ?? 0, color: '#f87171' },
-                        ].filter(d => d.value > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
+                          {
+                            name: 'Moving',
+                            value: stock_status_distribution.MOVING ?? 0,
+                            color: 'hsl(var(--success))',
+                          },
+                          {
+                            name: 'Non-Moving',
+                            value: stock_status_distribution.NON_MOVING ?? 0,
+                            color: 'hsl(var(--warning))',
+                          },
+                          {
+                            name: 'Dead',
+                            value: stock_status_distribution.DEAD ?? 0,
+                            color: 'hsl(var(--destructive))',
+                          },
+                        ]
+                          .filter((d) => d.value > 0)
+                          .map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
                       </Pie>
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v: number, n: string) => [`${v} items`, n]} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                        formatter={(v: number, n: string) => [`${v} items`, n]}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -394,7 +557,10 @@ export default function InventoryDashboard({
               {/* Section breakdown mini pills */}
               <div className="mt-2 flex flex-wrap gap-2 justify-center">
                 {Object.entries(section_breakdown).map(([section, count]) => (
-                  <div key={section} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                  <div
+                    key={section}
+                    className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
+                  >
                     <Layers className="h-3 w-3 text-muted-foreground" />
                     <span className="font-medium">{section}</span>
                     <span className="text-muted-foreground">{Number(count).toLocaleString()}</span>
@@ -411,28 +577,43 @@ export default function InventoryDashboard({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-                <MoveRight className="h-4 w-4 text-purple-500" />
+                <MoveRight className="h-4 w-4 text-primary" />
                 Top Material Movers (30d)
               </CardTitle>
             </CardHeader>
             <CardContent>
               {top_supply_movers.length === 0 ? (
-                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">No movement data.</div>
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                  No movement data.
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart
-                    data={top_supply_movers.map(m => ({ name: m.sku, full_name: m.name, qty: Number(m.total_qty) }))}
+                    data={top_supply_movers.map((m) => ({
+                      name: m.sku,
+                      full_name: m.name,
+                      qty: Number(m.total_qty),
+                    }))}
                     layout="vertical"
                     margin={{ top: 0, right: 12, left: 0, bottom: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="hsl(var(--border))"
+                      horizontal={false}
+                    />
                     <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={55} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, borderRadius: 6 }}
                       formatter={(v: number) => [`${Number(v).toLocaleString()} units`, 'Qty']}
                     />
-                    <Bar dataKey="qty" fill="#a78bfa" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                    <Bar
+                      dataKey="qty"
+                      fill="hsl(var(--chart-1))"
+                      radius={[0, 4, 4, 0]}
+                      maxBarSize={18}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -446,29 +627,44 @@ export default function InventoryDashboard({
                 <RefreshCw className="h-4 w-4 text-muted-foreground" />
                 Recent Activity
               </CardTitle>
-              <Link href="/inventory/supplies" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">All <ArrowRight className="h-3 w-3" /></Link>
+              <Link
+                href="/inventory/supplies"
+                className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+              >
+                All <ArrowRight className="h-3 w-3" />
+              </Link>
             </CardHeader>
             <CardContent className="p-0">
               {recent_supply_movements.length === 0 ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">No recent movements.</div>
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  No recent movements.
+                </div>
               ) : (
                 <ul className="divide-y divide-border max-h-64 overflow-y-auto">
                   {recent_supply_movements
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .sort(
+                      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                    )
                     .slice(0, 10)
-                    .map(m => (
+                    .map((m) => (
                       <li key={m.id} className="flex items-start gap-3 px-4 py-2.5">
                         <MovementDot type={m.type} />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium">{m.supply?.name ?? 'Unknown'}</p>
+                          <p className="truncate text-xs font-medium">
+                            {m.supply?.name ?? 'Unknown'}
+                          </p>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <MovementTypePill type={m.type} />
-                            <span className={`text-xs font-semibold ${m.quantity < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                            <span
+                              className={`text-xs font-semibold ${m.quantity < 0 ? 'text-destructive' : 'text-success'}`}
+                            >
                               {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                             </span>
                           </div>
                         </div>
-                        <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">{formatDate(m.created_at)}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
+                          {formatDate(m.created_at)}
+                        </span>
                       </li>
                     ))}
                 </ul>
@@ -482,19 +678,17 @@ export default function InventoryDashboard({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 text-warning" />
                 Low Stock Materials
               </CardTitle>
               {canUseMaterialsAndAdjustments && (
-                <Link href="/inventory/supplies" className="text-xs text-blue-600 hover:underline">View all</Link>
+                <Link href="/inventory/supplies" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
               )}
             </CardHeader>
             <CardContent className="p-0">
-              <DataTable
-                columns={lowStockColumns}
-                data={supply_low_stock}
-                maxHeight={320}
-              />
+              <DataTable columns={lowStockColumns} data={supply_low_stock} maxHeight={320} />
             </CardContent>
           </Card>
         )}
@@ -507,54 +701,52 @@ export default function InventoryDashboard({
                 <Warehouse className="h-4 w-4 text-muted-foreground" />
                 Stock by Warehouse
               </CardTitle>
-              <Link href="/warehouses" className="flex items-center gap-0.5 text-xs text-primary hover:underline">Manage <ArrowRight className="h-3 w-3" /></Link>
+              <Link
+                href="/warehouses"
+                className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+              >
+                Manage <ArrowRight className="h-3 w-3" />
+              </Link>
             </CardHeader>
             <CardContent className="p-0">
-              <DataTable
-                columns={warehouseColumns}
-                data={warehouse_stock_summary}
-              />
+              <DataTable columns={warehouseColumns} data={warehouse_stock_summary} />
             </CardContent>
           </Card>
         )}
-
-        {/* Quick actions footer */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
-          <Zap className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-xs font-medium text-muted-foreground mr-1">Quick:</span>
-          {canUseProcurement && (
-            <>
-              <Link href="/procurement/requests/create"><Button variant="outline" size="sm"><FileText className="mr-1 h-3 w-3" />New PR</Button></Link>
-              <Link href="/procurement/orders/create"><Button variant="outline" size="sm"><ShoppingCart className="mr-1 h-3 w-3" />New PO</Button></Link>
-            </>
-          )}
-          <Link href="/inventory/supplies"><Button variant="outline" size="sm"><ArrowUpCircle className="mr-1 h-3 w-3" />View Materials</Button></Link>
-          <Link href="/inventory/non-moving"><Button variant="outline" size="sm"><AlertTriangle className="mr-1 h-3 w-3" />Non-Moving</Button></Link>
-          <Link href="/inventory/dead-stock"><Button variant="outline" size="sm"><Skull className="mr-1 h-3 w-3" />Dead Stock</Button></Link>
-        </div>
       </div>
     </AppLayout>
   );
 }
 
-function AlertPill({ href, icon, label, value, tone }: {
-  href: string; icon: React.ReactNode; label: string; value: number;
-  tone: 'orange' | 'amber' | 'blue' | 'green' | 'red' | 'yellow';
+function AlertPill({
+  href,
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  tone: 'warning' | 'danger' | 'info' | 'success';
 }) {
   const cls: Record<string, string> = {
-    orange: 'bg-orange-950/40 text-orange-300 border-orange-800',
-    amber:  'bg-amber-950/40 text-amber-300 border-amber-800',
-    blue:   'bg-blue-950/40 text-blue-300 border-blue-800',
-    green:  'bg-green-950/40 text-green-300 border-green-800',
-    red:    'bg-red-950/40 text-red-300 border-red-800',
-    yellow: 'bg-yellow-950/40 text-yellow-300 border-yellow-800',
+    warning: 'bg-warning/10 text-warning border-warning/30',
+    danger: 'bg-destructive/10 text-destructive border-destructive/30',
+    info: 'bg-info/10 text-info border-info/30',
+    success: 'bg-success/10 text-success border-success/30',
   };
   return (
     <Link href={href}>
-      <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all hover:shadow-sm ${cls[tone]}`}>
+      <div
+        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all hover:shadow-sm ${cls[tone]}`}
+      >
         {icon}
         <span className="font-medium">{label}</span>
-        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-white/60 px-1 text-[10px] font-bold">{value}</span>
+        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-foreground/10 px-1 text-[10px] font-bold">
+          {value}
+        </span>
       </div>
     </Link>
   );
@@ -562,19 +754,25 @@ function AlertPill({ href, icon, label, value, tone }: {
 
 function MovementTypePill({ type }: { type: string }) {
   const cls: Record<string, string> = {
-    STOCK_IN:    'bg-emerald-950/40 text-emerald-300 border border-emerald-800',
-    STOCK_OUT:   'bg-red-950/40 text-red-300 border border-red-800',
-    ADJUSTMENT:  'bg-yellow-950/40 text-yellow-300 border border-yellow-800',
-    RETURN:      'bg-blue-950/40 text-blue-300 border border-blue-800',
-    RESERVATION: 'bg-purple-950/40 text-purple-300 border border-purple-800',
-    RELEASE:     'bg-indigo-950/40 text-indigo-300 border border-indigo-800',
+    STOCK_IN: 'bg-success/10 text-success border border-success/20',
+    STOCK_OUT: 'bg-destructive/10 text-destructive border border-destructive/20',
+    ADJUSTMENT: 'bg-warning/10 text-warning border border-warning/20',
+    RETURN: 'bg-info/10 text-info border border-info/20',
+    RESERVATION: 'bg-primary/10 text-primary border border-primary/20',
+    RELEASE: 'bg-primary/10 text-primary border border-primary/20',
   };
   const label: Record<string, string> = {
-    STOCK_IN: 'In', STOCK_OUT: 'Out', ADJUSTMENT: 'Adj',
-    RETURN: 'Return', RESERVATION: 'Rsrv', RELEASE: 'Release',
+    STOCK_IN: 'In',
+    STOCK_OUT: 'Out',
+    ADJUSTMENT: 'Adj',
+    RETURN: 'Return',
+    RESERVATION: 'Rsrv',
+    RELEASE: 'Release',
   };
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls[type] ?? 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
+    <span
+      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls[type] ?? 'bg-muted text-muted-foreground border border-border'}`}
+    >
       {label[type] ?? type}
     </span>
   );
@@ -582,12 +780,14 @@ function MovementTypePill({ type }: { type: string }) {
 
 function MovementDot({ type }: { type: string }) {
   const cls: Record<string, string> = {
-    STOCK_IN:    'bg-emerald-500',
-    STOCK_OUT:   'bg-red-500',
-    ADJUSTMENT:  'bg-yellow-500',
-    RETURN:      'bg-blue-500',
-    RESERVATION: 'bg-purple-500',
-    RELEASE:     'bg-indigo-500',
+    STOCK_IN: 'bg-success',
+    STOCK_OUT: 'bg-destructive',
+    ADJUSTMENT: 'bg-warning',
+    RETURN: 'bg-info',
+    RESERVATION: 'bg-primary',
+    RELEASE: 'bg-primary',
   };
-  return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${cls[type] ?? 'bg-gray-400'}`} />;
+  return (
+    <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${cls[type] ?? 'bg-muted-foreground'}`} />
+  );
 }

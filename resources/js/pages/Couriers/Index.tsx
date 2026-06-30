@@ -26,7 +26,9 @@ interface Props extends PageProps {
 
 export default function CouriersIndex({ providers, recentLogs }: Props) {
   const [testing, setTesting] = useState<number | null>(null);
-  const [testResults, setTestResults] = useState<Record<number, { connected: boolean; message: string }>>({});
+  const [testResults, setTestResults] = useState<
+    Record<number, { connected: boolean; message: string }>
+  >({});
   const [syncing, setSyncing] = useState<number | null>(null);
 
   const csrf = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '';
@@ -72,7 +74,7 @@ export default function CouriersIndex({ providers, recentLogs }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-2xl font-bold font-display flex items-center gap-2">
               <Truck className="h-6 w-6" />
               Courier Integrations
             </h1>
@@ -95,9 +97,13 @@ export default function CouriersIndex({ providers, recentLogs }: Props) {
                 {/* Card header */}
                 <div className="flex items-center justify-between p-5 border-b bg-muted/30">
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-sm ${
-                      provider.is_active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                    }`}>
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-sm ${
+                        provider.is_active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
                       <Truck className="h-5 w-5" />
                     </div>
                     <div>
@@ -114,15 +120,23 @@ export default function CouriersIndex({ providers, recentLogs }: Props) {
                 <div className="grid grid-cols-3 gap-px bg-border">
                   <div className="bg-card p-3 text-center">
                     <p className="text-lg font-bold">{provider.active_waybills ?? 0}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Active</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Active
+                    </p>
                   </div>
                   <div className="bg-card p-3 text-center">
                     <p className="text-lg font-bold">{provider.total_api_calls ?? 0}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">API Calls</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      API Calls
+                    </p>
                   </div>
                   <div className="bg-card p-3 text-center">
-                    <p className="text-lg font-bold text-red-500">{provider.failed_api_calls ?? 0}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Failed</p>
+                    <p className="text-lg font-bold text-destructive">
+                      {provider.failed_api_calls ?? 0}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Failed
+                    </p>
                   </div>
                 </div>
 
@@ -143,10 +157,18 @@ export default function CouriersIndex({ providers, recentLogs }: Props) {
 
                   {/* Connection test result */}
                   {test && (
-                    <div className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                      test.connected ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                    }`}>
-                      {test.connected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+                    <div
+                      className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                        test.connected
+                          ? 'bg-success/5 text-success'
+                          : 'bg-destructive/5 text-destructive'
+                      }`}
+                    >
+                      {test.connected ? (
+                        <Wifi className="h-3.5 w-3.5" />
+                      ) : (
+                        <WifiOff className="h-3.5 w-3.5" />
+                      )}
                       {test.message}
                     </div>
                   )}
@@ -217,19 +239,24 @@ export default function CouriersIndex({ providers, recentLogs }: Props) {
               recentLogs.map((log) => (
                 <div key={log.id} className="flex items-center gap-3 px-5 py-3 text-sm">
                   {log.is_success ? (
-                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-success shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                    <XCircle className="h-4 w-4 text-destructive shrink-0" />
                   )}
                   <Badge variant="outline" className="text-xs font-mono shrink-0">
                     {log.courier_code}
                   </Badge>
                   <span className="font-medium">{log.action.replace(/_/g, ' ')}</span>
-                  <Badge variant={log.direction === 'inbound' ? 'secondary' : 'outline'} className="text-[10px]">
+                  <Badge
+                    variant={log.direction === 'inbound' ? 'secondary' : 'outline'}
+                    className="text-[10px]"
+                  >
                     {log.direction}
                   </Badge>
                   {log.http_status && (
-                    <span className={`text-xs font-mono ${log.http_status >= 400 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    <span
+                      className={`text-xs font-mono ${log.http_status >= 400 ? 'text-destructive' : 'text-muted-foreground'}`}
+                    >
                       {log.http_status}
                     </span>
                   )}

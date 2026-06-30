@@ -25,10 +25,10 @@ interface LeadCardProps {
 }
 
 const poolStatusConfig: Record<PoolStatus, { label: string; color: string }> = {
-  AVAILABLE: { label: 'Available', color: 'bg-green-100 text-green-800' },
-  ASSIGNED: { label: 'Assigned', color: 'bg-blue-100 text-blue-800' },
-  COOLDOWN: { label: 'Cooldown', color: 'bg-yellow-100 text-yellow-800' },
-  EXHAUSTED: { label: 'Exhausted', color: 'bg-red-100 text-red-800' },
+  AVAILABLE: { label: 'Available', color: 'bg-success/10 text-success' },
+  ASSIGNED: { label: 'Assigned', color: 'bg-info/10 text-info' },
+  COOLDOWN: { label: 'Cooldown', color: 'bg-warning/10 text-warning' },
+  EXHAUSTED: { label: 'Exhausted', color: 'bg-destructive/10 text-destructive' },
 };
 
 export function LeadCard({ lead, onUpdate }: LeadCardProps) {
@@ -52,7 +52,8 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  {[lead.barangay, lead.city, lead.state].filter(Boolean).join(', ') || 'No address'}
+                  {[lead.barangay, lead.city, lead.state].filter(Boolean).join(', ') ||
+                    'No address'}
                 </span>
                 {lead.product_name && (
                   <span className="flex items-center gap-1">
@@ -65,9 +66,7 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
             </div>
             <div className="text-right">
               {lead.amount && (
-                <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(lead.amount)}
-                </div>
+                <div className="text-lg font-bold text-success">{formatCurrency(lead.amount)}</div>
               )}
               <div className="text-sm text-muted-foreground">
                 Cycle {lead.total_cycles} | {lead.call_attempts} calls
@@ -82,14 +81,14 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
             <button
               type="button"
               onClick={() => setShowHistoryModal(true)}
-              className="flex items-center gap-2 p-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm w-full text-left transition-colors cursor-pointer"
+              className="flex items-center gap-2 p-2 bg-info/5 hover:bg-info/10 rounded-lg text-sm w-full text-left transition-colors cursor-pointer"
             >
-              <User className="h-4 w-4 text-blue-600 shrink-0" />
+              <User className="h-4 w-4 text-info shrink-0" />
               <span className="flex-1">
-                Returning customer: {lead.customer!.successful_orders}/{lead.customer!.total_orders} orders
-                ({lead.customer!.success_rate}% success)
+                Returning customer: {lead.customer!.successful_orders}/{lead.customer!.total_orders}{' '}
+                orders ({lead.customer!.success_rate}% success)
               </span>
-              <History className="h-3.5 w-3.5 text-blue-400" />
+              <History className="h-3.5 w-3.5 text-info/80" />
             </button>
           )}
 
@@ -103,14 +102,8 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            <CallButton
-              leadId={lead.id}
-              onCallInitiated={() => onUpdate?.()}
-            />
-            <Button
-              variant="outline"
-              onClick={() => setShowOutcomeModal(true)}
-            >
+            <CallButton leadId={lead.id} onCallInitiated={() => onUpdate?.()} />
+            <Button variant="outline" onClick={() => setShowOutcomeModal(true)}>
               <MessageSquare className="mr-2 h-4 w-4" />
               Record Outcome
             </Button>
@@ -122,16 +115,8 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
             >
               <History className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsExpanded(!isExpanded)}
-            >
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
+            <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </div>
 
@@ -173,9 +158,7 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">Cycle {cycle.cycle_number}</Badge>
                           <span>{cycle.call_count} calls</span>
-                          {cycle.outcome && (
-                            <Badge variant="secondary">{cycle.outcome}</Badge>
-                          )}
+                          {cycle.outcome && <Badge variant="secondary">{cycle.outcome}</Badge>}
                         </div>
                         <div className="text-muted-foreground">
                           {cycle.last_call_at
@@ -190,8 +173,8 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
 
               {/* Callback Alert */}
               {lead.cycles?.some((c) => c.callback_at && c.status === 'ACTIVE') && (
-                <div className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg text-sm">
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <div className="flex items-center gap-2 p-2 bg-warning/5 rounded-lg text-sm">
+                  <AlertCircle className="h-4 w-4 text-warning" />
                   <span>
                     Callback scheduled:{' '}
                     {formatDateTime(

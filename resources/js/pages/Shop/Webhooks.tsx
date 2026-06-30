@@ -1,6 +1,15 @@
 import { FormEvent, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Bug, CheckCircle2, Copy, MessageSquare, Radio, Store, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bug,
+  CheckCircle2,
+  Copy,
+  MessageSquare,
+  Radio,
+  Store,
+  XCircle,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -82,8 +91,10 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
           </Button>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Shop Webhooks</h1>
-              <p className="text-muted-foreground">Meta callback setup, raw events, and inbox ingestion diagnostics</p>
+              <h1 className="text-3xl font-bold tracking-tight font-display">Shop Webhooks</h1>
+              <p className="text-muted-foreground">
+                Meta callback setup, raw events, and inbox ingestion diagnostics
+              </p>
             </div>
             <Button variant="outline" onClick={() => router.reload()}>
               <Radio className="mr-2 h-4 w-4" />
@@ -97,25 +108,27 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Raw Events</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.events}</CardContent>
+            <CardContent className="text-2xl font-bold font-display">{stats.events}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.processed}</CardContent>
+            <CardContent className="text-2xl font-bold font-display">{stats.processed}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Failed</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.failed}</CardContent>
+            <CardContent className="text-2xl font-bold font-display">{stats.failed}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Conversations</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.conversations}</CardContent>
+            <CardContent className="text-2xl font-bold font-display">
+              {stats.conversations}
+            </CardContent>
           </Card>
         </div>
 
@@ -124,7 +137,9 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
             <Card>
               <CardHeader>
                 <CardTitle>Meta Callback</CardTitle>
-                <CardDescription>Use these values in Meta Developers webhook configuration</CardDescription>
+                <CardDescription>
+                  Use these values in Meta Developers webhook configuration
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex flex-col gap-2 rounded-lg border p-3 md:flex-row md:items-center md:justify-between">
@@ -132,7 +147,11 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                     <p className="font-medium">Callback URL</p>
                     <p className="break-all text-muted-foreground">{callback_url}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => copy('callback', callback_url)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copy('callback', callback_url)}
+                  >
                     <Copy className="mr-2 h-4 w-4" />
                     {copied === 'callback' ? 'Copied' : 'Copy'}
                   </Button>
@@ -160,16 +179,21 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                   <div className="py-12 text-center text-muted-foreground">
                     <Bug className="mx-auto mb-3 h-10 w-10 opacity-30" />
                     <p className="font-medium">No webhook events yet</p>
-                    <p className="text-sm">Send a customer message to a subscribed Page or use the simulator.</p>
+                    <p className="text-sm">
+                      Send a customer message to a subscribed Page or use the simulator.
+                    </p>
                   </div>
                 ) : (
                   events.map((event) => (
                     <div key={event.id} className="rounded-lg border p-3">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
-                          <p className="text-sm font-medium">{event.facebook_page?.page_name ?? 'Unknown Page'}</p>
+                          <p className="text-sm font-medium">
+                            {event.facebook_page?.page_name ?? 'Unknown Page'}
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            {event.event_type ?? 'event'} from {event.sender_psid ?? 'unknown sender'}
+                            {event.event_type ?? 'event'} from{' '}
+                            {event.sender_psid ?? 'unknown sender'}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -188,7 +212,9 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                         <p>Processed: {time(event.processed_at)}</p>
                         <p>Recipient: {event.recipient_id ?? 'none'}</p>
                       </div>
-                      {event.error_message && <p className="mt-2 text-xs text-destructive">{event.error_message}</p>}
+                      {event.error_message && (
+                        <p className="mt-2 text-xs text-destructive">{event.error_message}</p>
+                      )}
                     </div>
                   ))
                 )}
@@ -200,7 +226,9 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
             <Card>
               <CardHeader>
                 <CardTitle>Simulate Inbound Message</CardTitle>
-                <CardDescription>Creates a raw event, processes it, and sends it to the Shop inbox</CardDescription>
+                <CardDescription>
+                  Creates a raw event, processes it, and sends it to the Shop inbox
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={submit} className="space-y-3">
@@ -219,14 +247,18 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                       ))
                     )}
                   </select>
-                  {errors.facebook_page_id && <p className="text-xs text-destructive">{errors.facebook_page_id}</p>}
+                  {errors.facebook_page_id && (
+                    <p className="text-xs text-destructive">{errors.facebook_page_id}</p>
+                  )}
 
                   <Input
                     value={data.sender_psid}
                     onChange={(event) => setData('sender_psid', event.target.value)}
                     placeholder="Optional sender PSID"
                   />
-                  {errors.sender_psid && <p className="text-xs text-destructive">{errors.sender_psid}</p>}
+                  {errors.sender_psid && (
+                    <p className="text-xs text-destructive">{errors.sender_psid}</p>
+                  )}
 
                   <Textarea
                     value={data.body}
@@ -235,7 +267,11 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                   />
                   {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
 
-                  <Button type="submit" disabled={processing || pages.length === 0} className="w-full">
+                  <Button
+                    type="submit"
+                    disabled={processing || pages.length === 0}
+                    className="w-full"
+                  >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     Process Test Message
                   </Button>
@@ -261,7 +297,11 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                           <p className="text-xs text-muted-foreground">{page.page_id}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Badge variant="outline">{page.connected_status}</Badge>
-                            <Badge variant={page.webhook_status === 'subscribed' ? 'default' : 'secondary'}>
+                            <Badge
+                              variant={
+                                page.webhook_status === 'subscribed' ? 'default' : 'secondary'
+                              }
+                            >
                               {page.webhook_status === 'subscribed' ? (
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                               ) : (

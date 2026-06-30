@@ -38,16 +38,56 @@ interface Props {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  PENDING:     { label: 'Pending',     color: 'bg-gray-100 text-gray-800',   icon: <Clock className="h-3 w-3" /> },
-  CONFIRMED:   { label: 'Confirmed',   color: 'bg-blue-100 text-blue-800',   icon: <CheckCircle className="h-3 w-3" /> },
-  QA_PENDING:  { label: 'QA Pending',  color: 'bg-yellow-100 text-yellow-800', icon: <AlertTriangle className="h-3 w-3" /> },
-  QA_APPROVED: { label: 'QA Approved', color: 'bg-green-100 text-green-800', icon: <CheckCircle className="h-3 w-3" /> },
-  QA_REJECTED: { label: 'QA Rejected', color: 'bg-red-100 text-red-800',     icon: <XCircle className="h-3 w-3" /> },
-  PROCESSING:  { label: 'Processing',  color: 'bg-blue-100 text-blue-800',   icon: <Package className="h-3 w-3" /> },
-  DISPATCHED:  { label: 'Dispatched',  color: 'bg-indigo-100 text-indigo-800', icon: <Truck className="h-3 w-3" /> },
-  DELIVERED:   { label: 'Delivered',   color: 'bg-green-100 text-green-800', icon: <CheckCircle className="h-3 w-3" /> },
-  RETURNED:    { label: 'Returned',    color: 'bg-red-100 text-red-800',     icon: <RotateCcw className="h-3 w-3" /> },
-  CANCELLED:   { label: 'Cancelled',   color: 'bg-gray-100 text-gray-600',   icon: <XCircle className="h-3 w-3" /> },
+  PENDING: {
+    label: 'Pending',
+    color: 'bg-muted text-foreground',
+    icon: <Clock className="h-3 w-3" />,
+  },
+  CONFIRMED: {
+    label: 'Confirmed',
+    color: 'bg-info/10 text-info',
+    icon: <CheckCircle className="h-3 w-3" />,
+  },
+  QA_PENDING: {
+    label: 'QA Pending',
+    color: 'bg-warning/10 text-warning',
+    icon: <AlertTriangle className="h-3 w-3" />,
+  },
+  QA_APPROVED: {
+    label: 'QA Approved',
+    color: 'bg-success/10 text-success',
+    icon: <CheckCircle className="h-3 w-3" />,
+  },
+  QA_REJECTED: {
+    label: 'QA Rejected',
+    color: 'bg-destructive/10 text-destructive',
+    icon: <XCircle className="h-3 w-3" />,
+  },
+  PROCESSING: {
+    label: 'Processing',
+    color: 'bg-info/10 text-info',
+    icon: <Package className="h-3 w-3" />,
+  },
+  DISPATCHED: {
+    label: 'Dispatched',
+    color: 'bg-indigo-100 text-indigo-800',
+    icon: <Truck className="h-3 w-3" />,
+  },
+  DELIVERED: {
+    label: 'Delivered',
+    color: 'bg-success/10 text-success',
+    icon: <CheckCircle className="h-3 w-3" />,
+  },
+  RETURNED: {
+    label: 'Returned',
+    color: 'bg-destructive/10 text-destructive',
+    icon: <RotateCcw className="h-3 w-3" />,
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    color: 'bg-muted text-muted-foreground',
+    icon: <XCircle className="h-3 w-3" />,
+  },
 };
 
 export default function OrdersIndex({ orders, stats, filters }: Props) {
@@ -62,7 +102,7 @@ export default function OrdersIndex({ orders, stats, filters }: Props) {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Orders</h1>
+          <h1 className="text-2xl font-bold font-display">Orders</h1>
           <p className="text-sm text-muted-foreground">Order fulfillment pipeline</p>
         </div>
 
@@ -70,12 +110,12 @@ export default function OrdersIndex({ orders, stats, filters }: Props) {
         <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
           {[
             { label: 'Total', value: stats.total, color: 'text-foreground' },
-            { label: 'Pending', value: stats.pending, color: 'text-gray-600' },
-            { label: 'QA Queue', value: stats.qa_pending, color: 'text-yellow-600' },
-            { label: 'Processing', value: stats.processing, color: 'text-blue-600' },
+            { label: 'Pending', value: stats.pending, color: 'text-muted-foreground' },
+            { label: 'QA Queue', value: stats.qa_pending, color: 'text-warning' },
+            { label: 'Processing', value: stats.processing, color: 'text-info' },
             { label: 'Dispatched', value: stats.dispatched, color: 'text-indigo-600' },
-            { label: 'Delivered', value: stats.delivered, color: 'text-green-600' },
-            { label: 'Returned', value: stats.returned, color: 'text-red-600' },
+            { label: 'Delivered', value: stats.delivered, color: 'text-success' },
+            { label: 'Returned', value: stats.returned, color: 'text-destructive' },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="p-3 text-center">
@@ -103,18 +143,32 @@ export default function OrdersIndex({ orders, stats, filters }: Props) {
 
           <select
             value={filters.status || ''}
-            onChange={(e) => router.get('/orders', { ...filters, status: e.target.value || undefined }, { preserveState: true })}
+            onChange={(e) =>
+              router.get(
+                '/orders',
+                { ...filters, status: e.target.value || undefined },
+                { preserveState: true }
+              )
+            }
             className="border rounded-lg px-3 py-2 text-sm"
           >
             <option value="">All Status</option>
             {Object.entries(statusConfig).map(([key, cfg]) => (
-              <option key={key} value={key}>{cfg.label}</option>
+              <option key={key} value={key}>
+                {cfg.label}
+              </option>
             ))}
           </select>
 
           <select
             value={filters.courier || ''}
-            onChange={(e) => router.get('/orders', { ...filters, courier: e.target.value || undefined }, { preserveState: true })}
+            onChange={(e) =>
+              router.get(
+                '/orders',
+                { ...filters, courier: e.target.value || undefined },
+                { preserveState: true }
+              )
+            }
             className="border rounded-lg px-3 py-2 text-sm"
           >
             <option value="">All Couriers</option>
@@ -144,10 +198,17 @@ export default function OrdersIndex({ orders, stats, filters }: Props) {
                       <div className="flex items-center gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-sm font-semibold text-primary">{order.order_number}</span>
-                            <Badge className={`${cfg.color} text-[10px] gap-1`}>{cfg.icon}{cfg.label}</Badge>
+                            <span className="font-mono text-sm font-semibold text-primary">
+                              {order.order_number}
+                            </span>
+                            <Badge className={`${cfg.color} text-[10px] gap-1`}>
+                              {cfg.icon}
+                              {cfg.label}
+                            </Badge>
                             {order.courier_code && (
-                              <Badge variant="outline" className="text-[10px]">{order.courier_code}</Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                {order.courier_code}
+                              </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">

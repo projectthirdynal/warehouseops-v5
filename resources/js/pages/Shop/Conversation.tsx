@@ -1,6 +1,18 @@
 import { FormEvent } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, History, MapPin, PackageCheck, Send, ShoppingCart, User, UserCheck } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  History,
+  MapPin,
+  PackageCheck,
+  Send,
+  ShoppingCart,
+  User,
+  UserCheck,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +57,12 @@ interface Conversation {
     is_blacklisted?: boolean;
     blacklist_reason?: string | null;
   } | null;
-  identity?: { id: number; display_name?: string | null; provider_user_id: string; phone_detected?: string | null } | null;
+  identity?: {
+    id: number;
+    display_name?: string | null;
+    provider_user_id: string;
+    phone_detected?: string | null;
+  } | null;
   messages: Message[];
 }
 
@@ -63,7 +80,13 @@ interface Props {
   conversation: Conversation;
   recent_orders: RecentOrder[];
   quick_replies: { label: string; body: string }[];
-  saved_templates: { id: number; name: string; category?: string | null; body: string; variables?: string[] }[];
+  saved_templates: {
+    id: number;
+    name: string;
+    category?: string | null;
+    body: string;
+    variables?: string[];
+  }[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
 }
@@ -76,42 +99,68 @@ function time(value: string | null) {
 function deliveryStatus(message: Message) {
   if (message.direction !== 'outbound') return null;
 
-  const status = typeof message.raw_payload?.status === 'string' ? message.raw_payload.status : 'unknown';
+  const status =
+    typeof message.raw_payload?.status === 'string' ? message.raw_payload.status : 'unknown';
   const error = typeof message.raw_payload?.error === 'string' ? message.raw_payload.error : null;
 
   if (status === 'sent') {
-    return { label: 'Sent to Meta', detail: null, className: 'text-emerald-600', icon: CheckCircle2 };
+    return { label: 'Sent to Meta', detail: null, className: 'text-success', icon: CheckCircle2 };
   }
 
   if (status === 'failed') {
-    return { label: 'Send failed', detail: error, className: 'text-destructive', icon: AlertCircle };
+    return {
+      label: 'Send failed',
+      detail: error,
+      className: 'text-destructive',
+      icon: AlertCircle,
+    };
   }
 
-  return { label: 'Logged locally', detail: status === 'logged' ? null : status, className: 'text-muted-foreground', icon: Clock };
+  return {
+    label: 'Logged locally',
+    detail: status === 'logged' ? null : status,
+    className: 'text-muted-foreground',
+    icon: Clock,
+  };
 }
 
 function money(value: string | number | null | undefined) {
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value ?? 0));
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(
+    Number(value ?? 0)
+  );
 }
 
 function customerAddress(conversation: Conversation) {
   const customer = conversation.customer;
   if (!customer) return 'No saved address';
 
-  return customer.canonical_address
-    || [customer.barangay, customer.city_municipality, customer.province].filter(Boolean).join(', ')
-    || 'No saved address';
+  return (
+    customer.canonical_address ||
+    [customer.barangay, customer.city_municipality, customer.province].filter(Boolean).join(', ') ||
+    'No saved address'
+  );
 }
 
 function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-export default function ShopConversation({ conversation, recent_orders, quick_replies, saved_templates, agents, statuses }: Props) {
+export default function ShopConversation({
+  conversation,
+  recent_orders,
+  quick_replies,
+  saved_templates,
+  agents,
+  statuses,
+}: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
-    phone: conversation.customer?.normalized_phone ?? conversation.customer?.phone ?? conversation.identity?.phone_detected ?? '',
+    phone:
+      conversation.customer?.normalized_phone ??
+      conversation.customer?.phone ??
+      conversation.identity?.phone_detected ??
+      '',
     canonical_address: conversation.customer?.canonical_address ?? '',
     landmark: conversation.customer?.landmark ?? '',
     barangay: conversation.customer?.barangay ?? '',
@@ -120,9 +169,13 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
   });
 
   const updateAssignment = (assignedAgentId: string) => {
-    router.patch(`/shop/inbox/${conversation.id}/assignment`, {
-      assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
-    }, { preserveScroll: true });
+    router.patch(
+      `/shop/inbox/${conversation.id}/assignment`,
+      {
+        assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
+      },
+      { preserveScroll: true }
+    );
   };
 
   const updateStatus = (status: string) => {
@@ -158,11 +211,15 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
           </Button>
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                {conversation.customer?.name ?? conversation.identity?.display_name ?? 'Facebook Customer'}
+              <h1 className="text-3xl font-bold tracking-tight font-display">
+                {conversation.customer?.name ??
+                  conversation.identity?.display_name ??
+                  'Facebook Customer'}
               </h1>
               <p className="text-muted-foreground">
-                {conversation.customer?.normalized_phone ?? conversation.identity?.phone_detected ?? conversation.identity?.provider_user_id}
+                {conversation.customer?.normalized_phone ??
+                  conversation.identity?.phone_detected ??
+                  conversation.identity?.provider_user_id}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -184,7 +241,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <CardTitle>Messages</CardTitle>
-                  <CardDescription>Inbound Meta messages and locally logged replies</CardDescription>
+                  <CardDescription>
+                    Inbound Meta messages and locally logged replies
+                  </CardDescription>
                 </div>
                 <Button asChild size="sm" variant="outline">
                   <Link href="/shop/templates">Templates</Link>
@@ -194,7 +253,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
             <CardContent className="space-y-4">
               {quick_replies.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Context Suggestions</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Context Suggestions
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {quick_replies.map((reply) => (
                       <Button
@@ -213,7 +274,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
 
               {saved_templates.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Saved Templates</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Saved Templates
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {saved_templates.map((template) => (
                       <Button
@@ -244,15 +307,21 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                     >
                       <div
                         className={`max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
-                          message.direction === 'outbound' ? 'bg-primary text-primary-foreground' : 'bg-muted/40'
+                          message.direction === 'outbound'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted/40'
                         }`}
                       >
                         <p>{message.body ?? 'Attachment or unsupported message'}</p>
-                        <p className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        <p
+                          className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                        >
                           {time(message.sent_at)}
                         </p>
                         {status && StatusIcon && (
-                          <div className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}>
+                          <div
+                            className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                          >
                             <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
                             <span>
                               {status.label}
@@ -300,7 +369,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                 >
                   <option value="">Unassigned</option>
                   {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.role})
+                    </option>
                   ))}
                 </select>
                 <select
@@ -309,7 +380,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                   className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   {statuses.map((status) => (
-                    <option key={status} value={status}>{label(status)}</option>
+                    <option key={status} value={status}>
+                      {label(status)}
+                    </option>
                   ))}
                 </select>
               </CardContent>
@@ -319,7 +392,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
               <Card>
                 <CardHeader>
                   <CardTitle>Update Customer</CardTitle>
-                  <CardDescription>Save corrected details for future phone matching and same-address orders</CardDescription>
+                  <CardDescription>
+                    Save corrected details for future phone matching and same-address orders
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={updateCustomer} className="space-y-4">
@@ -331,7 +406,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                           value={customerForm.data.name}
                           onChange={(event) => customerForm.setData('name', event.target.value)}
                         />
-                        {customerForm.errors.name && <p className="text-xs text-destructive">{customerForm.errors.name}</p>}
+                        {customerForm.errors.name && (
+                          <p className="text-xs text-destructive">{customerForm.errors.name}</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="customer_phone">Phone</Label>
@@ -340,7 +417,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                           value={customerForm.data.phone}
                           onChange={(event) => customerForm.setData('phone', event.target.value)}
                         />
-                        {customerForm.errors.phone && <p className="text-xs text-destructive">{customerForm.errors.phone}</p>}
+                        {customerForm.errors.phone && (
+                          <p className="text-xs text-destructive">{customerForm.errors.phone}</p>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -348,7 +427,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                       <Textarea
                         id="customer_address"
                         value={customerForm.data.canonical_address}
-                        onChange={(event) => customerForm.setData('canonical_address', event.target.value)}
+                        onChange={(event) =>
+                          customerForm.setData('canonical_address', event.target.value)
+                        }
                       />
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -373,7 +454,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                         <Input
                           id="customer_city"
                           value={customerForm.data.city_municipality}
-                          onChange={(event) => customerForm.setData('city_municipality', event.target.value)}
+                          onChange={(event) =>
+                            customerForm.setData('city_municipality', event.target.value)
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -405,7 +488,11 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
               <CardContent className="space-y-4 text-sm">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">{conversation.customer?.name ?? conversation.identity?.display_name ?? 'No matched customer'}</p>
+                    <p className="font-medium">
+                      {conversation.customer?.name ??
+                        conversation.identity?.display_name ??
+                        'No matched customer'}
+                    </p>
                     {conversation.customer?.is_blacklisted ? (
                       <Badge variant="destructive">Blacklisted</Badge>
                     ) : conversation.customer?.risk_level ? (
@@ -413,15 +500,21 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                     ) : null}
                   </div>
                   <p className="text-muted-foreground">
-                    {conversation.customer?.normalized_phone ?? conversation.identity?.phone_detected ?? 'No phone detected'}
+                    {conversation.customer?.normalized_phone ??
+                      conversation.identity?.phone_detected ??
+                      'No phone detected'}
                   </p>
-                  <p className="text-muted-foreground">PSID: {conversation.identity?.provider_user_id ?? 'unknown'}</p>
+                  <p className="text-muted-foreground">
+                    PSID: {conversation.identity?.provider_user_id ?? 'unknown'}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-lg border p-2">
                     <p className="text-xs text-muted-foreground">Orders</p>
-                    <p className="font-semibold">{conversation.customer?.total_orders ?? recent_orders.length}</p>
+                    <p className="font-semibold">
+                      {conversation.customer?.total_orders ?? recent_orders.length}
+                    </p>
                   </div>
                   <div className="rounded-lg border p-2">
                     <p className="text-xs text-muted-foreground">Success</p>
@@ -447,11 +540,17 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                   <MapPin className="h-5 w-5" />
                   Saved Address
                 </CardTitle>
-                <CardDescription>{conversation.customer?.region ?? 'Region not mapped'}</CardDescription>
+                <CardDescription>
+                  {conversation.customer?.region ?? 'Region not mapped'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p>{customerAddress(conversation)}</p>
-                {conversation.customer?.landmark && <p className="text-muted-foreground">Landmark: {conversation.customer.landmark}</p>}
+                {conversation.customer?.landmark && (
+                  <p className="text-muted-foreground">
+                    Landmark: {conversation.customer.landmark}
+                  </p>
+                )}
                 <div className="grid gap-2">
                   <Button asChild size="sm">
                     <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
@@ -480,11 +579,17 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
                   <p className="text-sm text-muted-foreground">No previous orders found.</p>
                 ) : (
                   recent_orders.map((order) => (
-                    <Link key={order.id} href={`/orders/${order.id}`} className="block rounded-lg border p-3 transition-colors hover:bg-accent/30">
+                    <Link
+                      key={order.id}
+                      href={`/orders/${order.id}`}
+                      className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">{order.order_number}</p>
-                          <p className="text-xs text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.product?.name ?? 'No product'}
+                          </p>
                         </div>
                         <Badge variant="outline">{order.status}</Badge>
                       </div>
@@ -507,7 +612,9 @@ export default function ShopConversation({ conversation, recent_orders, quick_re
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>{conversation.facebook_page?.page_name ?? 'Unknown Page'}</p>
-                <p className="text-muted-foreground">Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}</p>
+                <p className="text-muted-foreground">
+                  Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
+                </p>
               </CardContent>
             </Card>
           </div>

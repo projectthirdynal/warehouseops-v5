@@ -51,9 +51,9 @@ interface Props {
 }
 
 const COND_COLOR: Record<string, string> = {
-  GOOD: 'bg-green-100 text-green-700',
-  DAMAGED: 'bg-orange-100 text-orange-700',
-  EXPIRED: 'bg-red-100 text-red-700',
+  GOOD: 'bg-success/10 text-success',
+  DAMAGED: 'bg-warning/10 text-warning',
+  EXPIRED: 'bg-destructive/10 text-destructive',
 };
 
 export default function ReceivingShow({ grn }: Props) {
@@ -80,17 +80,17 @@ export default function ReceivingShow({ grn }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold">{grn.grn_number}</h1>
+              <h1 className="font-mono text-2xl font-bold font-display">{grn.grn_number}</h1>
               <div className="flex items-center gap-2">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${grn.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${grn.status === 'CONFIRMED' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
                 >
                   {grn.status}
                 </span>
                 {grn.purchase_order && (
                   <Link
                     href={`/procurement/orders/${grn.purchase_order.id}`}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-info hover:underline"
                   >
                     Against PO {grn.purchase_order.po_number}
                   </Link>
@@ -107,9 +107,9 @@ export default function ReceivingShow({ grn }: Props) {
         </div>
 
         {grn.status === 'DRAFT' && (
-          <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
-            <AlertCircle className="h-5 w-5 text-yellow-600" />
-            <p className="text-sm text-yellow-900">
+          <div className="flex items-center gap-3 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3">
+            <AlertCircle className="h-5 w-5 text-warning" />
+            <p className="text-sm text-warning">
               This GRN is in <span className="font-medium">DRAFT</span>. Stock has NOT been posted
               yet. Confirm to add items to inventory.
             </p>
@@ -146,7 +146,7 @@ export default function ReceivingShow({ grn }: Props) {
                           <>
                             <span className="font-mono">{it.purchase_order_item.supply.sku}</span> —{' '}
                             {it.purchase_order_item.supply.name}{' '}
-                            <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-700">
+                            <span className="ml-1 rounded bg-warning/10 px-1 text-xs text-warning">
                               Supply
                             </span>
                           </>
@@ -160,12 +160,14 @@ export default function ReceivingShow({ grn }: Props) {
                       <TableCell className="text-right text-sm">
                         {it.purchase_order_item?.quantity_ordered ?? '—'}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-green-700">
+                      <TableCell className="text-right font-medium text-success">
                         {it.quantity_received}
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         {it.quantity_rejected > 0 ? (
-                          <span className="font-medium text-red-700">{it.quantity_rejected}</span>
+                          <span className="font-medium text-destructive">
+                            {it.quantity_rejected}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
@@ -175,7 +177,7 @@ export default function ReceivingShow({ grn }: Props) {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs ${COND_COLOR[it.condition] ?? 'bg-gray-100 text-gray-700'}`}
+                          className={`rounded-full px-2 py-0.5 text-xs ${COND_COLOR[it.condition] ?? 'bg-muted text-muted-foreground'}`}
                         >
                           {it.condition}
                         </span>
@@ -226,12 +228,10 @@ export default function ReceivingShow({ grn }: Props) {
               )}
               {grn.discrepancy_notes && (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-orange-700">
+                  <p className="text-xs font-medium uppercase tracking-wide text-warning">
                     Discrepancy
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-orange-800">
-                    {grn.discrepancy_notes}
-                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-warning">{grn.discrepancy_notes}</p>
                 </div>
               )}
             </CardContent>

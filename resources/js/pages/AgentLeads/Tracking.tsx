@@ -83,20 +83,71 @@ interface Props {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  PENDING:          { label: 'Pending',          color: 'bg-gray-100 text-gray-800',     icon: <Clock className="h-3.5 w-3.5" /> },
-  DISPATCHED:       { label: 'Dispatched',       color: 'bg-blue-100 text-blue-800',     icon: <Truck className="h-3.5 w-3.5" /> },
-  PICKED_UP:        { label: 'Picked Up',        color: 'bg-blue-100 text-blue-800',     icon: <Package className="h-3.5 w-3.5" /> },
-  IN_TRANSIT:       { label: 'In Transit',       color: 'bg-indigo-100 text-indigo-800', icon: <Truck className="h-3.5 w-3.5" /> },
-  ARRIVED_HUB:      { label: 'At Hub',           color: 'bg-purple-100 text-purple-800', icon: <MapPin className="h-3.5 w-3.5" /> },
-  OUT_FOR_DELIVERY: { label: 'Out for Delivery', color: 'bg-yellow-100 text-yellow-800', icon: <Truck className="h-3.5 w-3.5" /> },
-  DELIVERY_FAILED:  { label: 'Delivery Failed',  color: 'bg-orange-100 text-orange-800', icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  DELIVERED:        { label: 'Delivered',         color: 'bg-green-100 text-green-800',   icon: <CheckCircle className="h-3.5 w-3.5" /> },
-  RETURNING:        { label: 'Returning',         color: 'bg-orange-100 text-orange-800', icon: <Truck className="h-3.5 w-3.5" /> },
-  RETURNED:         { label: 'Returned',          color: 'bg-red-100 text-red-800',       icon: <XCircle className="h-3.5 w-3.5" /> },
-  CANCELLED:        { label: 'Cancelled',         color: 'bg-gray-100 text-gray-600',     icon: <XCircle className="h-3.5 w-3.5" /> },
+  PENDING: {
+    label: 'Pending',
+    color: 'bg-muted text-foreground',
+    icon: <Clock className="h-3.5 w-3.5" />,
+  },
+  DISPATCHED: {
+    label: 'Dispatched',
+    color: 'bg-info/10 text-info',
+    icon: <Truck className="h-3.5 w-3.5" />,
+  },
+  PICKED_UP: {
+    label: 'Picked Up',
+    color: 'bg-info/10 text-info',
+    icon: <Package className="h-3.5 w-3.5" />,
+  },
+  IN_TRANSIT: {
+    label: 'In Transit',
+    color: 'bg-indigo-100 text-indigo-800',
+    icon: <Truck className="h-3.5 w-3.5" />,
+  },
+  ARRIVED_HUB: {
+    label: 'At Hub',
+    color: 'bg-primary/10 text-primary',
+    icon: <MapPin className="h-3.5 w-3.5" />,
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'Out for Delivery',
+    color: 'bg-warning/10 text-warning',
+    icon: <Truck className="h-3.5 w-3.5" />,
+  },
+  DELIVERY_FAILED: {
+    label: 'Delivery Failed',
+    color: 'bg-warning/10 text-warning',
+    icon: <AlertTriangle className="h-3.5 w-3.5" />,
+  },
+  DELIVERED: {
+    label: 'Delivered',
+    color: 'bg-success/10 text-success',
+    icon: <CheckCircle className="h-3.5 w-3.5" />,
+  },
+  RETURNING: {
+    label: 'Returning',
+    color: 'bg-warning/10 text-warning',
+    icon: <Truck className="h-3.5 w-3.5" />,
+  },
+  RETURNED: {
+    label: 'Returned',
+    color: 'bg-destructive/10 text-destructive',
+    icon: <XCircle className="h-3.5 w-3.5" />,
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    color: 'bg-muted text-muted-foreground',
+    icon: <XCircle className="h-3.5 w-3.5" />,
+  },
 };
 
-export default function AgentTracking({ results, waybill, customer, orderHistory, search, notFound }: Props) {
+export default function AgentTracking({
+  results,
+  waybill,
+  customer,
+  orderHistory,
+  search,
+  notFound,
+}: Props) {
   const [query, setQuery] = useState(search || '');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -120,7 +171,7 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Track Waybill</h1>
+          <h1 className="text-2xl font-bold font-display">Track Waybill</h1>
           <p className="text-sm text-muted-foreground">
             Search by tracking number, customer name, or phone number
           </p>
@@ -148,11 +199,11 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
 
         {/* Not found */}
         {notFound && (
-          <Card className="border-orange-200 bg-orange-50">
+          <Card className="border-warning/20 bg-warning/5">
             <CardContent className="p-6 text-center">
-              <AlertTriangle className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-              <p className="font-medium text-orange-800">No results found</p>
-              <p className="text-sm text-orange-600 mt-1">
+              <AlertTriangle className="h-8 w-8 text-warning mx-auto mb-2" />
+              <p className="font-medium text-warning">No results found</p>
+              <p className="text-sm text-warning mt-1">
                 No waybills found for "{search}". Try a different search term.
               </p>
             </CardContent>
@@ -175,21 +226,38 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                     <div className="flex items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-sm font-semibold text-primary">{w.waybill_number}</span>
-                          <Badge className={`${wCfg.color} text-[10px] gap-1`}>{wCfg.icon}{wCfg.label}</Badge>
-                          <Badge variant="outline" className="text-[10px]">{w.courier_provider}</Badge>
+                          <span className="font-mono text-sm font-semibold text-primary">
+                            {w.waybill_number}
+                          </span>
+                          <Badge className={`${wCfg.color} text-[10px] gap-1`}>
+                            {wCfg.icon}
+                            {wCfg.label}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {w.courier_provider}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                          <span className="flex items-center gap-1"><User className="h-3 w-3" />{w.receiver_name}</span>
-                          <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{w.receiver_phone}</span>
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {w.receiver_name}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" />
+                            {w.receiver_phone}
+                          </span>
                         </div>
-                        {w.item_name && <p className="text-xs text-muted-foreground mt-0.5">{w.item_name}</p>}
+                        {w.item_name && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{w.item_name}</p>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         {w.cod_amount != null && w.cod_amount > 0 && (
                           <p className="font-semibold text-sm">{formatCurrency(w.cod_amount)}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground">{formatDateTime(w.created_at)}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatDateTime(w.created_at)}
+                        </p>
                       </div>
                       <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     </div>
@@ -215,8 +283,12 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Tracking Number</p>
-                    <p className="text-lg font-mono font-bold text-primary">{waybill.waybill_number}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Tracking Number
+                    </p>
+                    <p className="text-lg font-mono font-bold text-primary">
+                      {waybill.waybill_number}
+                    </p>
                   </div>
                   <Badge className={`${cfg.color} text-sm gap-1.5 px-3 py-1.5`}>
                     {cfg.icon}
@@ -245,7 +317,9 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                   {waybill.cod_amount != null && waybill.cod_amount > 0 && (
                     <div>
                       <span className="text-muted-foreground">COD Amount</span>
-                      <p className="font-semibold text-green-600">{formatCurrency(waybill.cod_amount)}</p>
+                      <p className="font-semibold text-success">
+                        {formatCurrency(waybill.cod_amount)}
+                      </p>
                     </div>
                   )}
                   <div>
@@ -254,12 +328,18 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                   </div>
                   <div>
                     <span className="text-muted-foreground">Submitted</span>
-                    <p className="font-medium">{waybill.submitted_at ? formatDateTime(waybill.submitted_at) : formatDateTime(waybill.created_at)}</p>
+                    <p className="font-medium">
+                      {waybill.submitted_at
+                        ? formatDateTime(waybill.submitted_at)
+                        : formatDateTime(waybill.created_at)}
+                    </p>
                   </div>
                   {waybill.signed_at && (
                     <div>
                       <span className="text-muted-foreground">Delivered</span>
-                      <p className="font-medium text-green-600">{formatDateTime(waybill.signed_at)}</p>
+                      <p className="font-medium text-success">
+                        {formatDateTime(waybill.signed_at)}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -285,23 +365,32 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                         const isFirst = i === 0;
                         return (
                           <div key={i} className="relative flex gap-4 items-start">
-                            <div className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                              isFirst ? 'bg-primary border-primary text-primary-foreground' : 'bg-background border-muted-foreground/30'
-                            }`}>
+                            <div
+                              className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                                isFirst
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : 'bg-background border-muted-foreground/30'
+                              }`}
+                            >
                               <div className="scale-75">{eventCfg.icon}</div>
                             </div>
                             <div className="flex-1 min-w-0 pb-2">
                               <div className="flex items-center gap-2">
-                                <span className={`font-medium text-sm ${isFirst ? 'text-primary' : ''}`}>
+                                <span
+                                  className={`font-medium text-sm ${isFirst ? 'text-primary' : ''}`}
+                                >
                                   {eventCfg.label}
                                 </span>
                               </div>
                               {event.reason && (
-                                <p className="text-xs text-muted-foreground mt-0.5">{event.reason}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {event.reason}
+                                </p>
                               )}
                               {event.location && (
                                 <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                  <MapPin className="h-3 w-3" />{event.location}
+                                  <MapPin className="h-3 w-3" />
+                                  {event.location}
                                 </p>
                               )}
                               <p className="text-[10px] text-muted-foreground mt-1">
@@ -323,12 +412,19 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                 <CardHeader>
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>Customer Profile</span>
-                    <Badge className={
-                      customer.risk_label === 'Reliable' ? 'bg-green-100 text-green-800' :
-                      customer.risk_label === 'High Risk' ? 'bg-red-100 text-red-800' :
-                      customer.risk_label === 'New' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }>{customer.risk_label}</Badge>
+                    <Badge
+                      className={
+                        customer.risk_label === 'Reliable'
+                          ? 'bg-success/10 text-success'
+                          : customer.risk_label === 'High Risk'
+                            ? 'bg-destructive/10 text-destructive'
+                            : customer.risk_label === 'New'
+                              ? 'bg-info/10 text-info'
+                              : 'bg-muted text-foreground'
+                      }
+                    >
+                      {customer.risk_label}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -337,19 +433,21 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                       <p className="text-xl font-bold">{customer.total_orders}</p>
                       <p className="text-[10px] text-muted-foreground uppercase">Total Orders</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-green-50">
-                      <p className="text-xl font-bold text-green-600">{customer.delivered}</p>
+                    <div className="text-center p-3 rounded-lg bg-success/5">
+                      <p className="text-xl font-bold text-success">{customer.delivered}</p>
                       <p className="text-[10px] text-muted-foreground uppercase">Delivered</p>
                     </div>
-                    <div className="text-center p-3 rounded-lg bg-red-50">
-                      <p className="text-xl font-bold text-red-500">{customer.returned}</p>
+                    <div className="text-center p-3 rounded-lg bg-destructive/5">
+                      <p className="text-xl font-bold text-destructive">{customer.returned}</p>
                       <p className="text-[10px] text-muted-foreground uppercase">Returned</p>
                     </div>
                   </div>
                   <div className="flex justify-between text-sm border-t pt-3">
                     <div>
                       <span className="text-muted-foreground">Success Rate</span>
-                      <p className={`font-semibold ${customer.success_rate >= 70 ? 'text-green-600' : customer.success_rate >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                      <p
+                        className={`font-semibold ${customer.success_rate >= 70 ? 'text-success' : customer.success_rate >= 40 ? 'text-warning' : 'text-destructive'}`}
+                      >
                         {customer.success_rate}%
                       </p>
                     </div>
@@ -376,22 +474,43 @@ export default function AgentTracking({ results, waybill, customer, orderHistory
                         <div
                           key={o.id}
                           className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                            o.is_current ? 'border-primary bg-primary/5' : 'hover:bg-muted/30 cursor-pointer'
+                            o.is_current
+                              ? 'border-primary bg-primary/5'
+                              : 'hover:bg-muted/30 cursor-pointer'
                           }`}
                           onClick={() => !o.is_current && viewWaybill(o.id)}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-semibold">{o.waybill_number}</span>
-                              <Badge className={`${oCfg.color} text-[10px] gap-1`}>{oCfg.icon}{oCfg.label}</Badge>
-                              {o.is_current && <Badge variant="outline" className="text-[10px]">Current</Badge>}
+                              <span className="font-mono text-xs font-semibold">
+                                {o.waybill_number}
+                              </span>
+                              <Badge className={`${oCfg.color} text-[10px] gap-1`}>
+                                {oCfg.icon}
+                                {oCfg.label}
+                              </Badge>
+                              {o.is_current && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Current
+                                </Badge>
+                              )}
                             </div>
-                            {o.item_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{o.item_name}</p>}
+                            {o.item_name && (
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                {o.item_name}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right shrink-0 ml-3">
-                            {o.amount != null && <p className="text-sm font-semibold">{formatCurrency(o.amount)}</p>}
+                            {o.amount != null && (
+                              <p className="text-sm font-semibold">{formatCurrency(o.amount)}</p>
+                            )}
                             <p className="text-[10px] text-muted-foreground">
-                              {o.delivered_at ? formatDateTime(o.delivered_at) : o.returned_at ? formatDateTime(o.returned_at) : formatDateTime(o.created_at)}
+                              {o.delivered_at
+                                ? formatDateTime(o.delivered_at)
+                                : o.returned_at
+                                  ? formatDateTime(o.returned_at)
+                                  : formatDateTime(o.created_at)}
                             </p>
                           </div>
                         </div>

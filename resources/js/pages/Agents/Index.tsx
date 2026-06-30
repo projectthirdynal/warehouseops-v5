@@ -60,7 +60,15 @@ interface Props {
   };
 }
 
-function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open: boolean; onClose: () => void }) {
+function EditProfileModal({
+  agent,
+  open,
+  onClose,
+}: {
+  agent: Agent | null;
+  open: boolean;
+  onClose: () => void;
+}) {
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState('');
   const [maxCycles, setMaxCycles] = useState(10);
@@ -87,17 +95,27 @@ function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open:
   const removeSkill = (skill: string) => setSkills(skills.filter((s) => s !== skill));
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') { e.preventDefault(); addSkill(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSkill();
+    }
   };
 
   const handleSave = () => {
     setSaving(true);
-    router.patch(`/agents/${agent.id}/profile`, {
-      product_skills: skills,
-      max_active_cycles: maxCycles,
-    }, {
-      onFinish: () => { setSaving(false); onClose(); },
-    });
+    router.patch(
+      `/agents/${agent.id}/profile`,
+      {
+        product_skills: skills,
+        max_active_cycles: maxCycles,
+      },
+      {
+        onFinish: () => {
+          setSaving(false);
+          onClose();
+        },
+      }
+    );
   };
 
   return (
@@ -117,7 +135,8 @@ function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open:
           <div>
             <label className="text-sm font-medium">Product Lines</label>
             <p className="text-xs text-muted-foreground mb-2">
-              Agent will only receive leads matching these products (e.g. "STEM Coffee", "Mullein Inhaler")
+              Agent will only receive leads matching these products (e.g. "STEM Coffee", "Mullein
+              Inhaler")
             </p>
             <div className="flex gap-2">
               <input
@@ -138,7 +157,9 @@ function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open:
             </div>
             <div className="mt-2 flex flex-wrap gap-2 min-h-[36px]">
               {skills.length === 0 && (
-                <span className="text-xs text-muted-foreground italic">No products set — agent pulls any available lead</span>
+                <span className="text-xs text-muted-foreground italic">
+                  No products set — agent pulls any available lead
+                </span>
               )}
               {skills.map((skill) => (
                 <span
@@ -146,7 +167,10 @@ function EditProfileModal({ agent, open, onClose }: { agent: Agent | null; open:
                   className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium"
                 >
                   {skill}
-                  <button onClick={() => removeSkill(skill)} className="ml-1 text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => removeSkill(skill)}
+                    className="ml-1 text-muted-foreground hover:text-destructive"
+                  >
                     <X className="h-3 w-3" />
                   </button>
                 </span>
@@ -194,37 +218,49 @@ export default function AgentsIndex({ agents, stats }: Props) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
 
-  const filteredAgents = agents?.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(search.toLowerCase()) ||
-      agent.email.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'active' && agent.is_active) ||
-      (statusFilter === 'inactive' && !agent.is_active);
-    return matchesSearch && matchesStatus;
-  }) || [];
+  const filteredAgents =
+    agents?.filter((agent) => {
+      const matchesSearch =
+        agent.name.toLowerCase().includes(search.toLowerCase()) ||
+        agent.email.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && agent.is_active) ||
+        (statusFilter === 'inactive' && !agent.is_active);
+      return matchesSearch && matchesStatus;
+    }) || [];
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   function toggleActive(agent: Agent) {
     router.patch(`/agents/${agent.id}/toggle-active`);
   }
 
-
   return (
     <AppLayout>
       <Head title="Agents" />
 
-      <EditProfileModal agent={editingAgent} open={editingAgent !== null} onClose={() => setEditingAgent(null)} />
+      <EditProfileModal
+        agent={editingAgent}
+        open={editingAgent !== null}
+        onClose={() => setEditingAgent(null)}
+      />
 
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Agent Management</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Agent Management</h1>
             <p className="text-muted-foreground">
-              Monitor team performance and agent activity. To create or manage user accounts, use the <strong>Admin</strong> section.
+              Monitor team performance and agent activity. To create or manage user accounts, use
+              the <strong>Admin</strong> section.
             </p>
           </div>
         </div>
@@ -238,27 +274,33 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.total || agents?.length || 0}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats?.total || agents?.length || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Activity className="h-4 w-4 text-green-600" /> Active
+                <Activity className="h-4 w-4 text-success" /> Active
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.active || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.active || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-gray-600" /> Inactive
+                <Clock className="h-4 w-4 text-muted-foreground" /> Inactive
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-600">{stats?.inactive || 0}</div>
+              <div className="text-2xl font-bold font-display text-muted-foreground">
+                {stats?.inactive || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -268,7 +310,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.avg_performance || 0}%</div>
+              <div className="text-2xl font-bold font-display">{stats?.avg_performance || 0}%</div>
             </CardContent>
           </Card>
         </div>
@@ -326,7 +368,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => toggleActive(agent)}
-                          className={agent.is_active ? 'text-destructive' : 'text-green-600'}
+                          className={agent.is_active ? 'text-destructive' : 'text-success'}
                         >
                           {agent.is_active ? (
                             <>
@@ -377,11 +419,15 @@ export default function AgentsIndex({ agents, stats }: Props) {
                         <div className="text-xs text-muted-foreground">Leads</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-semibold text-green-600">{agent.stats?.sales_today || 0}</div>
+                        <div className="text-lg font-semibold text-success">
+                          {agent.stats?.sales_today || 0}
+                        </div>
                         <div className="text-xs text-muted-foreground">Sales</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-semibold">{agent.stats?.conversion_rate || 0}%</div>
+                        <div className="text-lg font-semibold">
+                          {agent.stats?.conversion_rate || 0}%
+                        </div>
                         <div className="text-xs text-muted-foreground">Rate</div>
                       </div>
                     </div>
@@ -390,16 +436,18 @@ export default function AgentsIndex({ agents, stats }: Props) {
                     <div className="mt-3 w-full">
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="text-muted-foreground">Performance</span>
-                        <span className="font-medium">{agent.agentProfile?.performance_score || 50}%</span>
+                        <span className="font-medium">
+                          {agent.agentProfile?.performance_score || 50}%
+                        </span>
                       </div>
                       <div className="h-2 rounded-full bg-muted">
                         <div
                           className={`h-full rounded-full ${
                             (agent.agentProfile?.performance_score || 50) >= 70
-                              ? 'bg-green-600'
+                              ? 'bg-success'
                               : (agent.agentProfile?.performance_score || 50) >= 40
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                                ? 'bg-warning'
+                                : 'bg-destructive'
                           }`}
                           style={{ width: `${agent.agentProfile?.performance_score || 50}%` }}
                         />
@@ -407,20 +455,21 @@ export default function AgentsIndex({ agents, stats }: Props) {
                     </div>
 
                     {/* Skills */}
-                    {agent.agentProfile?.product_skills && agent.agentProfile.product_skills.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1 justify-center">
-                        {agent.agentProfile.product_skills.slice(0, 3).map((skill, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                        {agent.agentProfile.product_skills.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{agent.agentProfile.product_skills.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
+                    {agent.agentProfile?.product_skills &&
+                      agent.agentProfile.product_skills.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1 justify-center">
+                          {agent.agentProfile.product_skills.slice(0, 3).map((skill, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {agent.agentProfile.product_skills.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{agent.agentProfile.product_skills.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                   </div>
                 </CardContent>
               </Card>
@@ -431,7 +480,9 @@ export default function AgentsIndex({ agents, stats }: Props) {
                 <Users className="h-12 w-12 text-muted-foreground/50" />
                 <h3 className="mt-4 text-lg font-semibold">No agents found</h3>
                 <p className="text-muted-foreground">
-                  {search || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first agent to get started'}
+                  {search || statusFilter !== 'all'
+                    ? 'Try adjusting your filters'
+                    : 'Add your first agent to get started'}
                 </p>
                 {!search && statusFilter === 'all' && (
                   <p className="mt-4 text-sm text-muted-foreground">

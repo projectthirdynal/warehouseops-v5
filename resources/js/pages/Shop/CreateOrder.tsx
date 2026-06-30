@@ -1,6 +1,17 @@
 import { FormEvent } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Calculator, MapPinned, PackagePlus, Phone, Plus, Save, Trash2, User } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Calculator,
+  MapPinned,
+  PackagePlus,
+  Phone,
+  Plus,
+  Save,
+  Trash2,
+  User,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -89,7 +100,12 @@ function createEmptyItem(): CartItemForm {
   };
 }
 
-export default function CreateShopOrder({ products, couriers, prefill, duplicate_warnings }: Props) {
+export default function CreateShopOrder({
+  products,
+  couriers,
+  prefill,
+  duplicate_warnings,
+}: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
@@ -111,40 +127,51 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
   };
 
   const updateItem = (index: number, field: keyof CartItemForm, value: string) => {
-    setData('items', data.items.map((item, itemIndex) => (
-      itemIndex === index ? { ...item, [field]: value } : item
-    )));
+    setData(
+      'items',
+      data.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
   };
 
   const chooseProduct = (index: number, productId: string) => {
     const product = products.find((item) => String(item.id) === productId);
 
-    setData('items', data.items.map((item, itemIndex) => (
-      itemIndex === index
-        ? {
-            ...item,
-            product_id: productId,
-            variant_id: '',
-            unit_price: product ? String(product.selling_price) : '',
-          }
-        : item
-    )));
+    setData(
+      'items',
+      data.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              product_id: productId,
+              variant_id: '',
+              unit_price: product ? String(product.selling_price) : '',
+            }
+          : item
+      )
+    );
   };
 
   const chooseVariant = (index: number, variantId: string) => {
     const currentItem = data.items[index];
-    const selectedProduct = products.find((product) => String(product.id) === currentItem.product_id);
+    const selectedProduct = products.find(
+      (product) => String(product.id) === currentItem.product_id
+    );
     const variant = selectedProduct?.active_variants.find((item) => String(item.id) === variantId);
 
-    setData('items', data.items.map((item, itemIndex) => (
-      itemIndex === index
-        ? {
-            ...item,
-            variant_id: variantId,
-            unit_price: variant?.selling_price ? String(variant.selling_price) : item.unit_price,
-          }
-        : item
-    )));
+    setData(
+      'items',
+      data.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              variant_id: variantId,
+              unit_price: variant?.selling_price ? String(variant.selling_price) : item.unit_price,
+            }
+          : item
+      )
+    );
   };
 
   const addItem = () => {
@@ -152,13 +179,22 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
   };
 
   const removeItem = (index: number) => {
-    setData('items', data.items.length === 1 ? [createEmptyItem()] : data.items.filter((_, itemIndex) => itemIndex !== index));
+    setData(
+      'items',
+      data.items.length === 1
+        ? [createEmptyItem()]
+        : data.items.filter((_, itemIndex) => itemIndex !== index)
+    );
   };
 
-  const subtotal = data.items.reduce((total, item) => (
-    total + Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price)
-  ), 0);
-  const totalQuantity = data.items.reduce((total, item) => total + Math.max(1, Number(item.quantity || 1)), 0);
+  const subtotal = data.items.reduce(
+    (total, item) => total + Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price),
+    0
+  );
+  const totalQuantity = data.items.reduce(
+    (total, item) => total + Math.max(1, Number(item.quantity || 1)),
+    0
+  );
   const shippingFee = numeric(data.shipping_fee);
   const total = subtotal + shippingFee;
 
@@ -180,9 +216,11 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                 Shop
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight">Create Shop Order</h1>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Create Shop Order</h1>
             <p className="text-muted-foreground">
-              {data.conversation_id ? `From Shop conversation #${data.conversation_id}` : 'Manual POS entry for Facebook, chat, and phone orders'}
+              {data.conversation_id
+                ? `From Shop conversation #${data.conversation_id}`
+                : 'Manual POS entry for Facebook, chat, and phone orders'}
             </p>
           </div>
           <Button type="submit" disabled={processing}>
@@ -210,7 +248,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                     onChange={(event) => setData('customer_name', event.target.value)}
                     placeholder="Maria Santos"
                   />
-                  {errors.customer_name && <p className="text-xs text-destructive">{errors.customer_name}</p>}
+                  {errors.customer_name && (
+                    <p className="text-xs text-destructive">{errors.customer_name}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone number</Label>
@@ -231,7 +271,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                   <MapPinned className="h-5 w-5" />
                   Delivery Address
                 </CardTitle>
-                <CardDescription>Address mapping will use these fields for encoder review</CardDescription>
+                <CardDescription>
+                  Address mapping will use these fields for encoder review
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -242,7 +284,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                     onChange={(event) => setData('complete_address', event.target.value)}
                     placeholder="House number, street, barangay, city, province"
                   />
-                  {errors.complete_address && <p className="text-xs text-destructive">{errors.complete_address}</p>}
+                  {errors.complete_address && (
+                    <p className="text-xs text-destructive">{errors.complete_address}</p>
+                  )}
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -293,7 +337,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                       <PackagePlus className="h-5 w-5" />
                       Cart Items
                     </CardTitle>
-                    <CardDescription>Build one Shop order with multiple products and variants</CardDescription>
+                    <CardDescription>
+                      Build one Shop order with multiple products and variants
+                    </CardDescription>
                   </div>
                   <Button type="button" variant="outline" onClick={addItem}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -303,8 +349,12 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.items.map((item, index) => {
-                  const selectedProduct = products.find((product) => String(product.id) === item.product_id);
-                  const selectedVariant = selectedProduct?.active_variants.find((variant) => String(variant.id) === item.variant_id);
+                  const selectedProduct = products.find(
+                    (product) => String(product.id) === item.product_id
+                  );
+                  const selectedVariant = selectedProduct?.active_variants.find(
+                    (variant) => String(variant.id) === item.variant_id
+                  );
                   const quantity = Math.max(1, Number(item.quantity || 1));
                   const lineTotal = quantity * numeric(item.unit_price);
 
@@ -314,7 +364,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                         <div>
                           <p className="text-sm font-medium">Item {index + 1}</p>
                           <p className="text-xs text-muted-foreground">
-                            {selectedVariant?.variant_name ?? selectedProduct?.name ?? 'Select a product'}
+                            {selectedVariant?.variant_name ??
+                              selectedProduct?.name ??
+                              'Select a product'}
                           </p>
                         </div>
                         <Button
@@ -344,7 +396,11 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                               </option>
                             ))}
                           </select>
-                          {itemError(index, 'product_id') && <p className="text-xs text-destructive">{itemError(index, 'product_id')}</p>}
+                          {itemError(index, 'product_id') && (
+                            <p className="text-xs text-destructive">
+                              {itemError(index, 'product_id')}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -353,7 +409,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                             id={`variant_id_${index}`}
                             value={item.variant_id}
                             onChange={(event) => chooseVariant(index, event.target.value)}
-                            disabled={!selectedProduct || selectedProduct.active_variants.length === 0}
+                            disabled={
+                              !selectedProduct || selectedProduct.active_variants.length === 0
+                            }
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
                           >
                             <option value="">Default</option>
@@ -363,7 +421,11 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                               </option>
                             ))}
                           </select>
-                          {itemError(index, 'variant_id') && <p className="text-xs text-destructive">{itemError(index, 'variant_id')}</p>}
+                          {itemError(index, 'variant_id') && (
+                            <p className="text-xs text-destructive">
+                              {itemError(index, 'variant_id')}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -375,7 +437,11 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                             value={item.quantity}
                             onChange={(event) => updateItem(index, 'quantity', event.target.value)}
                           />
-                          {itemError(index, 'quantity') && <p className="text-xs text-destructive">{itemError(index, 'quantity')}</p>}
+                          {itemError(index, 'quantity') && (
+                            <p className="text-xs text-destructive">
+                              {itemError(index, 'quantity')}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -386,9 +452,15 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                             min="0"
                             step="0.01"
                             value={item.unit_price}
-                            onChange={(event) => updateItem(index, 'unit_price', event.target.value)}
+                            onChange={(event) =>
+                              updateItem(index, 'unit_price', event.target.value)
+                            }
                           />
-                          {itemError(index, 'unit_price') && <p className="text-xs text-destructive">{itemError(index, 'unit_price')}</p>}
+                          {itemError(index, 'unit_price') && (
+                            <p className="text-xs text-destructive">
+                              {itemError(index, 'unit_price')}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-end">
@@ -409,9 +481,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
 
           <div className="space-y-6">
             {duplicate_warnings.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50">
+              <Card className="border-warning/20 bg-warning/5/50">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-amber-900">
+                  <CardTitle className="flex items-center gap-2 text-warning">
                     <AlertTriangle className="h-5 w-5" />
                     Possible Duplicates
                   </CardTitle>
@@ -419,11 +491,17 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {duplicate_warnings.map((order) => (
-                    <Link key={order.id} href={`/orders/${order.id}`} className="block rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-accent/30">
+                    <Link
+                      key={order.id}
+                      href={`/orders/${order.id}`}
+                      className="block rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-accent/30"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-medium">{order.order_number}</p>
-                          <p className="text-xs text-muted-foreground">{order.product?.name ?? 'No product'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.product?.name ?? 'No product'}
+                          </p>
                         </div>
                         <Badge variant="outline">{order.status}</Badge>
                       </div>
@@ -448,8 +526,12 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   {data.items.map((item, index) => {
-                    const selectedProduct = products.find((product) => String(product.id) === item.product_id);
-                    const selectedVariant = selectedProduct?.active_variants.find((variant) => String(variant.id) === item.variant_id);
+                    const selectedProduct = products.find(
+                      (product) => String(product.id) === item.product_id
+                    );
+                    const selectedVariant = selectedProduct?.active_variants.find(
+                      (variant) => String(variant.id) === item.variant_id
+                    );
                     const quantity = Math.max(1, Number(item.quantity || 1));
                     const lineTotal = quantity * numeric(item.unit_price);
 
@@ -457,9 +539,14 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                       <div key={index} className="rounded-lg border p-3">
                         <div className="flex justify-between gap-3 text-sm">
                           <div>
-                            <p className="font-medium">{selectedVariant?.variant_name ?? selectedProduct?.name ?? `Item ${index + 1}`}</p>
+                            <p className="font-medium">
+                              {selectedVariant?.variant_name ??
+                                selectedProduct?.name ??
+                                `Item ${index + 1}`}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              {selectedVariant?.sku ?? selectedProduct?.sku ?? 'No SKU'} x {quantity}
+                              {selectedVariant?.sku ?? selectedProduct?.sku ?? 'No SKU'} x{' '}
+                              {quantity}
                             </p>
                           </div>
                           <span className="font-medium">{money(lineTotal)}</span>
@@ -508,7 +595,9 @@ export default function CreateShopOrder({ products, couriers, prefill, duplicate
                     value={data.shipping_fee}
                     onChange={(event) => setData('shipping_fee', event.target.value)}
                   />
-                  {errors.shipping_fee && <p className="text-xs text-destructive">{errors.shipping_fee}</p>}
+                  {errors.shipping_fee && (
+                    <p className="text-xs text-destructive">{errors.shipping_fee}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="courier_code">Courier</Label>

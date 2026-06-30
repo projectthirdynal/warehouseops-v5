@@ -1,14 +1,26 @@
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
-  Settings, Users, ArrowRightLeft, BarChart3, Play, Trash2, Plus, AlertCircle, CheckCircle2,
+  Settings,
+  Users,
+  ArrowRightLeft,
+  BarChart3,
+  Play,
+  Trash2,
+  Plus,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import DistributionRuleForm from './components/DistributionRuleForm';
@@ -55,10 +67,10 @@ interface Props {
 }
 
 const strategyColors: Record<string, string> = {
-  round_robin: 'bg-blue-100 text-blue-800',
-  weighted: 'bg-purple-100 text-purple-800',
-  skill_match: 'bg-green-100 text-green-800',
-  territory: 'bg-orange-100 text-orange-800',
+  round_robin: 'bg-info/10 text-info',
+  weighted: 'bg-primary/10 text-primary',
+  skill_match: 'bg-success/10 text-success',
+  territory: 'bg-warning/10 text-warning',
   hybrid: 'bg-indigo-100 text-indigo-800',
 };
 
@@ -77,10 +89,14 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
   const [assignOpen, setAssignOpen] = useState(false);
 
   const handleAutoDistribute = () => {
-    router.post('/distribution/auto-distribute', { limit: 10 }, {
-      onSuccess: () => toast.success('Auto-distribution triggered'),
-      onError: () => toast.error('Auto-distribution failed'),
-    });
+    router.post(
+      '/distribution/auto-distribute',
+      { limit: 10 },
+      {
+        onSuccess: () => toast.success('Auto-distribution triggered'),
+        onError: () => toast.error('Auto-distribution failed'),
+      }
+    );
   };
 
   const handleDeleteRule = (rule: DistributionRule) => {
@@ -102,7 +118,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Lead Distribution</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Lead Distribution</h1>
             <p className="text-sm text-muted-foreground">
               Configure rules, monitor queue, and manage agent workloads.
             </p>
@@ -122,20 +138,46 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Active Rules</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{rules.length}</div></CardContent>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">
+                Active Rules
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{rules.length}</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Queue Pending</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{pendingCount}</div></CardContent>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">
+                Queue Pending
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{pendingCount}</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Queue Assigned</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{assignedCount}</div></CardContent>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">
+                Queue Assigned
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{assignedCount}</div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Active Agents</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{agents.filter((a) => a.is_active).length}</div></CardContent>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">
+                Active Agents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">
+                {agents.filter((a) => a.is_active).length}
+              </div>
+            </CardContent>
           </Card>
         </div>
 
@@ -154,10 +196,15 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>{editingRule ? 'Edit' : 'New'} Distribution Rule</DialogTitle></DialogHeader>
+                <DialogHeader>
+                  <DialogTitle>{editingRule ? 'Edit' : 'New'} Distribution Rule</DialogTitle>
+                </DialogHeader>
                 <DistributionRuleForm
                   rule={editingRule}
-                  onSuccess={() => { setRuleOpen(false); setEditingRule(null); }}
+                  onSuccess={() => {
+                    setRuleOpen(false);
+                    setEditingRule(null);
+                  }}
                 />
               </DialogContent>
             </Dialog>
@@ -177,7 +224,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
                     className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <Badge className={strategyColors[rule.strategy] || 'bg-gray-100'}>
+                      <Badge className={strategyColors[rule.strategy] || 'bg-muted'}>
                         {strategyLabels[rule.strategy] || rule.strategy}
                       </Badge>
                       <div>
@@ -191,7 +238,10 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { setEditingRule(rule); setRuleOpen(true); }}
+                        onClick={() => {
+                          setEditingRule(rule);
+                          setRuleOpen(true);
+                        }}
                       >
                         Edit
                       </Button>
@@ -245,9 +295,20 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
             ) : (
               <div className="space-y-2">
                 {queue.slice(0, 10).map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
                     <div className="flex items-center gap-3">
-                      <Badge variant={item.status === 'pending' ? 'outline' : item.status === 'assigned' ? 'default' : 'destructive'}>
+                      <Badge
+                        variant={
+                          item.status === 'pending'
+                            ? 'outline'
+                            : item.status === 'assigned'
+                              ? 'default'
+                              : 'destructive'
+                        }
+                      >
                         {item.status}
                       </Badge>
                       <div>
@@ -271,7 +332,9 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
       {/* Manual Assignment Modal */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Manual Lead Assignment</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Manual Lead Assignment</DialogTitle>
+          </DialogHeader>
           <ManualAssignmentModal agents={agents} onClose={() => setAssignOpen(false)} />
         </DialogContent>
       </Dialog>

@@ -43,7 +43,9 @@ interface Props {
 }
 
 function money(value: string | number) {
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value));
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(
+    Number(value)
+  );
 }
 
 function orderSummary(order: Order) {
@@ -63,7 +65,8 @@ function AddressEditor({ order }: { order: Order }) {
     notes: '',
   });
 
-  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const update = (key: keyof typeof form, value: string) =>
+    setForm((current) => ({ ...current, [key]: value }));
 
   return (
     <div className="space-y-3 border-t pt-3">
@@ -73,22 +76,42 @@ function AddressEditor({ order }: { order: Order }) {
         placeholder="Complete address"
       />
       <div className="grid gap-2 md:grid-cols-3">
-        <Input value={form.barangay} onChange={(event) => update('barangay', event.target.value)} placeholder="Barangay" />
-        <Input value={form.city} onChange={(event) => update('city', event.target.value)} placeholder="City / Municipality" />
-        <Input value={form.state} onChange={(event) => update('state', event.target.value)} placeholder="Province" />
+        <Input
+          value={form.barangay}
+          onChange={(event) => update('barangay', event.target.value)}
+          placeholder="Barangay"
+        />
+        <Input
+          value={form.city}
+          onChange={(event) => update('city', event.target.value)}
+          placeholder="City / Municipality"
+        />
+        <Input
+          value={form.state}
+          onChange={(event) => update('state', event.target.value)}
+          placeholder="Province"
+        />
       </div>
-      <Input value={form.notes} onChange={(event) => update('notes', event.target.value)} placeholder="Encoder remarks" />
+      <Input
+        value={form.notes}
+        onChange={(event) => update('notes', event.target.value)}
+        placeholder="Encoder remarks"
+      />
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
           variant="outline"
-          onClick={() => router.patch(`/shop/encoder/orders/${order.id}/address`, form, { preserveScroll: true })}
+          onClick={() =>
+            router.patch(`/shop/encoder/orders/${order.id}/address`, form, { preserveScroll: true })
+          }
         >
           Save Address
         </Button>
         <Button
           size="sm"
-          onClick={() => router.post(`/shop/encoder/orders/${order.id}/encoded`, {}, { preserveScroll: true })}
+          onClick={() =>
+            router.post(`/shop/encoder/orders/${order.id}/encoded`, {}, { preserveScroll: true })
+          }
         >
           Mark Encoded
         </Button>
@@ -107,7 +130,9 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
   };
 
   const toggleAll = () => {
-    setSelectedOrderIds((current) => current.length === orders.data.length ? [] : orders.data.map((order) => order.id));
+    setSelectedOrderIds((current) =>
+      current.length === orders.data.length ? [] : orders.data.map((order) => order.id)
+    );
   };
 
   const exportCourier = (courierCode: string) => {
@@ -124,8 +149,10 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Shop Encoder</h1>
-            <p className="text-muted-foreground">Confirmed orders ready for address review and courier export</p>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Shop Encoder</h1>
+            <p className="text-muted-foreground">
+              Confirmed orders ready for address review and courier export
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {orders.data.length > 0 && (
@@ -139,7 +166,11 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 variant={courier.value === 'FLASH' ? 'default' : 'outline'}
                 onClick={() => exportCourier(courier.value)}
               >
-                {courier.value === 'JNT' ? <Truck className="mr-2 h-4 w-4" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                {courier.value === 'JNT' ? (
+                  <Truck className="mr-2 h-4 w-4" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                )}
                 Export {courier.label}
               </Button>
             ))}
@@ -161,7 +192,9 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 <CardContent className="py-16 text-center text-muted-foreground">
                   <PackageCheck className="mx-auto mb-3 h-10 w-10 opacity-30" />
                   <p className="font-medium">No orders waiting for encoding</p>
-                  <p className="text-sm">Confirmed Shop orders will appear here before courier export.</p>
+                  <p className="text-sm">
+                    Confirmed Shop orders will appear here before courier export.
+                  </p>
                 </CardContent>
               </Card>
             ) : (
@@ -179,19 +212,24 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                         />
                         <div>
                           <CardTitle className="text-base">{order.order_number}</CardTitle>
-                          <CardDescription>{order.receiver_name} - {order.receiver_phone}</CardDescription>
+                          <CardDescription>
+                            {order.receiver_name} - {order.receiver_phone}
+                          </CardDescription>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline">{money(order.total_amount)}</Badge>
-                        <Badge variant="secondary">{Number(order.address_confidence ?? 0)}% address</Badge>
+                        <Badge variant="secondary">
+                          {Number(order.address_confidence ?? 0)}% address
+                        </Badge>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <p>{order.receiver_address}</p>
                     <p className="text-muted-foreground">
-                      {[order.barangay, order.city, order.state].filter(Boolean).join(', ') || 'No structured location'}
+                      {[order.barangay, order.city, order.state].filter(Boolean).join(', ') ||
+                        'No structured location'}
                     </p>
                     <p className="text-muted-foreground">{orderSummary(order)}</p>
                     <AddressEditor order={order} />
@@ -215,7 +253,9 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium">{batch.batch_number}</p>
-                        <p className="text-xs text-muted-foreground">{batch.courier_code} - {batch.row_count} rows</p>
+                        <p className="text-xs text-muted-foreground">
+                          {batch.courier_code} - {batch.row_count} rows
+                        </p>
                       </div>
                       {batch.file_path && (
                         <Button asChild size="sm" variant="outline">

@@ -56,21 +56,24 @@ interface Props {
 const formatImportType = (type: string | null) => {
   if (!type) return '';
   if (type === 'auto_sync') return 'Auto Sync';
-  return type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return type
+    .split('_')
+    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 };
 
 export default function ImportDetail({ upload, waybills }: Props) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DELIVERED':
-        return <Badge className="bg-green-100 text-green-800">Delivered</Badge>;
+        return <Badge className="bg-success/10 text-success">Delivered</Badge>;
       case 'IN_TRANSIT':
       case 'OUT_FOR_DELIVERY':
-        return <Badge className="bg-blue-100 text-blue-800">In Transit</Badge>;
+        return <Badge className="bg-info/10 text-info">In Transit</Badge>;
       case 'RETURNED':
-        return <Badge className="bg-red-100 text-red-800">Returned</Badge>;
+        return <Badge className="bg-destructive/10 text-destructive">Returned</Badge>;
       case 'PENDING':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+        return <Badge className="bg-warning/10 text-warning">Pending</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -87,7 +90,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
               <FileSpreadsheet className="h-6 w-6" />
               {upload.original_filename}
             </h1>
@@ -98,10 +101,14 @@ export default function ImportDetail({ upload, waybills }: Props) {
             {(upload.courier || upload.import_type) && (
               <div className="flex gap-2 mt-1">
                 {upload.courier && (
-                  <Badge variant="secondary" className="capitalize">{upload.courier.toUpperCase()}</Badge>
+                  <Badge variant="secondary" className="capitalize">
+                    {upload.courier.toUpperCase()}
+                  </Badge>
                 )}
                 {upload.import_type && (
-                  <Badge variant="outline">Import Mode: {formatImportType(upload.import_type)}</Badge>
+                  <Badge variant="outline">
+                    Import Mode: {formatImportType(upload.import_type)}
+                  </Badge>
                 )}
               </div>
             )}
@@ -131,11 +138,15 @@ export default function ImportDetail({ upload, waybills }: Props) {
             </div>
             <div>
               <p className="text-muted-foreground">Started At</p>
-              <p className="font-medium">{upload.started_at ? formatDateTime(upload.started_at) : '-'}</p>
+              <p className="font-medium">
+                {upload.started_at ? formatDateTime(upload.started_at) : '-'}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Completed At</p>
-              <p className="font-medium">{upload.completed_at ? formatDateTime(upload.completed_at) : '-'}</p>
+              <p className="font-medium">
+                {upload.completed_at ? formatDateTime(upload.completed_at) : '-'}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -148,25 +159,27 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{upload.total_rows}</div>
+              <div className="text-2xl font-bold font-display">{upload.total_rows}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Inserted</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CheckCircle className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{upload.inserted_rows}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {upload.inserted_rows}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Updated</CardTitle>
-              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <CheckCircle className="h-4 w-4 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{upload.updated_rows}</div>
+              <div className="text-2xl font-bold font-display text-info">{upload.updated_rows}</div>
             </CardContent>
           </Card>
           <Card>
@@ -175,26 +188,30 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">{upload.skipped_rows}</div>
+              <div className="text-2xl font-bold font-display text-muted-foreground">
+                {upload.skipped_rows}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Failed</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
+              <XCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{upload.error_rows}</div>
+              <div className="text-2xl font-bold font-display text-destructive">
+                {upload.error_rows}
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Errors */}
         {upload.error_rows > 0 && (
-          <Card className="border-red-200">
+          <Card className="border-destructive/20">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-red-600">
+                <CardTitle className="flex items-center gap-2 text-destructive">
                   <AlertTriangle className="h-5 w-5" />
                   Import Errors ({upload.error_rows} rows)
                 </CardTitle>
@@ -207,9 +224,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
                   </Button>
                 )}
               </div>
-              <CardDescription>
-                The following rows had errors during import
-              </CardDescription>
+              <CardDescription>The following rows had errors during import</CardDescription>
             </CardHeader>
             {upload.errors && upload.errors.length > 0 ? (
               <CardContent>
@@ -217,10 +232,10 @@ export default function ImportDetail({ upload, waybills }: Props) {
                   {upload.errors.map((error, index) => (
                     <div
                       key={index}
-                      className="flex items-start gap-3 p-2 bg-red-50 rounded-lg text-sm"
+                      className="flex items-start gap-3 p-2 bg-destructive/5 rounded-lg text-sm"
                     >
-                      <span className="font-mono text-red-600">Row {error.row}</span>
-                      <span className="text-red-700">{error.error}</span>
+                      <span className="font-mono text-destructive">Row {error.row}</span>
+                      <span className="text-destructive">{error.error}</span>
                     </div>
                   ))}
                 </div>
@@ -239,9 +254,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Imported Waybills</CardTitle>
-            <CardDescription>
-              Waybills created or updated from this import
-            </CardDescription>
+            <CardDescription>Waybills created or updated from this import</CardDescription>
           </CardHeader>
           <CardContent>
             {waybills.data.length === 0 ? (
@@ -278,7 +291,9 @@ export default function ImportDetail({ upload, waybills }: Props) {
                           <td className="py-3 px-2 font-mono">{waybill.receiver_phone}</td>
                           <td className="py-3 px-2">{waybill.city}</td>
                           <td className="py-3 px-2">
-                            {waybill.cod_amount > 0 ? `₱${waybill.cod_amount.toLocaleString()}` : '-'}
+                            {waybill.cod_amount > 0
+                              ? `₱${waybill.cod_amount.toLocaleString()}`
+                              : '-'}
                           </td>
                           <td className="py-3 px-2">{getStatusBadge(waybill.status)}</td>
                         </tr>

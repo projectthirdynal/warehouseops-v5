@@ -42,7 +42,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
   };
 
   const setFilter = (key: string, value: string | undefined) => {
-    router.get('/products', { ...filters, [key]: value, search: filters.search }, { preserveState: true });
+    router.get(
+      '/products',
+      { ...filters, [key]: value, search: filters.search },
+      { preserveState: true }
+    );
   };
 
   return (
@@ -51,7 +55,7 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Products & Inventory</h1>
+            <h1 className="text-2xl font-bold font-display">Products & Inventory</h1>
             <p className="text-sm text-muted-foreground">Manage product catalog and stock levels</p>
           </div>
           <Link href="/products/create">
@@ -67,11 +71,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Package className="h-5 w-5 text-blue-600" />
+                <div className="p-2 rounded-lg bg-info/10">
+                  <Package className="h-5 w-5 text-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+                  <p className="text-2xl font-bold font-display">{stats.total}</p>
                   <p className="text-xs text-muted-foreground">Total Products</p>
                 </div>
               </div>
@@ -80,11 +84,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <Box className="h-5 w-5 text-green-600" />
+                <div className="p-2 rounded-lg bg-success/10">
+                  <Box className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.active}</p>
+                  <p className="text-2xl font-bold font-display">{stats.active}</p>
                   <p className="text-xs text-muted-foreground">Active</p>
                 </div>
               </div>
@@ -93,11 +97,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-100">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div className="p-2 rounded-lg bg-destructive/10">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.low_stock}</p>
+                  <p className="text-2xl font-bold font-display">{stats.low_stock}</p>
                   <p className="text-xs text-muted-foreground">Low Stock</p>
                 </div>
               </div>
@@ -106,11 +110,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{stats.categories.length}</p>
+                  <p className="text-2xl font-bold font-display">{stats.categories.length}</p>
                   <p className="text-xs text-muted-foreground">Categories</p>
                 </div>
               </div>
@@ -140,7 +144,9 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
           >
             <option value="">All Categories</option>
             {stats.categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
             ))}
           </select>
 
@@ -188,7 +194,11 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                         {/* Product icon / image */}
                         <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
                           {product.image_url ? (
-                            <img src={product.image_url} alt="" className="h-10 w-10 object-contain rounded" />
+                            <img
+                              src={product.image_url}
+                              alt=""
+                              className="h-10 w-10 object-contain rounded"
+                            />
                           ) : (
                             <Package className="h-6 w-6 text-muted-foreground" />
                           )}
@@ -200,37 +210,49 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                             <h3 className="font-semibold truncate">{product.name}</h3>
                             {!product.is_active && (
                               <Badge variant="outline" className="text-muted-foreground">
-                                <Archive className="h-3 w-3 mr-1" />Inactive
+                                <Archive className="h-3 w-3 mr-1" />
+                                Inactive
                               </Badge>
                             )}
                             {isLow && (
                               <Badge variant="destructive" className="text-[10px]">
-                                <AlertTriangle className="h-3 w-3 mr-1" />Low Stock
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Low Stock
                               </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                             <span className="font-mono">{product.sku}</span>
                             {product.brand && <span>{product.brand}</span>}
-                            {product.category && <Badge variant="outline" className="text-[10px]">{product.category}</Badge>}
+                            {product.category && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {product.category}
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
                         {/* Stock */}
                         <div className="text-center px-4 shrink-0">
-                          <p className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-foreground'}`}>
+                          <p
+                            className={`text-lg font-bold ${isLow ? 'text-destructive' : 'text-foreground'}`}
+                          >
                             {available}
                           </p>
                           <p className="text-[10px] text-muted-foreground uppercase">Available</p>
                           {(stock?.reserved_stock ?? 0) > 0 && (
-                            <p className="text-[10px] text-yellow-600">{stock!.reserved_stock} reserved</p>
+                            <p className="text-[10px] text-warning">
+                              {stock!.reserved_stock} reserved
+                            </p>
                           )}
                         </div>
 
                         {/* Price */}
                         <div className="text-right shrink-0">
                           <p className="font-semibold">{formatCurrency(product.selling_price)}</p>
-                          <p className="text-xs text-muted-foreground">Cost: {formatCurrency(product.cost_price)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cost: {formatCurrency(product.cost_price)}
+                          </p>
                         </div>
 
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />

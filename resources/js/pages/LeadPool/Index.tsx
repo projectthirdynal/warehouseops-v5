@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import {
-  Search, Filter, Users, Clock, Pause, AlertTriangle,
-  Phone, ArrowUpDown, UserPlus, TrendingUp, CheckCircle,
+  Search,
+  Filter,
+  Users,
+  Clock,
+  Pause,
+  AlertTriangle,
+  Phone,
+  ArrowUpDown,
+  UserPlus,
+  TrendingUp,
+  CheckCircle,
   Inbox,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
@@ -11,30 +20,56 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { DistributionModal } from '@/components/leads/DistributionModal';
 import type { PaginatedResponse } from '@/types';
 import { formatDate } from '@/lib/utils';
 
 interface PoolLead {
-  id: number; name: string; phone: string;
-  city: string | null; state: string | null; barangay: string | null;
-  source: string; product_name: string | null; product_brand: string | null;
-  amount: number | null; status: string; sales_status: string;
+  id: number;
+  name: string;
+  phone: string;
+  city: string | null;
+  state: string | null;
+  barangay: string | null;
+  source: string;
+  product_name: string | null;
+  product_brand: string | null;
+  amount: number | null;
+  status: string;
+  sales_status: string;
   pool_status: 'AVAILABLE' | 'ASSIGNED' | 'COOLDOWN' | 'EXHAUSTED';
-  total_cycles: number; is_exhausted: boolean; cooldown_until: string | null;
+  total_cycles: number;
+  is_exhausted: boolean;
+  cooldown_until: string | null;
   assigned_to: number | null;
   assigned_agent: { id: number; name: string } | null;
-  customer: { id: number; total_orders: number; success_rate: number; is_blacklisted: boolean } | null;
+  customer: {
+    id: number;
+    total_orders: number;
+    success_rate: number;
+    is_blacklisted: boolean;
+  } | null;
   created_at: string;
 }
 
 interface Agent {
-  id: number; name: string; active_leads: number; max_active_cycles: number;
-  max_daily_leads: number; product_skills: string[];
+  id: number;
+  name: string;
+  active_leads: number;
+  max_active_cycles: number;
+  max_daily_leads: number;
+  product_skills: string[];
 }
-interface SourceOption { value: string; label: string; }
+interface SourceOption {
+  value: string;
+  label: string;
+}
 
 type ViewMode = 'pool' | 'imported' | 'all';
 
@@ -42,13 +77,23 @@ interface Props {
   leads: PaginatedResponse<PoolLead>;
   stats: any;
   agents: Agent[];
-  filters: { pool_status?: string; source?: string; city?: string; product_name?: string; search?: string; view_mode?: ViewMode; };
+  filters: {
+    pool_status?: string;
+    source?: string;
+    city?: string;
+    product_name?: string;
+    search?: string;
+    view_mode?: ViewMode;
+  };
   viewMode: ViewMode;
   sourceOptions: SourceOption[];
   productOptions: string[];
 }
 
-const poolStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+const poolStatusConfig: Record<
+  string,
+  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+> = {
   AVAILABLE: { label: 'Available', variant: 'default' },
   ASSIGNED: { label: 'Assigned', variant: 'secondary' },
   COOLDOWN: { label: 'Cooldown', variant: 'outline' },
@@ -56,16 +101,26 @@ const poolStatusConfig: Record<string, { label: string; variant: 'default' | 'se
 };
 
 const statusColorMap: Record<string, string> = {
-  NEW: 'bg-blue-100 text-blue-800', CALLING: 'bg-yellow-100 text-yellow-800',
-  NO_ANSWER: 'bg-gray-100 text-gray-800', REJECT: 'bg-red-100 text-red-800',
-  CALLBACK: 'bg-purple-100 text-purple-800', SALE: 'bg-green-100 text-green-800',
-  REORDER: 'bg-emerald-100 text-emerald-800', CANCELLED: 'bg-gray-100 text-gray-800',
+  NEW: 'bg-info/10 text-info',
+  CALLING: 'bg-warning/10 text-warning',
+  NO_ANSWER: 'bg-muted text-foreground',
+  REJECT: 'bg-destructive/10 text-destructive',
+  CALLBACK: 'bg-primary/10 text-primary',
+  SALE: 'bg-success/10 text-success',
+  REORDER: 'bg-success/10 text-success',
+  CANCELLED: 'bg-muted text-foreground',
 };
 
 const salesVariantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  NEW: 'secondary', CONTACTED: 'outline', AGENT_CONFIRMED: 'default',
-  QA_PENDING: 'secondary', QA_APPROVED: 'default', QA_REJECTED: 'destructive',
-  OPS_APPROVED: 'default', CANCELLED: 'destructive', WAYBILL_CREATED: 'default',
+  NEW: 'secondary',
+  CONTACTED: 'outline',
+  AGENT_CONFIRMED: 'default',
+  QA_PENDING: 'secondary',
+  QA_APPROVED: 'default',
+  QA_REJECTED: 'destructive',
+  OPS_APPROVED: 'default',
+  CANCELLED: 'destructive',
+  WAYBILL_CREATED: 'default',
 };
 
 const tabs: { key: ViewMode; label: string }[] = [
@@ -74,7 +129,15 @@ const tabs: { key: ViewMode; label: string }[] = [
   { key: 'all', label: 'All Leads' },
 ];
 
-export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode, sourceOptions: _sourceOptions, productOptions }: Props) {
+export default function LeadPoolIndex({
+  leads,
+  stats,
+  agents,
+  filters,
+  viewMode,
+  sourceOptions: _sourceOptions,
+  productOptions,
+}: Props) {
   const [search, setSearch] = useState(filters?.search || '');
   const [statusFilter, setStatusFilter] = useState(filters?.pool_status || 'all');
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
@@ -83,11 +146,15 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    router.get('/lead-pool', {
-      search,
-      view_mode: viewMode,
-      pool_status: statusFilter !== 'all' ? statusFilter : undefined,
-    }, { preserveState: true });
+    router.get(
+      '/lead-pool',
+      {
+        search,
+        view_mode: viewMode,
+        pool_status: statusFilter !== 'all' ? statusFilter : undefined,
+      },
+      { preserveState: true }
+    );
   };
 
   const toggleLead = (leadId: number) => {
@@ -105,12 +172,16 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
   };
 
   const handlePageChange = (page: number) => {
-    router.get('/lead-pool', {
-      page,
-      view_mode: viewMode,
-      search: filters?.search,
-      pool_status: filters?.pool_status,
-    }, { preserveState: true });
+    router.get(
+      '/lead-pool',
+      {
+        page,
+        view_mode: viewMode,
+        search: filters?.search,
+        pool_status: filters?.pool_status,
+      },
+      { preserveState: true }
+    );
   };
 
   const switchView = (mode: ViewMode) => {
@@ -126,7 +197,9 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Leads &amp; Distribution</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">
+              Leads &amp; Distribution
+            </h1>
             <p className="text-muted-foreground">View pool, imported, or all leads in one place</p>
           </div>
           {isPoolView && selectedLeads.length > 0 && (
@@ -158,62 +231,164 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
         <div className="grid gap-4 md:grid-cols-4">
           {viewMode === 'pool' && (
             <>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
-                <Users className="h-4 w-4 text-green-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-green-600">{stats?.available || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Assigned</CardTitle>
-                <Clock className="h-4 w-4 text-blue-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-blue-600">{stats?.assigned || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Cooldown</CardTitle>
-                <Pause className="h-4 w-4 text-yellow-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-yellow-600">{stats?.cooldown || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Exhausted</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-red-600">{stats?.exhausted || 0}</div></CardContent></Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Available
+                  </CardTitle>
+                  <Users className="h-4 w-4 text-success" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-success">
+                    {stats?.available || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Assigned
+                  </CardTitle>
+                  <Clock className="h-4 w-4 text-info" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-info">
+                    {stats?.assigned || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Cooldown
+                  </CardTitle>
+                  <Pause className="h-4 w-4 text-warning" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-warning">
+                    {stats?.cooldown || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Exhausted
+                  </CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-destructive">
+                    {stats?.exhausted || 0}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
           {viewMode === 'imported' && (
             <>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Imported</CardTitle>
-                <Inbox className="h-4 w-4 text-blue-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-blue-600">{stats?.total || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
-                <Users className="h-4 w-4 text-green-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-green-600">{stats?.available || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Assigned</CardTitle>
-                <Clock className="h-4 w-4 text-blue-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-blue-600">{stats?.assigned || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Cooldown</CardTitle>
-                <Pause className="h-4 w-4 text-yellow-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-yellow-600">{stats?.cooldown || 0}</div></CardContent></Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Imported
+                  </CardTitle>
+                  <Inbox className="h-4 w-4 text-info" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-info">
+                    {stats?.total || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Available
+                  </CardTitle>
+                  <Users className="h-4 w-4 text-success" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-success">
+                    {stats?.available || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Assigned
+                  </CardTitle>
+                  <Clock className="h-4 w-4 text-info" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-info">
+                    {stats?.assigned || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Cooldown
+                  </CardTitle>
+                  <Pause className="h-4 w-4 text-warning" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-warning">
+                    {stats?.cooldown || 0}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
           {viewMode === 'all' && (
             <>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold">{stats?.total || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">New</CardTitle>
-                <Clock className="h-4 w-4 text-blue-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-blue-600">{stats?.new || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">In Progress</CardTitle>
-                <TrendingUp className="h-4 w-4 text-yellow-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-yellow-600">{stats?.in_progress || 0}</div></CardContent></Card>
-              <Card><CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Converted</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" /></CardHeader>
-                <CardContent><div className="text-2xl font-bold text-green-600">{stats?.converted || 0}</div></CardContent></Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Leads
+                  </CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display">{stats?.total || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">New</CardTitle>
+                  <Clock className="h-4 w-4 text-info" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-info">{stats?.new || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    In Progress
+                  </CardTitle>
+                  <TrendingUp className="h-4 w-4 text-warning" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-warning">
+                    {stats?.in_progress || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Converted
+                  </CardTitle>
+                  <CheckCircle className="h-4 w-4 text-success" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold font-display text-success">
+                    {stats?.converted || 0}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
@@ -247,11 +422,15 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
               <Select
                 value={filters?.source || 'all'}
                 onValueChange={(v) =>
-                  router.get('/lead-pool', {
-                    source: v !== 'all' ? v : undefined,
-                    view_mode: viewMode,
-                    pool_status: statusFilter !== 'all' ? statusFilter : undefined,
-                  }, { preserveState: true })
+                  router.get(
+                    '/lead-pool',
+                    {
+                      source: v !== 'all' ? v : undefined,
+                      view_mode: viewMode,
+                      pool_status: statusFilter !== 'all' ? statusFilter : undefined,
+                    },
+                    { preserveState: true }
+                  )
                 }
               >
                 <SelectTrigger className="w-full md:w-[180px]">
@@ -284,7 +463,9 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                     {isPoolView && (
                       <th className="h-12 px-4 text-left align-middle">
                         <Checkbox
-                          checked={leads?.data?.length > 0 && selectedLeads.length === leads.data.length}
+                          checked={
+                            leads?.data?.length > 0 && selectedLeads.length === leads.data.length
+                          }
                           onCheckedChange={toggleAll}
                         />
                       </th>
@@ -294,18 +475,34 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                         Name <ArrowUpDown className="h-4 w-4" />
                       </button>
                     </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Phone</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Location</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Product</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Phone
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Location
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Product
+                    </th>
                     {viewMode === 'all' && (
                       <>
-                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Sales</th>
-                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Agent</th>
+                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                          Status
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                          Sales
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                          Agent
+                        </th>
                       </>
                     )}
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Pool Status</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Cycles</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Pool Status
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Cycles
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -333,16 +530,24 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                             </div>
                           </td>
                           <td className="p-4 align-middle text-sm">
-                            {lead.city && lead.state ? `${lead.city}, ${lead.state}` : lead.city || lead.state || '-'}
+                            {lead.city && lead.state
+                              ? `${lead.city}, ${lead.state}`
+                              : lead.city || lead.state || '-'}
                           </td>
                           <td className="p-4 align-middle text-sm">
                             {lead.product_name || '-'}
-                            {lead.amount && <div className="text-xs text-green-600">₱{lead.amount.toLocaleString()}</div>}
+                            {lead.amount && (
+                              <div className="text-xs text-success">
+                                ₱{lead.amount.toLocaleString()}
+                              </div>
+                            )}
                           </td>
                           {viewMode === 'all' && (
                             <>
                               <td className="p-4 align-middle">
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColorMap[lead.status] || 'bg-gray-100 text-gray-800'}`}>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColorMap[lead.status] || 'bg-muted text-foreground'}`}
+                                >
                                   {lead.status}
                                 </span>
                               </td>
@@ -352,7 +557,9 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                                 </Badge>
                               </td>
                               <td className="p-4 align-middle text-sm">
-                                {lead.assigned_agent?.name || <span className="text-muted-foreground">-</span>}
+                                {lead.assigned_agent?.name || (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </td>
                             </>
                           )}
@@ -361,7 +568,9 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                               {poolCfg?.label || lead.pool_status}
                             </Badge>
                             {lead.pool_status === 'COOLDOWN' && lead.cooldown_until && (
-                              <div className="text-xs text-muted-foreground mt-1">Until {formatDate(lead.cooldown_until)}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Until {formatDate(lead.cooldown_until)}
+                              </div>
                             )}
                           </td>
                           <td className="p-4 align-middle">
@@ -372,7 +581,10 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                     })
                   ) : (
                     <tr>
-                      <td colSpan={isPoolView ? 7 : (viewMode === 'all' ? 9 : 6)} className="h-24 text-center text-muted-foreground">
+                      <td
+                        colSpan={isPoolView ? 7 : viewMode === 'all' ? 9 : 6}
+                        className="h-24 text-center text-muted-foreground"
+                      >
                         No leads found
                       </td>
                     </tr>
@@ -389,14 +601,16 @@ export default function LeadPoolIndex({ leads, stats, agents, filters, viewMode,
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    variant="outline" size="sm"
+                    variant="outline"
+                    size="sm"
                     disabled={leads.current_page === 1}
                     onClick={() => handlePageChange(leads.current_page - 1)}
                   >
                     Previous
                   </Button>
                   <Button
-                    variant="outline" size="sm"
+                    variant="outline"
+                    size="sm"
                     disabled={leads.current_page === leads.last_page}
                     onClick={() => handlePageChange(leads.current_page + 1)}
                   >

@@ -4,16 +4,7 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  ArrowLeft,
-  Edit,
-  Plus,
-  Minus,
-  AlertTriangle,
-  RotateCcw,
-  Sliders,
-  Box,
-} from 'lucide-react';
+import { ArrowLeft, Edit, Plus, Minus, AlertTriangle, RotateCcw, Sliders, Box } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import type { Product, InventoryMovement, PaginatedResponse } from '@/types';
 
@@ -30,17 +21,46 @@ interface Props {
 }
 
 const movementConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  STOCK_IN:    { label: 'Stock In',    icon: <Plus className="h-3.5 w-3.5" />,       color: 'bg-green-100 text-green-800' },
-  STOCK_OUT:   { label: 'Stock Out',   icon: <Minus className="h-3.5 w-3.5" />,      color: 'bg-red-100 text-red-800' },
-  ADJUSTMENT:  { label: 'Adjustment',  icon: <Sliders className="h-3.5 w-3.5" />,    color: 'bg-blue-100 text-blue-800' },
-  RETURN:      { label: 'Return',      icon: <RotateCcw className="h-3.5 w-3.5" />,  color: 'bg-yellow-100 text-yellow-800' },
-  RESERVATION: { label: 'Reserved',    icon: <Box className="h-3.5 w-3.5" />,         color: 'bg-purple-100 text-purple-800' },
-  RELEASE:     { label: 'Released',    icon: <Box className="h-3.5 w-3.5" />,         color: 'bg-gray-100 text-gray-800' },
+  STOCK_IN: {
+    label: 'Stock In',
+    icon: <Plus className="h-3.5 w-3.5" />,
+    color: 'bg-success/10 text-success',
+  },
+  STOCK_OUT: {
+    label: 'Stock Out',
+    icon: <Minus className="h-3.5 w-3.5" />,
+    color: 'bg-destructive/10 text-destructive',
+  },
+  ADJUSTMENT: {
+    label: 'Adjustment',
+    icon: <Sliders className="h-3.5 w-3.5" />,
+    color: 'bg-info/10 text-info',
+  },
+  RETURN: {
+    label: 'Return',
+    icon: <RotateCcw className="h-3.5 w-3.5" />,
+    color: 'bg-warning/10 text-warning',
+  },
+  RESERVATION: {
+    label: 'Reserved',
+    icon: <Box className="h-3.5 w-3.5" />,
+    color: 'bg-primary/10 text-primary',
+  },
+  RELEASE: {
+    label: 'Released',
+    icon: <Box className="h-3.5 w-3.5" />,
+    color: 'bg-muted text-foreground',
+  },
 };
 
 export default function ProductShow({ product, movements, warehouses = [] }: Props) {
-  const defaultWarehouse = warehouses.find(w => w.is_default) ?? warehouses[0];
-  const [stockForm, setStockForm] = useState({ type: 'stock_in', quantity: '', notes: '', warehouse_id: String(defaultWarehouse?.id ?? '') });
+  const defaultWarehouse = warehouses.find((w) => w.is_default) ?? warehouses[0];
+  const [stockForm, setStockForm] = useState({
+    type: 'stock_in',
+    quantity: '',
+    notes: '',
+    warehouse_id: String(defaultWarehouse?.id ?? ''),
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const stock = product.stock;
@@ -53,7 +73,12 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
     router.post(`/products/${product.id}/stock`, stockForm, {
       onFinish: () => {
         setSubmitting(false);
-        setStockForm({ type: 'stock_in', quantity: '', notes: '', warehouse_id: String(defaultWarehouse?.id ?? '') });
+        setStockForm({
+          type: 'stock_in',
+          quantity: '',
+          notes: '',
+          warehouse_id: String(defaultWarehouse?.id ?? ''),
+        });
       },
       preserveScroll: true,
     });
@@ -66,19 +91,32 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/products">
-              <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{product.name}</h1>
+                <h1 className="text-2xl font-bold font-display">{product.name}</h1>
                 {!product.is_active && <Badge variant="outline">Inactive</Badge>}
-                {isLow && <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />Low Stock</Badge>}
+                {isLow && (
+                  <Badge variant="destructive">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Low Stock
+                  </Badge>
+                )}
               </div>
-              <p className="text-sm text-muted-foreground font-mono">{product.sku} {product.brand && `| ${product.brand}`} {product.category && `| ${product.category}`}</p>
+              <p className="text-sm text-muted-foreground font-mono">
+                {product.sku} {product.brand && `| ${product.brand}`}{' '}
+                {product.category && `| ${product.category}`}
+              </p>
             </div>
           </div>
           <Link href={`/products/${product.id}/edit`}>
-            <Button variant="outline"><Edit className="mr-2 h-4 w-4" />Edit</Button>
+            <Button variant="outline">
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
           </Link>
         </div>
 
@@ -89,25 +127,35 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
             <div className="grid grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className={`text-2xl font-bold ${isLow ? 'text-red-600' : ''}`}>{available}</p>
+                  <p
+                    className={`text-2xl font-bold font-display ${isLow ? 'text-destructive' : ''}`}
+                  >
+                    {available}
+                  </p>
                   <p className="text-xs text-muted-foreground">Available</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-yellow-600">{stock?.reserved_stock ?? 0}</p>
+                  <p className="text-2xl font-bold font-display text-warning">
+                    {stock?.reserved_stock ?? 0}
+                  </p>
                   <p className="text-xs text-muted-foreground">Reserved</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold">{formatCurrency(product.selling_price)}</p>
+                  <p className="text-2xl font-bold font-display">
+                    {formatCurrency(product.selling_price)}
+                  </p>
                   <p className="text-xs text-muted-foreground">Selling Price</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-green-600">{product.margin ?? 0}%</p>
+                  <p className="text-2xl font-bold font-display text-success">
+                    {product.margin ?? 0}%
+                  </p>
                   <p className="text-xs text-muted-foreground">Margin</p>
                 </CardContent>
               </Card>
@@ -116,18 +164,25 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
             {/* Variants */}
             {product.variants && product.variants.length > 0 && (
               <Card>
-                <CardHeader><CardTitle className="text-base">Variants</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Variants</CardTitle>
+                </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     {product.variants.map((v) => (
-                      <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div
+                        key={v.id}
+                        className="flex items-center justify-between p-3 rounded-lg border"
+                      >
                         <div>
                           <p className="font-medium text-sm">{v.variant_name}</p>
                           <p className="text-xs text-muted-foreground font-mono">{v.sku}</p>
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <span>{formatCurrency(v.selling_price ?? product.selling_price)}</span>
-                          <span className="text-muted-foreground">Stock: {v.stock?.current_stock ?? 0}</span>
+                          <span className="text-muted-foreground">
+                            Stock: {v.stock?.current_stock ?? 0}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -138,29 +193,48 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
 
             {/* Movement history */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Stock History</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Stock History</CardTitle>
+              </CardHeader>
               <CardContent>
                 {movements.data.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">No inventory movements yet.</p>
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No inventory movements yet.
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {movements.data.map((m) => {
-                      const cfg = movementConfig[m.type] ?? { label: m.type, icon: <Box className="h-3.5 w-3.5" />, color: 'bg-gray-100 text-gray-800' };
+                      const cfg = movementConfig[m.type] ?? {
+                        label: m.type,
+                        icon: <Box className="h-3.5 w-3.5" />,
+                        color: 'bg-muted text-foreground',
+                      };
                       return (
-                        <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div
+                          key={m.id}
+                          className="flex items-center justify-between p-3 rounded-lg border"
+                        >
                           <div className="flex items-center gap-3">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${cfg.color}`}>
-                              {cfg.icon}{cfg.label}
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${cfg.color}`}
+                            >
+                              {cfg.icon}
+                              {cfg.label}
                             </span>
                             <div>
-                              {m.notes && <p className="text-xs text-muted-foreground">{m.notes}</p>}
+                              {m.notes && (
+                                <p className="text-xs text-muted-foreground">{m.notes}</p>
+                              )}
                               <p className="text-[10px] text-muted-foreground">
                                 {m.performer?.name ?? 'System'} | {formatDateTime(m.created_at)}
                               </p>
                             </div>
                           </div>
-                          <p className={`font-mono font-semibold text-sm ${m.quantity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {m.quantity >= 0 ? '+' : ''}{m.quantity}
+                          <p
+                            className={`font-mono font-semibold text-sm ${m.quantity >= 0 ? 'text-success' : 'text-destructive'}`}
+                          >
+                            {m.quantity >= 0 ? '+' : ''}
+                            {m.quantity}
                           </p>
                         </div>
                       );
@@ -174,7 +248,9 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
           {/* Right — stock adjustment */}
           <div className="space-y-6">
             <Card>
-              <CardHeader><CardTitle className="text-base">Adjust Stock</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Adjust Stock</CardTitle>
+              </CardHeader>
               <CardContent>
                 <form onSubmit={handleStockAdjust} className="space-y-4">
                   <div>
@@ -216,11 +292,16 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
                       <label className="block text-sm font-medium mb-1">Warehouse</label>
                       <select
                         value={stockForm.warehouse_id}
-                        onChange={(e) => setStockForm((p) => ({ ...p, warehouse_id: e.target.value }))}
+                        onChange={(e) =>
+                          setStockForm((p) => ({ ...p, warehouse_id: e.target.value }))
+                        }
                         className="w-full border rounded-lg px-3 py-2 text-sm"
                       >
-                        {warehouses.map(w => (
-                          <option key={w.id} value={String(w.id)}>{w.name}{w.is_default ? ' (default)' : ''}</option>
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={String(w.id)}>
+                            {w.name}
+                            {w.is_default ? ' (default)' : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -234,7 +315,9 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
 
             {/* Product details */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Details</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Details</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Cost Price</span>

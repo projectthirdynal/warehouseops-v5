@@ -1,9 +1,17 @@
 import { Head } from '@inertiajs/react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  ScanLine, Volume2, VolumeX, Wifi, WifiOff,
-  CheckCircle2, XCircle, AlertTriangle, Clock,
-  RotateCcw, Trash2,
+  ScanLine,
+  Volume2,
+  VolumeX,
+  Wifi,
+  WifiOff,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Clock,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -64,7 +72,7 @@ function tone(
   start: number,
   duration: number,
   type: OscillatorType = 'sine',
-  gain = 0.25,
+  gain = 0.25
 ) {
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
@@ -114,7 +122,12 @@ function openIDB(): Promise<IDBDatabase> {
   });
 }
 
-async function idbPush(item: { id: string; waybill_number: string; session_id: string; mode: ScanMode }) {
+async function idbPush(item: {
+  id: string;
+  waybill_number: string;
+  session_id: string;
+  mode: ScanMode;
+}) {
   const db = await openIDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite');
@@ -124,7 +137,9 @@ async function idbPush(item: { id: string; waybill_number: string; session_id: s
   });
 }
 
-async function idbAll(): Promise<Array<{ id: string; waybill_number: string; session_id: string; mode: ScanMode }>> {
+async function idbAll(): Promise<
+  Array<{ id: string; waybill_number: string; session_id: string; mode: ScanMode }>
+> {
   const db = await openIDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readonly');
@@ -155,67 +170,70 @@ const MODE_LABELS: Record<ScanMode, string> = {
   receive_return: 'Receive Return',
 };
 
-const STATUS_META: Record<ScanStatus, {
-  label: string;
-  rowCls: string;
-  badgeCls: string;
-  icon: React.ReactNode;
-  beep: 'ok' | 'warning' | 'error';
-}> = {
+const STATUS_META: Record<
+  ScanStatus,
+  {
+    label: string;
+    rowCls: string;
+    badgeCls: string;
+    icon: React.ReactNode;
+    beep: 'ok' | 'warning' | 'error';
+  }
+> = {
   ok: {
     label: 'OK',
-    rowCls: 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950',
-    badgeCls: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    icon: <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />,
+    rowCls: 'border-success/30 bg-success/5',
+    badgeCls: 'bg-success/10 text-success',
+    icon: <CheckCircle2 className="h-4 w-4 text-success shrink-0" />,
     beep: 'ok',
   },
   beyond_sla: {
     label: 'Beyond SLA',
-    rowCls: 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950',
-    badgeCls: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    icon: <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />,
+    rowCls: 'border-warning/30 bg-warning/5',
+    badgeCls: 'bg-warning/10 text-warning',
+    icon: <AlertTriangle className="h-4 w-4 text-warning shrink-0" />,
     beep: 'warning',
   },
   duplicate: {
     label: 'Duplicate',
-    rowCls: 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950',
-    badgeCls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    icon: <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />,
+    rowCls: 'border-warning/30 bg-warning/5',
+    badgeCls: 'bg-warning/10 text-warning',
+    icon: <AlertTriangle className="h-4 w-4 text-warning shrink-0" />,
     beep: 'warning',
   },
   already_processed: {
     label: 'Already Done',
-    rowCls: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950',
-    badgeCls: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    icon: <CheckCircle2 className="h-4 w-4 text-blue-500 shrink-0" />,
+    rowCls: 'border-info/30 bg-info/5',
+    badgeCls: 'bg-info/10 text-info',
+    icon: <CheckCircle2 className="h-4 w-4 text-info shrink-0" />,
     beep: 'warning',
   },
   unknown: {
     label: 'Unknown',
-    rowCls: 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
-    badgeCls: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    icon: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    rowCls: 'border-destructive/30 bg-destructive/5',
+    badgeCls: 'bg-destructive/10 text-destructive',
+    icon: <XCircle className="h-4 w-4 text-destructive shrink-0" />,
     beep: 'error',
   },
   wrong_status: {
     label: 'Wrong Status',
-    rowCls: 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
-    badgeCls: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    icon: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    rowCls: 'border-destructive/30 bg-destructive/5',
+    badgeCls: 'bg-destructive/10 text-destructive',
+    icon: <XCircle className="h-4 w-4 text-destructive shrink-0" />,
     beep: 'error',
   },
   offline_queued: {
     label: 'Queued',
-    rowCls: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900',
-    badgeCls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-    icon: <Clock className="h-4 w-4 text-gray-400 shrink-0" />,
+    rowCls: 'border-border bg-muted/50',
+    badgeCls: 'bg-muted text-muted-foreground',
+    icon: <Clock className="h-4 w-4 text-muted-foreground shrink-0" />,
     beep: 'warning',
   },
   error: {
     label: 'Error',
-    rowCls: 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
-    badgeCls: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    icon: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    rowCls: 'border-destructive/30 bg-destructive/5',
+    badgeCls: 'bg-destructive/10 text-destructive',
+    icon: <XCircle className="h-4 w-4 text-destructive shrink-0" />,
     beep: 'error',
   },
 };
@@ -242,8 +260,12 @@ export default function ScannerIndex() {
   const modeRef = useRef(mode);
   const soundRef = useRef(soundEnabled);
 
-  useEffect(() => { modeRef.current = mode; }, [mode]);
-  useEffect(() => { soundRef.current = soundEnabled; }, [soundEnabled]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+  useEffect(() => {
+    soundRef.current = soundEnabled;
+  }, [soundEnabled]);
 
   // Persistent focus — re-focus whenever anything is clicked
   useEffect(() => {
@@ -255,7 +277,10 @@ export default function ScannerIndex() {
 
   // Online / offline
   useEffect(() => {
-    const onOnline = () => { setIsOnline(true); drainOffline(); };
+    const onOnline = () => {
+      setIsOnline(true);
+      drainOffline();
+    };
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
@@ -267,7 +292,9 @@ export default function ScannerIndex() {
 
   // Load offline pending count on mount
   useEffect(() => {
-    idbAll().then((items) => setOfflinePending(items.length)).catch(() => {});
+    idbAll()
+      .then((items) => setOfflinePending(items.length))
+      .catch(() => {});
   }, []);
 
   // Undo countdown tick (updates every second while undoable items exist)
@@ -277,9 +304,7 @@ export default function ScannerIndex() {
       const now = Date.now();
       setHistory((prev) => {
         const updated = prev.map((item) =>
-          item.undoable && now - item.scanned_at >= UNDO_MS
-            ? { ...item, undoable: false }
-            : item
+          item.undoable && now - item.scanned_at >= UNDO_MS ? { ...item, undoable: false } : item
         );
         // Stop tick if no more undoable items
         if (!updated.some((i) => i.undoable)) {
@@ -291,15 +316,21 @@ export default function ScannerIndex() {
     }, 1000);
   }, []);
 
-  useEffect(() => () => {
-    if (undoTick.current) clearInterval(undoTick.current);
-    Object.values(undoTimers.current).forEach(clearTimeout);
-  }, []);
+  useEffect(
+    () => () => {
+      if (undoTick.current) clearInterval(undoTick.current);
+      Object.values(undoTimers.current).forEach(clearTimeout);
+    },
+    []
+  );
 
-  const pushHistory = useCallback((entry: ScanEntry) => {
-    setHistory((prev) => [entry, ...prev].slice(0, HISTORY_MAX));
-    if (entry.undoable) startUndoTick();
-  }, [startUndoTick]);
+  const pushHistory = useCallback(
+    (entry: ScanEntry) => {
+      setHistory((prev) => [entry, ...prev].slice(0, HISTORY_MAX));
+      if (entry.undoable) startUndoTick();
+    },
+    [startUndoTick]
+  );
 
   const undoEntry = useCallback((id: string) => {
     clearTimeout(undoTimers.current[id]);
@@ -312,7 +343,7 @@ export default function ScannerIndex() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
         'X-XSRF-TOKEN': getCsrf(),
       },
@@ -326,9 +357,8 @@ export default function ScannerIndex() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    const status = (data.status as ScanStatus) in STATUS_META
-      ? (data.status as ScanStatus)
-      : 'error';
+    const status =
+      (data.status as ScanStatus) in STATUS_META ? (data.status as ScanStatus) : 'error';
 
     return {
       id: uuid(),
@@ -354,9 +384,16 @@ export default function ScannerIndex() {
     if (!navigator.onLine) {
       const offId = uuid();
       try {
-        await idbPush({ id: offId, waybill_number: number, session_id: sessionId.current, mode: modeRef.current });
+        await idbPush({
+          id: offId,
+          waybill_number: number,
+          session_id: sessionId.current,
+          mode: modeRef.current,
+        });
         setOfflinePending((n) => n + 1);
-      } catch { /* IndexedDB may be unavailable */ }
+      } catch {
+        /* IndexedDB may be unavailable */
+      }
       entry = {
         id: offId,
         waybill_number: number,
@@ -393,13 +430,16 @@ export default function ScannerIndex() {
     }
   }, [callApi, pushHistory]);
 
-  const enqueue = useCallback((raw: string) => {
-    const number = raw.trim().toUpperCase();
-    if (!number) return;
-    queue.current.push(number);
-    setQueueSize(queue.current.length);
-    processQueue();
-  }, [processQueue]);
+  const enqueue = useCallback(
+    (raw: string) => {
+      const number = raw.trim().toUpperCase();
+      if (!number) return;
+      queue.current.push(number);
+      setQueueSize(queue.current.length);
+      processQueue();
+    },
+    [processQueue]
+  );
 
   const drainOffline = useCallback(async () => {
     try {
@@ -417,7 +457,9 @@ export default function ScannerIndex() {
           break;
         }
       }
-    } catch { /* IndexedDB unavailable */ }
+    } catch {
+      /* IndexedDB unavailable */
+    }
   }, [callApi, pushHistory]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -434,7 +476,9 @@ export default function ScannerIndex() {
   const stats = {
     ok: history.filter((h) => h.status === 'ok' || h.status === 'already_processed').length,
     warning: history.filter((h) => h.status === 'duplicate' || h.status === 'beyond_sla').length,
-    error: history.filter((h) => h.status === 'unknown' || h.status === 'wrong_status' || h.status === 'error').length,
+    error: history.filter(
+      (h) => h.status === 'unknown' || h.status === 'wrong_status' || h.status === 'error'
+    ).length,
   };
 
   return (
@@ -445,22 +489,22 @@ export default function ScannerIndex() {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Waybill Scanner</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Waybill Scanner</h1>
             <div className="flex items-center gap-2 mt-0.5 text-sm text-muted-foreground">
               <span>
                 Session <span className="font-mono text-xs">{sessionId.current.slice(0, 8)}</span>
               </span>
               {isOnline ? (
-                <span className="flex items-center gap-1 text-green-600">
+                <span className="flex items-center gap-1 text-success">
                   <Wifi className="h-3 w-3" /> Online
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-orange-500">
+                <span className="flex items-center gap-1 text-warning">
                   <WifiOff className="h-3 w-3" /> Offline — scans queued
                 </span>
               )}
               {offlinePending > 0 && isOnline && (
-                <span className="text-blue-500 text-xs">
+                <span className="text-info text-xs">
                   {offlinePending} offline scan(s) being submitted…
                 </span>
               )}
@@ -498,15 +542,17 @@ export default function ScannerIndex() {
         {/* Stats row */}
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'OK', value: stats.ok, cls: 'text-green-600' },
-            { label: 'Warning', value: stats.warning, cls: 'text-orange-500' },
-            { label: 'Error', value: stats.error, cls: 'text-red-600' },
-            { label: 'Pending', value: queueSize, cls: 'text-blue-500' },
+            { label: 'OK', value: stats.ok, cls: 'text-success' },
+            { label: 'Warning', value: stats.warning, cls: 'text-warning' },
+            { label: 'Error', value: stats.error, cls: 'text-destructive' },
+            { label: 'Pending', value: queueSize, cls: 'text-info' },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-muted-foreground">{s.label}</span>
-                <span className={cn('text-2xl font-bold tabular-nums', s.cls)}>{s.value}</span>
+                <span className={cn('text-2xl font-bold font-display tabular-nums', s.cls)}>
+                  {s.value}
+                </span>
               </CardContent>
             </Card>
           ))}
@@ -554,7 +600,10 @@ export default function ScannerIndex() {
                 onClick={() => {
                   Object.values(undoTimers.current).forEach(clearTimeout);
                   undoTimers.current = {};
-                  if (undoTick.current) { clearInterval(undoTick.current); undoTick.current = null; }
+                  if (undoTick.current) {
+                    clearInterval(undoTick.current);
+                    undoTick.current = null;
+                  }
                   setHistory([]);
                 }}
               >
@@ -579,13 +628,23 @@ export default function ScannerIndex() {
                   return (
                     <div
                       key={item.id}
-                      className={cn('flex items-center gap-3 rounded-lg border px-3 py-2', meta.rowCls)}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border px-3 py-2',
+                        meta.rowCls
+                      )}
                     >
                       {meta.icon}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono font-semibold text-sm">{item.waybill_number}</span>
-                          <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', meta.badgeCls)}>
+                          <span className="font-mono font-semibold text-sm">
+                            {item.waybill_number}
+                          </span>
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                              meta.badgeCls
+                            )}
+                          >
                             {meta.label}
                           </span>
                         </div>
@@ -594,22 +653,29 @@ export default function ScannerIndex() {
                             {[item.receiver_name, item.city].filter(Boolean).join(' · ')}
                           </p>
                         )}
-                        {item.message && item.status !== 'ok' && item.status !== 'already_processed' && (
-                          <p className="text-xs text-muted-foreground">{item.message}</p>
-                        )}
+                        {item.message &&
+                          item.status !== 'ok' &&
+                          item.status !== 'already_processed' && (
+                            <p className="text-xs text-muted-foreground">{item.message}</p>
+                          )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {new Date(item.scanned_at).toLocaleTimeString('en-PH', {
-                            hour: '2-digit', minute: '2-digit', second: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
                           })}
                         </span>
                         {item.undoable && secsLeft > 0 && (
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 px-2 text-xs border-orange-300 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
-                            onClick={(e) => { e.stopPropagation(); undoEntry(item.id); }}
+                            className="h-7 px-2 text-xs border-warning/30 text-warning hover:bg-warning/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              undoEntry(item.id);
+                            }}
                             title="Remove from history (client-side only)"
                           >
                             <RotateCcw className="h-3 w-3 mr-1" />

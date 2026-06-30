@@ -62,20 +62,64 @@ interface Props {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  DELIVERED:   { label: 'Delivered',   icon: <CheckCircle className="h-3.5 w-3.5" />, color: 'bg-green-100 text-green-800 border-green-200' },
-  RETURNED:    { label: 'Returned',    icon: <XCircle className="h-3.5 w-3.5" />,     color: 'bg-red-100 text-red-800 border-red-200' },
-  DISPATCHED:  { label: 'Dispatched',  icon: <Package className="h-3.5 w-3.5" />,     color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  IN_TRANSIT:  { label: 'In Transit',  icon: <Package className="h-3.5 w-3.5" />,     color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  OUT_FOR_DELIVERY: { label: 'Out for Delivery', icon: <Package className="h-3.5 w-3.5" />, color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  CANCELLED:   { label: 'Cancelled',   icon: <XCircle className="h-3.5 w-3.5" />,     color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  PENDING:     { label: 'Pending',     icon: <Clock className="h-3.5 w-3.5" />,       color: 'bg-gray-100 text-gray-600 border-gray-200' },
+  DELIVERED: {
+    label: 'Delivered',
+    icon: <CheckCircle className="h-3.5 w-3.5" />,
+    color: 'bg-success/10 text-success border-success/20',
+  },
+  RETURNED: {
+    label: 'Returned',
+    icon: <XCircle className="h-3.5 w-3.5" />,
+    color: 'bg-destructive/10 text-destructive border-destructive/20',
+  },
+  DISPATCHED: {
+    label: 'Dispatched',
+    icon: <Package className="h-3.5 w-3.5" />,
+    color: 'bg-info/10 text-info border-info/20',
+  },
+  IN_TRANSIT: {
+    label: 'In Transit',
+    icon: <Package className="h-3.5 w-3.5" />,
+    color: 'bg-info/10 text-info border-info/20',
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'Out for Delivery',
+    icon: <Package className="h-3.5 w-3.5" />,
+    color: 'bg-warning/10 text-warning border-warning/20',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    icon: <XCircle className="h-3.5 w-3.5" />,
+    color: 'bg-muted text-muted-foreground border-border',
+  },
+  PENDING: {
+    label: 'Pending',
+    icon: <Clock className="h-3.5 w-3.5" />,
+    color: 'bg-muted text-muted-foreground border-border',
+  },
 };
 
 const riskConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  LOW:         { label: 'Low Risk',    color: 'bg-green-100 text-green-800',  icon: <ShieldCheck className="h-4 w-4" /> },
-  MEDIUM:      { label: 'Medium Risk', color: 'bg-yellow-100 text-yellow-800', icon: <ShieldAlert className="h-4 w-4" /> },
-  HIGH:        { label: 'High Risk',   color: 'bg-orange-100 text-orange-800', icon: <ShieldAlert className="h-4 w-4" /> },
-  BLACKLISTED: { label: 'Blacklisted', color: 'bg-red-100 text-red-800',      icon: <ShieldAlert className="h-4 w-4" /> },
+  LOW: {
+    label: 'Low Risk',
+    color: 'bg-success/10 text-success',
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  MEDIUM: {
+    label: 'Medium Risk',
+    color: 'bg-warning/10 text-warning',
+    icon: <ShieldAlert className="h-4 w-4" />,
+  },
+  HIGH: {
+    label: 'High Risk',
+    color: 'bg-warning/10 text-warning',
+    icon: <ShieldAlert className="h-4 w-4" />,
+  },
+  BLACKLISTED: {
+    label: 'Blacklisted',
+    color: 'bg-destructive/10 text-destructive',
+    icon: <ShieldAlert className="h-4 w-4" />,
+  },
 };
 
 export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
@@ -104,7 +148,7 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
 
   const customer = data?.customer;
   const waybills = data?.waybills ?? [];
-  const risk = customer ? riskConfig[customer.risk_level] ?? riskConfig.LOW : null;
+  const risk = customer ? (riskConfig[customer.risk_level] ?? riskConfig.LOW) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -134,7 +178,7 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
           )}
 
           {error && (
-            <div className="flex items-center gap-2 p-4 bg-red-50 rounded-xl text-red-700 text-sm">
+            <div className="flex items-center gap-2 p-4 bg-destructive/5 rounded-xl text-destructive text-sm">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {error}
             </div>
@@ -151,12 +195,14 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
             <>
               {/* Blacklist banner */}
               {customer.is_blacklisted && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
-                  <ShieldAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/20">
+                  <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-red-800">Customer is Blacklisted</p>
+                    <p className="text-sm font-semibold text-destructive">
+                      Customer is Blacklisted
+                    </p>
                     {customer.blacklist_reason && (
-                      <p className="text-xs text-red-700 mt-0.5">{customer.blacklist_reason}</p>
+                      <p className="text-xs text-destructive mt-0.5">{customer.blacklist_reason}</p>
                     )}
                   </div>
                 </div>
@@ -176,7 +222,9 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                     )}
                   </div>
                   {risk && (
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${risk.color}`}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${risk.color}`}
+                    >
                       {risk.icon}
                       {risk.label}
                     </span>
@@ -187,21 +235,31 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                 <div className="grid grid-cols-4 gap-3 pt-2 border-t">
                   <div className="text-center">
                     <p className="text-xl font-bold">{customer.total_orders}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Orders</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Orders
+                    </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xl font-bold text-green-600">{customer.successful_orders}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Delivered</p>
+                    <p className="text-xl font-bold text-success">{customer.successful_orders}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Delivered
+                    </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xl font-bold text-red-500">{customer.returned_orders}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Returned</p>
+                    <p className="text-xl font-bold text-destructive">{customer.returned_orders}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Returned
+                    </p>
                   </div>
                   <div className="text-center">
-                    <p className={`text-xl font-bold ${customer.success_rate >= 70 ? 'text-green-600' : customer.success_rate >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                    <p
+                      className={`text-xl font-bold ${customer.success_rate >= 70 ? 'text-success' : customer.success_rate >= 40 ? 'text-warning' : 'text-destructive'}`}
+                    >
                       {customer.success_rate}%
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Success</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Success
+                    </p>
                   </div>
                 </div>
 
@@ -209,7 +267,7 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3 text-green-500" />
+                      <TrendingUp className="h-3 w-3 text-success" />
                       Delivery success rate
                     </span>
                     {customer.total_revenue > 0 && (
@@ -222,10 +280,10 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                     <div
                       className={`h-full rounded-full transition-all ${
                         customer.success_rate >= 70
-                          ? 'bg-green-500'
+                          ? 'bg-success/50'
                           : customer.success_rate >= 40
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
+                            ? 'bg-warning/50'
+                            : 'bg-destructive/50'
                       }`}
                       style={{ width: `${Math.min(100, customer.success_rate)}%` }}
                     />
@@ -238,7 +296,9 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Package className="h-4 w-4 text-muted-foreground" />
                   Order History
-                  <Badge variant="outline" className="text-xs">{waybills.length}</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {waybills.length}
+                  </Badge>
                 </h3>
 
                 {waybills.length === 0 ? (
@@ -248,7 +308,11 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                 ) : (
                   <div className="space-y-2">
                     {waybills.map((w) => {
-                      const cfg = statusConfig[w.status] ?? { label: w.status, icon: <Package className="h-3.5 w-3.5" />, color: 'bg-gray-100 text-gray-600 border-gray-200' };
+                      const cfg = statusConfig[w.status] ?? {
+                        label: w.status,
+                        icon: <Package className="h-3.5 w-3.5" />,
+                        color: 'bg-muted text-muted-foreground border-border',
+                      };
                       return (
                         <div
                           key={w.id}
@@ -259,16 +323,20 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                               <span className="font-mono text-xs font-semibold text-primary">
                                 {w.waybill_number}
                               </span>
-                              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.color}`}>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.color}`}
+                              >
                                 {cfg.icon}
                                 {cfg.label}
                               </span>
                             </div>
                             {w.item_name && (
-                              <p className="text-xs text-muted-foreground truncate">{w.item_name}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {w.item_name}
+                              </p>
                             )}
                             {w.rts_reason && (
-                              <p className="text-xs text-red-600 flex items-center gap-1">
+                              <p className="text-xs text-destructive flex items-center gap-1">
                                 <TrendingDown className="h-3 w-3" />
                                 {w.rts_reason}
                               </p>
@@ -285,8 +353,8 @@ export function CustomerHistoryModal({ leadId, isOpen, onClose }: Props) {
                               {w.delivered_at
                                 ? formatDateTime(w.delivered_at)
                                 : w.returned_at
-                                ? formatDateTime(w.returned_at)
-                                : formatDateTime(w.created_at)}
+                                  ? formatDateTime(w.returned_at)
+                                  : formatDateTime(w.created_at)}
                             </p>
                           </div>
                         </div>

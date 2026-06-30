@@ -1,9 +1,20 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
-  Search, Plus, BookUser, Users, Building2, TrendingUp,
-  Eye, Pencil, Trash2, MoreHorizontal, Phone, Mail,
-  ShieldAlert, ArrowUpDown,
+  Search,
+  Plus,
+  BookUser,
+  Users,
+  Building2,
+  TrendingUp,
+  Eye,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  Phone,
+  Mail,
+  ShieldAlert,
+  ArrowUpDown,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -11,14 +22,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import type { PaginatedResponse } from '@/types';
 
@@ -59,34 +82,42 @@ interface Props {
 }
 
 const typeConfig: Record<string, { label: string; color: string }> = {
-  customer:  { label: 'Customer',  color: 'bg-blue-100 text-blue-800' },
-  supplier:  { label: 'Supplier',  color: 'bg-purple-100 text-purple-800' },
-  prospect:  { label: 'Prospect',  color: 'bg-yellow-100 text-yellow-800' },
-  partner:   { label: 'Partner',   color: 'bg-green-100 text-green-800' },
-  both:      { label: 'Cust+Supp', color: 'bg-teal-100 text-teal-800' },
+  customer: { label: 'Customer', color: 'bg-info/10 text-info' },
+  supplier: { label: 'Supplier', color: 'bg-primary/10 text-primary' },
+  prospect: { label: 'Prospect', color: 'bg-warning/10 text-warning' },
+  partner: { label: 'Partner', color: 'bg-success/10 text-success' },
+  both: { label: 'Cust+Supp', color: 'bg-teal-100 text-teal-800' },
 };
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  active:      { label: 'Active',      variant: 'default' },
-  inactive:    { label: 'Inactive',    variant: 'secondary' },
-  prospect:    { label: 'Prospect',    variant: 'outline' },
+const statusConfig: Record<
+  string,
+  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+> = {
+  active: { label: 'Active', variant: 'default' },
+  inactive: { label: 'Inactive', variant: 'secondary' },
+  prospect: { label: 'Prospect', variant: 'outline' },
   blacklisted: { label: 'Blacklisted', variant: 'destructive' },
 };
 
 const riskConfig: Record<string, { label: string; color: string }> = {
-  LOW:         { label: 'Low',         color: 'text-green-600' },
-  MEDIUM:      { label: 'Medium',      color: 'text-yellow-600' },
-  HIGH:        { label: 'High',        color: 'text-orange-600' },
-  BLACKLISTED: { label: 'Blacklisted', color: 'text-red-600 font-semibold' },
+  LOW: { label: 'Low', color: 'text-success' },
+  MEDIUM: { label: 'Medium', color: 'text-warning' },
+  HIGH: { label: 'High', color: 'text-warning' },
+  BLACKLISTED: { label: 'Blacklisted', color: 'text-destructive font-semibold' },
 };
 
 export default function CrmContactsIndex({ thirdParties, filters, stats }: Props) {
   const [search, setSearch] = useState(filters.q ?? '');
 
   const applyFilter = (params: Record<string, string | undefined>) => {
-    router.get('/crm/contacts', { ...filters, ...params, page: undefined }, {
-      preserveState: true, replace: true,
-    });
+    router.get(
+      '/crm/contacts',
+      { ...filters, ...params, page: undefined },
+      {
+        preserveState: true,
+        replace: true,
+      }
+    );
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -116,7 +147,7 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">CRM Contacts</h1>
+            <h1 className="text-2xl font-bold font-display text-foreground">CRM Contacts</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Customers, suppliers, prospects and partners
             </p>
@@ -132,16 +163,16 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Total',     value: stats.total,     icon: BookUser,   color: 'text-gray-600' },
-            { label: 'Customers', value: stats.customers, icon: Users,      color: 'text-blue-600' },
-            { label: 'Suppliers', value: stats.suppliers, icon: Building2,  color: 'text-purple-600' },
-            { label: 'Prospects', value: stats.prospects, icon: TrendingUp, color: 'text-yellow-600' },
+            { label: 'Total', value: stats.total, icon: BookUser, color: 'text-muted-foreground' },
+            { label: 'Customers', value: stats.customers, icon: Users, color: 'text-info' },
+            { label: 'Suppliers', value: stats.suppliers, icon: Building2, color: 'text-primary' },
+            { label: 'Prospects', value: stats.prospects, icon: TrendingUp, color: 'text-warning' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Card key={label}>
               <CardContent className="p-4 flex items-center gap-3">
                 <Icon className={`h-8 w-8 ${color}`} />
                 <div>
-                  <p className="text-2xl font-bold">{value.toLocaleString()}</p>
+                  <p className="text-2xl font-bold font-display">{value.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">{label}</p>
                 </div>
               </CardContent>
@@ -163,7 +194,9 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
-                <Button type="submit" variant="secondary">Search</Button>
+                <Button type="submit" variant="secondary">
+                  Search
+                </Button>
               </form>
 
               <Select
@@ -231,7 +264,10 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
                 <TableRow>
                   <TableHead className="w-28">Ref</TableHead>
                   <TableHead>
-                    <button onClick={() => sortBy('name')} className="flex items-center gap-1 hover:text-foreground">
+                    <button
+                      onClick={() => sortBy('name')}
+                      className="flex items-center gap-1 hover:text-foreground"
+                    >
                       Name <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </TableHead>
@@ -241,12 +277,18 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
                   <TableHead>City</TableHead>
                   <TableHead>Risk</TableHead>
                   <TableHead className="text-right">
-                    <button onClick={() => sortBy('total_orders')} className="flex items-center gap-1 ml-auto hover:text-foreground">
+                    <button
+                      onClick={() => sortBy('total_orders')}
+                      className="flex items-center gap-1 ml-auto hover:text-foreground"
+                    >
                       Orders <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </TableHead>
                   <TableHead className="text-right">
-                    <button onClick={() => sortBy('total_revenue')} className="flex items-center gap-1 ml-auto hover:text-foreground">
+                    <button
+                      onClick={() => sortBy('total_revenue')}
+                      className="flex items-center gap-1 ml-auto hover:text-foreground"
+                    >
                       Revenue <ArrowUpDown className="h-3 w-3" />
                     </button>
                   </TableHead>
@@ -257,88 +299,106 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
                 {thirdParties.data.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
-                      No contacts found. <Link href="/crm/contacts/create" className="underline">Create the first one.</Link>
-                    </TableCell>
-                  </TableRow>
-                ) : thirdParties.data.map((tp) => (
-                  <TableRow key={tp.id} className="hover:bg-muted/50">
-                    <TableCell className="font-mono text-xs text-muted-foreground">{tp.ref ?? '—'}</TableCell>
-                    <TableCell>
-                      <Link href={`/crm/contacts/${tp.id}`} className="font-medium hover:underline">
-                        {tp.name}
+                      No contacts found.{' '}
+                      <Link href="/crm/contacts/create" className="underline">
+                        Create the first one.
                       </Link>
-                      {tp.alias && (
-                        <p className="text-xs text-muted-foreground">{tp.alias}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeConfig[tp.type]?.color ?? 'bg-gray-100 text-gray-700'}`}>
-                        {typeConfig[tp.type]?.label ?? tp.type}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusConfig[tp.status]?.variant ?? 'outline'}>
-                        {statusConfig[tp.status]?.label ?? tp.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        {tp.phone && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3" />{tp.phone}
-                          </div>
-                        )}
-                        {tp.email && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3" />{tp.email}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{tp.city ?? '—'}</TableCell>
-                    <TableCell>
-                      {tp.is_blacklisted ? (
-                        <span className="flex items-center gap-1 text-xs text-red-600 font-semibold">
-                          <ShieldAlert className="h-3 w-3" /> Blacklisted
-                        </span>
-                      ) : (
-                        <span className={`text-xs ${riskConfig[tp.risk_level]?.color ?? 'text-gray-500'}`}>
-                          {riskConfig[tp.risk_level]?.label ?? tp.risk_level}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">{tp.total_orders.toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-sm font-medium">{formatCurrency(tp.total_revenue)}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/crm/contacts/${tp.id}`}>
-                              <Eye className="h-4 w-4 mr-2" /> View
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/crm/contacts/${tp.id}/edit`}>
-                              <Pencil className="h-4 w-4 mr-2" /> Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => handleDelete(tp.id, tp.name)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  thirdParties.data.map((tp) => (
+                    <TableRow key={tp.id} className="hover:bg-muted/50">
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {tp.ref ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/crm/contacts/${tp.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {tp.name}
+                        </Link>
+                        {tp.alias && <p className="text-xs text-muted-foreground">{tp.alias}</p>}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeConfig[tp.type]?.color ?? 'bg-muted text-muted-foreground'}`}
+                        >
+                          {typeConfig[tp.type]?.label ?? tp.type}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusConfig[tp.status]?.variant ?? 'outline'}>
+                          {statusConfig[tp.status]?.label ?? tp.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          {tp.phone && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              {tp.phone}
+                            </div>
+                          )}
+                          {tp.email && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              {tp.email}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{tp.city ?? '—'}</TableCell>
+                      <TableCell>
+                        {tp.is_blacklisted ? (
+                          <span className="flex items-center gap-1 text-xs text-destructive font-semibold">
+                            <ShieldAlert className="h-3 w-3" /> Blacklisted
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-xs ${riskConfig[tp.risk_level]?.color ?? 'text-muted-foreground'}`}
+                          >
+                            {riskConfig[tp.risk_level]?.label ?? tp.risk_level}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {tp.total_orders.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium">
+                        {formatCurrency(tp.total_revenue)}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/crm/contacts/${tp.id}`}>
+                                <Eye className="h-4 w-4 mr-2" /> View
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/crm/contacts/${tp.id}/edit`}>
+                                <Pencil className="h-4 w-4 mr-2" /> Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDelete(tp.id, tp.name)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

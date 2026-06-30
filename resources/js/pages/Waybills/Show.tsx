@@ -96,7 +96,14 @@ interface Props {
   customerRating: CustomerRating;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Package }> = {
+const statusConfig: Record<
+  string,
+  {
+    label: string;
+    variant: 'default' | 'secondary' | 'destructive' | 'outline';
+    icon: typeof Package;
+  }
+> = {
   PENDING: { label: 'Pending', variant: 'secondary', icon: Clock },
   DISPATCHED: { label: 'Dispatched', variant: 'default', icon: Truck },
   PICKED_UP: { label: 'Picked Up', variant: 'default', icon: Package },
@@ -109,14 +116,20 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 };
 
 const ratingColors: Record<string, string> = {
-  green: 'bg-green-100 text-green-800 border-green-200',
-  blue: 'bg-blue-100 text-blue-800 border-blue-200',
-  yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  orange: 'bg-orange-100 text-orange-800 border-orange-200',
-  red: 'bg-red-100 text-red-800 border-red-200',
+  green: 'bg-success/10 text-success border-success/20',
+  blue: 'bg-info/10 text-info border-info/20',
+  yellow: 'bg-warning/10 text-warning border-warning/20',
+  orange: 'bg-warning/10 text-warning border-warning/20',
+  red: 'bg-destructive/10 text-destructive border-destructive/20',
 };
 
-export default function WaybillShow({ waybill, customer, orderHistory, customerStats, customerRating }: Props) {
+export default function WaybillShow({
+  waybill,
+  customer,
+  orderHistory,
+  customerStats,
+  customerRating,
+}: Props) {
   const config = statusConfig[waybill.status] || statusConfig.PENDING;
   const StatusIcon = config.icon;
 
@@ -134,9 +147,13 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight font-mono">{waybill.waybill_number}</h1>
+              <h1 className="text-2xl font-bold font-display tracking-tight font-mono">
+                {waybill.waybill_number}
+              </h1>
               <p className="text-muted-foreground">
-                {waybill.submitted_at ? `Submitted ${formatDate(waybill.submitted_at)}` : `Added ${formatDate(waybill.created_at)}`}
+                {waybill.submitted_at
+                  ? `Submitted ${formatDate(waybill.submitted_at)}`
+                  : `Added ${formatDate(waybill.created_at)}`}
               </p>
             </div>
           </div>
@@ -181,7 +198,9 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                         {waybill.receiver_address}
                         <br />
                         <span className="text-sm text-muted-foreground">
-                          {[waybill.barangay, waybill.city, waybill.state].filter(Boolean).join(', ')}
+                          {[waybill.barangay, waybill.city, waybill.state]
+                            .filter(Boolean)
+                            .join(', ')}
                         </span>
                       </span>
                     </p>
@@ -199,11 +218,15 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">COD Amount</p>
-                      <p className="font-medium text-lg">₱{waybill.cod_amount?.toLocaleString() || '0'}</p>
+                      <p className="font-medium text-lg">
+                        ₱{waybill.cod_amount?.toLocaleString() || '0'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Shipping</p>
-                      <p className="font-medium">₱{waybill.shipping_cost?.toLocaleString() || '0'}</p>
+                      <p className="font-medium">
+                        ₱{waybill.shipping_cost?.toLocaleString() || '0'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -216,7 +239,9 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
                   Customer Order History
-                  <Badge variant="secondary" className="ml-2">{orderHistory.length} orders</Badge>
+                  <Badge variant="secondary" className="ml-2">
+                    {orderHistory.length} orders
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -224,11 +249,21 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   <table className="w-full">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">Waybill #</th>
-                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">Remarks</th>
-                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">COD</th>
-                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">Date</th>
+                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">
+                          Waybill #
+                        </th>
+                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">
+                          Status
+                        </th>
+                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">
+                          Remarks
+                        </th>
+                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">
+                          COD
+                        </th>
+                        <th className="h-10 px-3 text-left text-sm font-medium text-muted-foreground">
+                          Date
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -238,27 +273,39 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                         return (
                           <tr
                             key={order.id}
-                            className={`border-b transition-colors ${isCurrentOrder ? 'bg-blue-50' : 'hover:bg-muted/50'}`}
+                            className={`border-b transition-colors ${isCurrentOrder ? 'bg-info/5' : 'hover:bg-muted/50'}`}
                           >
                             <td className="p-3 font-mono text-sm">
                               {isCurrentOrder ? (
                                 <span className="font-bold">{order.waybill_number}</span>
                               ) : (
-                                <Link href={`/waybills/${order.id}`} className="text-blue-600 hover:underline">
+                                <Link
+                                  href={`/waybills/${order.id}`}
+                                  className="text-info hover:underline"
+                                >
                                   {order.waybill_number}
                                 </Link>
                               )}
-                              {isCurrentOrder && <Badge variant="outline" className="ml-2 text-xs">Current</Badge>}
+                              {isCurrentOrder && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  Current
+                                </Badge>
+                              )}
                             </td>
                             <td className="p-3">
                               <Badge variant={orderConfig.variant} className="text-xs">
                                 {orderConfig.label}
                               </Badge>
                             </td>
-                            <td className="p-3 text-sm max-w-[200px] truncate" title={order.remarks || ''}>
+                            <td
+                              className="p-3 text-sm max-w-[200px] truncate"
+                              title={order.remarks || ''}
+                            >
                               {order.remarks || '-'}
                             </td>
-                            <td className="p-3 text-sm font-medium">₱{order.cod_amount?.toLocaleString() || '0'}</td>
+                            <td className="p-3 text-sm font-medium">
+                              ₱{order.cod_amount?.toLocaleString() || '0'}
+                            </td>
                             <td className="p-3 text-sm text-muted-foreground">
                               {formatDate(order.created_at)}
                             </td>
@@ -282,7 +329,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                     <Star className="h-5 w-5" />
                     Customer Rating
                   </span>
-                  <span className="text-2xl font-bold">{customerRating.score}/5</span>
+                  <span className="text-2xl font-bold font-display">{customerRating.score}/5</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -314,19 +361,25 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold">{customerStats.total_orders}</p>
+                    <p className="text-2xl font-bold font-display">{customerStats.total_orders}</p>
                     <p className="text-xs text-muted-foreground">Total Orders</p>
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{customerStats.delivered}</p>
+                  <div className="text-center p-3 bg-success/5 rounded-lg">
+                    <p className="text-2xl font-bold font-display text-success">
+                      {customerStats.delivered}
+                    </p>
                     <p className="text-xs text-muted-foreground">Delivered</p>
                   </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <p className="text-2xl font-bold text-red-600">{customerStats.returned}</p>
+                  <div className="text-center p-3 bg-destructive/5 rounded-lg">
+                    <p className="text-2xl font-bold font-display text-destructive">
+                      {customerStats.returned}
+                    </p>
                     <p className="text-xs text-muted-foreground">Returned</p>
                   </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <p className="text-2xl font-bold text-yellow-600">{customerStats.pending}</p>
+                  <div className="text-center p-3 bg-warning/5 rounded-lg">
+                    <p className="text-2xl font-bold font-display text-warning">
+                      {customerStats.pending}
+                    </p>
                     <p className="text-xs text-muted-foreground">Pending</p>
                   </div>
                 </div>
@@ -339,8 +392,11 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
                       className={`h-2 rounded-full ${
-                        customerStats.success_rate >= 75 ? 'bg-green-500' :
-                        customerStats.success_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                        customerStats.success_rate >= 75
+                          ? 'bg-success/50'
+                          : customerStats.success_rate >= 50
+                            ? 'bg-warning/50'
+                            : 'bg-destructive/50'
                       }`}
                       style={{ width: `${customerStats.success_rate}%` }}
                     />
@@ -353,13 +409,15 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                       <DollarSign className="h-4 w-4" />
                       Total COD Value
                     </span>
-                    <span className="font-bold text-lg">₱{customerStats.total_cod.toLocaleString()}</span>
+                    <span className="font-bold text-lg">
+                      ₱{customerStats.total_cod.toLocaleString()}
+                    </span>
                   </div>
                 </div>
 
                 {customer?.is_blacklisted && (
                   <div className="pt-4 border-t">
-                    <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-2 text-destructive bg-destructive/5 p-3 rounded-lg">
                       <AlertTriangle className="h-5 w-5" />
                       <span className="font-medium">Customer is Blacklisted</span>
                     </div>
@@ -380,7 +438,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                 <div className="space-y-3">
                   {waybill.submitted_at && (
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
+                      <div className="w-2 h-2 mt-2 rounded-full bg-info/50" />
                       <div>
                         <p className="font-medium text-sm">Submitted to Courier</p>
                         <p className="text-xs text-muted-foreground">
@@ -391,7 +449,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   )}
                   {waybill.dispatched_at && (
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-orange-500" />
+                      <div className="w-2 h-2 mt-2 rounded-full bg-warning" />
                       <div>
                         <p className="font-medium text-sm">Dispatched</p>
                         <p className="text-xs text-muted-foreground">
@@ -402,7 +460,7 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   )}
                   {waybill.delivered_at && (
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-green-500" />
+                      <div className="w-2 h-2 mt-2 rounded-full bg-success/50" />
                       <div>
                         <p className="font-medium text-sm">Delivered</p>
                         <p className="text-xs text-muted-foreground">
@@ -413,14 +471,14 @@ export default function WaybillShow({ waybill, customer, orderHistory, customerS
                   )}
                   {waybill.returned_at && (
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 mt-2 rounded-full bg-red-500" />
+                      <div className="w-2 h-2 mt-2 rounded-full bg-destructive/50" />
                       <div>
                         <p className="font-medium text-sm">Returned</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDateTime(waybill.returned_at)}
                         </p>
                         {waybill.rts_reason && (
-                          <p className="text-xs text-red-600 mt-1">{waybill.rts_reason}</p>
+                          <p className="text-xs text-destructive mt-1">{waybill.rts_reason}</p>
                         )}
                       </div>
                     </div>

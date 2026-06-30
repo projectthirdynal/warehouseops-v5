@@ -29,9 +29,7 @@ export default function Login() {
                 className="h-16 object-contain"
               />
             </div>
-            <CardDescription>
-              Sign in to access the system dashboard
-            </CardDescription>
+            <CardDescription>Sign in to access the system dashboard</CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -50,9 +48,7 @@ export default function Login() {
                   required
                   autoFocus
                 />
-                {errors.email && (
-                  <p className="text-sm text-destructive">{errors.email}</p>
-                )}
+                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
               </div>
 
               <div className="space-y-2">
@@ -68,9 +64,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   required
                 />
-                {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password}</p>
-                )}
+                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
               </div>
 
               <div className="flex items-center space-x-2">
@@ -79,7 +73,7 @@ export default function Login() {
                   type="checkbox"
                   checked={data.remember}
                   onChange={(e) => setData('remember', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                 />
                 <label htmlFor="remember" className="text-sm text-muted-foreground">
                   Remember me

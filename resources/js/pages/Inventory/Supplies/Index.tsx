@@ -8,13 +8,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
-import { AlertTriangle, Archive, Download, Edit2, PackagePlus, Plus, Search, SlidersHorizontal, Tag, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  Download,
+  Edit2,
+  PackagePlus,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Tag,
+  Trash2,
+} from 'lucide-react';
 import Paginator from '@/components/Paginator';
 import { DataTable } from '@/components/ui/data-table';
 import { SupplyDetailDrawer } from '@/components/SupplyDetailDrawer';
@@ -101,28 +114,35 @@ interface Props {
 }
 
 const STOCK_CATEGORY_TABS = [
-  { value: 'all',                label: 'All' },
-  { value: 'RAW_MATERIAL',       label: 'Raw Materials' },
-  { value: 'PRODUCTION_MATERIAL',label: 'Production' },
-  { value: 'MERCHANDISE',        label: 'Merchandise' },
-  { value: 'RD_SUPPLY',          label: 'R&D' },
+  { value: 'all', label: 'All' },
+  { value: 'RAW_MATERIAL', label: 'Raw Materials' },
+  { value: 'PRODUCTION_MATERIAL', label: 'Production' },
+  { value: 'MERCHANDISE', label: 'Merchandise' },
+  { value: 'RD_SUPPLY', label: 'R&D' },
 ];
 
 const OPEX_CATEGORY_TABS = [
-  { value: 'all',               label: 'All' },
-  { value: 'OFFICE_SUPPLY',     label: 'Office Supplies' },
+  { value: 'all', label: 'All' },
+  { value: 'OFFICE_SUPPLY', label: 'Office Supplies' },
   { value: 'CLEANING_MATERIAL', label: 'Cleaning' },
 ];
 
 const STATUS_TABS = [
-  { value: 'all',          label: 'All' },
-  { value: 'MOVING',       label: 'Moving' },
-  { value: 'NON_MOVING',   label: 'Non-Moving' },
-  { value: 'DEAD',         label: 'Dead Stock' },
+  { value: 'all', label: 'All' },
+  { value: 'MOVING', label: 'Moving' },
+  { value: 'NON_MOVING', label: 'Non-Moving' },
+  { value: 'DEAD', label: 'Dead Stock' },
   { value: 'OUT_OF_STOCK', label: 'Out of Stock' },
 ];
 
-export default function SuppliesIndex({ supplies, stats, filters, uoms, warehouses, recent_movements }: Props) {
+export default function SuppliesIndex({
+  supplies,
+  stats,
+  filters,
+  uoms,
+  warehouses,
+  recent_movements,
+}: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
   const [materialOpen, setMaterialOpen] = useState(false);
   const [editing, setEditing] = useState<Supply | null>(null);
@@ -131,114 +151,196 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
   const [statusTarget, setStatusTarget] = useState<Supply | null>(null);
   const [drawerSupplyId, setDrawerSupplyId] = useState<number | null>(null);
 
-  const stockStatus  = filters.stock_status ?? 'all';
+  const stockStatus = filters.stock_status ?? 'all';
 
   function applyFilters(overrides: Record<string, string>) {
-    router.get('/inventory/supplies', { ...filters, ...overrides }, { preserveState: true, replace: true });
+    router.get(
+      '/inventory/supplies',
+      { ...filters, ...overrides },
+      { preserveState: true, replace: true }
+    );
   }
 
-  const debouncedSearch = useDebounce((val: string) => applyFilters({ search: val, page: '1' }), 400);
+  const debouncedSearch = useDebounce(
+    (val: string) => applyFilters({ search: val, page: '1' }),
+    400
+  );
 
-  const stockValue = useMemo(() =>
-    supplies.data.reduce((sum, supply) => sum + totalStock(supply) * Number(supply.cost_price), 0),
+  const stockValue = useMemo(
+    () =>
+      supplies.data.reduce(
+        (sum, supply) => sum + totalStock(supply) * Number(supply.cost_price),
+        0
+      ),
     [supplies.data]
   );
 
-  const columns = useMemo<ColumnDef<Supply>[]>(() => [
-    {
-      id: 'material',
-      header: 'Material',
-      enableHiding: false,
-      cell: ({ row }) => {
-        const s = row.original;
-        return (
-          <div className="min-w-[140px]">
-            <div className="font-medium leading-tight">{s.name}</div>
-            <div className="text-xs text-muted-foreground font-mono">{s.sku}{s.uom && ` / ${s.uom.abbreviation}`}</div>
+  const columns = useMemo<ColumnDef<Supply>[]>(
+    () => [
+      {
+        id: 'material',
+        header: 'Material',
+        enableHiding: false,
+        cell: ({ row }) => {
+          const s = row.original;
+          return (
+            <div className="min-w-[140px]">
+              <div className="font-medium leading-tight">{s.name}</div>
+              <div className="text-xs text-muted-foreground font-mono">
+                {s.sku}
+                {s.uom && ` / ${s.uom.abbreviation}`}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'category',
+        header: 'Category',
+        cell: ({ row }) => (
+          <SectionBadge
+            section={row.original.section}
+            stockCategory={row.original.stock_category}
+            opexCategory={row.original.opex_category}
+            category={row.original.category}
+          />
+        ),
+      },
+      {
+        id: 'movement',
+        header: 'Movement',
+        cell: ({ row }) => (
+          <StockStatusBadge
+            status={row.original.stock_status}
+            override={row.original.stock_status_override}
+          />
+        ),
+      },
+      {
+        id: 'available',
+        header: () => <span className="block text-right">Available</span>,
+        cell: ({ row }) => {
+          const supply = row.original;
+          const available = totalAvailable(supply);
+          const reorder = supply.stocks[0]?.reorder_point ?? supply.reorder_point;
+          const isLow = reorder > 0 && available <= reorder;
+          return (
+            <div className={`text-right font-medium ${isLow ? 'text-warning' : ''}`}>
+              {available}
+              {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'reorder',
+        header: () => <span className="block text-right">Reorder</span>,
+        cell: ({ row }) => (
+          <div className="text-right text-sm">
+            {row.original.stocks[0]?.reorder_point ?? row.original.reorder_point}
           </div>
-        );
+        ),
       },
-    },
-    {
-      id: 'category',
-      header: 'Category',
-      cell: ({ row }) => <SectionBadge section={row.original.section} stockCategory={row.original.stock_category} opexCategory={row.original.opex_category} category={row.original.category} />,
-    },
-    {
-      id: 'movement',
-      header: 'Movement',
-      cell: ({ row }) => <StockStatusBadge status={row.original.stock_status} override={row.original.stock_status_override} />,
-    },
-    {
-      id: 'available',
-      header: () => <span className="block text-right">Available</span>,
-      cell: ({ row }) => {
-        const supply = row.original;
-        const available = totalAvailable(supply);
-        const reorder = supply.stocks[0]?.reorder_point ?? supply.reorder_point;
-        const isLow = reorder > 0 && available <= reorder;
-        return (
-          <div className={`text-right font-medium ${isLow ? 'text-orange-400' : ''}`}>
-            {available}
-            {isLow && <AlertTriangle className="ml-1 inline h-3.5 w-3.5" />}
+      {
+        id: 'unit_cost',
+        header: () => <span className="block text-right">Unit Cost</span>,
+        cell: ({ row }) => (
+          <div className="text-right text-sm">
+            {formatCurrency(Number(row.original.cost_price))}
           </div>
-        );
+        ),
       },
-    },
-    {
-      id: 'reorder',
-      header: () => <span className="block text-right">Reorder</span>,
-      cell: ({ row }) => <div className="text-right text-sm">{row.original.stocks[0]?.reorder_point ?? row.original.reorder_point}</div>,
-    },
-    {
-      id: 'unit_cost',
-      header: () => <span className="block text-right">Unit Cost</span>,
-      cell: ({ row }) => <div className="text-right text-sm">{formatCurrency(Number(row.original.cost_price))}</div>,
-    },
-    {
-      id: 'stock_value',
-      header: () => <span className="block text-right">Stock Value</span>,
-      cell: ({ row }) => {
-        const available = totalAvailable(row.original);
-        return <div className="text-right text-sm font-medium">{formatCurrency(available * Number(row.original.cost_price))}</div>;
+      {
+        id: 'stock_value',
+        header: () => <span className="block text-right">Stock Value</span>,
+        cell: ({ row }) => {
+          const available = totalAvailable(row.original);
+          return (
+            <div className="text-right text-sm font-medium">
+              {formatCurrency(available * Number(row.original.cost_price))}
+            </div>
+          );
+        },
       },
-    },
-    {
-      id: 'warehouse',
-      header: 'Warehouse',
-      cell: ({ row }) => <div className="text-sm">{row.original.stocks.map(s => s.warehouse?.name).filter(Boolean).join(', ') || '—'}</div>,
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      cell: ({ row }) => {
-        const s = row.original;
-        return (
-          <span className={`rounded-full px-2 py-0.5 text-xs ${s.is_active ? 'bg-green-950/40 text-green-300' : 'bg-slate-800 text-slate-400'}`}>
-            {s.is_active ? 'Active' : 'Inactive'}
-          </span>
-        );
-      },
-    },
-    {
-      id: 'actions',
-      header: '',
-      enableHiding: false,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const supply = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button size="icon" variant="ghost" title="View detail" onClick={() => setDrawerSupplyId(supply.id)}><PackagePlus className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}><SlidersHorizontal className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" title="Override stock status" onClick={() => setStatusTarget(supply)}><Tag className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" onClick={() => { setEditing(supply); setMaterialOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTarget(supply)}><Trash2 className="h-4 w-4" /></Button>
+      {
+        id: 'warehouse',
+        header: 'Warehouse',
+        cell: ({ row }) => (
+          <div className="text-sm">
+            {row.original.stocks
+              .map((s) => s.warehouse?.name)
+              .filter(Boolean)
+              .join(', ') || '—'}
           </div>
-        );
+        ),
       },
-    },
-  ], []);
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => {
+          const s = row.original;
+          return (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${s.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
+            >
+              {s.is_active ? 'Active' : 'Inactive'}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableHiding: false,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const supply = row.original;
+          return (
+            <div className="flex justify-end gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                title="View detail"
+                onClick={() => setDrawerSupplyId(supply.id)}
+              >
+                <PackagePlus className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setStockTarget(supply)}>
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Override stock status"
+                onClick={() => setStatusTarget(supply)}
+              >
+                <Tag className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  setEditing(supply);
+                  setMaterialOpen(true);
+                }}
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-destructive hover:text-destructive/80"
+                onClick={() => setDeleteTarget(supply)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    []
+  );
 
   return (
     <AppLayout>
@@ -248,21 +350,36 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Materials</h1>
-            <p className="text-sm text-muted-foreground">Stock, OPEX, and asset items across all warehouses.</p>
+            <p className="text-sm text-muted-foreground">
+              Stock, OPEX, and asset items across all warehouses.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
             <Link href="/inventory/assets">
-              <Button variant="outline" size="sm">CAPEX Assets</Button>
+              <Button variant="outline" size="sm">
+                CAPEX Assets
+              </Button>
             </Link>
             {stats.trashed > 0 && (
               <Link href="/inventory/supplies/trash">
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />Trash ({stats.trashed})
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/20 hover:bg-destructive/5"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Trash ({stats.trashed})
                 </Button>
               </Link>
             )}
-            <Button onClick={() => { setEditing(null); setMaterialOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />New Material
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setMaterialOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Material
             </Button>
           </div>
         </div>
@@ -271,16 +388,18 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Materials" value={stats.total} />
           <StatCard label="Active" value={stats.active} />
-          <StatCard label="Low Stock" value={stats.low_stock} tone="warn" />
+          <StatCard label="Low Stock" value={stats.low_stock} tone="warning" />
           <StatCard label="Page Stock Value" value={formatCurrency(stockValue)} />
         </div>
 
         {/* Stock category tabs */}
         <div className="flex flex-wrap gap-1.5">
-          {STOCK_CATEGORY_TABS.map(tab => (
+          {STOCK_CATEGORY_TABS.map((tab) => (
             <button
               key={tab.value}
-              onClick={() => applyFilters({ stock_category: tab.value, opex_category: '', page: '1' })}
+              onClick={() =>
+                applyFilters({ stock_category: tab.value, opex_category: '', page: '1' })
+              }
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                 (filters.stock_category ?? 'all') === tab.value
                   ? 'bg-primary text-primary-foreground border-primary'
@@ -294,10 +413,12 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
 
         {/* OPEX category tabs */}
         <div className="flex flex-wrap gap-1.5">
-          {OPEX_CATEGORY_TABS.map(tab => (
+          {OPEX_CATEGORY_TABS.map((tab) => (
             <button
               key={tab.value}
-              onClick={() => applyFilters({ opex_category: tab.value, stock_category: '', page: '1' })}
+              onClick={() =>
+                applyFilters({ opex_category: tab.value, stock_category: '', page: '1' })
+              }
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                 (filters.opex_category ?? 'all') === tab.value
                   ? 'bg-primary text-primary-foreground border-primary'
@@ -311,18 +432,27 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
 
         {/* Stock status tabs */}
         <div className="flex flex-wrap gap-1.5">
-          {STATUS_TABS.map(tab => {
-            const count = tab.value === 'all' ? null
-              : tab.value === 'MOVING' ? stats.by_stock_status.MOVING
-              : tab.value === 'NON_MOVING' ? stats.by_stock_status.NON_MOVING
-              : tab.value === 'DEAD' ? stats.by_stock_status.DEAD
-              : stats.by_stock_status.OUT_OF_STOCK;
-            const activeClass = stockStatus === tab.value
-              ? tab.value === 'DEAD' ? 'bg-red-600 text-white border-red-600'
-                : tab.value === 'NON_MOVING' ? 'bg-amber-500 text-white border-amber-500'
-                : tab.value === 'OUT_OF_STOCK' ? 'bg-red-600 text-white border-red-600'
-                : 'bg-primary text-primary-foreground border-primary'
-              : 'border-input hover:bg-muted';
+          {STATUS_TABS.map((tab) => {
+            const count =
+              tab.value === 'all'
+                ? null
+                : tab.value === 'MOVING'
+                  ? stats.by_stock_status.MOVING
+                  : tab.value === 'NON_MOVING'
+                    ? stats.by_stock_status.NON_MOVING
+                    : tab.value === 'DEAD'
+                      ? stats.by_stock_status.DEAD
+                      : stats.by_stock_status.OUT_OF_STOCK;
+            const activeClass =
+              stockStatus === tab.value
+                ? tab.value === 'DEAD'
+                  ? 'bg-destructive text-destructive-foreground border-destructive'
+                  : tab.value === 'NON_MOVING'
+                    ? 'bg-warning text-warning-foreground border-warning'
+                    : tab.value === 'OUT_OF_STOCK'
+                      ? 'bg-destructive text-destructive-foreground border-destructive'
+                      : 'bg-primary text-primary-foreground border-primary'
+                : 'border-input hover:bg-muted';
             return (
               <button
                 key={tab.value}
@@ -339,16 +469,37 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         {/* Search + filters bar */}
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            <form onSubmit={(e) => { e.preventDefault(); applyFilters({ search, page: '1' }); }} className="flex w-full flex-1 gap-2 sm:min-w-64">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                applyFilters({ search, page: '1' });
+              }}
+              className="flex w-full flex-1 gap-2 sm:min-w-64"
+            >
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search SKU or material name..." value={search} onChange={e => { setSearch(e.target.value); debouncedSearch(e.target.value); }} />
+                <Input
+                  className="pl-9"
+                  placeholder="Search SKU or material name..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    debouncedSearch(e.target.value);
+                  }}
+                />
               </div>
-              <Button type="submit" variant="secondary">Search</Button>
+              <Button type="submit" variant="secondary">
+                Search
+              </Button>
             </form>
 
-            <Select value={filters.status ?? 'all'} onValueChange={(v) => applyFilters({ status: v === 'all' ? '' : v, page: '1' })}>
-              <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+            <Select
+              value={filters.status ?? 'all'}
+              onValueChange={(v) => applyFilters({ status: v === 'all' ? '' : v, page: '1' })}
+            >
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
@@ -362,15 +513,19 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
               className="gap-1.5"
               onClick={() => {
                 const params = new URLSearchParams();
-                if (filters.search)        params.set('search',         filters.search);
-                if (filters.status)        params.set('status',         filters.status);
-                if (filters.stock_category && filters.stock_category !== 'all') params.set('stock_category', filters.stock_category);
-                if (filters.opex_category  && filters.opex_category  !== 'all') params.set('opex_category',  filters.opex_category);
-                if (filters.stock_status   && filters.stock_status   !== 'all') params.set('stock_status',   filters.stock_status);
+                if (filters.search) params.set('search', filters.search);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.stock_category && filters.stock_category !== 'all')
+                  params.set('stock_category', filters.stock_category);
+                if (filters.opex_category && filters.opex_category !== 'all')
+                  params.set('opex_category', filters.opex_category);
+                if (filters.stock_status && filters.stock_status !== 'all')
+                  params.set('stock_status', filters.stock_status);
                 window.location.href = `/inventory/supplies/export?${params.toString()}`;
               }}
             >
-              <Download className="h-3.5 w-3.5" />Export CSV
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
             </Button>
           </CardContent>
         </Card>
@@ -385,9 +540,15 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                 value={String(filters.per_page ?? 25)}
                 onValueChange={(v) => applyFilters({ per_page: v, page: '1' })}
               >
-                <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-20">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {[10, 25, 50, 100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                  {[10, 25, 50, 100].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <span>per page</span>
@@ -405,16 +566,18 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
             toolbar={(table) => {
               const selected = table.getFilteredSelectedRowModel().rows;
               if (selected.length === 0) return null;
-              const selectedSupplies = selected.map(r => r.original);
+              const selectedSupplies = selected.map((r) => r.original);
               return (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">{selected.length} selected</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {selected.length} selected
+                  </span>
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-7 gap-1 text-xs"
                     onClick={() => {
-                      const rows = selectedSupplies.map(s => ({
+                      const rows = selectedSupplies.map((s) => ({
                         SKU: s.sku,
                         Name: s.name,
                         Category: s.category ?? '',
@@ -432,21 +595,27 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
                       });
                     }}
                   >
-                    <Download className="h-3 w-3" />Export
+                    <Download className="h-3 w-3" />
+                    Export
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 gap-1 text-xs text-red-500 hover:text-red-700"
+                    className="h-7 gap-1 text-xs text-destructive hover:text-destructive/80"
                     onClick={() => {
                       if (!confirm(`Archive ${selected.length} selected material(s)?`)) return;
-                      selectedSupplies.forEach(s => {
-                        router.patch(`/inventory/supplies/${s.id}`, { is_active: false }, { preserveState: true });
+                      selectedSupplies.forEach((s) => {
+                        router.patch(
+                          `/inventory/supplies/${s.id}`,
+                          { is_active: false },
+                          { preserveState: true }
+                        );
                       });
                       table.resetRowSelection();
                     }}
                   >
-                    <Archive className="h-3 w-3" />Archive
+                    <Archive className="h-3 w-3" />
+                    Archive
                   </Button>
                 </div>
               );
@@ -455,7 +624,11 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
 
           {supplies.last_page > 1 && (
             <div className="border-t pt-3">
-              <Paginator pagination={supplies} url="/inventory/supplies" params={filters as Record<string, string>} />
+              <Paginator
+                pagination={supplies}
+                url="/inventory/supplies"
+                params={filters as Record<string, string>}
+              />
             </div>
           )}
         </Card>
@@ -463,11 +636,13 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         {recent_movements.length > 0 && (
           <Card>
             <CardContent className="p-0">
-              <div className="border-b px-4 py-3 text-sm font-medium">Recent Material Movements</div>
+              <div className="border-b px-4 py-3 text-sm font-medium">
+                Recent Material Movements
+              </div>
               <div className="p-5">
                 <ActivityTimeline
                   showSupply
-                  events={recent_movements.map(m => ({
+                  events={recent_movements.map((m) => ({
                     id: m.id,
                     type: m.type,
                     quantity: m.quantity,
@@ -488,24 +663,39 @@ export default function SuppliesIndex({ supplies, stats, filters, uoms, warehous
         supplyId={drawerSupplyId}
         onClose={() => setDrawerSupplyId(null)}
         onEdit={(id) => {
-          const s = supplies.data.find(x => x.id === id) ?? null;
+          const s = supplies.data.find((x) => x.id === id) ?? null;
           setEditing(s);
           setMaterialOpen(true);
           setDrawerSupplyId(null);
         }}
         onAdjustStock={(id) => {
-          const s = supplies.data.find(x => x.id === id) ?? null;
+          const s = supplies.data.find((x) => x.id === id) ?? null;
           setStockTarget(s);
           setDrawerSupplyId(null);
         }}
         onOverrideStatus={(id) => {
-          const s = supplies.data.find(x => x.id === id) ?? null;
+          const s = supplies.data.find((x) => x.id === id) ?? null;
           setStatusTarget(s);
           setDrawerSupplyId(null);
         }}
       />
-      <MaterialDialog open={materialOpen} onClose={() => setMaterialOpen(false)} editing={editing} uoms={uoms} warehouses={warehouses} categories={stats.categories} onOverrideStatus={(s) => { setMaterialOpen(false); setStatusTarget(s); }} />
-      <StockDialog supply={stockTarget} onClose={() => setStockTarget(null)} warehouses={warehouses} />
+      <MaterialDialog
+        open={materialOpen}
+        onClose={() => setMaterialOpen(false)}
+        editing={editing}
+        uoms={uoms}
+        warehouses={warehouses}
+        categories={stats.categories}
+        onOverrideStatus={(s) => {
+          setMaterialOpen(false);
+          setStatusTarget(s);
+        }}
+      />
+      <StockDialog
+        supply={stockTarget}
+        onClose={() => setStockTarget(null)}
+        warehouses={warehouses}
+      />
       <StatusOverrideDialog supply={statusTarget} onClose={() => setStatusTarget(null)} />
       <DeleteDialog supply={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </AppLayout>
@@ -532,7 +722,10 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
     e.preventDefault();
     if (!supply) return;
     form.patch(`/inventory/supplies/${supply.id}/status`, {
-      onSuccess: () => { toast.success('Status override applied.'); onClose(); },
+      onSuccess: () => {
+        toast.success('Status override applied.');
+        onClose();
+      },
       onError: () => toast.error('Failed to update status.'),
     });
   }
@@ -542,21 +735,35 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
     form.setData({ stock_status: supply.stock_status, stock_status_override: false });
     form.patch(`/inventory/supplies/${supply.id}/status`, {
       data: { stock_status: supply.stock_status, stock_status_override: false },
-      onSuccess: () => { toast.success('Status override cleared.'); onClose(); },
+      onSuccess: () => {
+        toast.success('Status override cleared.');
+        onClose();
+      },
       onError: () => toast.error('Failed to clear status override.'),
     });
   }
 
-  const STATUS_OPTIONS: { value: 'MOVING' | 'NON_MOVING' | 'DEAD'; label: string; cls: string }[] = [
-    { value: 'MOVING',     label: 'Moving',     cls: 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300' },
-    { value: 'NON_MOVING', label: 'Non-Moving', cls: 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
-    { value: 'DEAD',       label: 'Dead Stock', cls: 'border-red-500 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300' },
-  ];
+  const STATUS_OPTIONS: { value: 'MOVING' | 'NON_MOVING' | 'DEAD'; label: string; cls: string }[] =
+    [
+      { value: 'MOVING', label: 'Moving', cls: 'border-success bg-success/10 text-success' },
+      {
+        value: 'NON_MOVING',
+        label: 'Non-Moving',
+        cls: 'border-warning bg-warning/10 text-warning',
+      },
+      {
+        value: 'DEAD',
+        label: 'Dead Stock',
+        cls: 'border-destructive bg-destructive/10 text-destructive',
+      },
+    ];
 
   return (
     <Dialog open={!!supply} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Override Stock Status</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Override Stock Status</DialogTitle>
+        </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-4">
             <div className="rounded-md bg-muted p-3 text-sm">
@@ -567,7 +774,7 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
             <div className="space-y-2">
               <Label>Status</Label>
               <div className="grid grid-cols-3 gap-2">
-                {STATUS_OPTIONS.map(opt => (
+                {STATUS_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
@@ -589,23 +796,35 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
                 type="checkbox"
                 className="mt-0.5"
                 checked={form.data.stock_status_override}
-                onChange={e => form.setData('stock_status_override', e.target.checked)}
+                onChange={(e) => form.setData('stock_status_override', e.target.checked)}
               />
               <span>
                 <span className="font-medium">Lock this status</span>
-                <span className="block text-xs text-muted-foreground">Prevents auto-classification from overwriting this value. A ★ will appear on the badge.</span>
+                <span className="block text-xs text-muted-foreground">
+                  Prevents auto-classification from overwriting this value. A ★ will appear on the
+                  badge.
+                </span>
               </span>
             </label>
 
             <div className="flex items-center justify-between pt-1">
               {supply.stock_status_override && (
-                <button type="button" onClick={clearOverride} className="text-xs text-muted-foreground underline hover:text-foreground">
+                <button
+                  type="button"
+                  onClick={clearOverride}
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                >
                   Clear override (restore auto)
                 </button>
               )}
               <div className="ml-auto flex gap-2">
-                <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-                <Button type="submit" disabled={form.processing}><Tag className="mr-2 h-4 w-4" />Apply</Button>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={form.processing}>
+                  <Tag className="mr-2 h-4 w-4" />
+                  Apply
+                </Button>
               </div>
             </div>
           </form>
@@ -627,7 +846,10 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
     e.preventDefault();
     if (!supply) return;
     form.delete(`/inventory/supplies/${supply.id}`, {
-      onSuccess: () => { toast.success('Material removed successfully.'); onClose(); },
+      onSuccess: () => {
+        toast.success('Material removed successfully.');
+        onClose();
+      },
       onError: () => toast.error('Failed to remove material. Please try again.'),
     });
   }
@@ -635,29 +857,42 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   return (
     <Dialog open={!!supply} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Remove Material</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Remove Material</DialogTitle>
+        </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-3">
-            <div className="rounded-md border border-red-800 bg-red-950/30 p-3 text-sm">
-              <div className="font-medium text-red-300">{supply.name}</div>
-              <div className="font-mono text-xs text-red-400">{supply.sku}</div>
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm">
+              <div className="font-medium text-destructive">{supply.name}</div>
+              <div className="font-mono text-xs text-destructive/70">{supply.sku}</div>
             </div>
-            <p className="text-sm text-muted-foreground">This will soft-delete the material. A reason is required for audit purposes.</p>
+            <p className="text-sm text-muted-foreground">
+              This will soft-delete the material. A reason is required for audit purposes.
+            </p>
             <div className="space-y-1">
               <Label>Reason for deletion *</Label>
               <Textarea
                 rows={2}
                 placeholder="e.g. Wrong data entry, duplicate SKU..."
                 value={form.data.delete_reason}
-                onChange={e => form.setData('delete_reason', e.target.value)}
+                onChange={(e) => form.setData('delete_reason', e.target.value)}
                 required
               />
-              {form.errors.delete_reason && <p className="text-xs text-red-600">{form.errors.delete_reason}</p>}
+              {form.errors.delete_reason && (
+                <p className="text-xs text-destructive">{form.errors.delete_reason}</p>
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" variant="destructive" disabled={form.processing || !form.data.delete_reason.trim()}>
-                <Trash2 className="mr-2 h-4 w-4" />Remove
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={form.processing || !form.data.delete_reason.trim()}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Remove
               </Button>
             </div>
           </form>
@@ -667,7 +902,12 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   );
 }
 
-function SectionBadge({ section, stockCategory, opexCategory, category }: {
+function SectionBadge({
+  section,
+  stockCategory,
+  opexCategory,
+  category,
+}: {
   section: 'STOCK' | 'OPEX' | string;
   stockCategory?: string;
   opexCategory?: string;
@@ -690,11 +930,8 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
       ? (STOCK_LABELS[stockCategory] ?? stockCategory)
       : (category ?? null);
 
-  const dotColor = section === 'STOCK'
-    ? 'bg-emerald-400'
-    : section === 'OPEX'
-      ? 'bg-blue-400'
-      : 'bg-slate-400';
+  const dotColor =
+    section === 'STOCK' ? 'bg-success' : section === 'OPEX' ? 'bg-info' : 'bg-muted-foreground';
 
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -706,19 +943,34 @@ function SectionBadge({ section, stockCategory, opexCategory, category }: {
 
 function StockStatusBadge({ status, override }: { status: string; override: boolean }) {
   const cfg: Record<string, { cls: string; label: string }> = {
-    MOVING:     { cls: 'bg-green-950/40 text-green-300',  label: 'Moving' },
-    NON_MOVING: { cls: 'bg-amber-950/40 text-amber-300',  label: 'Non-Moving' },
-    DEAD:       { cls: 'bg-red-950/40 text-red-300',      label: 'Dead Stock' },
+    MOVING: { cls: 'bg-success/10 text-success', label: 'Moving' },
+    NON_MOVING: { cls: 'bg-warning/10 text-warning', label: 'Non-Moving' },
+    DEAD: { cls: 'bg-destructive/10 text-destructive', label: 'Dead Stock' },
   };
-  const { cls, label } = cfg[status] ?? { cls: 'bg-slate-800 text-slate-400', label: status };
+  const { cls, label } = cfg[status] ?? { cls: 'bg-muted text-muted-foreground', label: status };
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
-      {label}{override && <span title="Manually set" className="opacity-60">★</span>}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {label}
+      {override && (
+        <span title="Manually set" className="opacity-60">
+          ★
+        </span>
+      )}
     </span>
   );
 }
 
-function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, onOverrideStatus }: {
+function MaterialDialog({
+  open,
+  onClose,
+  editing,
+  uoms,
+  warehouses,
+  categories,
+  onOverrideStatus,
+}: {
   open: boolean;
   onClose: () => void;
   editing: Supply | null;
@@ -769,12 +1021,19 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
 
     if (editing) {
       form.put(`/inventory/supplies/${editing.id}`, {
-        onSuccess: () => { toast.success('Material updated successfully.'); onClose(); },
+        onSuccess: () => {
+          toast.success('Material updated successfully.');
+          onClose();
+        },
         onError: () => toast.error('Failed to update material. Check the form for errors.'),
       });
     } else {
       form.post('/inventory/supplies', {
-        onSuccess: () => { toast.success('Material created successfully.'); onClose(); form.reset(); },
+        onSuccess: () => {
+          toast.success('Material created successfully.');
+          onClose();
+          form.reset();
+        },
         onError: () => toast.error('Failed to create material. Check the form for errors.'),
       });
     }
@@ -783,25 +1042,46 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{editing ? 'Edit Material' : 'New Material'}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Edit Material' : 'New Material'}</DialogTitle>
+        </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>SKU *</Label>
-              <Input value={form.data.sku} onChange={e => form.setData('sku', e.target.value.toUpperCase())} required className="font-mono uppercase" />
-              {form.errors.sku && <p className="text-xs text-red-600">{form.errors.sku}</p>}
+              <Input
+                value={form.data.sku}
+                onChange={(e) => form.setData('sku', e.target.value.toUpperCase())}
+                required
+                className="font-mono uppercase"
+              />
+              {form.errors.sku && <p className="text-xs text-destructive">{form.errors.sku}</p>}
             </div>
             <div className="space-y-1">
               <Label>Name *</Label>
-              <Input value={form.data.name} onChange={e => form.setData('name', e.target.value)} required placeholder="Bottles, caps, labels..." />
-              {form.errors.name && <p className="text-xs text-red-600">{form.errors.name}</p>}
+              <Input
+                value={form.data.name}
+                onChange={(e) => form.setData('name', e.target.value)}
+                required
+                placeholder="Bottles, caps, labels..."
+              />
+              {form.errors.name && <p className="text-xs text-destructive">{form.errors.name}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Section</Label>
-              <Select value={form.data.section} onValueChange={v => { form.setData('section', v); form.setData('stock_category', ''); form.setData('opex_category', ''); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.data.section}
+                onValueChange={(v) => {
+                  form.setData('section', v);
+                  form.setData('stock_category', '');
+                  form.setData('opex_category', '');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="STOCK">Section 1 — Stock</SelectItem>
                   <SelectItem value="OPEX">Section 2 — OPEX</SelectItem>
@@ -811,8 +1091,13 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
             {form.data.section === 'STOCK' ? (
               <div className="space-y-1">
                 <Label>Stock Category</Label>
-                <Select value={form.data.stock_category || 'none'} onValueChange={v => form.setData('stock_category', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Select
+                  value={form.data.stock_category || 'none'}
+                  onValueChange={(v) => form.setData('stock_category', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— None —</SelectItem>
                     <SelectItem value="RAW_MATERIAL">Raw Materials</SelectItem>
@@ -825,8 +1110,13 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
             ) : (
               <div className="space-y-1">
                 <Label>OPEX Category</Label>
-                <Select value={form.data.opex_category || 'none'} onValueChange={v => form.setData('opex_category', v === 'none' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Select
+                  value={form.data.opex_category || 'none'}
+                  onValueChange={(v) => form.setData('opex_category', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">— None —</SelectItem>
                     <SelectItem value="OFFICE_SUPPLY">Office Supplies</SelectItem>
@@ -841,17 +1131,26 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
               <Label>Category (optional tag)</Label>
               <CategorySelect
                 value={form.data.category}
-                onChange={v => form.setData('category', v)}
+                onChange={(v) => form.setData('category', v)}
                 categories={categories}
               />
             </div>
             <div className="space-y-1">
               <Label>UoM</Label>
-              <Select value={form.data.uom_id || 'none'} onValueChange={(value) => form.setData('uom_id', value === 'none' ? '' : value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.data.uom_id || 'none'}
+                onValueChange={(value) => form.setData('uom_id', value === 'none' ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {uoms.map(uom => <SelectItem key={uom.id} value={String(uom.id)}>{uom.name} ({uom.abbreviation})</SelectItem>)}
+                  {uoms.map((uom) => (
+                    <SelectItem key={uom.id} value={String(uom.id)}>
+                      {uom.name} ({uom.abbreviation})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -859,53 +1158,122 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Unit Cost *</Label>
-              <Input type="number" min={0} step="0.0001" value={form.data.cost_price} onChange={e => form.setData('cost_price', Number(e.target.value))} required />
-              {form.errors.cost_price && <p className="text-xs text-red-600">{form.errors.cost_price}</p>}
+              <Input
+                type="number"
+                min={0}
+                step="0.0001"
+                value={form.data.cost_price}
+                onChange={(e) => form.setData('cost_price', Number(e.target.value))}
+                required
+              />
+              {form.errors.cost_price && (
+                <p className="text-xs text-destructive">{form.errors.cost_price}</p>
+              )}
             </div>
-            <div className="space-y-1"><Label>Min Stock</Label><Input type="number" min={0} value={form.data.min_stock_level} onChange={e => form.setData('min_stock_level', Number(e.target.value))} /></div>
-            <div className="space-y-1"><Label>Reorder Point</Label><Input type="number" min={0} value={form.data.reorder_point} onChange={e => form.setData('reorder_point', Number(e.target.value))} /></div>
+            <div className="space-y-1">
+              <Label>Min Stock</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.data.min_stock_level}
+                onChange={(e) => form.setData('min_stock_level', Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Reorder Point</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.data.reorder_point}
+                onChange={(e) => form.setData('reorder_point', Number(e.target.value))}
+              />
+            </div>
           </div>
           {!editing && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Initial Stock</Label><Input type="number" min={0} value={form.data.initial_stock} onChange={e => form.setData('initial_stock', Number(e.target.value))} /></div>
+              <div className="space-y-1">
+                <Label>Initial Stock</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.data.initial_stock}
+                  onChange={(e) => form.setData('initial_stock', Number(e.target.value))}
+                />
+              </div>
               <div className="space-y-1">
                 <Label>Warehouse</Label>
-                <Select value={form.data.warehouse_id || 'default'} onValueChange={(value) => form.setData('warehouse_id', value === 'default' ? '' : value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.data.warehouse_id || 'default'}
+                  onValueChange={(value) =>
+                    form.setData('warehouse_id', value === 'default' ? '' : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">Default warehouse</SelectItem>
-                    {warehouses.map(warehouse => <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}</SelectItem>)}
+                    {warehouses.map((warehouse) => (
+                      <SelectItem key={warehouse.id} value={String(warehouse.id)}>
+                        {warehouse.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
           )}
-          <div className="space-y-1"><Label>Description</Label><Textarea rows={2} value={form.data.description} onChange={e => form.setData('description', e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>Description</Label>
+            <Textarea
+              rows={2}
+              value={form.data.description}
+              onChange={(e) => form.setData('description', e.target.value)}
+            />
+          </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.data.is_active} onChange={e => form.setData('is_active', e.target.checked)} />Active
+            <input
+              type="checkbox"
+              checked={form.data.is_active}
+              onChange={(e) => form.setData('is_active', e.target.checked)}
+            />
+            Active
           </label>
           {editing && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock Status</span>
-                {editing.stock_status_override && <span className="text-xs text-amber-400 font-medium">★ Manually locked</span>}
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Stock Status
+                </span>
+                {editing.stock_status_override && (
+                  <span className="text-xs text-warning font-medium">★ Manually locked</span>
+                )}
               </div>
               <div className="flex items-center justify-between">
-                <StockStatusBadge status={editing.stock_status} override={editing.stock_status_override} />
+                <StockStatusBadge
+                  status={editing.stock_status}
+                  override={editing.stock_status_override}
+                />
                 <button
                   type="button"
                   onClick={() => editing && onOverrideStatus?.(editing)}
-                  className="text-xs text-blue-400 hover:underline"
+                  className="text-xs text-primary hover:underline"
                 >
                   Override status →
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">Auto-classification runs on page load based on last activity date.</p>
+              <p className="text-xs text-muted-foreground">
+                Auto-classification runs on page load based on last activity date.
+              </p>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={form.processing}>{editing ? 'Save' : 'Create'}</Button>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={form.processing}>
+              {editing ? 'Save' : 'Create'}
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -913,7 +1281,15 @@ function MaterialDialog({ open, onClose, editing, uoms, warehouses, categories, 
   );
 }
 
-function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; onClose: () => void; warehouses: Warehouse[] }) {
+function StockDialog({
+  supply,
+  onClose,
+  warehouses,
+}: {
+  supply: Supply | null;
+  onClose: () => void;
+  warehouses: Warehouse[];
+}) {
   const form = useForm({
     type: 'stock_in',
     quantity: 1,
@@ -936,7 +1312,10 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
     if (!supply) return;
 
     form.post(`/inventory/supplies/${supply.id}/stock`, {
-      onSuccess: () => { toast.success('Stock adjusted successfully.'); onClose(); },
+      onSuccess: () => {
+        toast.success('Stock adjusted successfully.');
+        onClose();
+      },
       onError: () => toast.error('Failed to adjust stock. Please try again.'),
     });
   }
@@ -944,7 +1323,9 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
   return (
     <Dialog open={!!supply} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Adjust Material Stock</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Adjust Material Stock</DialogTitle>
+        </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-3">
             <div className="rounded-md bg-muted p-3 text-sm">
@@ -954,8 +1335,13 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Action</Label>
-                <Select value={form.data.type} onValueChange={(value) => form.setData('type', value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.data.type}
+                  onValueChange={(value) => form.setData('type', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="stock_in">Stock In</SelectItem>
                     <SelectItem value="stock_out">Stock Out</SelectItem>
@@ -963,22 +1349,52 @@ function StockDialog({ supply, onClose, warehouses }: { supply: Supply | null; o
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label>{form.data.type === 'adjustment' ? 'New Qty' : 'Quantity'}</Label><Input type="number" min={1} value={form.data.quantity} onChange={e => form.setData('quantity', Number(e.target.value))} /></div>
+              <div className="space-y-1">
+                <Label>{form.data.type === 'adjustment' ? 'New Qty' : 'Quantity'}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.data.quantity}
+                  onChange={(e) => form.setData('quantity', Number(e.target.value))}
+                />
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Warehouse</Label>
-              <Select value={form.data.warehouse_id || 'default'} onValueChange={(value) => form.setData('warehouse_id', value === 'default' ? '' : value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.data.warehouse_id || 'default'}
+                onValueChange={(value) =>
+                  form.setData('warehouse_id', value === 'default' ? '' : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Default warehouse</SelectItem>
-                  {warehouses.map(warehouse => <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}</SelectItem>)}
+                  {warehouses.map((warehouse) => (
+                    <SelectItem key={warehouse.id} value={String(warehouse.id)}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label>Notes</Label><Input value={form.data.notes} onChange={e => form.setData('notes', e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Input
+                value={form.data.notes}
+                onChange={(e) => form.setData('notes', e.target.value)}
+              />
+            </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={form.processing}><PackagePlus className="mr-2 h-4 w-4" />Post</Button>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={form.processing}>
+                <PackagePlus className="mr-2 h-4 w-4" />
+                Post
+              </Button>
             </div>
           </form>
         )}
@@ -999,7 +1415,11 @@ const PRESET_CATEGORIES = [
   'Spare Parts',
 ];
 
-function CategorySelect({ value, onChange, categories }: {
+function CategorySelect({
+  value,
+  onChange,
+  categories,
+}: {
   value: string;
   onChange: (v: string) => void;
   categories: string[];
@@ -1007,9 +1427,7 @@ function CategorySelect({ value, onChange, categories }: {
   const [custom, setCustom] = useState(false);
 
   // Merge presets with DB categories, deduplicated
-  const allOptions = Array.from(
-    new Set([...PRESET_CATEGORIES, ...categories])
-  ).sort();
+  const allOptions = Array.from(new Set([...PRESET_CATEGORIES, ...categories])).sort();
 
   // If editing an existing value not in the list, show custom input
   useEffect(() => {
@@ -1021,7 +1439,7 @@ function CategorySelect({ value, onChange, categories }: {
       <div className="flex gap-1.5">
         <Input
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           placeholder="Type category name..."
           className="flex-1"
           autoFocus
@@ -1031,7 +1449,10 @@ function CategorySelect({ value, onChange, categories }: {
           variant="outline"
           size="sm"
           className="shrink-0 px-2 text-xs"
-          onClick={() => { setCustom(false); onChange(''); }}
+          onClick={() => {
+            setCustom(false);
+            onChange('');
+          }}
         >
           ✕
         </Button>
@@ -1042,28 +1463,50 @@ function CategorySelect({ value, onChange, categories }: {
   return (
     <Select
       value={value || '__none__'}
-      onValueChange={v => {
-        if (v === '__other__') { setCustom(true); onChange(''); }
-        else if (v === '__none__') onChange('');
+      onValueChange={(v) => {
+        if (v === '__other__') {
+          setCustom(true);
+          onChange('');
+        } else if (v === '__none__') onChange('');
         else onChange(v);
       }}
     >
-      <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
+      <SelectTrigger>
+        <SelectValue placeholder="Select category..." />
+      </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__"><span className="text-muted-foreground">— None —</span></SelectItem>
-        {allOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-        <SelectItem value="__other__"><span className="text-primary">+ Custom category...</span></SelectItem>
+        <SelectItem value="__none__">
+          <span className="text-muted-foreground">— None —</span>
+        </SelectItem>
+        {allOptions.map((c) => (
+          <SelectItem key={c} value={c}>
+            {c}
+          </SelectItem>
+        ))}
+        <SelectItem value="__other__">
+          <span className="text-primary">+ Custom category...</span>
+        </SelectItem>
       </SelectContent>
     </Select>
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: 'warn' }) {
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone?: 'warning';
+}) {
   return (
     <Card>
       <CardContent className="p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`mt-1 text-2xl font-bold ${tone === 'warn' ? 'text-orange-400' : ''}`}>{value}</p>
+        <p className={`mt-1 text-2xl font-bold ${tone === 'warning' ? 'text-warning' : ''}`}>
+          {value}
+        </p>
       </CardContent>
     </Card>
   );
@@ -1074,5 +1517,9 @@ function totalStock(supply: Supply): number {
 }
 
 function totalAvailable(supply: Supply): number {
-  return supply.stocks.reduce((sum, stock) => sum + Number(stock.available_stock ?? stock.current_stock - stock.reserved_stock), 0);
+  return supply.stocks.reduce(
+    (sum, stock) =>
+      sum + Number(stock.available_stock ?? stock.current_stock - stock.reserved_stock),
+    0
+  );
 }

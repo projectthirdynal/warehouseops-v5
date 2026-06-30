@@ -22,22 +22,50 @@ interface Props {
   showSupply?: boolean;
 }
 
-const TYPE_META: Record<string, { label: string; icon: React.ReactNode; dotCls: string; qtySign: 'pos' | 'neg' | 'neutral' }> = {
-  STOCK_IN:   { label: 'Stock In',    icon: <ArrowUpCircle   className="h-3.5 w-3.5" />, dotCls: 'bg-emerald-500', qtySign: 'pos' },
-  STOCK_OUT:  { label: 'Stock Out',   icon: <ArrowDownCircle className="h-3.5 w-3.5" />, dotCls: 'bg-red-500',     qtySign: 'neg' },
-  ADJUSTMENT: { label: 'Adjustment',  icon: <RefreshCw       className="h-3.5 w-3.5" />, dotCls: 'bg-amber-500',   qtySign: 'neutral' },
+const TYPE_META: Record<
+  string,
+  { label: string; icon: React.ReactNode; dotCls: string; qtySign: 'pos' | 'neg' | 'neutral' }
+> = {
+  STOCK_IN: {
+    label: 'Stock In',
+    icon: <ArrowUpCircle className="h-3.5 w-3.5" />,
+    dotCls: 'bg-success',
+    qtySign: 'pos',
+  },
+  STOCK_OUT: {
+    label: 'Stock Out',
+    icon: <ArrowDownCircle className="h-3.5 w-3.5" />,
+    dotCls: 'bg-destructive/50',
+    qtySign: 'neg',
+  },
+  ADJUSTMENT: {
+    label: 'Adjustment',
+    icon: <RefreshCw className="h-3.5 w-3.5" />,
+    dotCls: 'bg-warning/50',
+    qtySign: 'neutral',
+  },
 };
 
 const QTY_CLASSES: Record<'pos' | 'neg' | 'neutral', string> = {
-  pos:     'text-emerald-400',
-  neg:     'text-red-400',
-  neutral: 'text-amber-400',
+  pos: 'text-success/80',
+  neg: 'text-destructive/80',
+  neutral: 'text-warning/80',
 };
 
-export function ActivityTimeline({ events, emptyMessage = 'No activity recorded.', className, showSupply = false }: Props) {
+export function ActivityTimeline({
+  events,
+  emptyMessage = 'No activity recorded.',
+  className,
+  showSupply = false,
+}: Props) {
   if (events.length === 0) {
     return (
-      <div className={cn('flex items-center justify-center py-8 text-sm text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'flex items-center justify-center py-8 text-sm text-muted-foreground',
+          className
+        )}
+      >
         {emptyMessage}
       </div>
     );
@@ -58,10 +86,12 @@ export function ActivityTimeline({ events, emptyMessage = 'No activity recorded.
         return (
           <li key={ev.id} className={cn('ml-4', idx < events.length - 1 && 'mb-4')}>
             {/* Dot */}
-            <span className={cn(
-              'absolute -left-[7px] flex h-3.5 w-3.5 items-center justify-center rounded-full ring-2 ring-background',
-              meta.dotCls
-            )} />
+            <span
+              className={cn(
+                'absolute -left-[7px] flex h-3.5 w-3.5 items-center justify-center rounded-full ring-2 ring-background',
+                meta.dotCls
+              )}
+            />
 
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
@@ -70,7 +100,8 @@ export function ActivityTimeline({ events, emptyMessage = 'No activity recorded.
                 {meta.label}
               </span>
               <span className={cn('text-xs font-bold tabular-nums', qtyCls)}>
-                {qtyPrefix}{ev.quantity.toLocaleString()}
+                {qtyPrefix}
+                {ev.quantity.toLocaleString()}
               </span>
             </div>
 

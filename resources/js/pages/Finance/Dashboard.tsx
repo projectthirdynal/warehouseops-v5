@@ -41,7 +41,13 @@ interface Props {
   filters: { from: string; to: string };
 }
 
-export default function FinanceDashboard({ summary, dailyRevenue, commissionStats, codStats, filters }: Props) {
+export default function FinanceDashboard({
+  summary,
+  dailyRevenue,
+  commissionStats,
+  codStats,
+  filters,
+}: Props) {
   const maxRevenue = Math.max(...dailyRevenue.map((d) => d.total), 1);
 
   return (
@@ -49,21 +55,33 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Finance</h1>
+            <h1 className="text-2xl font-bold font-display">Finance</h1>
             <p className="text-sm text-muted-foreground">Revenue, commissions, and P&L overview</p>
           </div>
           <div className="flex items-center gap-2">
             <input
               type="date"
               value={filters.from}
-              onChange={(e) => router.get('/finance', { from: e.target.value, to: filters.to }, { preserveState: true })}
+              onChange={(e) =>
+                router.get(
+                  '/finance',
+                  { from: e.target.value, to: filters.to },
+                  { preserveState: true }
+                )
+              }
               className="border rounded-lg px-3 py-2 text-sm"
             />
             <span className="text-muted-foreground">to</span>
             <input
               type="date"
               value={filters.to}
-              onChange={(e) => router.get('/finance', { from: filters.from, to: e.target.value }, { preserveState: true })}
+              onChange={(e) =>
+                router.get(
+                  '/finance',
+                  { from: filters.from, to: e.target.value },
+                  { preserveState: true }
+                )
+              }
               className="border rounded-lg px-3 py-2 text-sm"
             />
           </div>
@@ -74,11 +92,13 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                <div className="p-2 rounded-lg bg-success/10">
+                  <DollarSign className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-green-600">{formatCurrency(summary.net_revenue)}</p>
+                  <p className="text-xl font-bold text-success">
+                    {formatCurrency(summary.net_revenue)}
+                  </p>
                   <p className="text-xs text-muted-foreground">Net Revenue</p>
                 </div>
               </div>
@@ -87,11 +107,13 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                <div className="p-2 rounded-lg bg-info/10">
+                  <TrendingUp className="h-5 w-5 text-info" />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(summary.gross_profit)}</p>
+                  <p className="text-xl font-bold text-info">
+                    {formatCurrency(summary.gross_profit)}
+                  </p>
                   <p className="text-xs text-muted-foreground">Gross Profit</p>
                 </div>
               </div>
@@ -100,13 +122,19 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${summary.net_profit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                  {summary.net_profit >= 0
-                    ? <TrendingUp className="h-5 w-5 text-green-600" />
-                    : <TrendingDown className="h-5 w-5 text-red-600" />}
+                <div
+                  className={`p-2 rounded-lg ${summary.net_profit >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}
+                >
+                  {summary.net_profit >= 0 ? (
+                    <TrendingUp className="h-5 w-5 text-success" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-destructive" />
+                  )}
                 </div>
                 <div>
-                  <p className={`text-xl font-bold ${summary.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <p
+                    className={`text-xl font-bold ${summary.net_profit >= 0 ? 'text-success' : 'text-destructive'}`}
+                  >
                     {formatCurrency(summary.net_profit)}
                   </p>
                   <p className="text-xs text-muted-foreground">Net Profit ({summary.margin}%)</p>
@@ -117,12 +145,14 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <Package className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Package className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <p className="text-xl font-bold">{summary.orders_delivered}</p>
-                  <p className="text-xs text-muted-foreground">Delivered ({summary.orders_returned} returned)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Delivered ({summary.orders_returned} returned)
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -132,10 +162,14 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Revenue chart */}
           <Card className="lg:col-span-2">
-            <CardHeader><CardTitle className="text-base">Daily Revenue (Last 30 Days)</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Daily Revenue (Last 30 Days)</CardTitle>
+            </CardHeader>
             <CardContent>
               {dailyRevenue.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No revenue data yet.</p>
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No revenue data yet.
+                </p>
               ) : (
                 <div className="flex items-end gap-1 h-48">
                   {dailyRevenue.map((d, i) => (
@@ -159,13 +193,15 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
 
           {/* P&L breakdown */}
           <Card>
-            <CardHeader><CardTitle className="text-base">P&L Breakdown</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">P&L Breakdown</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span>Gross Revenue</span>
                 <span className="font-semibold">{formatCurrency(summary.gross_revenue)}</span>
               </div>
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between text-destructive">
                 <span>Refunds</span>
                 <span>-{formatCurrency(summary.refunds)}</span>
               </div>
@@ -173,7 +209,7 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
                 <span>Net Revenue</span>
                 <span>{formatCurrency(summary.net_revenue)}</span>
               </div>
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between text-destructive">
                 <span>COGS</span>
                 <span>-{formatCurrency(summary.cogs)}</span>
               </div>
@@ -181,17 +217,17 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
                 <span>Gross Profit</span>
                 <span>{formatCurrency(summary.gross_profit)}</span>
               </div>
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between text-destructive">
                 <span>Shipping</span>
                 <span>-{formatCurrency(summary.shipping_costs)}</span>
               </div>
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between text-destructive">
                 <span>Commissions</span>
                 <span>-{formatCurrency(summary.commissions)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between font-bold text-lg">
                 <span>Net Profit</span>
-                <span className={summary.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                <span className={summary.net_profit >= 0 ? 'text-success' : 'text-destructive'}>
                   {formatCurrency(summary.net_profit)}
                 </span>
               </div>
@@ -209,7 +245,8 @@ export default function FinanceDashboard({ summary, dailyRevenue, commissionStat
                   <div>
                     <p className="font-semibold">Commissions</p>
                     <p className="text-sm text-muted-foreground">
-                      {commissionStats.pending_count} pending ({formatCurrency(commissionStats.pending_total)})
+                      {commissionStats.pending_count} pending (
+                      {formatCurrency(commissionStats.pending_total)})
                     </p>
                   </div>
                 </div>

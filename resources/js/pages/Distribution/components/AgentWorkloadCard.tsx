@@ -27,7 +27,8 @@ export default function AgentWorkloadCard({ agent, workload }: Props) {
   const todayConverted = workload?.today_converted_count ?? 0;
   const utilization = workload ? Math.min(100, Math.round((active / 10) * 100)) : 0;
 
-  const barColor = utilization >= 90 ? 'bg-red-500' : utilization >= 70 ? 'bg-yellow-500' : 'bg-green-500';
+  const barColor =
+    utilization >= 90 ? 'bg-destructive/50' : utilization >= 70 ? 'bg-warning/50' : 'bg-success/50';
 
   return (
     <Card className="overflow-hidden">
@@ -37,7 +38,9 @@ export default function AgentWorkloadCard({ agent, workload }: Props) {
             <User className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">{agent.name}</span>
           </div>
-          <span className={`text-xs px-1.5 py-0.5 rounded ${agent.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+          <span
+            className={`text-xs px-1.5 py-0.5 rounded ${agent.is_active ? 'bg-success/10 text-success' : 'bg-muted text-foreground'}`}
+          >
             {agent.is_active ? 'Active' : 'Inactive'}
           </span>
         </div>
@@ -48,7 +51,10 @@ export default function AgentWorkloadCard({ agent, workload }: Props) {
             <span>{utilization}%</span>
           </div>
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-            <div className={`h-full ${barColor} transition-all`} style={{ width: `${utilization}%` }} />
+            <div
+              className={`h-full ${barColor} transition-all`}
+              style={{ width: `${utilization}%` }}
+            />
           </div>
         </div>
 

@@ -18,7 +18,12 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { DashboardStats, DashboardHourlyItem, DashboardActivity, DashboardTrends } from '@/types';
+import type {
+  DashboardStats,
+  DashboardHourlyItem,
+  DashboardActivity,
+  DashboardTrends,
+} from '@/types';
 
 interface Props {
   stats: DashboardStats;
@@ -46,19 +51,21 @@ function StatCard({
 }) {
   const iconColors = {
     default: 'text-primary',
-    success: 'text-green-500',
-    warning: 'text-yellow-500',
-    danger: 'text-red-500',
+    success: 'text-success',
+    warning: 'text-warning',
+    danger: 'text-destructive',
   };
   const bgColors = {
     default: 'bg-primary/10',
-    success: 'bg-green-500/10',
-    warning: 'bg-yellow-500/10',
-    danger: 'bg-red-500/10',
+    success: 'bg-success/10',
+    warning: 'bg-warning/10',
+    danger: 'bg-destructive/10',
   };
 
   const content = (
-    <Card className={`transition-all ${href ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''}`}>
+    <Card
+      className={`transition-all ${href ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''}`}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <div className={`rounded-lg p-2 ${bgColors[variant]}`}>
@@ -66,17 +73,20 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-bold font-display tabular-nums">{value}</div>
         {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
         {trend && trend.value !== null && (
           <div className="flex items-center gap-1 mt-2">
             {trend.value >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-success" />
             ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-destructive" />
             )}
-            <span className={`text-xs font-medium ${trend.value >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {trend.value >= 0 ? '+' : ''}{trend.value}%
+            <span
+              className={`text-xs font-medium tabular-nums ${trend.value >= 0 ? 'text-success' : 'text-destructive'}`}
+            >
+              {trend.value >= 0 ? '+' : ''}
+              {trend.value}%
             </span>
             <span className="text-xs text-muted-foreground">{trend.label}</span>
           </div>
@@ -97,27 +107,40 @@ const ACTIVITY_ICONS: Record<string, React.ComponentType<{ className?: string }>
 };
 
 const ACTIVITY_COLORS: Record<string, string> = {
-  Waybill: 'bg-blue-500',
-  Lead: 'bg-green-500',
-  QC: 'bg-purple-500',
-  System: 'bg-gray-500',
+  Waybill: 'bg-info',
+  Lead: 'bg-success',
+  QC: 'bg-primary',
+  System: 'bg-muted-foreground',
 };
 
 export default function Dashboard({ stats, recentActivity, hourlyActivity, trends }: Props) {
   const s = stats ?? {
-    total_waybills: 0, pending_dispatch: 0, in_transit: 0, delivered_today: 0,
-    returned_today: 0, total_leads: 0, new_leads: 0, sales_today: 0,
-    conversion_rate: 0, qc_pending: 0, agents_online: 0,
+    total_waybills: 0,
+    pending_dispatch: 0,
+    in_transit: 0,
+    delivered_today: 0,
+    returned_today: 0,
+    total_leads: 0,
+    new_leads: 0,
+    sales_today: 0,
+    conversion_rate: 0,
+    qc_pending: 0,
+    agents_online: 0,
   };
 
-  const chartData = hourlyActivity.length > 0
-    ? hourlyActivity
-    : Array.from({ length: 12 }, (_, i) => ({ hour: String(8 + i), waybills: 0 }));
+  const chartData =
+    hourlyActivity.length > 0
+      ? hourlyActivity
+      : Array.from({ length: 12 }, (_, i) => ({ hour: String(8 + i), waybills: 0 }));
 
   const chartMax = Math.max(...chartData.map((d) => d.waybills), 1);
 
   const today = new Date();
-  const dateLabel = today.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = today.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
 
   return (
     <AppLayout>
@@ -127,8 +150,10 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Overview of warehouse operations and key metrics</p>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Overview of warehouse operations and key metrics
+            </p>
           </div>
           <Button asChild>
             <Link href="/scanner">
@@ -214,7 +239,9 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                   <CardTitle>Today's Activity</CardTitle>
                   <CardDescription>Hourly waybill volume</CardDescription>
                 </div>
-                <Badge variant="outline" className="text-xs">{dateLabel}</Badge>
+                <Badge variant="outline" className="text-xs">
+                  {dateLabel}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -227,9 +254,15 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                   {chartData.map((item) => {
                     const hour = parseInt(item.hour, 10);
                     const isCurrentHour = today.getHours() === hour;
-                    const heightPct = Math.max((item.waybills / chartMax) * 100, item.waybills > 0 ? 4 : 1);
+                    const heightPct = Math.max(
+                      (item.waybills / chartMax) * 100,
+                      item.waybills > 0 ? 4 : 1
+                    );
                     return (
-                      <div key={item.hour} className="flex-1 flex flex-col items-center gap-1 group">
+                      <div
+                        key={item.hour}
+                        className="flex-1 flex flex-col items-center gap-1 group"
+                      >
                         <div className="relative w-full">
                           {item.waybills > 0 && (
                             <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -244,7 +277,8 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                           />
                         </div>
                         <span className="text-[10px] text-muted-foreground">
-                          {hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'p' : 'a'}
+                          {hour > 12 ? hour - 12 : hour}
+                          {hour >= 12 ? 'p' : 'a'}
                         </span>
                       </div>
                     );
@@ -254,15 +288,21 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
 
               <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t">
                 <div className="text-center">
-                  <p className="text-2xl font-bold">{s.total_waybills.toLocaleString()}</p>
+                  <p className="text-2xl font-bold font-display tabular-nums">
+                    {s.total_waybills.toLocaleString()}
+                  </p>
                   <p className="text-xs text-muted-foreground">Total Waybills</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold">{s.total_leads.toLocaleString()}</p>
+                  <p className="text-2xl font-bold font-display tabular-nums">
+                    {s.total_leads.toLocaleString()}
+                  </p>
                   <p className="text-xs text-muted-foreground">Total Leads</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{s.conversion_rate}%</p>
+                  <p className="text-2xl font-bold font-display tabular-nums text-success">
+                    {s.conversion_rate}%
+                  </p>
                   <p className="text-xs text-muted-foreground">Conversion Rate</p>
                 </div>
               </div>
@@ -281,7 +321,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                 <div className="space-y-4">
                   {recentActivity.slice(0, 6).map((activity) => {
                     const Icon = ACTIVITY_ICONS[activity.type] ?? BarChart3;
-                    const color = ACTIVITY_COLORS[activity.type] ?? 'bg-gray-500';
+                    const color = ACTIVITY_COLORS[activity.type] ?? 'bg-muted-foreground';
                     return (
                       <div key={activity.id} className="flex items-start gap-3">
                         <div className={`rounded-full p-1.5 shrink-0 ${color}`}>
@@ -309,10 +349,34 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               {[
-                { href: '/scanner',      label: 'Scanner',   desc: 'Scan waybills',     icon: QrCode,         color: 'bg-primary/10 text-primary' },
-                { href: '/leads',        label: 'Leads',     desc: `${s.new_leads} new`, icon: Users,          color: 'bg-green-500/10 text-green-500' },
-                { href: '/qc',           label: 'QC Review', desc: `${s.qc_pending} pending`, icon: ClipboardCheck, color: 'bg-purple-500/10 text-purple-500' },
-                { href: '/recycling/pool', label: 'Recycling', desc: 'Lead pool',        icon: Recycle,        color: 'bg-yellow-500/10 text-yellow-500' },
+                {
+                  href: '/scanner',
+                  label: 'Scanner',
+                  desc: 'Scan waybills',
+                  icon: QrCode,
+                  color: 'bg-primary/10 text-primary',
+                },
+                {
+                  href: '/leads',
+                  label: 'Leads',
+                  desc: `${s.new_leads} new`,
+                  icon: Users,
+                  color: 'bg-success/10 text-success',
+                },
+                {
+                  href: '/qc',
+                  label: 'QC Review',
+                  desc: `${s.qc_pending} pending`,
+                  icon: ClipboardCheck,
+                  color: 'bg-primary/10 text-primary',
+                },
+                {
+                  href: '/recycling/pool',
+                  label: 'Recycling',
+                  desc: 'Lead pool',
+                  icon: Recycle,
+                  color: 'bg-warning/10 text-warning',
+                },
               ].map((item) => (
                 <Link
                   key={item.href}

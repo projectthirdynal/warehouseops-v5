@@ -64,13 +64,13 @@ const statCards = [
     key: 'connected_pages',
     title: 'Connected Pages',
     icon: Store,
-    color: 'bg-blue-500/10 text-blue-600',
+    color: 'bg-info/50/10 text-info',
   },
   {
     key: 'open_conversations',
     title: 'Open Conversations',
     icon: MessageSquare,
-    color: 'bg-emerald-500/10 text-emerald-600',
+    color: 'bg-success/10 text-success',
   },
   {
     key: 'orders_today',
@@ -82,7 +82,7 @@ const statCards = [
     key: 'for_encoding',
     title: 'For Encoding',
     icon: ClipboardList,
-    color: 'bg-amber-500/10 text-amber-600',
+    color: 'bg-warning/50/10 text-warning',
   },
 ] as const;
 
@@ -94,32 +94,63 @@ const risks = [
 ];
 
 function statusVariant(status: string) {
-  if (status === 'Live') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-  if (status === 'Ready') return 'bg-blue-100 text-blue-800 border-blue-200';
-  if (status === 'Next') return 'bg-slate-100 text-slate-700 border-slate-200';
-  if (status === 'Foundation') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-  if (status === 'Schema Ready') return 'bg-blue-100 text-blue-800 border-blue-200';
-  if (status === 'MVP Entry') return 'bg-blue-100 text-blue-800 border-blue-200';
+  if (status === 'Live') return 'bg-success/10 text-success border-success/20';
+  if (status === 'Ready') return 'bg-info/10 text-info border-info/20';
+  if (status === 'Next') return 'bg-muted text-muted-foreground border-border';
+  if (status === 'Foundation') return 'bg-success/10 text-success border-success/20';
+  if (status === 'Schema Ready') return 'bg-info/10 text-info border-info/20';
+  if (status === 'MVP Entry') return 'bg-info/10 text-info border-info/20';
   if (status === 'Webhook Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'Mapping Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'Mapping Ready') return 'bg-warning/10 text-warning border-warning/20';
   if (status === 'OAuth Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'MVP List') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-  if (status === 'CSV Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'MVP List') return 'bg-success/10 text-success border-success/20';
+  if (status === 'CSV Ready') return 'bg-warning/10 text-warning border-warning/20';
   if (status === 'Subscribe Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'Detail Ready') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-  if (status === 'Correction Ready') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (status === 'Detail Ready') return 'bg-success/10 text-success border-success/20';
+  if (status === 'Correction Ready') return 'bg-warning/10 text-warning border-warning/20';
   if (status === 'Reporting Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   if (status === 'CRM Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   if (status === 'Automation Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-  return 'bg-slate-100 text-slate-700 border-slate-200';
+  return 'bg-muted text-muted-foreground border-border';
 }
 
-export default function ShopIndex({ stats, work_queues, modules, workflow, next_actions, facebook_pages }: Props) {
+export default function ShopIndex({
+  stats,
+  work_queues,
+  modules,
+  workflow,
+  next_actions,
+  facebook_pages,
+}: Props) {
   const workQueues = [
-    { name: 'Inbox', value: work_queues.inbox, icon: Inbox, color: 'text-blue-600', href: '/shop/inbox' },
-    { name: 'Phone Detected', value: work_queues.phone_detected, icon: Phone, color: 'text-emerald-600', href: '/shop/inbox' },
-    { name: 'Ready Orders', value: work_queues.ready_orders, icon: PackageCheck, color: 'text-violet-600', href: '/shop/encoder' },
-    { name: 'Courier Export', value: work_queues.courier_export, icon: FileSpreadsheet, color: 'text-amber-600', href: '/shop/encoder' },
+    {
+      name: 'Inbox',
+      value: work_queues.inbox,
+      icon: Inbox,
+      color: 'text-info',
+      href: '/shop/inbox',
+    },
+    {
+      name: 'Phone Detected',
+      value: work_queues.phone_detected,
+      icon: Phone,
+      color: 'text-success',
+      href: '/shop/inbox',
+    },
+    {
+      name: 'Ready Orders',
+      value: work_queues.ready_orders,
+      icon: PackageCheck,
+      color: 'text-violet-600',
+      href: '/shop/encoder',
+    },
+    {
+      name: 'Courier Export',
+      value: work_queues.courier_export,
+      icon: FileSpreadsheet,
+      color: 'text-warning',
+      href: '/shop/encoder',
+    },
   ];
 
   return (
@@ -129,7 +160,7 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Shop</h1>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Shop</h1>
             <p className="text-muted-foreground">Facebook order processing and POS workspace</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -190,13 +221,17 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
             return (
               <Card key={item.key}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{item.title}</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {item.title}
+                  </CardTitle>
                   <div className={`rounded-lg p-2 ${item.color}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats[item.key].toLocaleString()}</div>
+                  <div className="text-2xl font-bold font-display">
+                    {stats[item.key].toLocaleString()}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">Live Shop operational count</p>
                 </CardContent>
               </Card>
@@ -210,7 +245,9 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">Build Modules</h2>
-                  <p className="text-sm text-muted-foreground">POS core first, Facebook connector next</p>
+                  <p className="text-sm text-muted-foreground">
+                    POS core first, Facebook connector next
+                  </p>
                 </div>
                 <Badge variant="outline">MVP</Badge>
               </div>
@@ -271,7 +308,11 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
                 {workQueues.map((queue) => {
                   const Icon = queue.icon;
                   return (
-                    <Link key={queue.name} href={queue.href} className="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-accent/30">
+                    <Link
+                      key={queue.name}
+                      href={queue.href}
+                      className="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-accent/30"
+                    >
                       <div className="flex items-center gap-3">
                         <Icon className={`h-4 w-4 ${queue.color}`} />
                         <span className="text-sm font-medium">{queue.name}</span>
@@ -297,16 +338,30 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">{page.page_name}</p>
-                          <p className="text-xs text-muted-foreground">{page.connected_status} / {page.webhook_status}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {page.connected_status} / {page.webhook_status}
+                          </p>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button asChild size="sm" variant="outline">
-                            <Link href={`/shop/facebook/pages/${page.id}/check`} method="post" as="button">
+                            <Link
+                              href={`/shop/facebook/pages/${page.id}/check`}
+                              method="post"
+                              as="button"
+                            >
                               Check
                             </Link>
                           </Button>
-                          <Button asChild size="sm" variant={page.webhook_status === 'subscribed' ? 'outline' : 'default'}>
-                            <Link href={`/shop/facebook/pages/${page.id}/subscribe`} method="post" as="button">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant={page.webhook_status === 'subscribed' ? 'outline' : 'default'}
+                          >
+                            <Link
+                              href={`/shop/facebook/pages/${page.id}/subscribe`}
+                              method="post"
+                              as="button"
+                            >
                               {page.webhook_status === 'subscribed' ? 'Resubscribe' : 'Subscribe'}
                             </Link>
                           </Button>
@@ -326,7 +381,7 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               <CardContent className="space-y-3">
                 {risks.map((risk) => (
                   <div key={risk} className="flex items-start gap-2 text-sm">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                     <span>{risk}</span>
                   </div>
                 ))}
@@ -357,10 +412,12 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3 rounded-lg border px-3 py-3">
-                  <MapPinned className="h-5 w-5 text-emerald-600" />
+                  <MapPinned className="h-5 w-5 text-success" />
                   <div>
                     <p className="text-sm font-medium">Reference table required</p>
-                    <p className="text-xs text-muted-foreground">Province, city, barangay, region, and courier zone</p>
+                    <p className="text-xs text-muted-foreground">
+                      Province, city, barangay, region, and courier zone
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -369,8 +426,9 @@ export default function ShopIndex({ stats, work_queues, modules, workflow, next_
         </div>
 
         <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-          Facebook will provide Page, message, comment, and PSID data after approval. Customer phone numbers and
-          addresses must be detected from messages or matched from saved customer records.
+          Facebook will provide Page, message, comment, and PSID data after approval. Customer phone
+          numbers and addresses must be detected from messages or matched from saved customer
+          records.
         </div>
       </div>
     </AppLayout>

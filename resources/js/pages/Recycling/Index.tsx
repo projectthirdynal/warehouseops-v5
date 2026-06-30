@@ -53,16 +53,14 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
   const [filterReason, setFilterReason] = useState('all');
 
   const toggleSelect = (id: number) => {
-    setSelectedLeads(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedLeads((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
   const selectAll = () => {
     if (selectedLeads.length === leads?.length) {
       setSelectedLeads([]);
     } else {
-      setSelectedLeads(leads?.map(l => l.id) || []);
+      setSelectedLeads(leads?.map((l) => l.id) || []);
     }
   };
 
@@ -80,7 +78,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Recycling Pool</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Recycling Pool</h1>
             <p className="text-muted-foreground">
               Manage unassigned and recycled leads for redistribution
             </p>
@@ -95,7 +93,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  {agents?.map(agent => (
+                  {agents?.map((agent) => (
                     <DropdownMenuItem key={agent.id} onClick={() => handleBulkAssign(agent.id)}>
                       {agent.name}
                     </DropdownMenuItem>
@@ -115,7 +113,9 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.pool_size || leads?.length || 0}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats?.pool_size || leads?.length || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -125,7 +125,9 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats?.recycled_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-warning">
+                {stats?.recycled_today || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -135,7 +137,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.avg_days_in_pool || 0}</div>
+              <div className="text-2xl font-bold font-display">{stats?.avg_days_in_pool || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -145,7 +147,9 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.reassigned_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.reassigned_today || 0}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -194,16 +198,30 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
                         type="checkbox"
                         checked={selectedLeads.length === leads?.length && leads?.length > 0}
                         onChange={selectAll}
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded border-border"
                       />
                     </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Lead</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Contact</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Recycle Reason</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Previous Agent</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Days in Pool</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Cycles</th>
-                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Lead
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Contact
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Recycle Reason
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Previous Agent
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Days in Pool
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Cycles
+                    </th>
+                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -215,7 +233,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
                             type="checkbox"
                             checked={selectedLeads.includes(lead.id)}
                             onChange={() => toggleSelect(lead.id)}
-                            className="h-4 w-4 rounded border-gray-300"
+                            className="h-4 w-4 rounded border-border"
                           />
                         </td>
                         <td className="p-4 align-middle">

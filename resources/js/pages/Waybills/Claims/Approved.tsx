@@ -40,7 +40,11 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
   const dateRange = usePersistedDateRange('claims-approved-range', filters.from, filters.to);
 
   function applyFilters(overrides: Record<string, string>) {
-    router.get('/waybills/claims/approved', { ...filters, ...overrides }, { preserveState: true, replace: true });
+    router.get(
+      '/waybills/claims/approved',
+      { ...filters, ...overrides },
+      { preserveState: true, replace: true }
+    );
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -68,8 +72,10 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold">Approved Claims</h1>
-            <p className="text-sm text-muted-foreground">Claims approved or settled with J&T Express</p>
+            <h1 className="text-2xl font-bold font-display">Approved Claims</h1>
+            <p className="text-sm text-muted-foreground">
+              Claims approved or settled with J&T Express
+            </p>
           </div>
           <DateRangePicker
             value={dateRange}
@@ -85,13 +91,25 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('xlsx'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('xlsx');
+                }}
+              >
                 Excel (.xlsx)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('csv'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('csv');
+                }}
+              >
                 CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('pdf'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('pdf');
+                }}
+              >
                 PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -101,15 +119,23 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
         {/* Sub-nav */}
         <div className="flex gap-2 border-b pb-2">
           <Link href="/waybills/claims">
-            <Button variant="ghost" size="sm">All Claims</Button>
+            <Button variant="ghost" size="sm">
+              All Claims
+            </Button>
           </Link>
           <Link href="/waybills/claims/approved">
-            <Button variant="ghost" size="sm" className="font-medium border-b-2 border-primary rounded-none">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-medium border-b-2 border-primary rounded-none"
+            >
               Approved
             </Button>
           </Link>
           <Link href="/waybills/claims/beyond-sla">
-            <Button variant="ghost" size="sm">Beyond SLA</Button>
+            <Button variant="ghost" size="sm">
+              Beyond SLA
+            </Button>
           </Link>
         </div>
 
@@ -117,43 +143,55 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Claimed</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Total Claimed
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xl font-bold">
-                ₱{Number(totals.total_claimed).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                ₱
+                {Number(totals.total_claimed).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Approved</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Total Approved
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xl font-bold text-green-600">
-                ₱{Number(totals.total_approved).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              <p className="text-xl font-bold text-success">
+                ₱
+                {Number(totals.total_approved).toLocaleString('en-PH', {
+                  minimumFractionDigits: 2,
+                })}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Approved</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Approved
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-2xl font-bold">{totals.approved_count}</span>
+                <CheckCircle className="h-4 w-4 text-success" />
+                <span className="text-2xl font-bold font-display">{totals.approved_count}</span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Settled</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Settled
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Banknote className="h-4 w-4 text-emerald-500" />
-                <span className="text-2xl font-bold">{totals.settled_count}</span>
+                <Banknote className="h-4 w-4 text-success" />
+                <span className="text-2xl font-bold font-display">{totals.settled_count}</span>
               </div>
             </CardContent>
           </Card>
@@ -167,7 +205,9 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
             onChange={(e) => setSearch(e.target.value)}
             className="w-60"
           />
-          <Button type="submit" variant="secondary" size="sm">Search</Button>
+          <Button type="submit" variant="secondary" size="sm">
+            Search
+          </Button>
         </form>
 
         {/* Table */}
@@ -197,31 +237,51 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
                 claims.data.map((claim) => (
                   <TableRow key={claim.id}>
                     <TableCell>
-                      <Link href={`/waybills/claims/${claim.id}`} className="font-mono text-sm font-medium text-primary hover:underline">
+                      <Link
+                        href={`/waybills/claims/${claim.id}`}
+                        className="font-mono text-sm font-medium text-primary hover:underline"
+                      >
                         {claim.claim_number}
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <Link href={`/waybills/${claim.waybill_id}`} className="font-mono text-sm hover:underline">
+                      <Link
+                        href={`/waybills/${claim.waybill_id}`}
+                        className="font-mono text-sm hover:underline"
+                      >
                         {claim.waybill?.waybill_number ?? '—'}
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {claim.type === 'LOST' ? 'Lost' : claim.type === 'DAMAGED' ? 'Damaged' : 'Beyond SLA'}
+                      {claim.type === 'LOST'
+                        ? 'Lost'
+                        : claim.type === 'DAMAGED'
+                          ? 'Damaged'
+                          : 'Beyond SLA'}
                     </TableCell>
                     <TableCell className="text-right text-sm">
-                      ₱{Number(claim.claim_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      ₱
+                      {Number(claim.claim_amount).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                      })}
                     </TableCell>
-                    <TableCell className="text-right font-medium text-green-700">
-                      ₱{Number(claim.approved_amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    <TableCell className="text-right font-medium text-success">
+                      ₱
+                      {Number(claim.approved_amount ?? 0).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                      })}
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{claim.jnt_reference_number ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {claim.jnt_reference_number ?? '—'}
+                    </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        claim.status === 'SETTLED'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          claim.status === 'SETTLED'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-success/10 text-success'
+                        }`}
+                      >
                         {claim.status === 'SETTLED' ? 'Settled' : 'Approved'}
                       </span>
                     </TableCell>

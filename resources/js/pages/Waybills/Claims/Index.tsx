@@ -25,7 +25,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, AlertTriangle, CheckCircle, Clock, Plus, Download, ChevronDown } from 'lucide-react';
+import {
+  FileText,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Plus,
+  Download,
+  ChevronDown,
+} from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { usePersistedDateRange } from '@/hooks/use-persisted-date-range';
@@ -50,12 +58,12 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<ClaimStatus, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  FILED: 'bg-blue-100 text-blue-700',
-  UNDER_REVIEW: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  SETTLED: 'bg-emerald-100 text-emerald-700',
+  DRAFT: 'bg-muted text-muted-foreground',
+  FILED: 'bg-info/10 text-info',
+  UNDER_REVIEW: 'bg-warning/10 text-warning',
+  APPROVED: 'bg-success/10 text-success',
+  REJECTED: 'bg-destructive/10 text-destructive',
+  SETTLED: 'bg-success/10 text-success',
 };
 
 const STATUS_LABELS: Record<ClaimStatus, string> = {
@@ -74,9 +82,9 @@ const TYPE_LABELS: Record<ClaimType, string> = {
 };
 
 const TYPE_COLORS: Record<ClaimType, string> = {
-  LOST: 'bg-red-100 text-red-700',
-  DAMAGED: 'bg-orange-100 text-orange-700',
-  BEYOND_SLA: 'bg-blue-100 text-blue-700',
+  LOST: 'bg-destructive/10 text-destructive',
+  DAMAGED: 'bg-warning/10 text-warning',
+  BEYOND_SLA: 'bg-info/10 text-info',
 };
 
 export default function ClaimsIndex({ claims, stats, filters }: Props) {
@@ -84,7 +92,11 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
   const dateRange = usePersistedDateRange('claims-index-range', filters.from, filters.to);
 
   function applyFilters(overrides: Record<string, string>) {
-    router.get('/waybills/claims', { ...filters, ...overrides }, { preserveState: true, replace: true });
+    router.get(
+      '/waybills/claims',
+      { ...filters, ...overrides },
+      { preserveState: true, replace: true }
+    );
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -110,8 +122,10 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold">Claims</h1>
-            <p className="text-sm text-muted-foreground">Manage J&T Express claims for lost or damaged parcels</p>
+            <h1 className="text-2xl font-bold font-display">Claims</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage J&T Express claims for lost or damaged parcels
+            </p>
           </div>
           <DateRangePicker
             value={dateRange}
@@ -127,13 +141,25 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('xlsx'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('xlsx');
+                }}
+              >
                 Excel (.xlsx)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('csv'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('csv');
+                }}
+              >
                 CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('pdf'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('pdf');
+                }}
+              >
                 PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -149,7 +175,11 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
         {/* Sub-nav */}
         <div className="flex gap-2 border-b pb-2">
           <Link href="/waybills/claims">
-            <Button variant="ghost" size="sm" className="font-medium border-b-2 border-primary rounded-none">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-medium border-b-2 border-primary rounded-none"
+            >
               All Claims
             </Button>
           </Link>
@@ -169,45 +199,59 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Claims</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Total Claims
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-2xl font-bold">{stats.total}</span>
+                <span className="text-2xl font-bold font-display">{stats.total}</span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pending Review</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Pending Review
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-yellow-500" />
-                <span className="text-2xl font-bold text-yellow-600">{stats.pending_review}</span>
+                <Clock className="h-4 w-4 text-warning" />
+                <span className="text-2xl font-bold font-display text-warning">
+                  {stats.pending_review}
+                </span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Approved</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Approved
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-2xl font-bold text-green-600">{stats.approved}</span>
+                <CheckCircle className="h-4 w-4 text-success" />
+                <span className="text-2xl font-bold font-display text-success">
+                  {stats.approved}
+                </span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Draft</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Draft
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-gray-400" />
-                <span className="text-2xl font-bold text-gray-500">{stats.draft}</span>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-2xl font-bold font-display text-muted-foreground">
+                  {stats.draft}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -222,7 +266,9 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               className="w-60"
             />
-            <Button type="submit" variant="secondary" size="sm">Search</Button>
+            <Button type="submit" variant="secondary" size="sm">
+              Search
+            </Button>
           </form>
 
           <Select
@@ -301,17 +347,24 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[claim.type]}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[claim.type]}`}
+                      >
                         {TYPE_LABELS[claim.type]}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[claim.status]}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[claim.status]}`}
+                      >
                         {STATUS_LABELS[claim.status]}
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      ₱{Number(claim.claim_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      ₱
+                      {Number(claim.claim_amount).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                      })}
                     </TableCell>
                     <TableCell className="text-sm">{claim.filed_by_user?.name ?? '—'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">

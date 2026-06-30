@@ -36,7 +36,7 @@ export default function TelesalesImport() {
       <Head title="Telesales Import" />
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Telesales Import</h1>
+          <h1 className="text-2xl font-bold font-display tracking-tight">Telesales Import</h1>
           <p className="text-sm text-muted-foreground">
             Import old sales data for telesales re-engagement (reorders, upsells, referrals).
           </p>
@@ -44,7 +44,7 @@ export default function TelesalesImport() {
 
         {/* Flash Messages */}
         {flash?.success && (
-          <div className="flex items-center gap-2 rounded-lg border border-green-500/50 bg-green-500/10 p-3 text-sm text-green-700">
+          <div className="flex items-center gap-2 rounded-lg border border-success/50 bg-success/50/10 p-3 text-sm text-success">
             <CheckCircle className="h-4 w-4" />
             <span>{flash.success}</span>
           </div>
@@ -116,7 +116,8 @@ export default function TelesalesImport() {
               </table>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Existing customers (matched by phone) will be updated. Leads with status "Delivered" get a quality score of 85.
+              Existing customers (matched by phone) will be updated. Leads with status "Delivered"
+              get a quality score of 85.
             </p>
           </CardContent>
         </Card>
@@ -129,7 +130,10 @@ export default function TelesalesImport() {
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                   dragActive ? 'border-primary bg-primary/5' : 'border-border'
                 } ${errors.file ? 'border-destructive' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragActive(true);
+                }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
               >
@@ -137,9 +141,7 @@ export default function TelesalesImport() {
                 <p className="text-sm font-medium">
                   {data.file ? data.file.name : 'Drag & drop a CSV file here'}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  or click to browse (max 10 MB)
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">or click to browse (max 10 MB)</p>
                 <input
                   type="file"
                   accept=".csv,.txt"
@@ -155,9 +157,7 @@ export default function TelesalesImport() {
                     <span>Browse Files</span>
                   </Button>
                 </label>
-                {errors.file && (
-                  <p className="text-xs text-destructive mt-2">{errors.file}</p>
-                )}
+                {errors.file && <p className="text-xs text-destructive mt-2">{errors.file}</p>}
               </div>
 
               <div className="flex justify-end mt-4">

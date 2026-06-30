@@ -49,10 +49,10 @@ export default function QCIndex({ queue, stats }: Props) {
     setIsProcessing(true);
 
     // In production: POST /api/qc/approve/{id}
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (currentIndex < queue.length - 1) {
-      setCurrentIndex(prev => prev + 1);
+      setCurrentIndex((prev) => prev + 1);
     }
     setIsProcessing(false);
   };
@@ -62,10 +62,10 @@ export default function QCIndex({ queue, stats }: Props) {
     setIsProcessing(true);
 
     // In production: POST /api/qc/reject/{id}
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     if (currentIndex < queue.length - 1) {
-      setCurrentIndex(prev => prev + 1);
+      setCurrentIndex((prev) => prev + 1);
     }
     setIsProcessing(false);
   };
@@ -78,7 +78,7 @@ export default function QCIndex({ queue, stats }: Props) {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">QC Review</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">QC Review</h1>
             <p className="text-muted-foreground">
               Review and approve sales before waybill creation
             </p>
@@ -99,27 +99,31 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.pending || 0}</div>
+              <div className="text-2xl font-bold font-display">{stats?.pending || 0}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" /> Approved Today
+                <CheckCircle className="h-4 w-4 text-success" /> Approved Today
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.approved_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.approved_today || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-red-600" /> Rejected Today
+                <XCircle className="h-4 w-4 text-destructive" /> Rejected Today
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats?.rejected_today || 0}</div>
+              <div className="text-2xl font-bold font-display text-destructive">
+                {stats?.rejected_today || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -129,7 +133,9 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.avg_review_time || '0m'}</div>
+              <div className="text-2xl font-bold font-display">
+                {stats?.avg_review_time || '0m'}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -196,10 +202,12 @@ export default function QCIndex({ queue, stats }: Props) {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">{currentItem.product_name || 'Product'}</div>
-                        <div className="text-sm text-muted-foreground">{currentItem.product_brand}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {currentItem.product_brand}
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-green-600">
+                        <div className="text-2xl font-bold font-display text-success">
                           ₱{currentItem.amount?.toLocaleString() || 0}
                         </div>
                       </div>
@@ -209,13 +217,13 @@ export default function QCIndex({ queue, stats }: Props) {
 
                 {/* Quality Flags */}
                 {currentItem.quality_flags && currentItem.quality_flags.length > 0 && (
-                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900 dark:bg-yellow-950">
-                    <h3 className="font-semibold flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                  <div className="rounded-lg border border-warning/20 bg-warning/5 p-4 dark:border-warning/30 dark:bg-warning/20">
+                    <h3 className="font-semibold flex items-center gap-2 text-warning dark:text-warning">
                       <AlertTriangle className="h-4 w-4" /> Quality Flags
                     </h3>
                     <ul className="mt-2 space-y-1">
                       {currentItem.quality_flags.map((flag, i) => (
-                        <li key={i} className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <li key={i} className="text-sm text-warning dark:text-warning/80">
                           • {flag}
                         </li>
                       ))}
@@ -234,7 +242,12 @@ export default function QCIndex({ queue, stats }: Props) {
                     <XCircle className="mr-2 h-4 w-4" />
                     Reject
                   </Button>
-                  <Button className="flex-1" size="lg" onClick={handleApprove} disabled={isProcessing}>
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    onClick={handleApprove}
+                    disabled={isProcessing}
+                  >
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Approve
                   </Button>
@@ -253,11 +266,15 @@ export default function QCIndex({ queue, stats }: Props) {
                     <>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Total Orders</span>
-                        <span className="font-medium">{currentItem.customer_history.total_orders}</span>
+                        <span className="font-medium">
+                          {currentItem.customer_history.total_orders}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Success Rate</span>
-                        <span className="font-medium">{currentItem.customer_history.success_rate}%</span>
+                        <span className="font-medium">
+                          {currentItem.customer_history.success_rate}%
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Risk Level</span>
@@ -266,8 +283,8 @@ export default function QCIndex({ queue, stats }: Props) {
                             currentItem.customer_history.risk_level === 'LOW'
                               ? 'default'
                               : currentItem.customer_history.risk_level === 'HIGH'
-                              ? 'destructive'
-                              : 'secondary'
+                                ? 'destructive'
+                                : 'secondary'
                           }
                         >
                           {currentItem.customer_history.risk_level}
@@ -311,7 +328,9 @@ export default function QCIndex({ queue, stats }: Props) {
                     >
                       <div>
                         <div className="font-medium">{item.name}</div>
-                        <div className="text-muted-foreground">₱{item.amount?.toLocaleString()}</div>
+                        <div className="text-muted-foreground">
+                          ₱{item.amount?.toLocaleString()}
+                        </div>
                       </div>
                       {i === 0 && <ChevronRight className="h-4 w-4 text-primary" />}
                     </div>
@@ -323,7 +342,7 @@ export default function QCIndex({ queue, stats }: Props) {
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <CheckCircle className="h-12 w-12 text-green-600" />
+              <CheckCircle className="h-12 w-12 text-success" />
               <h3 className="mt-4 text-lg font-semibold">All Caught Up!</h3>
               <p className="text-muted-foreground">No items pending QC review</p>
             </CardContent>

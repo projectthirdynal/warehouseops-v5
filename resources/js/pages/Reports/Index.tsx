@@ -63,11 +63,12 @@ export default function ReportsIndex({ report, type, filters }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Reports</h1>
+            <h1 className="text-2xl font-bold font-display">Reports</h1>
             <p className="text-sm text-muted-foreground">Generate and export business reports</p>
           </div>
           <Button onClick={handleDownload} disabled={rows.length === 0}>
-            <Download className="mr-2 h-4 w-4" />Download CSV
+            <Download className="mr-2 h-4 w-4" />
+            Download CSV
           </Button>
         </div>
 
@@ -80,9 +81,13 @@ export default function ReportsIndex({ report, type, filters }: Props) {
                 {reportTypes.map((rt) => (
                   <button
                     key={rt.key}
-                    onClick={() => router.get('/reports', { ...filters, type: rt.key }, { preserveState: true })}
+                    onClick={() =>
+                      router.get('/reports', { ...filters, type: rt.key }, { preserveState: true })
+                    }
                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      type === rt.key ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                      type === rt.key
+                        ? 'bg-background shadow text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {rt.label}
@@ -96,14 +101,26 @@ export default function ReportsIndex({ report, type, filters }: Props) {
               <input
                 type="date"
                 value={filters.from}
-                onChange={(e) => router.get('/reports', { ...filters, from: e.target.value }, { preserveState: true })}
+                onChange={(e) =>
+                  router.get(
+                    '/reports',
+                    { ...filters, from: e.target.value },
+                    { preserveState: true }
+                  )
+                }
                 className="border rounded-lg px-3 py-2 text-sm"
               />
               <span className="text-muted-foreground text-sm">to</span>
               <input
                 type="date"
                 value={filters.to}
-                onChange={(e) => router.get('/reports', { ...filters, to: e.target.value }, { preserveState: true })}
+                onChange={(e) =>
+                  router.get(
+                    '/reports',
+                    { ...filters, to: e.target.value },
+                    { preserveState: true }
+                  )
+                }
                 className="border rounded-lg px-3 py-2 text-sm"
               />
             </div>
@@ -117,7 +134,9 @@ export default function ReportsIndex({ report, type, filters }: Props) {
               <Card key={key}>
                 <CardContent className="p-3 text-center">
                   <p className="text-lg font-bold">{formatCell(report[key])}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase">{friendlyHeader(key)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">
+                    {friendlyHeader(key)}
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -130,7 +149,9 @@ export default function ReportsIndex({ report, type, filters }: Props) {
             <CardTitle className="text-base">
               {reportTypes.find((r) => r.key === type)?.label ?? 'Report'} — {rows.length} rows
             </CardTitle>
-            <Badge variant="outline">{report.period.from} to {report.period.to}</Badge>
+            <Badge variant="outline">
+              {report.period.from} to {report.period.to}
+            </Badge>
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
@@ -144,7 +165,10 @@ export default function ReportsIndex({ report, type, filters }: Props) {
                   <thead>
                     <tr className="border-b">
                       {columns.map((col) => (
-                        <th key={col} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                        <th
+                          key={col}
+                          className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap"
+                        >
                           {friendlyHeader(col)}
                         </th>
                       ))}
