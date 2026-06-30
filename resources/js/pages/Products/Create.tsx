@@ -45,7 +45,10 @@ export default function ProductCreate({ categories, brands }: Props) {
   };
 
   const addVariant = () => {
-    setVariants((prev) => [...prev, { variant_name: '', sku: '', selling_price: '', cost_price: '', weight_grams: '' }]);
+    setVariants((prev) => [
+      ...prev,
+      { variant_name: '', sku: '', selling_price: '', cost_price: '', weight_grams: '' },
+    ]);
   };
 
   const updateVariant = (index: number, field: string, value: string) => {
@@ -88,7 +91,8 @@ export default function ProductCreate({ categories, brands }: Props) {
     });
   };
 
-  const inputClass = 'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20';
+  const inputClass =
+    'w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20';
   const labelClass = 'block text-sm font-medium mb-1';
 
   return (
@@ -97,10 +101,12 @@ export default function ProductCreate({ categories, brands }: Props) {
         {/* Header */}
         <div className="flex items-center gap-3">
           <Link href="/products">
-            <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">Add Product</h1>
+            <h1 className="text-2xl font-bold font-display">Add Product</h1>
             <p className="text-sm text-muted-foreground">Create a new product in the catalog</p>
           </div>
         </div>
@@ -108,64 +114,134 @@ export default function ProductCreate({ categories, brands }: Props) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Product Information</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Product Information</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>SKU *</label>
-                  <input className={inputClass} value={form.sku} onChange={(e) => updateField('sku', e.target.value)} placeholder="e.g. STEM-001" />
-                  {errors.sku && <p className="text-xs text-red-500 mt-1">{errors.sku}</p>}
+                  <input
+                    className={inputClass}
+                    value={form.sku}
+                    onChange={(e) => updateField('sku', e.target.value)}
+                    placeholder="e.g. STEM-001"
+                  />
+                  {errors.sku && <p className="text-xs text-destructive mt-1">{errors.sku}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>Product Name *</label>
-                  <input className={inputClass} value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="e.g. STEM Coffee" />
-                  {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+                  <input
+                    className={inputClass}
+                    value={form.name}
+                    onChange={(e) => updateField('name', e.target.value)}
+                    placeholder="e.g. STEM Coffee"
+                  />
+                  {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Brand</label>
-                  <input className={inputClass} list="brands" value={form.brand} onChange={(e) => updateField('brand', e.target.value)} placeholder="e.g. Thirdynal" />
-                  <datalist id="brands">{brands.map((b) => <option key={b} value={b} />)}</datalist>
+                  <input
+                    className={inputClass}
+                    list="brands"
+                    value={form.brand}
+                    onChange={(e) => updateField('brand', e.target.value)}
+                    placeholder="e.g. Thirdynal"
+                  />
+                  <datalist id="brands">
+                    {brands.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className={labelClass}>Category</label>
-                  <input className={inputClass} list="categories" value={form.category} onChange={(e) => updateField('category', e.target.value)} placeholder="e.g. Health & Wellness" />
-                  <datalist id="categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+                  <input
+                    className={inputClass}
+                    list="categories"
+                    value={form.category}
+                    onChange={(e) => updateField('category', e.target.value)}
+                    placeholder="e.g. Health & Wellness"
+                  />
+                  <datalist id="categories">
+                    {categories.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
               <div>
                 <label className={labelClass}>Description</label>
-                <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => updateField('description', e.target.value)} placeholder="Product description..." />
+                <textarea
+                  className={inputClass}
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) => updateField('description', e.target.value)}
+                  placeholder="Product description..."
+                />
               </div>
             </CardContent>
           </Card>
 
           {/* Pricing */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Pricing & Weight</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Pricing & Weight</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>Selling Price (PHP) *</label>
-                  <input type="number" step="0.01" className={inputClass} value={form.selling_price} onChange={(e) => updateField('selling_price', e.target.value)} placeholder="0.00" />
-                  {errors.selling_price && <p className="text-xs text-red-500 mt-1">{errors.selling_price}</p>}
+                  <input
+                    type="number"
+                    step="0.01"
+                    className={inputClass}
+                    value={form.selling_price}
+                    onChange={(e) => updateField('selling_price', e.target.value)}
+                    placeholder="0.00"
+                  />
+                  {errors.selling_price && (
+                    <p className="text-xs text-destructive mt-1">{errors.selling_price}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Cost Price (PHP) *</label>
-                  <input type="number" step="0.01" className={inputClass} value={form.cost_price} onChange={(e) => updateField('cost_price', e.target.value)} placeholder="0.00" />
-                  {errors.cost_price && <p className="text-xs text-red-500 mt-1">{errors.cost_price}</p>}
+                  <input
+                    type="number"
+                    step="0.01"
+                    className={inputClass}
+                    value={form.cost_price}
+                    onChange={(e) => updateField('cost_price', e.target.value)}
+                    placeholder="0.00"
+                  />
+                  {errors.cost_price && (
+                    <p className="text-xs text-destructive mt-1">{errors.cost_price}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Weight (grams) *</label>
-                  <input type="number" className={inputClass} value={form.weight_grams} onChange={(e) => updateField('weight_grams', e.target.value)} placeholder="500" />
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.weight_grams}
+                    onChange={(e) => updateField('weight_grams', e.target.value)}
+                    placeholder="500"
+                  />
                 </div>
               </div>
               {form.selling_price && form.cost_price && parseFloat(form.selling_price) > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Margin: {((parseFloat(form.selling_price) - parseFloat(form.cost_price)) / parseFloat(form.selling_price) * 100).toFixed(1)}%
+                  Margin:{' '}
+                  {(
+                    ((parseFloat(form.selling_price) - parseFloat(form.cost_price)) /
+                      parseFloat(form.selling_price)) *
+                    100
+                  ).toFixed(1)}
+                  %
                 </p>
               )}
             </CardContent>
@@ -173,17 +249,33 @@ export default function ProductCreate({ categories, brands }: Props) {
 
           {/* Inventory */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Inventory</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Inventory</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Initial Stock Quantity</label>
-                  <input type="number" className={inputClass} value={form.initial_stock} onChange={(e) => updateField('initial_stock', e.target.value)} placeholder="0" />
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.initial_stock}
+                    onChange={(e) => updateField('initial_stock', e.target.value)}
+                    placeholder="0"
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Reorder Point</label>
-                  <input type="number" className={inputClass} value={form.reorder_point} onChange={(e) => updateField('reorder_point', e.target.value)} placeholder="10" />
-                  <p className="text-xs text-muted-foreground mt-1">Alert when stock falls below this level</p>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={form.reorder_point}
+                    onChange={(e) => updateField('reorder_point', e.target.value)}
+                    placeholder="10"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Alert when stock falls below this level
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -199,39 +291,76 @@ export default function ProductCreate({ categories, brands }: Props) {
             </CardHeader>
             <CardContent>
               {variants.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No variants. Product will be sold as-is.</p>
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No variants. Product will be sold as-is.
+                </p>
               ) : (
                 <div className="space-y-4">
                   {variants.map((v, i) => (
                     <div key={i} className="p-4 rounded-lg border space-y-3">
                       <div className="flex items-center justify-between">
                         <Badge variant="outline">Variant {i + 1}</Badge>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeVariant(i)}>
-                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeVariant(i)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className={labelClass}>Name *</label>
-                          <input className={inputClass} value={v.variant_name} onChange={(e) => updateVariant(i, 'variant_name', e.target.value)} placeholder="e.g. 30 capsules" />
+                          <input
+                            className={inputClass}
+                            value={v.variant_name}
+                            onChange={(e) => updateVariant(i, 'variant_name', e.target.value)}
+                            placeholder="e.g. 30 capsules"
+                          />
                         </div>
                         <div>
                           <label className={labelClass}>SKU *</label>
-                          <input className={inputClass} value={v.sku} onChange={(e) => updateVariant(i, 'sku', e.target.value)} placeholder="e.g. STEM-001-30" />
+                          <input
+                            className={inputClass}
+                            value={v.sku}
+                            onChange={(e) => updateVariant(i, 'sku', e.target.value)}
+                            placeholder="e.g. STEM-001-30"
+                          />
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className={labelClass}>Price (PHP)</label>
-                          <input type="number" step="0.01" className={inputClass} value={v.selling_price} onChange={(e) => updateVariant(i, 'selling_price', e.target.value)} placeholder="Override" />
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={inputClass}
+                            value={v.selling_price}
+                            onChange={(e) => updateVariant(i, 'selling_price', e.target.value)}
+                            placeholder="Override"
+                          />
                         </div>
                         <div>
                           <label className={labelClass}>Cost (PHP)</label>
-                          <input type="number" step="0.01" className={inputClass} value={v.cost_price} onChange={(e) => updateVariant(i, 'cost_price', e.target.value)} placeholder="Override" />
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={inputClass}
+                            value={v.cost_price}
+                            onChange={(e) => updateVariant(i, 'cost_price', e.target.value)}
+                            placeholder="Override"
+                          />
                         </div>
                         <div>
                           <label className={labelClass}>Weight (g)</label>
-                          <input type="number" className={inputClass} value={v.weight_grams} onChange={(e) => updateVariant(i, 'weight_grams', e.target.value)} placeholder="Override" />
+                          <input
+                            type="number"
+                            className={inputClass}
+                            value={v.weight_grams}
+                            onChange={(e) => updateVariant(i, 'weight_grams', e.target.value)}
+                            placeholder="Override"
+                          />
                         </div>
                       </div>
                     </div>
@@ -243,14 +372,26 @@ export default function ProductCreate({ categories, brands }: Props) {
 
           {/* Settings */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Settings</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Settings</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={form.is_active} onChange={(e) => updateField('is_active', e.target.checked)} className="rounded" />
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) => updateField('is_active', e.target.checked)}
+                  className="rounded"
+                />
                 <span className="text-sm">Active — available for ordering</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={form.requires_qa} onChange={(e) => updateField('requires_qa', e.target.checked)} className="rounded" />
+                <input
+                  type="checkbox"
+                  checked={form.requires_qa}
+                  onChange={(e) => updateField('requires_qa', e.target.checked)}
+                  className="rounded"
+                />
                 <span className="text-sm">Requires QA review before dispatch</span>
               </label>
             </CardContent>
@@ -259,7 +400,9 @@ export default function ProductCreate({ categories, brands }: Props) {
           {/* Submit */}
           <div className="flex justify-end gap-3">
             <Link href="/products">
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
             </Link>
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Creating...' : 'Create Product'}

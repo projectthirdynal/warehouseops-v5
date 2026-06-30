@@ -130,21 +130,21 @@ export default function ShopReports({
       value: formatNumber(summary.shop_orders),
       detail: `${formatNumber(summary.confirmed_orders)} confirmed or QA approved in range`,
       icon: ClipboardList,
-      color: 'text-blue-600',
+      color: 'text-info',
     },
     {
       label: 'Open Conversations',
       value: formatNumber(summary.open_conversations),
       detail: 'Open, pending details, and confirmation',
       icon: Inbox,
-      color: 'text-emerald-600',
+      color: 'text-success',
     },
     {
       label: 'Webhook Events Today',
       value: formatNumber(summary.webhook_events_today),
       detail: 'Meta events received by callback',
       icon: Radio,
-      color: 'text-amber-600',
+      color: 'text-warning',
     },
   ];
 
@@ -161,8 +161,10 @@ export default function ShopReports({
                 Shop
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight">Shop Reports</h1>
-            <p className="text-muted-foreground">Sales, inbox movement, Page performance, and agent output</p>
+            <h1 className="text-3xl font-bold tracking-tight font-display">Shop Reports</h1>
+            <p className="text-muted-foreground">
+              Sales, inbox movement, Page performance, and agent output
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
@@ -198,7 +200,12 @@ export default function ShopReports({
             <form method="get" action="/shop/reports" className="grid gap-4 md:grid-cols-5">
               <div className="space-y-2">
                 <Label htmlFor="date_from">From</Label>
-                <Input id="date_from" name="date_from" type="date" defaultValue={filters.date_from} />
+                <Input
+                  id="date_from"
+                  name="date_from"
+                  type="date"
+                  defaultValue={filters.date_from}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date_to">To</Label>
@@ -214,7 +221,9 @@ export default function ShopReports({
                 >
                   <option value="">All Pages</option>
                   {pages.map((page) => (
-                    <option key={page.id} value={page.id}>{page.page_name}</option>
+                    <option key={page.id} value={page.id}>
+                      {page.page_name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -228,12 +237,16 @@ export default function ShopReports({
                 >
                   <option value="">All Agents</option>
                   {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="flex items-end gap-2">
-                <Button type="submit" className="w-full">Apply</Button>
+                <Button type="submit" className="w-full">
+                  Apply
+                </Button>
               </div>
             </form>
           </CardContent>
@@ -245,11 +258,13 @@ export default function ShopReports({
             return (
               <Card key={card.label}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {card.label}
+                  </CardTitle>
                   <Icon className={`h-4 w-4 ${card.color}`} />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{card.value}</div>
+                  <div className="text-2xl font-bold font-display">{card.value}</div>
                   <p className="mt-1 text-xs text-muted-foreground">{card.detail}</p>
                 </CardContent>
               </Card>
@@ -261,13 +276,17 @@ export default function ShopReports({
           <Card className="xl:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Store className="h-5 w-5 text-blue-600" />
+                <Store className="h-5 w-5 text-info" />
                 Page Performance
               </CardTitle>
-              <CardDescription>Connected Facebook Pages by conversations, messages, conversion, and sales</CardDescription>
+              <CardDescription>
+                Connected Facebook Pages by conversations, messages, conversion, and sales
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {page_performance.length === 0 ? emptyText('No Page performance data yet.') : (
+              {page_performance.length === 0 ? (
+                emptyText('No Page performance data yet.')
+              ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="border-b text-left text-xs uppercase text-muted-foreground">
@@ -290,11 +309,21 @@ export default function ShopReports({
                               <Badge variant="outline">{page.webhook_status}</Badge>
                             </div>
                           </td>
-                          <td className="py-3 pr-3 text-right">{formatNumber(page.conversations_count)}</td>
-                          <td className="py-3 pr-3 text-right">{formatNumber(page.messages_count)}</td>
-                          <td className="py-3 pr-3 text-right">{formatNumber(page.converted_count)}</td>
-                          <td className="py-3 pr-3 text-right">{formatNumber(page.orders_count)}</td>
-                          <td className="py-3 text-right font-medium">{formatMoney(page.sales_total)}</td>
+                          <td className="py-3 pr-3 text-right">
+                            {formatNumber(page.conversations_count)}
+                          </td>
+                          <td className="py-3 pr-3 text-right">
+                            {formatNumber(page.messages_count)}
+                          </td>
+                          <td className="py-3 pr-3 text-right">
+                            {formatNumber(page.converted_count)}
+                          </td>
+                          <td className="py-3 pr-3 text-right">
+                            {formatNumber(page.orders_count)}
+                          </td>
+                          <td className="py-3 text-right font-medium">
+                            {formatMoney(page.sales_total)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -314,7 +343,10 @@ export default function ShopReports({
             </CardHeader>
             <CardContent className="space-y-3">
               {daily_sales.map((day) => (
-                <div key={day.date} className="grid grid-cols-[4rem_1fr_auto] items-center gap-3 text-sm">
+                <div
+                  key={day.date}
+                  className="grid grid-cols-[4rem_1fr_auto] items-center gap-3 text-sm"
+                >
                   <span className="text-muted-foreground">{day.label}</span>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
@@ -335,13 +367,15 @@ export default function ShopReports({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-emerald-600" />
+                <Users className="h-5 w-5 text-success" />
                 Agent Desk
               </CardTitle>
               <CardDescription>Assigned conversations and created Shop orders</CardDescription>
             </CardHeader>
             <CardContent>
-              {agent_performance.length === 0 ? emptyText('No agent activity yet.') : (
+              {agent_performance.length === 0 ? (
+                emptyText('No agent activity yet.')
+              ) : (
                 <div className="space-y-3">
                   {agent_performance.map((agent) => (
                     <div key={agent.id} className="rounded-lg border p-3">
@@ -350,15 +384,21 @@ export default function ShopReports({
                           <p className="font-medium">{agent.name}</p>
                           <p className="text-xs text-muted-foreground">{agent.role}</p>
                         </div>
-                        <span className="text-sm font-semibold">{formatMoney(agent.sales_total)}</span>
+                        <span className="text-sm font-semibold">
+                          {formatMoney(agent.sales_total)}
+                        </span>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                         <div className="rounded-md bg-muted px-2 py-2">
-                          <p className="font-semibold">{formatNumber(agent.assigned_conversations)}</p>
+                          <p className="font-semibold">
+                            {formatNumber(agent.assigned_conversations)}
+                          </p>
                           <p className="text-muted-foreground">Assigned</p>
                         </div>
                         <div className="rounded-md bg-muted px-2 py-2">
-                          <p className="font-semibold">{formatNumber(agent.converted_conversations)}</p>
+                          <p className="font-semibold">
+                            {formatNumber(agent.converted_conversations)}
+                          </p>
                           <p className="text-muted-foreground">Converted</p>
                         </div>
                         <div className="rounded-md bg-muted px-2 py-2">
@@ -376,7 +416,7 @@ export default function ShopReports({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
+                <BarChart3 className="h-5 w-5 text-info" />
                 Status Movement
               </CardTitle>
               <CardDescription>Conversation queue and order lifecycle counts</CardDescription>
@@ -384,21 +424,31 @@ export default function ShopReports({
             <CardContent className="space-y-5">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Conversations</p>
-                {conversation_statuses.length === 0 ? emptyText('No conversation statuses yet.') : conversation_statuses.map((row) => (
-                  <div key={row.status} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                    <span className="capitalize">{row.status.replace(/_/g, ' ')}</span>
-                    <span className="font-semibold">{formatNumber(row.total)}</span>
-                  </div>
-                ))}
+                {conversation_statuses.length === 0
+                  ? emptyText('No conversation statuses yet.')
+                  : conversation_statuses.map((row) => (
+                      <div
+                        key={row.status}
+                        className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                      >
+                        <span className="capitalize">{row.status.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold">{formatNumber(row.total)}</span>
+                      </div>
+                    ))}
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Orders</p>
-                {order_statuses.length === 0 ? emptyText('No Shop order statuses yet.') : order_statuses.map((row) => (
-                  <div key={row.status} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                    <span>{row.status}</span>
-                    <span className="font-semibold">{formatNumber(row.total)}</span>
-                  </div>
-                ))}
+                {order_statuses.length === 0
+                  ? emptyText('No Shop order statuses yet.')
+                  : order_statuses.map((row) => (
+                      <div
+                        key={row.status}
+                        className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                      >
+                        <span>{row.status}</span>
+                        <span className="font-semibold">{formatNumber(row.total)}</span>
+                      </div>
+                    ))}
               </div>
             </CardContent>
           </Card>
@@ -406,13 +456,15 @@ export default function ShopReports({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-amber-600" />
+                <ShoppingCart className="h-5 w-5 text-warning" />
                 Top Products
               </CardTitle>
               <CardDescription>Products sold through Shop order creation</CardDescription>
             </CardHeader>
             <CardContent>
-              {top_products.length === 0 ? emptyText('No Shop product sales yet.') : (
+              {top_products.length === 0 ? (
+                emptyText('No Shop product sales yet.')
+              ) : (
                 <div className="space-y-3">
                   {top_products.map((product) => (
                     <div key={product.product_name} className="rounded-lg border p-3">

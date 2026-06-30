@@ -26,16 +26,16 @@ interface Props {
 }
 
 const statusColors: Record<string, string> = {
-  PENDING: 'bg-gray-100 text-gray-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
-  QA_PENDING: 'bg-yellow-100 text-yellow-800',
-  QA_APPROVED: 'bg-green-100 text-green-800',
-  QA_REJECTED: 'bg-red-100 text-red-800',
-  PROCESSING: 'bg-blue-100 text-blue-800',
+  PENDING: 'bg-muted text-foreground',
+  CONFIRMED: 'bg-info/10 text-info',
+  QA_PENDING: 'bg-warning/10 text-warning',
+  QA_APPROVED: 'bg-success/10 text-success',
+  QA_REJECTED: 'bg-destructive/10 text-destructive',
+  PROCESSING: 'bg-info/10 text-info',
   DISPATCHED: 'bg-indigo-100 text-indigo-800',
-  DELIVERED: 'bg-green-100 text-green-800',
-  RETURNED: 'bg-red-100 text-red-800',
-  CANCELLED: 'bg-gray-100 text-gray-600',
+  DELIVERED: 'bg-success/10 text-success',
+  RETURNED: 'bg-destructive/10 text-destructive',
+  CANCELLED: 'bg-muted text-muted-foreground',
 };
 
 const resolutionLabels: Record<OrderDuplicateWarning['resolution_status'], string> = {
@@ -69,12 +69,17 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
     router.post(`/orders/${order.id}/retry-courier`, {}, { preserveScroll: true });
   };
 
-  const resolveDuplicateWarning = (warning: OrderDuplicateWarning, decision: OrderDuplicateWarning['resolution_status']) => {
+  const resolveDuplicateWarning = (
+    warning: OrderDuplicateWarning,
+    decision: OrderDuplicateWarning['resolution_status']
+  ) => {
     if (decision === 'pending') {
       return;
     }
 
-    const confirmations: Partial<Record<Exclude<OrderDuplicateWarning['resolution_status'], 'pending'>, string>> = {
+    const confirmations: Partial<
+      Record<Exclude<OrderDuplicateWarning['resolution_status'], 'pending'>, string>
+    > = {
       use_existing: 'Keep the existing order and cancel this new order?',
       cancel_new: 'Cancel this new order as a duplicate?',
     };
@@ -103,15 +108,21 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/orders">
-              <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold font-mono">{order.order_number}</h1>
-                <Badge className={statusColors[order.status]}>{order.status.replace('_', ' ')}</Badge>
+                <h1 className="text-2xl font-bold font-display font-mono">{order.order_number}</h1>
+                <Badge className={statusColors[order.status]}>
+                  {order.status.replace('_', ' ')}
+                </Badge>
                 {order.courier_code && <Badge variant="outline">{order.courier_code}</Badge>}
               </div>
-              <p className="text-sm text-muted-foreground">Created {formatDateTime(order.created_at)}</p>
+              <p className="text-sm text-muted-foreground">
+                Created {formatDateTime(order.created_at)}
+              </p>
             </div>
           </div>
 
@@ -119,22 +130,26 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
           <div className="flex gap-2">
             {order.status === 'QA_PENDING' && (
               <>
-                <Button onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle className="mr-2 h-4 w-4" />Approve
+                <Button onClick={handleApprove} className="bg-success hover:bg-success/80">
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve
                 </Button>
                 <Button variant="destructive" onClick={() => setShowReject(!showReject)}>
-                  <XCircle className="mr-2 h-4 w-4" />Reject
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject
                 </Button>
               </>
             )}
             {order.status === 'PROCESSING' && (
               <Button onClick={handleRetryCourier} variant="outline">
-                <RefreshCw className="mr-2 h-4 w-4" />Retry Courier
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry Courier
               </Button>
             )}
             {!['DELIVERED', 'RETURNED', 'CANCELLED', 'QA_REJECTED'].includes(order.status) && (
               <Button variant="outline" onClick={handleCancel}>
-                <Ban className="mr-2 h-4 w-4" />Cancel
+                <Ban className="mr-2 h-4 w-4" />
+                Cancel
               </Button>
             )}
           </div>
@@ -153,7 +168,11 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                   className="flex-1 border rounded-lg px-3 py-2 text-sm"
                   autoFocus
                 />
-                <Button variant="destructive" onClick={handleReject} disabled={!rejectReason.trim()}>
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={!rejectReason.trim()}
+                >
                   Confirm Rejection
                 </Button>
               </div>
@@ -162,17 +181,17 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
         )}
 
         {order.rejection_reason && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4 text-sm text-red-800">
+          <Card className="border-destructive/20 bg-destructive/5">
+            <CardContent className="p-4 text-sm text-destructive">
               <strong>Rejection reason:</strong> {order.rejection_reason}
             </CardContent>
           </Card>
         )}
 
         {duplicate_warnings.length > 0 && (
-          <Card className="border-amber-200 bg-amber-50/70">
+          <Card className="border-warning/20 bg-warning/5/70">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base text-amber-950">
+              <CardTitle className="flex items-center gap-2 text-base text-warning">
                 <AlertTriangle className="h-4 w-4" />
                 Duplicate Review
               </CardTitle>
@@ -184,28 +203,47 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                 const isWorking = resolvingId === warning.id;
 
                 return (
-                  <div key={warning.id} className="rounded-lg border border-amber-200 bg-white p-4">
+                  <div
+                    key={warning.id}
+                    className="rounded-lg border border-warning/20 bg-white p-4"
+                  >
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge className={isPending ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}>
+                          <Badge
+                            className={
+                              isPending
+                                ? 'bg-warning/10 text-warning'
+                                : 'bg-muted text-muted-foreground'
+                            }
+                          >
                             {resolutionLabels[warning.resolution_status]}
                           </Badge>
                           {duplicateOrder && (
                             <>
-                              <Badge variant="outline" className={statusColors[duplicateOrder.status]}>
+                              <Badge
+                                variant="outline"
+                                className={statusColors[duplicateOrder.status]}
+                              >
                                 {duplicateOrder.status.replace('_', ' ')}
                               </Badge>
-                              <Link href={`/orders/${duplicateOrder.id}`} className="text-sm font-medium text-primary hover:underline">
+                              <Link
+                                href={`/orders/${duplicateOrder.id}`}
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
                                 {duplicateOrder.order_number}
                               </Link>
                             </>
                           )}
                         </div>
-                        <p className="text-sm text-slate-700">{warning.body}</p>
+                        <p className="text-sm text-muted-foreground">{warning.body}</p>
                         {duplicateOrder && (
                           <p className="text-xs text-muted-foreground">
-                            Existing order for {duplicateOrder.receiver_name}, created {warning.duplicate_order?.created_at ? formatDateTime(warning.duplicate_order.created_at) : 'earlier'}.
+                            Existing order for {duplicateOrder.receiver_name}, created{' '}
+                            {warning.duplicate_order?.created_at
+                              ? formatDateTime(warning.duplicate_order.created_at)
+                              : 'earlier'}
+                            .
                           </p>
                         )}
                         {!duplicateOrder && warning.duplicate_order_number && (
@@ -215,14 +253,20 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                         )}
                         {!isPending && (
                           <p className="text-xs text-muted-foreground">
-                            Reviewed {warning.resolved_at ? formatDateTime(warning.resolved_at) : ''}{warning.resolved_by ? ` by ${warning.resolved_by.name}` : ''}.
+                            Reviewed{' '}
+                            {warning.resolved_at ? formatDateTime(warning.resolved_at) : ''}
+                            {warning.resolved_by ? ` by ${warning.resolved_by.name}` : ''}.
                           </p>
                         )}
                       </div>
 
                       {isPending && (
                         <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                          <Button size="sm" onClick={() => resolveDuplicateWarning(warning, 'continue')} disabled={isWorking}>
+                          <Button
+                            size="sm"
+                            onClick={() => resolveDuplicateWarning(warning, 'continue')}
+                            disabled={isWorking}
+                          >
                             Keep New Order
                           </Button>
                           <Button
@@ -256,7 +300,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
           <div className="lg:col-span-2 space-y-6">
             {/* Order details */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Order Details</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {order.shop_items && order.shop_items.length > 0 ? (
                   <div className="space-y-3">
@@ -265,7 +311,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{item.product_name}</p>
-                            <p className="text-xs text-muted-foreground">{item.sku ?? item.product?.sku ?? 'No SKU'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.sku ?? item.product?.sku ?? 'No SKU'}
+                            </p>
                           </div>
                           <span className="font-medium">{formatCurrency(item.line_total)}</span>
                         </div>
@@ -276,11 +324,15 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                           </div>
                           <div>
                             <span>Unit Price</span>
-                            <p className="font-medium text-foreground">{formatCurrency(item.unit_price)}</p>
+                            <p className="font-medium text-foreground">
+                              {formatCurrency(item.unit_price)}
+                            </p>
                           </div>
                           <div>
                             <span>Discount</span>
-                            <p className="font-medium text-foreground">{formatCurrency(item.discount_amount ?? 0)}</p>
+                            <p className="font-medium text-foreground">
+                              {formatCurrency(item.discount_amount ?? 0)}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -319,22 +371,46 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
 
             {/* Timeline */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Timeline</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Timeline</CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {[
-                    { label: 'Created', date: order.created_at, icon: <Clock className="h-4 w-4" /> },
-                    { label: 'Confirmed', date: order.confirmed_at, icon: <CheckCircle className="h-4 w-4" /> },
-                    { label: 'Dispatched', date: order.dispatched_at, icon: <Truck className="h-4 w-4" /> },
-                    { label: 'Delivered', date: order.delivered_at, icon: <Package className="h-4 w-4" /> },
-                    { label: 'Returned', date: order.returned_at, icon: <XCircle className="h-4 w-4" /> },
-                  ].filter((e) => e.date).map((event) => (
-                    <div key={event.label} className="flex items-center gap-3 text-sm">
-                      <div className="text-muted-foreground">{event.icon}</div>
-                      <span className="font-medium w-24">{event.label}</span>
-                      <span className="text-muted-foreground">{formatDateTime(event.date!)}</span>
-                    </div>
-                  ))}
+                    {
+                      label: 'Created',
+                      date: order.created_at,
+                      icon: <Clock className="h-4 w-4" />,
+                    },
+                    {
+                      label: 'Confirmed',
+                      date: order.confirmed_at,
+                      icon: <CheckCircle className="h-4 w-4" />,
+                    },
+                    {
+                      label: 'Dispatched',
+                      date: order.dispatched_at,
+                      icon: <Truck className="h-4 w-4" />,
+                    },
+                    {
+                      label: 'Delivered',
+                      date: order.delivered_at,
+                      icon: <Package className="h-4 w-4" />,
+                    },
+                    {
+                      label: 'Returned',
+                      date: order.returned_at,
+                      icon: <XCircle className="h-4 w-4" />,
+                    },
+                  ]
+                    .filter((e) => e.date)
+                    .map((event) => (
+                      <div key={event.label} className="flex items-center gap-3 text-sm">
+                        <div className="text-muted-foreground">{event.icon}</div>
+                        <span className="font-medium w-24">{event.label}</span>
+                        <span className="text-muted-foreground">{formatDateTime(event.date!)}</span>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -342,7 +418,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
             {/* Waybill info */}
             {waybill && (
               <Card>
-                <CardHeader><CardTitle className="text-base">Waybill / Tracking</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Waybill / Tracking</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Tracking Number</span>
@@ -358,7 +436,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                   </div>
                   <div className="pt-2">
                     <Link href={`/waybills/${waybill.id}`}>
-                      <Button variant="outline" size="sm" className="w-full">View Waybill Details</Button>
+                      <Button variant="outline" size="sm" className="w-full">
+                        View Waybill Details
+                      </Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -370,7 +450,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
           <div className="space-y-6">
             {/* Receiver */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Receiver</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Receiver</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
@@ -380,7 +462,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                 <div className="flex items-start gap-2 pt-1">
                   <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                   <p className="text-muted-foreground">
-                    {[order.receiver_address, order.barangay, order.city, order.state].filter(Boolean).join(', ')}
+                    {[order.receiver_address, order.barangay, order.city, order.state]
+                      .filter(Boolean)
+                      .join(', ')}
                     {order.postal_code && ` ${order.postal_code}`}
                   </p>
                 </div>
@@ -389,7 +473,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
 
             {/* Agent */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Assigned Agent</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Assigned Agent</CardTitle>
+              </CardHeader>
               <CardContent className="text-sm">
                 <p className="font-medium">{order.agent?.name ?? 'Unassigned'}</p>
                 {order.agent?.email && <p className="text-muted-foreground">{order.agent.email}</p>}
@@ -399,7 +485,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
             {/* Customer */}
             {order.customer && (
               <Card>
-                <CardHeader><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Customer</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-1 text-sm">
                   <p className="font-medium">{order.customer.name}</p>
                   <p className="text-muted-foreground">{order.customer.phone}</p>
@@ -418,7 +506,9 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
             {/* Notes */}
             {order.notes && (
               <Card>
-                <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="text-base">Notes</CardTitle>
+                </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">{order.notes}</p>
                 </CardContent>

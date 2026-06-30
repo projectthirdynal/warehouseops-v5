@@ -85,8 +85,12 @@ export default function ShopTemplates({ templates }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Shop Reply Templates</h1>
-              <p className="text-muted-foreground">Reusable chat responses for the Shop inbox and conversation desk</p>
+              <h1 className="text-2xl font-bold font-display tracking-tight">
+                Shop Reply Templates
+              </h1>
+              <p className="text-muted-foreground">
+                Reusable chat responses for the Shop inbox and conversation desk
+              </p>
             </div>
           </div>
 
@@ -102,7 +106,8 @@ export default function ShopTemplates({ templates }: Props) {
                 <DialogHeader>
                   <DialogTitle>Create Shop Template</DialogTitle>
                   <DialogDescription>
-                    Use placeholders like {'{customer_name}'}, {'{address}'}, {'{page_name}'}, {'{phone}'}, and {'{status}'}
+                    Use placeholders like {'{customer_name}'}, {'{address}'}, {'{page_name}'},{' '}
+                    {'{phone}'}, and {'{status}'}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -126,7 +131,9 @@ export default function ShopTemplates({ templates }: Props) {
                           key={category}
                           variant={data.category === category ? 'default' : 'outline'}
                           className="cursor-pointer capitalize"
-                          onClick={() => setData('category', data.category === category ? '' : category)}
+                          onClick={() =>
+                            setData('category', data.category === category ? '' : category)
+                          }
                         >
                           {category.replace('_', ' ')}
                         </Badge>
@@ -143,7 +150,9 @@ export default function ShopTemplates({ templates }: Props) {
                       value={data.sort_order}
                       onChange={(event) => setData('sort_order', event.target.value)}
                     />
-                    {errors.sort_order && <p className="text-sm text-destructive">{errors.sort_order}</p>}
+                    {errors.sort_order && (
+                      <p className="text-sm text-destructive">{errors.sort_order}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -179,7 +188,9 @@ export default function ShopTemplates({ templates }: Props) {
               <div className="text-center">
                 <FileText className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="text-lg font-medium">No templates yet</h3>
-                <p className="mt-1 mb-4 text-muted-foreground">Create your first Shop reply template for the inbox desk.</p>
+                <p className="mt-1 mb-4 text-muted-foreground">
+                  Create your first Shop reply template for the inbox desk.
+                </p>
                 <Button onClick={() => setOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Create Template
@@ -242,7 +253,9 @@ export default function ShopTemplates({ templates }: Props) {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    {template.creator?.name ? `Created by ${template.creator.name} ` : 'Starter template '}
+                    {template.creator?.name
+                      ? `Created by ${template.creator.name} `
+                      : 'Starter template '}
                     {formatDistanceToNow(new Date(template.created_at), { addSuffix: true })}
                   </p>
                 </CardContent>
