@@ -480,6 +480,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
         <Tooltip>
           <TooltipTrigger asChild>
             <button
+              onClick={() => setHoveredGroup(isHovered ? null : group.name)}
               className={cn(
                 'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
@@ -500,7 +501,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
 
         {/* Flyout submenu */}
         {isHovered && children.length > 0 && (
-          <div className="absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border bg-popover p-2 shadow-lg">
+          <div className="absolute left-full top-0 z-50 ml-1 w-56 rounded-xl border bg-popover p-2 shadow-lg before:absolute before:-left-2 before:top-0 before:h-full before:w-2 before:content-['']">
             <p className="mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {group.name}
             </p>
@@ -567,7 +568,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
           </Link>
 
           {/* Navigation */}
-          <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
+          <nav className="flex flex-1 flex-col items-center gap-1 overflow-visible py-2 sidebar-nav">
             {navigation
               .filter((entry) => canSee(entry))
               .map((entry) => (isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)))}
