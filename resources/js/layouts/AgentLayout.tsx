@@ -31,9 +31,7 @@ const agentNav: NavItem[] = [
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 
-const agentBottomNav: NavItem[] = [
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+const agentBottomNav: NavItem[] = [{ name: 'Settings', href: '/settings', icon: Settings }];
 
 export default function AgentLayout({ children }: PropsWithChildren) {
   const { auth } = usePage<PageProps>().props;
@@ -129,7 +127,7 @@ export default function AgentLayout({ children }: PropsWithChildren) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{auth?.user?.name || 'Agent'}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <div className="h-1.5 w-1.5 rounded-full bg-success/50" />
                 <p className="text-xs text-muted-foreground">Online</p>
               </div>
             </div>

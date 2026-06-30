@@ -45,7 +45,8 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'X-CSRF-TOKEN':
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         },
         body: JSON.stringify({
           courier,
@@ -78,7 +79,8 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            'X-CSRF-TOKEN':
+              document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
           },
           body: JSON.stringify({
             chunk_number: i,
@@ -97,7 +99,6 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
 
       // Poll for completion
       await pollProgress(upload_id);
-
     } catch (error) {
       console.error('Upload error:', error);
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -111,13 +112,15 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
         const response = await fetch(`/api/waybills/streaming/${uploadId}/progress`);
         const data = await response.json();
 
-        setStatus(`Processing: ${data.processed_rows}/${data.total_rows} rows (${data.progress_percentage}%)`);
+        setStatus(
+          `Processing: ${data.processed_rows}/${data.total_rows} rows (${data.progress_percentage}%)`
+        );
 
         if (data.status === 'completed' || data.status === 'completed_with_errors') {
           clearInterval(pollInterval);
           setUploading(false);
           setStatus(`Complete! Inserted: ${data.inserted_rows}, Updated: ${data.updated_rows}`);
-          
+
           if (onComplete) {
             onComplete(uploadId);
           } else {
@@ -145,7 +148,8 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
       await fetch(`/api/waybills/streaming/${uploadId}/cancel`, {
         method: 'POST',
         headers: {
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          'X-CSRF-TOKEN':
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         },
       });
       setUploading(false);
@@ -156,26 +160,32 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
 
   return (
     <div className="space-y-4">
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+      <div className="border-2 border-dashed border-border rounded-lg p-6">
         <input
           type="file"
           accept=".xlsx,.xls,.csv"
           onChange={handleFileSelect}
           disabled={uploading}
-          className="block w-full text-sm text-gray-500
+          className="block w-full text-sm text-muted-foreground
             file:mr-4 file:py-2 file:px-4
             file:rounded-md file:border-0
             file:text-sm file:font-semibold
-            file:bg-blue-50 file:text-blue-700
-            hover:file:bg-blue-100
+            file:bg-info/5 file:text-info
+            hover:file:bg-info/10
             disabled:opacity-50"
         />
-        
+
         {file && (
-          <div className="mt-4 text-sm text-gray-600">
-            <p><strong>File:</strong> {file.name}</p>
-            <p><strong>Size:</strong> {(file.size / 1024 / 1024).toFixed(2)} MB</p>
-            <p><strong>Courier:</strong> {courier.toUpperCase()}</p>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <p>
+              <strong>File:</strong> {file.name}
+            </p>
+            <p>
+              <strong>Size:</strong> {(file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+            <p>
+              <strong>Courier:</strong> {courier.toUpperCase()}
+            </p>
           </div>
         )}
       </div>
@@ -183,7 +193,7 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
       {file && !uploading && (
         <button
           onClick={() => processFileInChunks(file)}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition"
+          className="w-full bg-info text-white py-2 px-4 rounded-md hover:bg-info/80 transition"
         >
           Start Streaming Upload
         </button>
@@ -191,27 +201,27 @@ export default function WaybillStreamingUpload({ courier, onComplete }: Streamin
 
       {uploading && (
         <div className="space-y-3">
-          <div className="w-full bg-gray-200 rounded-full h-4">
+          <div className="w-full bg-muted/80 rounded-full h-4">
             <div
-              className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+              className="bg-info h-4 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
-          
-          <p className="text-sm text-gray-700 text-center">{status}</p>
-          
+
+          <p className="text-sm text-muted-foreground text-center">{status}</p>
+
           <button
             onClick={handleCancel}
-            className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition"
+            className="w-full bg-destructive text-white py-2 px-4 rounded-md hover:bg-destructive/80 transition"
           >
             Cancel Upload
           </button>
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <h4 className="font-semibold text-blue-900 mb-2">✨ Streaming Upload Benefits:</h4>
-        <ul className="list-disc list-inside text-blue-800 space-y-1">
+      <div className="bg-info/5 border border-info/20 rounded-lg p-4 text-sm">
+        <h4 className="font-semibold text-info mb-2">✨ Streaming Upload Benefits:</h4>
+        <ul className="list-disc list-inside text-info space-y-1">
           <li>No file size limits - processes data in chunks</li>
           <li>Faster - starts processing immediately</li>
           <li>Real-time progress tracking</li>

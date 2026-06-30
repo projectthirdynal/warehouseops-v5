@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,7 +14,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 
 interface Agent {
@@ -118,13 +126,16 @@ export function DistributionModal({
                 <SelectContent>
                   <SelectItem value="_all">All products</SelectItem>
                   {productOptions.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {productFilter && (
                 <p className="text-xs text-muted-foreground">
-                  Only leads matching "{productFilter}" will be distributed. Agents with this product skill are shown first.
+                  Only leads matching "{productFilter}" will be distributed. Agents with this
+                  product skill are shown first.
                 </p>
               )}
             </div>
@@ -153,14 +164,15 @@ export function DistributionModal({
             {sortedAgents.map((agent) => {
               const hasSkill = productFilter && agent.product_skills.includes(productFilter);
               const cap = remainingCapacity(agent);
-              const isSelected = method === 'equal'
-                ? selectedAgents.includes(agent.id)
-                : (customDistribution[agent.id] || 0) > 0;
+              const isSelected =
+                method === 'equal'
+                  ? selectedAgents.includes(agent.id)
+                  : (customDistribution[agent.id] || 0) > 0;
 
               return (
                 <div
                   key={agent.id}
-                  className={`flex items-center gap-2 px-3 py-2 ${hasSkill ? 'bg-green-50/50' : ''}`}
+                  className={`flex items-center gap-2 px-3 py-2 ${hasSkill ? 'bg-success/5/50' : ''}`}
                 >
                   <Checkbox
                     checked={isSelected}
@@ -173,14 +185,15 @@ export function DistributionModal({
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-medium">{agent.name}</span>
                       {hasSkill && (
-                        <Badge variant="default" className="text-[10px] px-1 py-0 h-4 bg-green-600">
+                        <Badge variant="default" className="text-[10px] px-1 py-0 h-4 bg-success">
                           Skilled
                         </Badge>
                       )}
                       {agent.product_skills.length > 0 && (
                         <span className="text-[10px] text-muted-foreground truncate">
                           {agent.product_skills.slice(0, 2).join(', ')}
-                          {agent.product_skills.length > 2 && ` +${agent.product_skills.length - 2}`}
+                          {agent.product_skills.length > 2 &&
+                            ` +${agent.product_skills.length - 2}`}
                         </span>
                       )}
                     </div>
@@ -214,8 +227,8 @@ export function DistributionModal({
           <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
             {method === 'equal' ? (
               <p>
-                {selectedLeadIds.length} leads ÷ {selectedAgents.length || '?'} agents
-                = <strong>{perAgentCount || '?'} each</strong>
+                {selectedLeadIds.length} leads ÷ {selectedAgents.length || '?'} agents ={' '}
+                <strong>{perAgentCount || '?'} each</strong>
               </p>
             ) : (
               <p>
@@ -226,13 +239,17 @@ export function DistributionModal({
               </p>
             )}
             {productFilter && (
-              <p className="text-xs text-muted-foreground">Product filter active: <strong>{productFilter}</strong></p>
+              <p className="text-xs text-muted-foreground">
+                Product filter active: <strong>{productFilter}</strong>
+              </p>
             )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             onClick={handleSubmit}
             disabled={

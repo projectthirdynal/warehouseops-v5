@@ -246,7 +246,7 @@ export default function InventoryDashboard({
                   <SlidersHorizontal className="mr-1.5 h-4 w-4" />
                   Adjustments
                   {stats.pending_adjustments > 0 && (
-                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                    <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-warning/50 text-[10px] font-bold text-white">
                       {stats.pending_adjustments}
                     </span>
                   )}

@@ -217,13 +217,13 @@ export default function QCIndex({ queue, stats }: Props) {
 
                 {/* Quality Flags */}
                 {currentItem.quality_flags && currentItem.quality_flags.length > 0 && (
-                  <div className="rounded-lg border border-warning/20 bg-warning/5 p-4 dark:border-yellow-900 dark:bg-yellow-950">
-                    <h3 className="font-semibold flex items-center gap-2 text-warning dark:text-yellow-200">
+                  <div className="rounded-lg border border-warning/20 bg-warning/5 p-4 dark:border-warning/30 dark:bg-warning/20">
+                    <h3 className="font-semibold flex items-center gap-2 text-warning dark:text-warning">
                       <AlertTriangle className="h-4 w-4" /> Quality Flags
                     </h3>
                     <ul className="mt-2 space-y-1">
                       {currentItem.quality_flags.map((flag, i) => (
-                        <li key={i} className="text-sm text-warning dark:text-yellow-300">
+                        <li key={i} className="text-sm text-warning dark:text-warning/80">
                           • {flag}
                         </li>
                       ))}

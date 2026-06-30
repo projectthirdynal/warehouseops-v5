@@ -18,7 +18,7 @@ export function LeadNotificationBadge({ count, onClick }: Props) {
         <span
           className={cn(
             'absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white',
-            count > 9 ? 'bg-red-500' : 'bg-primary'
+            count > 9 ? 'bg-destructive/50' : 'bg-primary'
           )}
         >
           {count > 99 ? '99+' : count}

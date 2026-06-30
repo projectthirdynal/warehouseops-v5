@@ -1055,7 +1055,7 @@ function MaterialDialog({
                 required
                 className="font-mono uppercase"
               />
-              {form.errors.sku && <p className="text-xs text-red-600">{form.errors.sku}</p>}
+              {form.errors.sku && <p className="text-xs text-destructive">{form.errors.sku}</p>}
             </div>
             <div className="space-y-1">
               <Label>Name *</Label>
@@ -1065,7 +1065,7 @@ function MaterialDialog({
                 required
                 placeholder="Bottles, caps, labels..."
               />
-              {form.errors.name && <p className="text-xs text-red-600">{form.errors.name}</p>}
+              {form.errors.name && <p className="text-xs text-destructive">{form.errors.name}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -1167,7 +1167,7 @@ function MaterialDialog({
                 required
               />
               {form.errors.cost_price && (
-                <p className="text-xs text-red-600">{form.errors.cost_price}</p>
+                <p className="text-xs text-destructive">{form.errors.cost_price}</p>
               )}
             </div>
             <div className="space-y-1">

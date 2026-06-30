@@ -68,7 +68,7 @@ interface Props {
 
 const strategyColors: Record<string, string> = {
   round_robin: 'bg-info/10 text-info',
-  weighted: 'bg-primary/10 text-purple-800',
+  weighted: 'bg-primary/10 text-primary',
   skill_match: 'bg-success/10 text-success',
   territory: 'bg-warning/10 text-warning',
   hybrid: 'bg-indigo-100 text-indigo-800',

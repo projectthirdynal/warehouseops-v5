@@ -321,7 +321,7 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                           </td>
                           <td className="px-4 py-3">
                             {scan.resolved_to_waybill ? (
-                              <span className="font-mono text-xs text-success dark:text-green-400">
+                              <span className="font-mono text-xs text-success dark:text-success/80">
                                 {scan.resolved_to_waybill.waybill_number}
                               </span>
                             ) : (
@@ -452,8 +452,8 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
               </div>
             )}
             {selectedWaybill && (
-              <div className="rounded-lg border border-success/20 bg-success/5 dark:border-green-800 dark:bg-green-950 px-3 py-2 text-sm">
-                <span className="text-success dark:text-green-300">Matched to: </span>
+              <div className="rounded-lg border border-success/20 bg-success/5 dark:border-success/30 dark:bg-success/20 px-3 py-2 text-sm">
+                <span className="text-success dark:text-success">Matched to: </span>
                 <span className="font-mono font-medium">{selectedWaybill.waybill_number}</span>
                 <span className="text-muted-foreground ml-1">
                   — {selectedWaybill.receiver_name}

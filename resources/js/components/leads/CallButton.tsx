@@ -19,7 +19,8 @@ export function CallButton({ leadId, disabled, onCallInitiated }: CallButtonProp
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+          'X-CSRF-TOKEN':
+            document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
         },
       });
 
@@ -47,7 +48,7 @@ export function CallButton({ leadId, disabled, onCallInitiated }: CallButtonProp
     <Button
       onClick={handleCall}
       disabled={disabled || isLoading}
-      className="bg-green-600 hover:bg-green-700"
+      className="bg-success hover:bg-success/80"
     >
       {isLoading ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

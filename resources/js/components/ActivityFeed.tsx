@@ -18,10 +18,10 @@ const typeIconMap: Record<string, LucideIcon> = {
 };
 
 const typeColorMap: Record<string, string> = {
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  error: 'bg-red-500',
-  info: 'bg-blue-500',
+  success: 'bg-success',
+  warning: 'bg-warning/50',
+  error: 'bg-destructive/50',
+  info: 'bg-info/50',
 };
 
 interface ActivityFeedProps {
@@ -30,10 +30,19 @@ interface ActivityFeedProps {
   emptyMessage?: string;
 }
 
-export function ActivityFeed({ items, className, emptyMessage = 'No recent activity' }: ActivityFeedProps) {
+export function ActivityFeed({
+  items,
+  className,
+  emptyMessage = 'No recent activity',
+}: ActivityFeedProps) {
   if (items.length === 0) {
     return (
-      <div className={cn('flex flex-col items-center justify-center py-8 text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center py-8 text-muted-foreground',
+          className
+        )}
+      >
         <Clock className="h-6 w-6 mb-2 opacity-40" />
         <p className="text-sm">{emptyMessage}</p>
       </div>
@@ -50,7 +59,12 @@ export function ActivityFeed({ items, className, emptyMessage = 'No recent activ
         return (
           <div key={item.id} className="relative flex gap-4 py-3 group">
             {/* Icon / Dot */}
-            <div className={cn('relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-2 ring-background', dotColor)}>
+            <div
+              className={cn(
+                'relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-2 ring-background',
+                dotColor
+              )}
+            >
               <Icon className="h-3.5 w-3.5 text-white" />
             </div>
             {/* Content */}

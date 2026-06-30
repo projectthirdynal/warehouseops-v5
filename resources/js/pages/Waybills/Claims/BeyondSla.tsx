@@ -107,12 +107,12 @@ const STATUS_META: Record<
   beyond_sla: {
     label: 'Received (late)',
     icon: <AlertCircle className="h-4 w-4 text-warning" />,
-    rowCls: 'bg-orange-50',
+    rowCls: 'bg-warning/5',
     beep: 'warn',
   },
   already_processed: {
     label: 'Already received',
-    icon: <CheckCircle className="h-4 w-4 text-blue-400" />,
+    icon: <CheckCircle className="h-4 w-4 text-info/80" />,
     rowCls: 'bg-info/5',
     beep: null,
   },
