@@ -48,12 +48,12 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  SUBMITTED: 'bg-blue-100 text-blue-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  CONVERTED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-orange-100 text-orange-700',
+  DRAFT: 'bg-muted text-muted-foreground',
+  SUBMITTED: 'bg-info/10 text-info',
+  APPROVED: 'bg-success/10 text-success',
+  CONVERTED: 'bg-success/10 text-success',
+  REJECTED: 'bg-destructive/10 text-destructive',
+  CANCELLED: 'bg-warning/10 text-warning',
 };
 
 export default function PrShow({ pr }: Props) {
@@ -108,7 +108,7 @@ export default function PrShow({ pr }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold">{pr.pr_number}</h1>
+              <h1 className="font-mono text-2xl font-bold font-display">{pr.pr_number}</h1>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[pr.status]}`}
@@ -175,7 +175,7 @@ export default function PrShow({ pr }: Props) {
                         ) : it.supply ? (
                           <>
                             <span className="font-mono">{it.supply.sku}</span> — {it.supply.name}{' '}
-                            <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-700">
+                            <span className="ml-1 rounded bg-warning/10 px-1 text-xs text-warning">
                               Supply
                             </span>
                           </>
@@ -245,10 +245,10 @@ export default function PrShow({ pr }: Props) {
               )}
               {pr.rejected_reason && (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-red-600">
+                  <p className="text-xs font-medium uppercase tracking-wide text-destructive">
                     Rejection
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-red-700">{pr.rejected_reason}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-destructive">{pr.rejected_reason}</p>
                 </div>
               )}
             </CardContent>

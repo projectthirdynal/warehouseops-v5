@@ -59,7 +59,14 @@ interface Props {
   };
 }
 
-const statusConfig: Record<WaybillStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Package }> = {
+const statusConfig: Record<
+  WaybillStatus,
+  {
+    label: string;
+    variant: 'default' | 'secondary' | 'destructive' | 'outline';
+    icon: typeof Package;
+  }
+> = {
   PENDING: { label: 'Pending', variant: 'secondary', icon: Clock },
   DISPATCHED: { label: 'Dispatched', variant: 'default', icon: Truck },
   PICKED_UP: { label: 'Picked Up', variant: 'default', icon: Package },
@@ -84,9 +91,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
   const waybillIds = waybills?.data?.map((w) => String(w.id)) || [];
 
   const toggleSelection = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const selectAll = (checked: boolean) => {
@@ -131,8 +136,20 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
   };
 
   const bulkActions: BulkAction[] = [
-    { id: 'delete', label: 'Delete', icon: Trash2, variant: 'destructive', onClick: handleDeleteBulk },
-    { id: 'export', label: 'Export', icon: Download, variant: 'default', onClick: handleExportBulk },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      variant: 'destructive',
+      onClick: handleDeleteBulk,
+    },
+    {
+      id: 'export',
+      label: 'Export',
+      icon: Download,
+      variant: 'default',
+      onClick: handleExportBulk,
+    },
   ];
 
   return (
@@ -143,10 +160,8 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Waybills</h1>
-            <p className="text-muted-foreground">
-              Manage and track all shipment waybills
-            </p>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Waybills</h1>
+            <p className="text-muted-foreground">Manage and track all shipment waybills</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
@@ -167,7 +182,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.total || 0}</div>
+              <div className="text-2xl font-bold font-display">{stats?.total || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -175,15 +190,21 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats?.pending || 0}</div>
+              <div className="text-2xl font-bold font-display text-warning">
+                {stats?.pending || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Dispatched</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Dispatched
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats?.dispatched || 0}</div>
+              <div className="text-2xl font-bold font-display text-info">
+                {stats?.dispatched || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -191,7 +212,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats?.delivered || 0}</div>
+              <div className="text-2xl font-bold font-display text-success">
+                {stats?.delivered || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -199,7 +222,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Returned</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats?.returned || 0}</div>
+              <div className="text-2xl font-bold font-display text-destructive">
+                {stats?.returned || 0}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -255,152 +280,214 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               {loading ? (
                 <SkeletonTable rows={5} columns={8} />
               ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-10">
-                      <Checkbox
-                        checked={selectedIds.length === waybillIds.length && waybillIds.length > 0}
-                        onCheckedChange={(c) => selectAll(Boolean(c))}
-                        aria-label="Select all"
-                      />
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                      <button className="flex items-center gap-1 hover:text-foreground">
-                        Waybill # <ArrowUpDown className="h-4 w-4" />
-                      </button>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Receiver</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Address</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Remarks</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">COD</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date</th>
-                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {waybills?.data?.length > 0 ? (
-                    waybills.data.map((waybill) => {
-                      const config = statusConfig[waybill.status];
-                      const StatusIcon = config?.icon || Package;
-                      return (
-                        <>
-                        <tr key={waybill.id} className="border-b transition-colors hover:bg-muted/50">
-                          <td className="p-4 align-middle w-10">
-                            <Checkbox
-                              checked={selectedIds.includes(String(waybill.id))}
-                              onCheckedChange={() => toggleSelection(String(waybill.id))}
-                              aria-label={`Select waybill ${waybill.waybill_number}`}
-                            />
-                          </td>
-                          <td className="p-4 align-middle font-mono text-sm font-medium">
-                            {waybill.waybill_number}
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div>
-                              <div className="font-medium">{waybill.receiver_name}</div>
-                              <div className="text-sm text-muted-foreground">{waybill.receiver_phone}</div>
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle max-w-[200px]">
-                            <div className="truncate text-sm">{waybill.receiver_address}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {[waybill.barangay, waybill.city, waybill.state].filter(Boolean).join(', ')}
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle">
-                            <Badge variant={config?.variant || 'secondary'} className="gap-1">
-                              <StatusIcon className="h-3 w-3" />
-                              {config?.label || waybill.status}
-                            </Badge>
-                          </td>
-                          <td className="p-4 align-middle text-sm max-w-[200px]">
-                            <InlineEdit
-                              value={waybill.remarks || ''}
-                              onSave={async (val) => {
-                                router.patch(`/waybills/${waybill.id}/remarks`, { remarks: val }, {
-                                  preserveState: true,
-                                  onSuccess: () => success('Remarks updated'),
-                                  onError: () => error('Failed to update remarks'),
-                                });
-                              }}
-                              placeholder="Add remarks..."
-                            />
-                          </td>
-                          <td className="p-4 align-middle text-sm font-medium">
-                            ₱{waybill.cod_amount?.toLocaleString() || '0'}
-                          </td>
-                          <td className="p-4 align-middle text-sm text-muted-foreground">
-                            {formatDate(waybill.created_at)}
-                          </td>
-                          <td className="p-4 align-middle text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => { setDrawerWaybill(waybill); setDrawerOpen(true); }}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Truck className="mr-2 h-4 w-4" />
-                                  Update Status
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                        {/* Expanded row */}
-                        {selectedIds.includes(String(waybill.id)) && (
-                          <tr>
-                            <td colSpan={9} className="px-4 pb-3">
-                              <RowExpand defaultOpen>
-                                <div className="grid grid-cols-3 gap-4 text-sm">
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">Phone</p>
-                                    <p className="font-medium">{waybill.receiver_phone ?? '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">Address</p>
-                                    <p className="font-medium">{[waybill.barangay, waybill.city, waybill.state].filter(Boolean).join(', ') || '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">COD Amount</p>
-                                    <p className="font-medium">₱{waybill.cod_amount?.toLocaleString() || '0'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">Created</p>
-                                    <p className="font-medium">{formatDate(waybill.created_at)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">Dispatched</p>
-                                    <p className="font-medium">{waybill.dispatched_at ? formatDate(waybill.dispatched_at) : '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-muted-foreground text-xs uppercase">Delivered</p>
-                                    <p className="font-medium">{waybill.delivered_at ? formatDate(waybill.delivered_at) : '—'}</p>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-10">
+                        <Checkbox
+                          checked={
+                            selectedIds.length === waybillIds.length && waybillIds.length > 0
+                          }
+                          onCheckedChange={(c) => selectAll(Boolean(c))}
+                          aria-label="Select all"
+                        />
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        <button className="flex items-center gap-1 hover:text-foreground">
+                          Waybill # <ArrowUpDown className="h-4 w-4" />
+                        </button>
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        Receiver
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        Address
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        Remarks
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        COD
+                      </th>
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                        Date
+                      </th>
+                      <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waybills?.data?.length > 0 ? (
+                      waybills.data.map((waybill) => {
+                        const config = statusConfig[waybill.status];
+                        const StatusIcon = config?.icon || Package;
+                        return (
+                          <>
+                            <tr
+                              key={waybill.id}
+                              className="border-b transition-colors hover:bg-muted/50"
+                            >
+                              <td className="p-4 align-middle w-10">
+                                <Checkbox
+                                  checked={selectedIds.includes(String(waybill.id))}
+                                  onCheckedChange={() => toggleSelection(String(waybill.id))}
+                                  aria-label={`Select waybill ${waybill.waybill_number}`}
+                                />
+                              </td>
+                              <td className="p-4 align-middle font-mono text-sm font-medium">
+                                {waybill.waybill_number}
+                              </td>
+                              <td className="p-4 align-middle">
+                                <div>
+                                  <div className="font-medium">{waybill.receiver_name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {waybill.receiver_phone}
                                   </div>
                                 </div>
-                              </RowExpand>
-                            </td>
-                          </tr>
-                        )}
-                        </>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={9} className="h-24 text-center text-muted-foreground">
-                        No waybills found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                              </td>
+                              <td className="p-4 align-middle max-w-[200px]">
+                                <div className="truncate text-sm">{waybill.receiver_address}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {[waybill.barangay, waybill.city, waybill.state]
+                                    .filter(Boolean)
+                                    .join(', ')}
+                                </div>
+                              </td>
+                              <td className="p-4 align-middle">
+                                <Badge variant={config?.variant || 'secondary'} className="gap-1">
+                                  <StatusIcon className="h-3 w-3" />
+                                  {config?.label || waybill.status}
+                                </Badge>
+                              </td>
+                              <td className="p-4 align-middle text-sm max-w-[200px]">
+                                <InlineEdit
+                                  value={waybill.remarks || ''}
+                                  onSave={async (val) => {
+                                    router.patch(
+                                      `/waybills/${waybill.id}/remarks`,
+                                      { remarks: val },
+                                      {
+                                        preserveState: true,
+                                        onSuccess: () => success('Remarks updated'),
+                                        onError: () => error('Failed to update remarks'),
+                                      }
+                                    );
+                                  }}
+                                  placeholder="Add remarks..."
+                                />
+                              </td>
+                              <td className="p-4 align-middle text-sm font-medium">
+                                ₱{waybill.cod_amount?.toLocaleString() || '0'}
+                              </td>
+                              <td className="p-4 align-middle text-sm text-muted-foreground">
+                                {formatDate(waybill.created_at)}
+                              </td>
+                              <td className="p-4 align-middle text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setDrawerWaybill(waybill);
+                                        setDrawerOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                      <Truck className="mr-2 h-4 w-4" />
+                                      Update Status
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </td>
+                            </tr>
+                            {/* Expanded row */}
+                            {selectedIds.includes(String(waybill.id)) && (
+                              <tr>
+                                <td colSpan={9} className="px-4 pb-3">
+                                  <RowExpand defaultOpen>
+                                    <div className="grid grid-cols-3 gap-4 text-sm">
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          Phone
+                                        </p>
+                                        <p className="font-medium">
+                                          {waybill.receiver_phone ?? '—'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          Address
+                                        </p>
+                                        <p className="font-medium">
+                                          {[waybill.barangay, waybill.city, waybill.state]
+                                            .filter(Boolean)
+                                            .join(', ') || '—'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          COD Amount
+                                        </p>
+                                        <p className="font-medium">
+                                          ₱{waybill.cod_amount?.toLocaleString() || '0'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          Created
+                                        </p>
+                                        <p className="font-medium">
+                                          {formatDate(waybill.created_at)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          Dispatched
+                                        </p>
+                                        <p className="font-medium">
+                                          {waybill.dispatched_at
+                                            ? formatDate(waybill.dispatched_at)
+                                            : '—'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-muted-foreground text-xs uppercase">
+                                          Delivered
+                                        </p>
+                                        <p className="font-medium">
+                                          {waybill.delivered_at
+                                            ? formatDate(waybill.delivered_at)
+                                            : '—'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </RowExpand>
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9} className="h-24 text-center text-muted-foreground">
+                          No waybills found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               )}
             </div>
 
@@ -415,7 +502,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                     variant="outline"
                     size="sm"
                     disabled={waybills.current_page === 1}
-                    onClick={() => router.get('/waybills', { ...filters, page: waybills.current_page - 1 })}
+                    onClick={() =>
+                      router.get('/waybills', { ...filters, page: waybills.current_page - 1 })
+                    }
                   >
                     Previous
                   </Button>
@@ -423,7 +512,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                     variant="outline"
                     size="sm"
                     disabled={waybills.current_page === waybills.last_page}
-                    onClick={() => router.get('/waybills', { ...filters, page: waybills.current_page + 1 })}
+                    onClick={() =>
+                      router.get('/waybills', { ...filters, page: waybills.current_page + 1 })
+                    }
                   >
                     Next
                   </Button>
@@ -437,7 +528,10 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
       {/* Detail Drawer */}
       <DetailDrawer
         open={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setDrawerWaybill(null); }}
+        onClose={() => {
+          setDrawerOpen(false);
+          setDrawerWaybill(null);
+        }}
         title={drawerWaybill ? `Waybill #${drawerWaybill.waybill_number}` : 'Waybill Details'}
       >
         {drawerWaybill && (
@@ -460,7 +554,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                 <p className="text-xs text-muted-foreground uppercase">Address</p>
                 <p className="font-medium">{drawerWaybill.receiver_address}</p>
                 <p className="text-sm text-muted-foreground">
-                  {[drawerWaybill.barangay, drawerWaybill.city, drawerWaybill.state].filter(Boolean).join(', ')}
+                  {[drawerWaybill.barangay, drawerWaybill.city, drawerWaybill.state]
+                    .filter(Boolean)
+                    .join(', ')}
                 </p>
               </div>
               <div>
@@ -468,11 +564,15 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                 <InlineEdit
                   value={drawerWaybill.remarks || ''}
                   onSave={async (val) => {
-                    router.patch(`/waybills/${drawerWaybill.id}/remarks`, { remarks: val }, {
-                      preserveState: true,
-                      onSuccess: () => success('Remarks updated'),
-                      onError: () => error('Failed to update remarks'),
-                    });
+                    router.patch(
+                      `/waybills/${drawerWaybill.id}/remarks`,
+                      { remarks: val },
+                      {
+                        preserveState: true,
+                        onSuccess: () => success('Remarks updated'),
+                        onError: () => error('Failed to update remarks'),
+                      }
+                    );
                   }}
                   placeholder="Add remarks..."
                 />
@@ -480,7 +580,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">COD Amount</p>
-                  <p className="font-medium">₱{drawerWaybill.cod_amount?.toLocaleString() || '0'}</p>
+                  <p className="font-medium">
+                    ₱{drawerWaybill.cod_amount?.toLocaleString() || '0'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">Status</p>
@@ -489,10 +591,19 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               </div>
             </div>
             <div className="flex gap-2 pt-4 border-t">
-              <Button variant="outline" size="sm" onClick={() => router.visit(`/waybills/${drawerWaybill.id}`)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.visit(`/waybills/${drawerWaybill.id}`)}
+              >
                 Open Full Page
               </Button>
-              <Button size="sm" onClick={() => { success('Status update dialog would open here'); }}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  success('Status update dialog would open here');
+                }}
+              >
                 Update Status
               </Button>
             </div>

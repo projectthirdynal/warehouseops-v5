@@ -1,6 +1,14 @@
 import { Head, router } from '@inertiajs/react';
 import { useState, useRef, useCallback } from 'react';
-import { HelpCircle, Search, CheckCircle2, XCircle, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  HelpCircle,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
@@ -51,9 +63,21 @@ interface Props {
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  PENDING:   { label: 'Pending',   badgeCls: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', icon: <Clock className="h-3.5 w-3.5 text-orange-500" /> },
-  RESOLVED:  { label: 'Resolved',  badgeCls: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',   icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> },
-  DISMISSED: { label: 'Dismissed', badgeCls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',       icon: <XCircle className="h-3.5 w-3.5 text-gray-400" /> },
+  PENDING: {
+    label: 'Pending',
+    badgeCls: 'bg-warning/10 text-warning dark:bg-warning/20 dark:text-warning',
+    icon: <Clock className="h-3.5 w-3.5 text-warning" />,
+  },
+  RESOLVED: {
+    label: 'Resolved',
+    badgeCls: 'bg-success/10 text-success dark:bg-success/20 dark:text-success',
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />,
+  },
+  DISMISSED: {
+    label: 'Dismissed',
+    badgeCls: 'bg-muted text-muted-foreground dark:bg-ink dark:text-muted-foreground',
+    icon: <XCircle className="h-3.5 w-3.5 text-muted-foreground" />,
+  },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -76,14 +100,17 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
   const [dismissNotes, setDismissNotes] = useState('');
   const [dismissSubmitting, setDismissSubmitting] = useState(false);
 
-  const applyFilters = useCallback((overrides: Partial<{ status: string; search: string }> = {}) => {
-    const params: Record<string, string> = {};
-    const s = overrides.search !== undefined ? overrides.search : search;
-    const st = overrides.status !== undefined ? overrides.status : statusFilter;
-    if (s) params.search = s;
-    if (st) params.status = st;
-    router.get('/waybills/unknown', params, { preserveState: true, replace: true });
-  }, [search, statusFilter]);
+  const applyFilters = useCallback(
+    (overrides: Partial<{ status: string; search: string }> = {}) => {
+      const params: Record<string, string> = {};
+      const s = overrides.search !== undefined ? overrides.search : search;
+      const st = overrides.status !== undefined ? overrides.status : statusFilter;
+      if (s) params.search = s;
+      if (st) params.status = st;
+      router.get('/waybills/unknown', params, { preserveState: true, replace: true });
+    },
+    [search, statusFilter]
+  );
 
   // Fetch suggestions with debounce
   const fetchSuggestions = useCallback((q: string) => {
@@ -94,11 +121,13 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
     suggestTimer.current = setTimeout(async () => {
       try {
         const res = await fetch(`/waybills/unknown/suggest?q=${encodeURIComponent(q)}`, {
-          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         });
         const data = await res.json();
         setSuggestions(data.waybills ?? []);
-      } catch { /* network error */ }
+      } catch {
+        /* network error */
+      }
     }, 280);
   }, []);
 
@@ -159,7 +188,7 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
       <div className="space-y-5">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Unknown Waybills</h1>
+          <h1 className="text-2xl font-bold font-display tracking-tight">Unknown Waybills</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             Waybills scanned but not found in the system. Match to an existing record or dismiss.
           </p>
@@ -168,14 +197,16 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Pending Review', value: stats.pending, cls: 'text-orange-500' },
-            { label: 'Resolved', value: stats.resolved, cls: 'text-green-600' },
+            { label: 'Pending Review', value: stats.pending, cls: 'text-warning' },
+            { label: 'Resolved', value: stats.resolved, cls: 'text-success' },
             { label: 'Dismissed', value: stats.dismissed, cls: 'text-muted-foreground' },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-muted-foreground">{s.label}</span>
-                <span className={cn('text-2xl font-bold tabular-nums', s.cls)}>{s.value}</span>
+                <span className={cn('text-2xl font-bold font-display tabular-nums', s.cls)}>
+                  {s.value}
+                </span>
               </CardContent>
             </Card>
           ))}
@@ -218,7 +249,9 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                 </button>
               ))}
             </div>
-            <Button variant="outline" onClick={() => applyFilters()}>Apply</Button>
+            <Button variant="outline" onClick={() => applyFilters()}>
+              Apply
+            </Button>
           </CardContent>
         </Card>
 
@@ -235,13 +268,27 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Waybill #</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Scanned By</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Scanned At</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Resolved To</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Waybill #
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Scanned By
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Scanned At
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Resolved To
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Notes
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -251,23 +298,35 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                         <tr key={scan.id} className="border-b hover:bg-muted/20 transition-colors">
                           <td className="px-4 py-3 font-mono font-medium">{scan.waybill_no}</td>
                           <td className="px-4 py-3">
-                            <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium', meta.badgeCls)}>
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
+                                meta.badgeCls
+                              )}
+                            >
                               {meta.icon}
                               {meta.label}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">{scan.scanned_by?.name ?? '—'}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {scan.scanned_by?.name ?? '—'}
+                          </td>
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                             {new Date(scan.scanned_at).toLocaleString('en-PH', {
-                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
                             })}
                           </td>
                           <td className="px-4 py-3">
                             {scan.resolved_to_waybill ? (
-                              <span className="font-mono text-xs text-green-700 dark:text-green-400">
+                              <span className="font-mono text-xs text-success dark:text-green-400">
                                 {scan.resolved_to_waybill.waybill_number}
                               </span>
-                            ) : '—'}
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate">
                             {scan.notes ?? '—'}
@@ -346,7 +405,10 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
           <div className="space-y-4 py-2">
             <div>
               <p className="text-sm text-muted-foreground mb-1">
-                Scanned: <span className="font-mono font-medium text-foreground">{matchTarget?.waybill_no}</span>
+                Scanned:{' '}
+                <span className="font-mono font-medium text-foreground">
+                  {matchTarget?.waybill_no}
+                </span>
               </p>
             </div>
             <div className="space-y-1.5">
@@ -365,7 +427,11 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                 {suggestions.map((w) => (
                   <button
                     key={w.id}
-                    onClick={() => { setSelectedWaybill(w); setSuggestions([]); setMatchQuery(w.waybill_number); }}
+                    onClick={() => {
+                      setSelectedWaybill(w);
+                      setSuggestions([]);
+                      setMatchQuery(w.waybill_number);
+                    }}
                     className={cn(
                       'w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors',
                       selectedWaybill?.id === w.id && 'bg-primary/5'
@@ -374,23 +440,30 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm font-medium">{w.waybill_number}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {w.receiver_name}{w.city ? ` · ${w.city}` : ''} · {w.status}
+                        {w.receiver_name}
+                        {w.city ? ` · ${w.city}` : ''} · {w.status}
                       </p>
                     </div>
-                    {selectedWaybill?.id === w.id && <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />}
+                    {selectedWaybill?.id === w.id && (
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    )}
                   </button>
                 ))}
               </div>
             )}
             {selectedWaybill && (
-              <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950 px-3 py-2 text-sm">
-                <span className="text-green-700 dark:text-green-300">Matched to: </span>
+              <div className="rounded-lg border border-success/20 bg-success/5 dark:border-green-800 dark:bg-green-950 px-3 py-2 text-sm">
+                <span className="text-success dark:text-green-300">Matched to: </span>
                 <span className="font-mono font-medium">{selectedWaybill.waybill_number}</span>
-                <span className="text-muted-foreground ml-1">— {selectedWaybill.receiver_name}</span>
+                <span className="text-muted-foreground ml-1">
+                  — {selectedWaybill.receiver_name}
+                </span>
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label>
+                Notes <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Textarea
                 placeholder="Why this waybill matches…"
                 value={matchNotes}
@@ -400,11 +473,10 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMatchTarget(null)}>Cancel</Button>
-            <Button
-              onClick={submitMatch}
-              disabled={!selectedWaybill || matchLoading}
-            >
+            <Button variant="outline" onClick={() => setMatchTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitMatch} disabled={!selectedWaybill || matchLoading}>
               {matchLoading ? 'Matching…' : 'Confirm Match'}
             </Button>
           </DialogFooter>
@@ -419,10 +491,15 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Scanned: <span className="font-mono font-medium text-foreground">{dismissTarget?.waybill_no}</span>
+              Scanned:{' '}
+              <span className="font-mono font-medium text-foreground">
+                {dismissTarget?.waybill_no}
+              </span>
             </p>
             <div className="space-y-1.5">
-              <Label>Reason for dismissal <span className="text-destructive">*</span></Label>
+              <Label>
+                Reason for dismissal <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 placeholder="e.g. Test scan, duplicate number, mislabeled parcel…"
                 value={dismissNotes}
@@ -432,7 +509,9 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDismissTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDismissTarget(null)}>
+              Cancel
+            </Button>
             <Button
               variant="destructive"
               onClick={submitDismiss}

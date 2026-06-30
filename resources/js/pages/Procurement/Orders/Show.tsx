@@ -75,11 +75,11 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  SENT: 'bg-blue-100 text-blue-700',
-  PARTIALLY_RECEIVED: 'bg-yellow-100 text-yellow-800',
-  RECEIVED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-700',
+  DRAFT: 'bg-muted text-muted-foreground',
+  SENT: 'bg-info/10 text-info',
+  PARTIALLY_RECEIVED: 'bg-warning/10 text-warning',
+  RECEIVED: 'bg-success/10 text-success',
+  CANCELLED: 'bg-destructive/10 text-destructive',
 };
 
 export default function PoShow({ po }: Props) {
@@ -130,7 +130,7 @@ export default function PoShow({ po }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold">{po.po_number}</h1>
+              <h1 className="font-mono text-2xl font-bold font-display">{po.po_number}</h1>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[po.status]}`}
@@ -140,7 +140,7 @@ export default function PoShow({ po }: Props) {
                 {po.purchase_request && (
                   <Link
                     href={`/procurement/requests/${po.purchase_request.id}`}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-info hover:underline"
                   >
                     From PR {po.purchase_request.pr_number}
                   </Link>
@@ -203,7 +203,7 @@ export default function PoShow({ po }: Props) {
                           ) : it.supply ? (
                             <>
                               <span className="font-mono">{it.supply.sku}</span> — {it.supply.name}{' '}
-                              <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-700">
+                              <span className="ml-1 rounded bg-warning/10 px-1 text-xs text-warning">
                                 Supply
                               </span>
                             </>
@@ -215,7 +215,7 @@ export default function PoShow({ po }: Props) {
                           )}
                         </TableCell>
                         <TableCell className="text-right text-sm">{it.quantity_ordered}</TableCell>
-                        <TableCell className="text-right text-sm font-medium text-green-700">
+                        <TableCell className="text-right text-sm font-medium text-success">
                           {it.quantity_received}
                         </TableCell>
                         <TableCell className="text-right text-sm">
@@ -223,7 +223,7 @@ export default function PoShow({ po }: Props) {
                             className={
                               outstanding === 0
                                 ? 'text-muted-foreground'
-                                : 'font-medium text-orange-700'
+                                : 'font-medium text-warning'
                             }
                           >
                             {outstanding}
@@ -341,7 +341,7 @@ export default function PoShow({ po }: Props) {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs ${g.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                          className={`rounded-full px-2 py-0.5 text-xs ${g.status === 'CONFIRMED' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
                         >
                           {g.status}
                         </span>

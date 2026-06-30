@@ -40,7 +40,14 @@ interface Props {
   filters: { search?: string; from?: string; to?: string };
 }
 
-type ScanStatus = 'ok' | 'beyond_sla' | 'already_processed' | 'wrong_status' | 'unknown' | 'duplicate' | 'scanning';
+type ScanStatus =
+  | 'ok'
+  | 'beyond_sla'
+  | 'already_processed'
+  | 'wrong_status'
+  | 'unknown'
+  | 'duplicate'
+  | 'scanning';
 
 interface ScanEntry {
   id: string;
@@ -67,8 +74,8 @@ function playBeep(type: 'success' | 'error' | 'warn'): void {
     gain.connect(ctx.destination);
     const configs = {
       success: { freq: 880, dur: 0.12, vol: 0.3 },
-      warn:    { freq: 520, dur: 0.2,  vol: 0.35 },
-      error:   { freq: 220, dur: 0.35, vol: 0.45 },
+      warn: { freq: 520, dur: 0.2, vol: 0.35 },
+      error: { freq: 220, dur: 0.35, vol: 0.45 },
     };
     const c = configs[type];
     osc.frequency.value = c.freq;
@@ -82,24 +89,65 @@ function playBeep(type: 'success' | 'error' | 'warn'): void {
   }
 }
 
-const STATUS_META: Record<ScanStatus, {
-  label: string;
-  icon: React.ReactNode;
-  rowCls: string;
-  beep: 'success' | 'warn' | 'error' | null;
-}> = {
-  ok:                { label: 'Received',        icon: <CheckCircle className="h-4 w-4 text-green-500" />,  rowCls: 'bg-green-50',  beep: 'success' },
-  beyond_sla:        { label: 'Received (late)',  icon: <AlertCircle className="h-4 w-4 text-orange-500" />, rowCls: 'bg-orange-50', beep: 'warn' },
-  already_processed: { label: 'Already received', icon: <CheckCircle className="h-4 w-4 text-blue-400" />,  rowCls: 'bg-blue-50',   beep: null },
-  wrong_status:      { label: 'Wrong status',     icon: <XCircle className="h-4 w-4 text-red-500" />,       rowCls: 'bg-red-50',    beep: 'error' },
-  unknown:           { label: 'Not found',        icon: <XCircle className="h-4 w-4 text-red-500" />,       rowCls: 'bg-red-50',    beep: 'error' },
-  duplicate:         { label: 'Duplicate scan',   icon: <AlertCircle className="h-4 w-4 text-gray-400" />,  rowCls: 'bg-gray-50',   beep: null },
-  scanning:          { label: 'Scanning…',        icon: <Loader2 className="h-4 w-4 animate-spin" />,       rowCls: 'bg-white',     beep: null },
+const STATUS_META: Record<
+  ScanStatus,
+  {
+    label: string;
+    icon: React.ReactNode;
+    rowCls: string;
+    beep: 'success' | 'warn' | 'error' | null;
+  }
+> = {
+  ok: {
+    label: 'Received',
+    icon: <CheckCircle className="h-4 w-4 text-success" />,
+    rowCls: 'bg-success/5',
+    beep: 'success',
+  },
+  beyond_sla: {
+    label: 'Received (late)',
+    icon: <AlertCircle className="h-4 w-4 text-warning" />,
+    rowCls: 'bg-orange-50',
+    beep: 'warn',
+  },
+  already_processed: {
+    label: 'Already received',
+    icon: <CheckCircle className="h-4 w-4 text-blue-400" />,
+    rowCls: 'bg-info/5',
+    beep: null,
+  },
+  wrong_status: {
+    label: 'Wrong status',
+    icon: <XCircle className="h-4 w-4 text-destructive" />,
+    rowCls: 'bg-destructive/5',
+    beep: 'error',
+  },
+  unknown: {
+    label: 'Not found',
+    icon: <XCircle className="h-4 w-4 text-destructive" />,
+    rowCls: 'bg-destructive/5',
+    beep: 'error',
+  },
+  duplicate: {
+    label: 'Duplicate scan',
+    icon: <AlertCircle className="h-4 w-4 text-muted-foreground" />,
+    rowCls: 'bg-muted/50',
+    beep: null,
+  },
+  scanning: {
+    label: 'Scanning…',
+    icon: <Loader2 className="h-4 w-4 animate-spin" />,
+    rowCls: 'bg-white',
+    beep: null,
+  },
 };
 
 function manilaDate(d: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(d);
 }
 
@@ -108,9 +156,9 @@ function daysOverdue(returnedAt: string): number {
   const ret = new Date(
     returnedAt.includes('T') ? returnedAt : returnedAt.replace(' ', 'T') + '+08:00'
   );
-  const retManilaYmd   = manilaDate(ret);
+  const retManilaYmd = manilaDate(ret);
   const todayManilaYmd = manilaDate(new Date());
-  const retStart   = new Date(retManilaYmd   + 'T00:00:00+08:00').getTime();
+  const retStart = new Date(retManilaYmd + 'T00:00:00+08:00').getTime();
   const todayStart = new Date(todayManilaYmd + 'T00:00:00+08:00').getTime();
   return Math.max(0, Math.floor((todayStart - retStart) / 86400000));
 }
@@ -124,22 +172,29 @@ function slaDeadlineLabel(returnedAt: string): string {
   const deadline = new Date(retManilaYmd + 'T00:00:00+08:00');
   deadline.setDate(deadline.getDate() + 1);
   return deadline.toLocaleDateString('en-PH', {
-    year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Manila',
   });
 }
 
 export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props) {
-  const [sessionId]                   = useState(() => uuid());
-  const [inputVal, setInputVal]       = useState('');
-  const [scanFeed, setScanFeed]       = useState<ScanEntry[]>([]);
+  const [sessionId] = useState(() => uuid());
+  const [inputVal, setInputVal] = useState('');
+  const [scanFeed, setScanFeed] = useState<ScanEntry[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [search, setSearch]           = useState(filters.search ?? '');
-  const inputRef                      = useRef<HTMLInputElement>(null);
-  const reloadTimer                   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [search, setSearch] = useState(filters.search ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateRange = usePersistedDateRange('beyond-sla-range', filters.from, filters.to);
 
   function applyFilters(overrides: Record<string, string>) {
-    router.get('/waybills/claims/beyond-sla', { ...filters, ...overrides }, { preserveState: true, replace: true });
+    router.get(
+      '/waybills/claims/beyond-sla',
+      { ...filters, ...overrides },
+      { preserveState: true, replace: true }
+    );
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -149,8 +204,8 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
   function exportUrl(format: string) {
     const params = new URLSearchParams({ format });
-    if (filters.from)   params.set('from', filters.from);
-    if (filters.to)     params.set('to', filters.to);
+    if (filters.from) params.set('from', filters.from);
+    if (filters.to) params.set('to', filters.to);
     if (filters.search) params.set('search', filters.search);
     return `/waybills/beyond-sla/export?${params.toString()}`;
   }
@@ -180,8 +235,14 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
     setInputVal('');
 
     const tempId = uuid();
-    const pendingEntry: ScanEntry = { id: tempId, waybill_number: number, status: 'scanning', message: 'Scanning…', ts: Date.now() };
-    setScanFeed(f => [pendingEntry, ...f].slice(0, 50));
+    const pendingEntry: ScanEntry = {
+      id: tempId,
+      waybill_number: number,
+      status: 'scanning',
+      message: 'Scanning…',
+      ts: Date.now(),
+    };
+    setScanFeed((f) => [pendingEntry, ...f].slice(0, 50));
 
     try {
       const res = await fetch('/waybills/scan', {
@@ -189,9 +250,13 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-TOKEN': getCsrf(),
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
-        body: JSON.stringify({ waybill_number: number, session_id: sessionId, mode: 'receive_return' }),
+        body: JSON.stringify({
+          waybill_number: number,
+          session_id: sessionId,
+          mode: 'receive_return',
+        }),
       });
 
       const data: { status?: string; message?: string } = await res.json();
@@ -200,15 +265,22 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
       if (meta.beep) playBeep(meta.beep);
 
-      setScanFeed(f =>
-        f.map((e): ScanEntry => e.id === tempId ? { ...e, status, message: data.message ?? meta.label } : e)
+      setScanFeed((f) =>
+        f.map(
+          (e): ScanEntry =>
+            e.id === tempId ? { ...e, status, message: data.message ?? meta.label } : e
+        )
       );
 
       if (status === 'ok' || status === 'beyond_sla') scheduleReload();
     } catch {
       playBeep('error');
-      setScanFeed(f =>
-        f.map(e => e.id === tempId ? { ...e, status: 'unknown', message: 'Network error — check connection.' } : e)
+      setScanFeed((f) =>
+        f.map((e) =>
+          e.id === tempId
+            ? { ...e, status: 'unknown', message: 'Network error — check connection.' }
+            : e
+        )
       );
     }
 
@@ -227,13 +299,13 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
       <Head title="Beyond SLA" />
 
       <div className="space-y-6 p-6">
-
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold">Beyond SLA</h1>
+            <h1 className="text-2xl font-bold font-display">Beyond SLA</h1>
             <p className="text-sm text-muted-foreground">
-              Parcels the courier marked RETURNED yesterday or earlier that haven't yet been received at the warehouse
+              Parcels the courier marked RETURNED yesterday or earlier that haven't yet been
+              received at the warehouse
             </p>
           </div>
           <DateRangePicker
@@ -250,20 +322,32 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('xlsx'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('xlsx');
+                }}
+              >
                 Excel (.xlsx)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('csv'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('csv');
+                }}
+              >
                 CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { window.location.href = exportUrl('pdf'); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = exportUrl('pdf');
+                }}
+              >
                 PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
             variant={scannerOpen ? 'default' : 'outline'}
-            onClick={() => setScannerOpen(v => !v)}
+            onClick={() => setScannerOpen((v) => !v)}
           >
             <ScanLine className="mr-2 h-4 w-4" />
             {scannerOpen ? 'Hide Scanner' : 'Scan Received Returns'}
@@ -273,13 +357,21 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
         {/* Sub-nav */}
         <div className="flex gap-2 border-b pb-2">
           <Link href="/waybills/claims">
-            <Button variant="ghost" size="sm">All Claims</Button>
+            <Button variant="ghost" size="sm">
+              All Claims
+            </Button>
           </Link>
           <Link href="/waybills/claims/approved">
-            <Button variant="ghost" size="sm">Approved</Button>
+            <Button variant="ghost" size="sm">
+              Approved
+            </Button>
           </Link>
           <Link href="/waybills/claims/beyond-sla">
-            <Button variant="ghost" size="sm" className="font-medium border-b-2 border-primary rounded-none">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-medium border-b-2 border-primary rounded-none"
+            >
               Beyond SLA
             </Button>
           </Link>
@@ -287,10 +379,11 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
 
         {/* Alert */}
         {beyond_sla_count > 0 && (
-          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
-            <p className="text-sm font-medium text-red-800">
-              {beyond_sla_count} parcel{beyond_sla_count !== 1 ? 's' : ''} beyond SLA — J&T is obligated to compensate for these.
+          <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+            <p className="text-sm font-medium text-destructive">
+              {beyond_sla_count} parcel{beyond_sla_count !== 1 ? 's' : ''} beyond SLA — J&T is
+              obligated to compensate for these.
             </p>
           </div>
         )}
@@ -301,13 +394,15 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             <div className="flex items-center gap-2">
               <ScanLine className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Scan Received Returns</span>
-              <span className="text-xs text-muted-foreground">— scan barcode or type waybill number, press Enter</span>
+              <span className="text-xs text-muted-foreground">
+                — scan barcode or type waybill number, press Enter
+              </span>
             </div>
 
             <Input
               ref={inputRef}
               value={inputVal}
-              onChange={e => setInputVal(e.target.value)}
+              onChange={(e) => setInputVal(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Waiting for scan…"
               className="font-mono text-base max-w-sm"
@@ -323,15 +418,19 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                       <th className="px-3 py-2 text-left font-medium">Waybill #</th>
                       <th className="px-3 py-2 text-left font-medium">Result</th>
                       <th className="px-3 py-2 text-left font-medium">Details</th>
-                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Time</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                        Time
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {scanFeed.map(entry => {
+                    {scanFeed.map((entry) => {
                       const meta = STATUS_META[entry.status] ?? STATUS_META.unknown;
                       return (
                         <tr key={entry.id} className={`border-t ${meta.rowCls}`}>
-                          <td className="px-3 py-1.5 font-mono font-medium">{entry.waybill_number}</td>
+                          <td className="px-3 py-1.5 font-mono font-medium">
+                            {entry.waybill_number}
+                          </td>
                           <td className="px-3 py-1.5">
                             <span className="inline-flex items-center gap-1.5">
                               {meta.icon}
@@ -341,7 +440,9 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                           <td className="px-3 py-1.5 text-muted-foreground">{entry.message}</td>
                           <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(entry.ts).toLocaleTimeString('en-PH', {
-                              hour: '2-digit', minute: '2-digit', second: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
                             })}
                           </td>
                         </tr>
@@ -366,7 +467,9 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             onChange={(e) => setSearch(e.target.value)}
             className="w-60"
           />
-          <Button type="submit" variant="secondary" size="sm">Search</Button>
+          <Button type="submit" variant="secondary" size="sm">
+            Search
+          </Button>
         </form>
 
         {/* Table */}
@@ -395,42 +498,62 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
                 </TableRow>
               ) : (
                 waybills.data.map((waybill) => {
-                  const overdue = waybill.returned_at ? daysOverdue(waybill.returned_at as string) : 0;
-                  const deadline = waybill.returned_at ? slaDeadlineLabel(waybill.returned_at as string) : '—';
+                  const overdue = waybill.returned_at
+                    ? daysOverdue(waybill.returned_at as string)
+                    : 0;
+                  const deadline = waybill.returned_at
+                    ? slaDeadlineLabel(waybill.returned_at as string)
+                    : '—';
 
                   return (
                     <TableRow key={waybill.id}>
                       <TableCell>
-                        <Link href={`/waybills/${waybill.id}`} className="font-mono text-sm font-medium hover:underline">
+                        <Link
+                          href={`/waybills/${waybill.id}`}
+                          className="font-mono text-sm font-medium hover:underline"
+                        >
                           {waybill.waybill_number}
                         </Link>
                       </TableCell>
                       <TableCell className="text-sm">{waybill.receiver_name}</TableCell>
                       <TableCell className="text-sm">{waybill.city}</TableCell>
                       <TableCell className="text-right font-medium">
-                        ₱{Number(waybill.cod_amount ?? waybill.amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        ₱
+                        {Number(waybill.cod_amount ?? waybill.amount ?? 0).toLocaleString('en-PH', {
+                          minimumFractionDigits: 2,
+                        })}
                       </TableCell>
                       <TableCell className="text-sm">
                         {waybill.returned_at ? formatDate(waybill.returned_at as string) : '—'}
                       </TableCell>
-                      <TableCell className="text-sm font-medium text-orange-700">{deadline}</TableCell>
+                      <TableCell className="text-sm font-medium text-warning">{deadline}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          overdue >= 3 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            overdue >= 3
+                              ? 'bg-destructive/10 text-destructive'
+                              : 'bg-warning/10 text-warning'
+                          }`}
+                        >
                           {overdue}d overdue
                         </span>
                       </TableCell>
                       <TableCell className="text-sm">
                         {(waybill.claims?.length ?? 0) > 0 ? (
-                          <span className="text-muted-foreground">{waybill.claims?.length} claim(s)</span>
+                          <span className="text-muted-foreground">
+                            {waybill.claims?.length} claim(s)
+                          </span>
                         ) : (
                           <span className="text-muted-foreground/50">None</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Link href={`/waybills/claims/create?waybill_id=${waybill.id}&type=BEYOND_SLA`}>
-                          <Button size="sm" variant="outline">File Claim</Button>
+                        <Link
+                          href={`/waybills/claims/create?waybill_id=${waybill.id}&type=BEYOND_SLA`}
+                        >
+                          <Button size="sm" variant="outline">
+                            File Claim
+                          </Button>
                         </Link>
                       </TableCell>
                     </TableRow>
@@ -449,13 +572,20 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             onJump={(p) => applyFilters({ page: String(p) })}
           />
         )}
-
       </div>
     </AppLayout>
   );
 }
 
-function Pagination({ current, last, onJump }: { current: number; last: number; onJump: (p: number) => void }) {
+function Pagination({
+  current,
+  last,
+  onJump,
+}: {
+  current: number;
+  last: number;
+  onJump: (p: number) => void;
+}) {
   // Show: first, current ± 2, last, with ellipses for gaps
   const window = 2;
   const pages = new Set<number>();
@@ -476,12 +606,19 @@ function Pagination({ current, last, onJump }: { current: number; last: number; 
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1">
-      <Button size="sm" variant="outline" disabled={current === 1} onClick={() => onJump(current - 1)}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={current === 1}
+        onClick={() => onJump(current - 1)}
+      >
         ‹ Prev
       </Button>
       {items.map((p, idx) =>
         p === 'gap' ? (
-          <span key={`g${idx}`} className="px-2 text-sm text-muted-foreground">…</span>
+          <span key={`g${idx}`} className="px-2 text-sm text-muted-foreground">
+            …
+          </span>
         ) : (
           <Button
             key={p}
@@ -493,10 +630,17 @@ function Pagination({ current, last, onJump }: { current: number; last: number; 
           </Button>
         )
       )}
-      <Button size="sm" variant="outline" disabled={current === last} onClick={() => onJump(current + 1)}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={current === last}
+        onClick={() => onJump(current + 1)}
+      >
         Next ›
       </Button>
-      <span className="ml-2 text-xs text-muted-foreground">Page {current} of {last}</span>
+      <span className="ml-2 text-xs text-muted-foreground">
+        Page {current} of {last}
+      </span>
     </div>
   );
 }

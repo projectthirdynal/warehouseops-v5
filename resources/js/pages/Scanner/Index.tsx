@@ -489,7 +489,7 @@ export default function ScannerIndex() {
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">Waybill Scanner</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">Waybill Scanner</h1>
             <div className="flex items-center gap-2 mt-0.5 text-sm text-muted-foreground">
               <span>
                 Session <span className="font-mono text-xs">{sessionId.current.slice(0, 8)}</span>
@@ -550,7 +550,9 @@ export default function ScannerIndex() {
             <Card key={s.label}>
               <CardContent className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-muted-foreground">{s.label}</span>
-                <span className={cn('text-2xl font-bold tabular-nums', s.cls)}>{s.value}</span>
+                <span className={cn('text-2xl font-bold font-display tabular-nums', s.cls)}>
+                  {s.value}
+                </span>
               </CardContent>
             </Card>
           ))}

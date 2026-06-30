@@ -22,12 +22,12 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  FILED: 'bg-blue-100 text-blue-700',
-  UNDER_REVIEW: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  SETTLED: 'bg-emerald-100 text-emerald-700',
+  DRAFT: 'bg-muted text-muted-foreground',
+  FILED: 'bg-info/10 text-info',
+  UNDER_REVIEW: 'bg-warning/10 text-warning',
+  APPROVED: 'bg-success/10 text-success',
+  REJECTED: 'bg-destructive/10 text-destructive',
+  SETTLED: 'bg-success/10 text-success',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -97,7 +97,9 @@ export default function ClaimShow({ claim }: Props) {
             <div>
               <h1 className="font-mono text-xl font-bold">{claim.claim_number}</h1>
               <div className="mt-1 flex items-center gap-2">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[claim.status]}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[claim.status]}`}
+                >
                   {STATUS_LABELS[claim.status]}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -116,7 +118,12 @@ export default function ClaimShow({ claim }: Props) {
             )}
             {(claim.status === 'FILED' || claim.status === 'UNDER_REVIEW') && (
               <>
-                <Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => setRejectOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive border-destructive/20"
+                  onClick={() => setRejectOpen(true)}
+                >
                   <XCircle className="mr-1 h-4 w-4" />
                   Reject
                 </Button>
@@ -143,7 +150,10 @@ export default function ClaimShow({ claim }: Props) {
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Waybill</p>
-              <Link href={`/waybills/${claim.waybill_id}`} className="font-mono font-medium hover:underline">
+              <Link
+                href={`/waybills/${claim.waybill_id}`}
+                className="font-mono font-medium hover:underline"
+              >
                 {claim.waybill?.waybill_number ?? `#${claim.waybill_id}`}
               </Link>
             </div>
@@ -160,8 +170,11 @@ export default function ClaimShow({ claim }: Props) {
             {claim.approved_amount != null && (
               <div>
                 <p className="text-muted-foreground">Approved Amount</p>
-                <p className="text-lg font-bold text-green-600">
-                  ₱{Number(claim.approved_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                <p className="text-lg font-bold text-success">
+                  ₱
+                  {Number(claim.approved_amount).toLocaleString('en-PH', {
+                    minimumFractionDigits: 2,
+                  })}
                 </p>
               </div>
             )}
@@ -236,11 +249,13 @@ export default function ClaimShow({ claim }: Props) {
                 onChange={(e) => approveForm.setData('approved_amount', e.target.value)}
               />
               {approveForm.errors.approved_amount && (
-                <p className="text-sm text-red-600">{approveForm.errors.approved_amount}</p>
+                <p className="text-sm text-destructive">{approveForm.errors.approved_amount}</p>
               )}
             </div>
             <div className="space-y-1">
-              <Label>J&T Reference # <span className="text-muted-foreground">(optional)</span></Label>
+              <Label>
+                J&T Reference # <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Input
                 value={approveForm.data.jnt_reference_number}
                 onChange={(e) => approveForm.setData('jnt_reference_number', e.target.value)}
@@ -248,7 +263,9 @@ export default function ClaimShow({ claim }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label>Notes <span className="text-muted-foreground">(optional)</span></Label>
+              <Label>
+                Notes <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Textarea
                 value={approveForm.data.resolution_notes}
                 onChange={(e) => approveForm.setData('resolution_notes', e.target.value)}
@@ -256,8 +273,12 @@ export default function ClaimShow({ claim }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setApproveOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={approveForm.processing}>Approve Claim</Button>
+              <Button type="button" variant="outline" onClick={() => setApproveOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={approveForm.processing}>
+                Approve Claim
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -280,12 +301,16 @@ export default function ClaimShow({ claim }: Props) {
                 required
               />
               {rejectForm.errors.resolution_notes && (
-                <p className="text-sm text-red-600">{rejectForm.errors.resolution_notes}</p>
+                <p className="text-sm text-destructive">{rejectForm.errors.resolution_notes}</p>
               )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRejectOpen(false)}>Cancel</Button>
-              <Button type="submit" variant="destructive" disabled={rejectForm.processing}>Reject Claim</Button>
+              <Button type="button" variant="outline" onClick={() => setRejectOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive" disabled={rejectForm.processing}>
+                Reject Claim
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

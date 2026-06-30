@@ -117,7 +117,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">Receive Items</h1>
+            <h1 className="text-2xl font-bold font-display">Receive Items</h1>
             <p className="text-sm text-muted-foreground">
               GRN against PO <span className="font-mono">{po.po_number}</span> from{' '}
               <span className="font-medium">{po.supplier?.name}</span>
@@ -193,7 +193,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
                           ) : it.supply ? (
                             <>
                               <span className="font-mono">{it.supply.sku}</span> — {it.supply.name}{' '}
-                              <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-700">
+                              <span className="ml-1 rounded bg-warning/10 px-1 text-xs text-warning">
                                 Supply
                               </span>
                             </>
@@ -202,7 +202,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
                           )}
                         </TableCell>
                         <TableCell className="text-right text-sm">{it.quantity_ordered}</TableCell>
-                        <TableCell className="text-right text-sm font-medium text-orange-700">
+                        <TableCell className="text-right text-sm font-medium text-warning">
                           {outQty}
                         </TableCell>
                         <TableCell className="text-right">

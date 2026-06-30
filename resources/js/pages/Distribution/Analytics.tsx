@@ -1,8 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
-import {
-  Clock, AlertTriangle, TrendingUp, Users, Activity, ArrowUpDown,
-} from 'lucide-react';
+import { Clock, AlertTriangle, TrendingUp, Users, Activity, ArrowUpDown } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +36,17 @@ interface Props {
   queueDepth: Record<string, { pending: number; assigned: number; failed: number }>;
   queueSnapshot: { pending: number; assigned: number; failed: number; total_today: number };
   strategyPerformance: Record<string, { total: number; converted: number; rate: number }>;
-  alerts: { capacity_alerts: { agent_id: number; name: string; active: number; max: number; utilization: number }[]; backlog_alert: boolean; queue_depth: number };
+  alerts: {
+    capacity_alerts: {
+      agent_id: number;
+      name: string;
+      active: number;
+      max: number;
+      utilization: number;
+    }[];
+    backlog_alert: boolean;
+    queue_depth: number;
+  };
   rebalancing: RebalancingItem[];
   days: number;
 }
@@ -86,7 +94,9 @@ export default function DistributionAnalytics({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Distribution Analytics</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight">
+              Distribution Analytics
+            </h1>
             <p className="text-sm text-muted-foreground">
               Performance metrics, queue health, and strategy comparison.
             </p>
@@ -111,13 +121,22 @@ export default function DistributionAnalytics({
             {alerts.backlog_alert && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <span>Queue backlog: {alerts.queue_depth} leads pending. Consider adding more agents or adjusting rules.</span>
+                <span>
+                  Queue backlog: {alerts.queue_depth} leads pending. Consider adding more agents or
+                  adjusting rules.
+                </span>
               </div>
             )}
             {alerts.capacity_alerts.map((a) => (
-              <div key={a.agent_id} className="flex items-center gap-2 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-3 text-sm text-yellow-700">
+              <div
+                key={a.agent_id}
+                className="flex items-center gap-2 rounded-lg border border-warning/50 bg-warning/50/10 p-3 text-sm text-warning"
+              >
                 <AlertTriangle className="h-4 w-4" />
-                <span>{a.name} is at {Math.round(a.utilization * 100)}% capacity ({a.active}/{a.max} leads).</span>
+                <span>
+                  {a.name} is at {Math.round(a.utilization * 100)}% capacity ({a.active}/{a.max}{' '}
+                  leads).
+                </span>
               </div>
             ))}
           </div>
@@ -154,25 +173,53 @@ export default function DistributionAnalytics({
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <ChartCard title="Queue Depth (24h)" data={queueChartData} type="area" dataKey="pending" xKey="hour" color="hsl(var(--primary))" height={220} />
-          <ChartCard title="Strategy Conversion Rate" data={strategyData} type="bar" dataKey="rate" xKey="strategy" color="hsl(var(--primary))" height={220} />
+          <ChartCard
+            title="Queue Depth (24h)"
+            data={queueChartData}
+            type="area"
+            dataKey="pending"
+            xKey="hour"
+            color="hsl(var(--primary))"
+            height={220}
+          />
+          <ChartCard
+            title="Strategy Conversion Rate"
+            data={strategyData}
+            type="bar"
+            dataKey="rate"
+            xKey="strategy"
+            color="hsl(var(--primary))"
+            height={220}
+          />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <ChartCard title="Time-to-Assign Distribution" data={timeDistData} type="bar" dataKey="count" xKey="bucket" color="hsl(var(--primary))" height={220} />
+          <ChartCard
+            title="Time-to-Assign Distribution"
+            data={timeDistData}
+            type="bar"
+            dataKey="count"
+            xKey="bucket"
+            color="hsl(var(--primary))"
+            height={220}
+          />
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Agent Utilization</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Agent Utilization</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2">
               {utilization.map((u) => (
                 <div key={u.agent_id} className="flex items-center gap-3">
                   <span className="w-24 text-xs truncate">{u.name}</span>
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${u.utilization >= 0.9 ? 'bg-red-500' : u.utilization >= 0.7 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                      className={`h-full rounded-full ${u.utilization >= 0.9 ? 'bg-destructive/50' : u.utilization >= 0.7 ? 'bg-warning/50' : 'bg-success/50'}`}
                       style={{ width: `${Math.min(100, u.utilization * 100)}%` }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground w-12 text-right">{Math.round(u.utilization * 100)}%</span>
+                  <span className="text-xs text-muted-foreground w-12 text-right">
+                    {Math.round(u.utilization * 100)}%
+                  </span>
                 </div>
               ))}
             </CardContent>
@@ -212,8 +259,13 @@ export default function DistributionAnalytics({
                         <td className="py-2 text-right">{r.converted}</td>
                         <td className="py-2 text-right">{r.actual_rate}%</td>
                         <td className="py-2 text-right">
-                          <Badge variant={r.skew > 0.2 ? 'default' : r.skew < -0.2 ? 'destructive' : 'outline'}>
-                            {r.skew > 0 ? '+' : ''}{r.skew.toFixed(2)}
+                          <Badge
+                            variant={
+                              r.skew > 0.2 ? 'default' : r.skew < -0.2 ? 'destructive' : 'outline'
+                            }
+                          >
+                            {r.skew > 0 ? '+' : ''}
+                            {r.skew.toFixed(2)}
                           </Badge>
                         </td>
                       </tr>

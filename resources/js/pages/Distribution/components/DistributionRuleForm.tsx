@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
@@ -44,9 +48,9 @@ export default function DistributionRuleForm({ rule, onSuccess }: Props) {
       is_active: isActive,
       filters: {},
       weight_formula: {
-        w_perf: 0.30,
+        w_perf: 0.3,
         w_avail: 0.25,
-        w_skill: 0.20,
+        w_skill: 0.2,
         w_reg: 0.15,
         w_load: 0.05,
         w_time: 0.05,
@@ -55,12 +59,18 @@ export default function DistributionRuleForm({ rule, onSuccess }: Props) {
 
     if (rule) {
       router.patch(`/distribution/rules/${rule.id}`, payload, {
-        onSuccess: () => { toast.success('Rule updated'); onSuccess(); },
+        onSuccess: () => {
+          toast.success('Rule updated');
+          onSuccess();
+        },
         onError: () => toast.error('Failed to update rule'),
       });
     } else {
       router.post('/distribution/rules', payload, {
-        onSuccess: () => { toast.success('Rule created'); onSuccess(); },
+        onSuccess: () => {
+          toast.success('Rule created');
+          onSuccess();
+        },
         onError: () => toast.error('Failed to create rule'),
       });
     }
@@ -87,7 +97,9 @@ export default function DistributionRuleForm({ rule, onSuccess }: Props) {
           </SelectTrigger>
           <SelectContent>
             {strategies.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -111,9 +123,11 @@ export default function DistributionRuleForm({ rule, onSuccess }: Props) {
           type="checkbox"
           checked={isActive}
           onChange={(e) => setIsActive(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300"
+          className="h-4 w-4 rounded border-border"
         />
-        <Label htmlFor="rule-active" className="text-sm font-normal">Active</Label>
+        <Label htmlFor="rule-active" className="text-sm font-normal">
+          Active
+        </Label>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
