@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class SupplierInvoice extends Model
 {
@@ -44,7 +45,9 @@ class SupplierInvoice extends Model
     public static function generateRef(): string
     {
         $year = now()->year;
-        $count = self::whereYear('created_at', $year)->count() + 1;
+        $count = DB::transaction(function () use ($year) {
+            return self::withTrashed()->whereYear('created_at', $year)->lockForUpdate()->count() + 1;
+        });
         return sprintf('SINV-%s-%05d', $year, $count);
     }
 

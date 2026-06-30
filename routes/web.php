@@ -297,6 +297,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         // Supplier Invoices
         Route::prefix('supplier-invoices')->name('supplier-invoices.')->group(function () {
             Route::get('/',                                  [SupplierInvoiceController::class, 'index'])->name('index');
+            Route::get('/create',                            [SupplierInvoiceController::class, 'create'])->name('create');
             Route::post('/',                                 [SupplierInvoiceController::class, 'store'])->name('store');
             Route::get('/{invoice}',                         [SupplierInvoiceController::class, 'show'])->name('show');
             Route::post('/{invoice}/validate',              [SupplierInvoiceController::class, 'validateInvoice'])->name('validate');

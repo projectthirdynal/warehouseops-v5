@@ -31,6 +31,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('inventory:recompute-stock-status')->daily()->withoutOverlapping();
         $schedule->command('inventory:release-expired-reservations')->hourly()->withoutOverlapping();
+        $schedule->command('invoices:mark-overdue')->dailyAt('06:00')->withoutOverlapping();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {

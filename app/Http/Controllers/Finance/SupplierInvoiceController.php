@@ -47,6 +47,19 @@ class SupplierInvoiceController extends Controller
         ]);
     }
 
+    public function create(Request $request)
+    {
+        $thirdParties = ThirdParty::select('id', 'name', 'type')
+            ->where('type', 'supplier')
+            ->orWhere('type', 'both')
+            ->orderBy('name')
+            ->get();
+
+        return Inertia::render('Finance/SupplierInvoices/Create', [
+            'thirdParties' => $thirdParties,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

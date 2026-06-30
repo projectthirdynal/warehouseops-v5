@@ -237,26 +237,38 @@ class InvoiceController extends Controller
     public function storePayment(Request $request, Invoice $invoice)
     {
         $validated = $request->validate([
-            'amount'          => 'required|numeric|min:0.01|max:' . $invoice->amount_due,
+            'amount'          => 'required|numeric|min:0.01',
             'payment_date'    => 'required|date',
             'payment_method'  => 'required|string',
             'reference_number'=> 'nullable|string',
             'notes'           => 'nullable|string',
         ]);
 
-        InvoicePayment::create($validated + [
-            'invoice_id'   => $invoice->id,
-            'recorded_by'  => $request->user()->id,
-        ]);
+        DB::transaction(function () use ($invoice, $validated, $request) {
+            $invoice = Invoice::lockForUpdate()->find($invoice->id);
 
-        // Refresh line-based totals first so payment math is never stale
-        InvoiceCalculator::recalculateInvoice($invoice);
+            if (in_array($invoice->status, ['PAID', 'CANCELLED'])) {
+                throw new \RuntimeException('Cannot record payment on a paid or cancelled invoice.');
+            }
 
-        $invoice->amount_paid = $invoice->payments()->sum('amount');
-        $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
-        $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
-        $invoice->updated_by  = $request->user()->id;
-        $invoice->save();
+            if ((float) $validated['amount'] > (float) $invoice->amount_due) {
+                throw new \RuntimeException("Payment amount exceeds amount due ({$invoice->amount_due}).");
+            }
+
+            InvoicePayment::create($validated + [
+                'invoice_id'   => $invoice->id,
+                'recorded_by'  => $request->user()->id,
+            ]);
+
+            // Refresh line-based totals first so payment math is never stale
+            InvoiceCalculator::recalculateInvoice($invoice);
+
+            $invoice->amount_paid = $invoice->payments()->sum('amount');
+            $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
+            $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
+            $invoice->updated_by  = $request->user()->id;
+            $invoice->save();
+        });
 
         return back()->with('success', 'Payment recorded.');
     }

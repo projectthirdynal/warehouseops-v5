@@ -30,6 +30,7 @@ class CogsService
         ?int $waybillId = null,
         ?int $orderId = null,
         ?int $userId = null,
+        ?int $warehouseId = null,
     ): Collection {
         if ($quantity <= 0) {
             return collect();
@@ -38,7 +39,7 @@ class CogsService
         $methodSetting = FinanceSetting::getValue('cogs_method') ?? ['method' => 'FIFO'];
         $method        = $methodSetting['method'] ?? 'FIFO';
 
-        return DB::transaction(function () use ($productId, $variantId, $quantity, $waybillId, $orderId, $userId, $method) {
+        return DB::transaction(function () use ($productId, $variantId, $quantity, $waybillId, $orderId, $userId, $warehouseId, $method) {
             // Lock cogs_method on first record
             if (! FinanceSetting::isLocked('cogs_method')) {
                 FinanceSetting::lock(
@@ -54,6 +55,7 @@ class CogsService
 
             $lotsQuery = StockCostLot::where('product_id', $productId)
                 ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+                ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
                 ->where('quantity_remaining', '>', 0);
 
             if ($useFefo) {
