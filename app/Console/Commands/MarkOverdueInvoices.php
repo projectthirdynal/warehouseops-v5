@@ -13,15 +13,15 @@ class MarkOverdueInvoices extends Command
 
     public function handle(): int
     {
-        $customerCount = Invoice::where('status', 'SENT')
+        $customerCount = Invoice::whereIn('status', ['SENT', 'PARTIAL'])
             ->whereNotNull('date_due')
             ->where('date_due', '<', today())
-            ->update(['status' => 'OVERDUE']);
+            ->update(['status' => 'OVERDUE', 'updated_at' => now()]);
 
         $supplierCount = SupplierInvoice::where('status', 'VALIDATED')
             ->whereNotNull('date_due')
             ->where('date_due', '<', today())
-            ->update(['status' => 'OVERDUE']);
+            ->update(['status' => 'OVERDUE', 'updated_at' => now()]);
 
         $this->info("Marked {$customerCount} customer invoice(s) and {$supplierCount} supplier invoice(s) as OVERDUE.");
 

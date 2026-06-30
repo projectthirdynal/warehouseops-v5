@@ -244,31 +244,35 @@ class InvoiceController extends Controller
             'notes'           => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($invoice, $validated, $request) {
-            $invoice = Invoice::lockForUpdate()->find($invoice->id);
+        try {
+            DB::transaction(function () use ($invoice, $validated, $request) {
+                $invoice = Invoice::lockForUpdate()->find($invoice->id);
 
-            if (in_array($invoice->status, ['PAID', 'CANCELLED'])) {
-                throw new \RuntimeException('Cannot record payment on a paid or cancelled invoice.');
-            }
+                if (in_array($invoice->status, ['PAID', 'CANCELLED'])) {
+                    throw new \RuntimeException('Cannot record payment on a paid or cancelled invoice.');
+                }
 
-            if ((float) $validated['amount'] > (float) $invoice->amount_due) {
-                throw new \RuntimeException("Payment amount exceeds amount due ({$invoice->amount_due}).");
-            }
+                if ((float) $validated['amount'] > (float) $invoice->amount_due) {
+                    throw new \RuntimeException("Payment amount exceeds amount due ({$invoice->amount_due}).");
+                }
 
-            InvoicePayment::create($validated + [
-                'invoice_id'   => $invoice->id,
-                'recorded_by'  => $request->user()->id,
-            ]);
+                InvoicePayment::create($validated + [
+                    'invoice_id'   => $invoice->id,
+                    'recorded_by'  => $request->user()->id,
+                ]);
 
-            // Refresh line-based totals first so payment math is never stale
-            InvoiceCalculator::recalculateInvoice($invoice);
+                // Refresh line-based totals first so payment math is never stale
+                InvoiceCalculator::recalculateInvoice($invoice);
 
-            $invoice->amount_paid = $invoice->payments()->sum('amount');
-            $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
-            $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
-            $invoice->updated_by  = $request->user()->id;
-            $invoice->save();
-        });
+                $invoice->amount_paid = $invoice->payments()->sum('amount');
+                $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
+                $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
+                $invoice->updated_by  = $request->user()->id;
+                $invoice->save();
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Payment recorded.');
     }
