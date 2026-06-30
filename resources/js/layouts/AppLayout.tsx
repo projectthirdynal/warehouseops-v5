@@ -1,4 +1,5 @@
 import { PropsWithChildren, useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, usePage } from '@inertiajs/react';
 import {
   LayoutDashboard,
@@ -464,23 +465,87 @@ export default function AppLayout({ children }: PropsWithChildren) {
     );
   };
 
+  const navGroupRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
+
+  const openGroup = useCallback((name: string) => {
+    const btn = navGroupRefs.current[name];
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      setFlyoutPos({ top: rect.top, left: rect.right + 4 });
+    }
+    setHoveredGroup(name);
+  }, []);
+
+  const closeGroup = useCallback(() => {
+    setHoveredGroup(null);
+    setFlyoutPos(null);
+  }, []);
+
   const renderNavGroup = (group: NavGroup) => {
     const Icon = group.icon;
     const active = isGroupActive(group);
     const isHovered = hoveredGroup === group.name;
     const children = visibleChildren(group);
 
+    const flyout =
+      isHovered && children.length > 0 && flyoutPos
+        ? createPortal(
+            <div
+              className="fixed z-[9999] w-56 rounded-xl border bg-popover p-2 shadow-lg"
+              style={{ top: flyoutPos.top, left: flyoutPos.left }}
+              onMouseEnter={() => openGroup(group.name)}
+              onMouseLeave={closeGroup}
+            >
+              <p className="mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {group.name}
+              </p>
+              {children.map((child) => {
+                if (child.divider) {
+                  return (
+                    <div
+                      key={child.name}
+                      className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50"
+                    >
+                      {child.name}
+                    </div>
+                  );
+                }
+                const ChildIcon = child.icon;
+                const childActive = isActive(child.href);
+                return (
+                  <Link
+                    key={child.name}
+                    href={child.href}
+                    onClick={closeGroup}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                      childActive
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <ChildIcon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{child.name}</span>
+                  </Link>
+                );
+              })}
+            </div>,
+            document.body
+          )
+        : null;
+
     return (
-      <div
-        key={group.name}
-        className="relative"
-        onMouseEnter={() => setHoveredGroup(group.name)}
-        onMouseLeave={() => setHoveredGroup(null)}
-      >
+      <div key={group.name}>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => setHoveredGroup(isHovered ? null : group.name)}
+              ref={(el) => {
+                navGroupRefs.current[group.name] = el;
+              }}
+              onMouseEnter={() => openGroup(group.name)}
+              onMouseLeave={closeGroup}
+              onClick={() => (isHovered ? closeGroup() : openGroup(group.name))}
               className={cn(
                 'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                 active
@@ -498,44 +563,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             <p>{group.name}</p>
           </TooltipContent>
         </Tooltip>
-
-        {/* Flyout submenu */}
-        {isHovered && children.length > 0 && (
-          <div className="absolute left-full top-0 z-50 ml-1 w-56 rounded-xl border bg-popover p-2 shadow-lg before:absolute before:-left-2 before:top-0 before:h-full before:w-2 before:content-['']">
-            <p className="mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {group.name}
-            </p>
-            {children.map((child) => {
-              if (child.divider) {
-                return (
-                  <div
-                    key={child.name}
-                    className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50"
-                  >
-                    {child.name}
-                  </div>
-                );
-              }
-              const ChildIcon = child.icon;
-              const childActive = isActive(child.href);
-              return (
-                <Link
-                  key={child.name}
-                  href={child.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                    childActive
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <ChildIcon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{child.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        {flyout}
       </div>
     );
   };
