@@ -71,7 +71,7 @@ export default function NonMoving({ products, supplies, total_dead_value, filter
   return (
     <AppLayout>
       <Head title="Non-Moving Stock" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

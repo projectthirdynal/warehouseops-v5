@@ -74,11 +74,11 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
     <AppLayout>
       <Head title="Recycling Pool" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Recycling Pool</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Recycling Pool</h1>
             <p className="text-muted-foreground">
               Manage unassigned and recycled leads for redistribution
             </p>
@@ -88,7 +88,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button>
-                    <UserPlus className="mr-2 h-4 w-4" />
+                    <UserPlus className="mr-1.5 h-4 w-4" />
                     Assign ({selectedLeads.length})
                   </Button>
                 </DropdownMenuTrigger>
@@ -113,7 +113,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats?.pool_size || leads?.length || 0}
               </div>
             </CardContent>
@@ -125,7 +125,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-warning">
+              <div className="text-xl font-bold font-display text-warning">
                 {stats?.recycled_today || 0}
               </div>
             </CardContent>
@@ -137,7 +137,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.avg_days_in_pool || 0}</div>
+              <div className="text-xl font-bold font-display">{stats?.avg_days_in_pool || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -147,7 +147,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.reassigned_today || 0}
               </div>
             </CardContent>
@@ -179,7 +179,7 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
                 </SelectContent>
               </Select>
               <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </div>
@@ -267,15 +267,15 @@ export default function RecyclingIndex({ leads, agents, stats }: Props) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem>
-                                <Eye className="mr-2 h-4 w-4" />
+                                <Eye className="mr-1.5 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem>
-                                <UserPlus className="mr-2 h-4 w-4" />
+                                <UserPlus className="mr-1.5 h-4 w-4" />
                                 Assign to Agent
                               </DropdownMenuItem>
                               <DropdownMenuItem>
-                                <ArrowRight className="mr-2 h-4 w-4" />
+                                <ArrowRight className="mr-1.5 h-4 w-4" />
                                 Move to QC
                               </DropdownMenuItem>
                             </DropdownMenuContent>

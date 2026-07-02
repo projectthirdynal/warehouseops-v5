@@ -146,10 +146,10 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     <AppLayout>
       <Head title="Shop Encoder" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Shop Encoder</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Shop Encoder</h1>
             <p className="text-muted-foreground">
               Confirmed orders ready for address review and courier export
             </p>
@@ -167,9 +167,9 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 onClick={() => exportCourier(courier.value)}
               >
                 {courier.value === 'JNT' ? (
-                  <Truck className="mr-2 h-4 w-4" />
+                  <Truck className="mr-1.5 h-4 w-4" />
                 ) : (
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4" />
                 )}
                 Export {courier.label}
               </Button>

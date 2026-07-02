@@ -159,11 +159,11 @@ export default function ApprovalsIndex({
   return (
     <AppLayout>
       <Head title="Approvals" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Approvals</h1>
+            <h1 className="text-xl font-bold font-display">Approvals</h1>
             <p className="text-sm text-muted-foreground">
               {totalPending > 0
                 ? `${totalPending} item${totalPending !== 1 ? 's' : ''} pending your approval`

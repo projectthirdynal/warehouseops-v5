@@ -90,11 +90,11 @@ export default function DistributionAnalytics({
   return (
     <AppLayout>
       <Head title="Distribution Analytics" />
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">
+            <h1 className="text-xl font-bold font-display tracking-tight">
               Distribution Analytics
             </h1>
             <p className="text-sm text-muted-foreground">

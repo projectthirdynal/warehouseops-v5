@@ -80,7 +80,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
     <AppLayout>
       <Head title="Create SMS Sequence" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link href="/sms/sequences">
@@ -89,7 +89,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Create Sequence</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Create Sequence</h1>
             <p className="text-muted-foreground">Set up automated follow-up messages</p>
           </div>
         </div>
@@ -244,7 +244,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
                   ))}
 
                   <Button type="button" variant="outline" onClick={addStep} className="w-full">
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-1.5 h-4 w-4" />
                     Add Step
                   </Button>
                 </CardContent>
@@ -298,7 +298,7 @@ export default function CreateSequence({ triggerOptions, variables }: Props) {
               {/* Actions */}
               <div className="flex flex-col gap-2">
                 <Button type="submit" disabled={processing} className="w-full">
-                  <Save className="mr-2 h-4 w-4" />
+                  <Save className="mr-1.5 h-4 w-4" />
                   Create Sequence
                 </Button>
                 <Link href="/sms/sequences" className="w-full">

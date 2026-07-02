@@ -81,15 +81,15 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
   return (
     <AppLayout>
       <Head title="Supplier Invoices" />
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Supplier Invoices</h1>
+            <h1 className="text-xl font-bold font-display">Supplier Invoices</h1>
             <p className="text-muted-foreground text-sm">{invoices.total} total</p>
           </div>
           <Button asChild>
             <Link href="/finance/supplier-invoices/create">
-              <Plus className="mr-2 h-4 w-4" /> New Supplier Invoice
+              <Plus className="mr-1.5 h-4 w-4" /> New Supplier Invoice
             </Link>
           </Button>
         </div>
@@ -101,7 +101,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold font-display text-destructive">
+            <p className="text-xl font-bold font-display text-destructive">
               ₱{totalOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </p>
           </CardContent>

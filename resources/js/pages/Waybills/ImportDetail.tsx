@@ -83,14 +83,14 @@ export default function ImportDetail({ upload, waybills }: Props) {
     <AppLayout>
       <Head title={`Import: ${upload.original_filename}`} />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.visit('/waybills/import')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+            <h1 className="text-xl font-bold font-display tracking-tight flex items-center gap-2">
               <FileSpreadsheet className="h-6 w-6" />
               {upload.original_filename}
             </h1>
@@ -159,7 +159,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{upload.total_rows}</div>
+              <div className="text-xl font-bold font-display">{upload.total_rows}</div>
             </CardContent>
           </Card>
           <Card>
@@ -168,7 +168,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <CheckCircle className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {upload.inserted_rows}
               </div>
             </CardContent>
@@ -179,7 +179,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <CheckCircle className="h-4 w-4 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-info">{upload.updated_rows}</div>
+              <div className="text-xl font-bold font-display text-info">{upload.updated_rows}</div>
             </CardContent>
           </Card>
           <Card>
@@ -188,7 +188,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-muted-foreground">
+              <div className="text-xl font-bold font-display text-muted-foreground">
                 {upload.skipped_rows}
               </div>
             </CardContent>
@@ -199,7 +199,7 @@ export default function ImportDetail({ upload, waybills }: Props) {
               <XCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {upload.error_rows}
               </div>
             </CardContent>

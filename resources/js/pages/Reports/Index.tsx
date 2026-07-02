@@ -59,15 +59,15 @@ export default function ReportsIndex({ report, type, filters }: Props) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Reports</h1>
+            <h1 className="text-xl font-bold font-display">Reports</h1>
             <p className="text-sm text-muted-foreground">Generate and export business reports</p>
           </div>
           <Button onClick={handleDownload} disabled={rows.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="mr-1.5 h-4 w-4" />
             Download CSV
           </Button>
         </div>

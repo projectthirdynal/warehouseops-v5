@@ -253,11 +253,11 @@ export default function AgentsIndex({ agents, stats }: Props) {
         onClose={() => setEditingAgent(null)}
       />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Agent Management</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Agent Management</h1>
             <p className="text-muted-foreground">
               Monitor team performance and agent activity. To create or manage user accounts, use
               the <strong>Admin</strong> section.
@@ -274,7 +274,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats?.total || agents?.length || 0}
               </div>
             </CardContent>
@@ -286,7 +286,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.active || 0}
               </div>
             </CardContent>
@@ -298,7 +298,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-muted-foreground">
+              <div className="text-xl font-bold font-display text-muted-foreground">
                 {stats?.inactive || 0}
               </div>
             </CardContent>
@@ -310,7 +310,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.avg_performance || 0}%</div>
+              <div className="text-xl font-bold font-display">{stats?.avg_performance || 0}%</div>
             </CardContent>
           </Card>
         </div>
@@ -358,11 +358,11 @@ export default function AgentsIndex({ agents, stats }: Props) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem>
-                          <Eye className="mr-2 h-4 w-4" />
+                          <Eye className="mr-1.5 h-4 w-4" />
                           View Profile
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setEditingAgent(agent)}>
-                          <Edit className="mr-2 h-4 w-4" />
+                          <Edit className="mr-1.5 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -372,12 +372,12 @@ export default function AgentsIndex({ agents, stats }: Props) {
                         >
                           {agent.is_active ? (
                             <>
-                              <UserX className="mr-2 h-4 w-4" />
+                              <UserX className="mr-1.5 h-4 w-4" />
                               Deactivate
                             </>
                           ) : (
                             <>
-                              <UserCheck className="mr-2 h-4 w-4" />
+                              <UserCheck className="mr-1.5 h-4 w-4" />
                               Activate
                             </>
                           )}

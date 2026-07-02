@@ -61,10 +61,10 @@ export default function ShopInbox({ conversations, pages, agents, statuses, filt
     <AppLayout>
       <Head title="Shop Inbox" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Shop Inbox</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Shop Inbox</h1>
             <p className="text-muted-foreground">
               Messenger conversations from connected Facebook Pages
             </p>

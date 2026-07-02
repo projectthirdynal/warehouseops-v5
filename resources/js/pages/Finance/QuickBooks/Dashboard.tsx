@@ -86,17 +86,17 @@ export default function QuickBooksDashboard({
   return (
     <AppLayout>
       <Head title="QuickBooks Online" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">QuickBooks Online</h1>
+            <h1 className="text-xl font-bold font-display">QuickBooks Online</h1>
             <p className="text-sm text-muted-foreground">
               Async sync of financial events to QBO with idempotent retries.
             </p>
           </div>
           {connection ? (
             <Button variant="outline" onClick={disconnect}>
-              <Power className="mr-2 h-4 w-4" />
+              <Power className="mr-1.5 h-4 w-4" />
               Disconnect
             </Button>
           ) : (
@@ -108,7 +108,7 @@ export default function QuickBooksDashboard({
                   window.location.href = '/finance/quickbooks/connect?env=sandbox';
                 }}
               >
-                <Building2 className="mr-2 h-4 w-4" />
+                <Building2 className="mr-1.5 h-4 w-4" />
                 Connect Sandbox
               </Button>
               <Button
@@ -117,7 +117,7 @@ export default function QuickBooksDashboard({
                   window.location.href = '/finance/quickbooks/connect?env=production';
                 }}
               >
-                <Building2 className="mr-2 h-4 w-4" />
+                <Building2 className="mr-1.5 h-4 w-4" />
                 Connect Production
               </Button>
             </div>
@@ -323,7 +323,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
       <CardContent>
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-2xl font-bold font-display">{value}</span>
+          <span className="text-xl font-bold font-display">{value}</span>
         </div>
       </CardContent>
     </Card>

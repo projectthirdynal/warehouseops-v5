@@ -207,16 +207,16 @@ export default function CreateShopOrder({
     <AppLayout>
       <Head title="Create Shop Order" />
 
-      <form onSubmit={submit} className="space-y-6">
+      <form onSubmit={submit} className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
               <Link href="/shop">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Shop
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Create Shop Order</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Create Shop Order</h1>
             <p className="text-muted-foreground">
               {data.conversation_id
                 ? `From Shop conversation #${data.conversation_id}`
@@ -224,7 +224,7 @@ export default function CreateShopOrder({
             </p>
           </div>
           <Button type="submit" disabled={processing}>
-            <Save className="mr-2 h-4 w-4" />
+            <Save className="mr-1.5 h-4 w-4" />
             Save Order
           </Button>
         </div>
@@ -342,7 +342,7 @@ export default function CreateShopOrder({
                     </CardDescription>
                   </div>
                   <Button type="button" variant="outline" onClick={addItem}>
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-1.5 h-4 w-4" />
                     Add Item
                   </Button>
                 </div>

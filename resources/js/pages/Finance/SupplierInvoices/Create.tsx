@@ -47,14 +47,14 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
   return (
     <AppLayout>
       <Head title="New Supplier Invoice" />
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/finance/supplier-invoices">
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold font-display">New Supplier Invoice</h1>
+          <h1 className="text-xl font-bold font-display">New Supplier Invoice</h1>
         </div>
 
         <form onSubmit={submit} className="space-y-6">
@@ -189,7 +189,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
               <Link href="/finance/supplier-invoices">Cancel</Link>
             </Button>
             <Button type="submit" disabled={processing}>
-              <FileText className="mr-2 h-4 w-4" />
+              <FileText className="mr-1.5 h-4 w-4" />
               {processing ? 'Creating...' : 'Create Supplier Invoice'}
             </Button>
           </div>

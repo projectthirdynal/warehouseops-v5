@@ -120,14 +120,14 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
   return (
     <AppLayout>
       <Head title="Create Invoice" />
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/finance/invoices">
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold font-display">New Invoice</h1>
+          <h1 className="text-xl font-bold font-display">New Invoice</h1>
         </div>
 
         <form onSubmit={submit} className="space-y-6">
@@ -318,7 +318,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
               <div className="flex justify-end">
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Grand Total</p>
-                  <p className="text-2xl font-bold font-display">
+                  <p className="text-xl font-bold font-display">
                     ₱{grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -333,7 +333,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
               <Link href="/finance/invoices">Cancel</Link>
             </Button>
             <Button type="submit" disabled={processing}>
-              <FileText className="mr-2 h-4 w-4" />
+              <FileText className="mr-1.5 h-4 w-4" />
               {processing ? 'Creating...' : 'Create Invoice'}
             </Button>
           </div>

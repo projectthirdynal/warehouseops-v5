@@ -70,7 +70,7 @@ export default function ReceivingShow({ grn }: Props) {
   return (
     <AppLayout>
       <Head title={grn.grn_number} />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/procurement/receiving">
@@ -80,7 +80,7 @@ export default function ReceivingShow({ grn }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold font-display">{grn.grn_number}</h1>
+              <h1 className="font-mono text-xl font-bold font-display">{grn.grn_number}</h1>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${grn.status === 'CONFIRMED' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}
@@ -100,7 +100,7 @@ export default function ReceivingShow({ grn }: Props) {
           </div>
           {grn.status === 'DRAFT' && (
             <Button onClick={confirm}>
-              <CheckCircle2 className="mr-2 h-4 w-4" />
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
               Confirm GRN & Post Stock
             </Button>
           )}

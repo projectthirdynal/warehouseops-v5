@@ -67,7 +67,7 @@ export default function Sequences({ sequences }: Props) {
     <AppLayout>
       <Head title="SMS Sequences" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -77,7 +77,7 @@ export default function Sequences({ sequences }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Sequences</h1>
+              <h1 className="text-xl font-bold font-display tracking-tight">SMS Sequences</h1>
               <p className="text-muted-foreground">
                 Automated follow-up messages triggered by events
               </p>
@@ -85,7 +85,7 @@ export default function Sequences({ sequences }: Props) {
           </div>
           <Link href="/sms/sequences/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               New Sequence
             </Button>
           </Link>
@@ -126,7 +126,7 @@ export default function Sequences({ sequences }: Props) {
                 </p>
                 <Link href="/sms/sequences/create">
                   <Button>
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="mr-1.5 h-4 w-4" />
                     Create Sequence
                   </Button>
                 </Link>

@@ -83,14 +83,14 @@ export default function CodSettlements({ settlements, stats }: Props) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">COD Settlements</h1>
+            <h1 className="text-xl font-bold font-display">COD Settlements</h1>
             <p className="text-sm text-muted-foreground">Track COD remittances from couriers</p>
           </div>
           <Button onClick={() => setShowForm(!showForm)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4" />
             {showForm ? 'Cancel' : 'Record Settlement'}
           </Button>
         </div>

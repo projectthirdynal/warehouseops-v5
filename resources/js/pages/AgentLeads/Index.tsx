@@ -126,22 +126,22 @@ export default function AgentLeadsIndex({
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">My Leads</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">My Leads</h1>
             <p className="text-muted-foreground">
               Manage your assigned leads and track your performance
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             <Button size="sm" onClick={() => requestLeads()} disabled={requestingProduct !== null}>
-              <Users className="mr-2 h-4 w-4" />
+              <Users className="mr-1.5 h-4 w-4" />
               {requestingProduct === 'any' ? 'Requesting...' : 'Request Leads'}
             </Button>
           </div>
@@ -155,7 +155,7 @@ export default function AgentLeadsIndex({
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.assigned || 0}</div>
+              <div className="text-xl font-bold font-display">{stats?.assigned || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -166,7 +166,7 @@ export default function AgentLeadsIndex({
               <Phone className="h-4 w-4 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-info">
+              <div className="text-xl font-bold font-display text-info">
                 {stats?.called_today || 0}
               </div>
             </CardContent>
@@ -179,7 +179,7 @@ export default function AgentLeadsIndex({
               <CheckCircle className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.sold_today || 0}
               </div>
             </CardContent>
@@ -192,7 +192,7 @@ export default function AgentLeadsIndex({
               <Clock className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-warning">
+              <div className="text-xl font-bold font-display text-warning">
                 {stats?.callbacks_due || 0}
               </div>
             </CardContent>
@@ -205,7 +205,7 @@ export default function AgentLeadsIndex({
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.conversion_rate || 0}%
               </div>
             </CardContent>
@@ -346,7 +346,7 @@ export default function AgentLeadsIndex({
                 </SelectContent>
               </Select>
               <Button type="submit">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </form>
@@ -376,7 +376,7 @@ export default function AgentLeadsIndex({
                   onClick={() => requestLeads()}
                   disabled={requestingProduct !== null}
                 >
-                  <Users className="mr-2 h-4 w-4" />
+                  <Users className="mr-1.5 h-4 w-4" />
                   Request Leads
                 </Button>
               </CardContent>

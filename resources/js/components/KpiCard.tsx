@@ -57,13 +57,13 @@ export function KpiCard({
 
   return (
     <Card className={cn(filledCls, className)}>
-      <CardContent className="p-5">
+      <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <p className={cn('text-sm', filledText)}>{title}</p>
             <p
               className={cn(
-                'text-3xl font-bold tracking-tight font-display tabular-nums',
+                'text-2xl font-bold tracking-tight font-display tabular-nums',
                 filledValue
               )}
             >
@@ -83,7 +83,7 @@ export function KpiCard({
           )}
         </div>
         {trend !== undefined && (
-          <div className="mt-3 flex items-center gap-1.5">
+          <div className="mt-2 flex items-center gap-1.5">
             <TrendIcon className={cn('h-3.5 w-3.5', filledTrend)} />
             <span className={cn('text-xs font-medium tabular-nums', filledTrend)}>
               {isUp ? '+' : ''}
@@ -92,7 +92,7 @@ export function KpiCard({
             {trendLabel && <span className={cn('text-xs', filledTrendLabel)}>{trendLabel}</span>}
           </div>
         )}
-        {sparkline && <div className="mt-3">{sparkline}</div>}
+        {sparkline && <div className="mt-2">{sparkline}</div>}
       </CardContent>
     </Card>
   );

@@ -103,7 +103,7 @@ export default function AssetShow({ asset, users }: Props) {
   return (
     <AppLayout>
       <Head title={`Asset: ${asset.asset_code}`} />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -486,7 +486,7 @@ function DisposeDialog({
               variant="destructive"
               disabled={form.processing || !form.data.disposal_reason.trim()}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-1.5 h-4 w-4" />
               Confirm Disposal
             </Button>
           </div>

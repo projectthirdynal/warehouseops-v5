@@ -114,22 +114,22 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
   return (
     <AppLayout>
       <Head title="Lead Distribution" />
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Lead Distribution</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Lead Distribution</h1>
             <p className="text-sm text-muted-foreground">
               Configure rules, monitor queue, and manage agent workloads.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setAssignOpen(true)}>
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <ArrowRightLeft className="mr-1.5 h-4 w-4" />
               Manual Assign
             </Button>
             <Button onClick={handleAutoDistribute}>
-              <Play className="mr-2 h-4 w-4" />
+              <Play className="mr-1.5 h-4 w-4" />
               Auto Distribute
             </Button>
           </div>
@@ -144,7 +144,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{rules.length}</div>
+              <div className="text-xl font-bold font-display">{rules.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -154,7 +154,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{pendingCount}</div>
+              <div className="text-xl font-bold font-display">{pendingCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -164,7 +164,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{assignedCount}</div>
+              <div className="text-xl font-bold font-display">{assignedCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -174,7 +174,7 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {agents.filter((a) => a.is_active).length}
               </div>
             </CardContent>

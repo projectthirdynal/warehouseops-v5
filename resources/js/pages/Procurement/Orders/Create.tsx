@@ -144,7 +144,7 @@ export default function PoCreate({ suppliers, warehouses, products, supplies, uo
   return (
     <AppLayout>
       <Head title="New Purchase Order" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Link href="/procurement/orders">
             <Button variant="ghost" size="sm">
@@ -153,7 +153,7 @@ export default function PoCreate({ suppliers, warehouses, products, supplies, uo
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display">New Purchase Order</h1>
+            <h1 className="text-xl font-bold font-display">New Purchase Order</h1>
             {pr && (
               <p className="text-sm text-muted-foreground">
                 From PR <span className="font-mono">{pr.pr_number}</span>
@@ -419,7 +419,7 @@ export default function PoCreate({ suppliers, warehouses, products, supplies, uo
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold font-display">
+                  <p className="text-xl font-bold font-display">
                     ₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </p>
                 </div>

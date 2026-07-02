@@ -103,7 +103,7 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -114,7 +114,7 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold font-display font-mono">{order.order_number}</h1>
+                <h1 className="text-xl font-bold font-display font-mono">{order.order_number}</h1>
                 <Badge className={statusColors[order.status]}>
                   {order.status.replace('_', ' ')}
                 </Badge>
@@ -130,25 +130,29 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
           <div className="flex gap-2">
             {order.status === 'QA_PENDING' && (
               <>
-                <Button onClick={handleApprove} className="bg-success hover:bg-success/80">
-                  <CheckCircle className="mr-2 h-4 w-4" />
+                <Button
+                  size="sm"
+                  onClick={handleApprove}
+                  className="bg-success hover:bg-success/80"
+                >
+                  <CheckCircle className="mr-1.5 h-4 w-4" />
                   Approve
                 </Button>
-                <Button variant="destructive" onClick={() => setShowReject(!showReject)}>
-                  <XCircle className="mr-2 h-4 w-4" />
+                <Button size="sm" variant="destructive" onClick={() => setShowReject(!showReject)}>
+                  <XCircle className="mr-1.5 h-4 w-4" />
                   Reject
                 </Button>
               </>
             )}
             {order.status === 'PROCESSING' && (
-              <Button onClick={handleRetryCourier} variant="outline">
-                <RefreshCw className="mr-2 h-4 w-4" />
+              <Button size="sm" onClick={handleRetryCourier} variant="outline">
+                <RefreshCw className="mr-1.5 h-4 w-4" />
                 Retry Courier
               </Button>
             )}
             {!['DELIVERED', 'RETURNED', 'CANCELLED', 'QA_REJECTED'].includes(order.status) && (
-              <Button variant="outline" onClick={handleCancel}>
-                <Ban className="mr-2 h-4 w-4" />
+              <Button size="sm" variant="outline" onClick={handleCancel}>
+                <Ban className="mr-1.5 h-4 w-4" />
                 Cancel
               </Button>
             )}
@@ -169,6 +173,7 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                   autoFocus
                 />
                 <Button
+                  size="sm"
                   variant="destructive"
                   onClick={handleReject}
                   disabled={!rejectReason.trim()}

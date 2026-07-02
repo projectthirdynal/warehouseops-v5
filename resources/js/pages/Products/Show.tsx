@@ -86,7 +86,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold font-display">{product.name}</h1>
+                <h1 className="text-xl font-bold font-display">{product.name}</h1>
                 {!product.is_active && <Badge variant="outline">Inactive</Badge>}
                 {isLow && (
                   <Badge variant="destructive">
@@ -114,7 +114,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
           </div>
           <Link href={`/products/${product.id}/edit`}>
             <Button variant="outline">
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit className="mr-1.5 h-4 w-4" />
               Edit
             </Button>
           </Link>
@@ -128,7 +128,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
               <Card>
                 <CardContent className="p-4 text-center">
                   <p
-                    className={`text-2xl font-bold font-display ${isLow ? 'text-destructive' : ''}`}
+                    className={`text-xl font-bold font-display ${isLow ? 'text-destructive' : ''}`}
                   >
                     {available}
                   </p>
@@ -137,7 +137,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold font-display text-warning">
+                  <p className="text-xl font-bold font-display text-warning">
                     {stock?.reserved_stock ?? 0}
                   </p>
                   <p className="text-xs text-muted-foreground">Reserved</p>
@@ -145,7 +145,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold font-display">
+                  <p className="text-xl font-bold font-display">
                     {formatCurrency(product.selling_price)}
                   </p>
                   <p className="text-xs text-muted-foreground">Selling Price</p>
@@ -153,7 +153,7 @@ export default function ProductShow({ product, movements, warehouses = [] }: Pro
               </Card>
               <Card>
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold font-display text-success">
+                  <p className="text-xl font-bold font-display text-success">
                     {product.margin ?? 0}%
                   </p>
                   <p className="text-xs text-muted-foreground">Margin</p>

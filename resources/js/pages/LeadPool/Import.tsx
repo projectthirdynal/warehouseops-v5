@@ -71,7 +71,7 @@ export default function LeadPoolImport({ flash }: Props) {
     <AppLayout>
       <Head title="Import Leads" />
 
-      <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="space-y-4 max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link href="/lead-pool">
@@ -80,7 +80,7 @@ export default function LeadPoolImport({ flash }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Import Leads</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Import Leads</h1>
             <p className="text-muted-foreground">
               Upload a CSV file to bulk-add leads to the available pool
             </p>

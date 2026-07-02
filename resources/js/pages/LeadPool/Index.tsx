@@ -193,18 +193,18 @@ export default function LeadPoolIndex({
     <AppLayout>
       <Head title="Leads & Pool" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">
+            <h1 className="text-xl font-bold font-display tracking-tight">
               Leads &amp; Distribution
             </h1>
             <p className="text-muted-foreground">View pool, imported, or all leads in one place</p>
           </div>
           {isPoolView && selectedLeads.length > 0 && (
             <Button onClick={() => setIsDistributeOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" />
+              <UserPlus className="mr-1.5 h-4 w-4" />
               Distribute {selectedLeads.length} Leads
             </Button>
           )}
@@ -239,7 +239,7 @@ export default function LeadPoolIndex({
                   <Users className="h-4 w-4 text-success" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-success">
+                  <div className="text-xl font-bold font-display text-success">
                     {stats?.available || 0}
                   </div>
                 </CardContent>
@@ -252,7 +252,7 @@ export default function LeadPoolIndex({
                   <Clock className="h-4 w-4 text-info" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-info">
+                  <div className="text-xl font-bold font-display text-info">
                     {stats?.assigned || 0}
                   </div>
                 </CardContent>
@@ -265,7 +265,7 @@ export default function LeadPoolIndex({
                   <Pause className="h-4 w-4 text-warning" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-warning">
+                  <div className="text-xl font-bold font-display text-warning">
                     {stats?.cooldown || 0}
                   </div>
                 </CardContent>
@@ -278,7 +278,7 @@ export default function LeadPoolIndex({
                   <AlertTriangle className="h-4 w-4 text-destructive" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-destructive">
+                  <div className="text-xl font-bold font-display text-destructive">
                     {stats?.exhausted || 0}
                   </div>
                 </CardContent>
@@ -295,7 +295,7 @@ export default function LeadPoolIndex({
                   <Inbox className="h-4 w-4 text-info" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-info">
+                  <div className="text-xl font-bold font-display text-info">
                     {stats?.total || 0}
                   </div>
                 </CardContent>
@@ -308,7 +308,7 @@ export default function LeadPoolIndex({
                   <Users className="h-4 w-4 text-success" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-success">
+                  <div className="text-xl font-bold font-display text-success">
                     {stats?.available || 0}
                   </div>
                 </CardContent>
@@ -321,7 +321,7 @@ export default function LeadPoolIndex({
                   <Clock className="h-4 w-4 text-info" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-info">
+                  <div className="text-xl font-bold font-display text-info">
                     {stats?.assigned || 0}
                   </div>
                 </CardContent>
@@ -334,7 +334,7 @@ export default function LeadPoolIndex({
                   <Pause className="h-4 w-4 text-warning" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-warning">
+                  <div className="text-xl font-bold font-display text-warning">
                     {stats?.cooldown || 0}
                   </div>
                 </CardContent>
@@ -351,7 +351,7 @@ export default function LeadPoolIndex({
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display">{stats?.total || 0}</div>
+                  <div className="text-xl font-bold font-display">{stats?.total || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -360,7 +360,7 @@ export default function LeadPoolIndex({
                   <Clock className="h-4 w-4 text-info" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-info">{stats?.new || 0}</div>
+                  <div className="text-xl font-bold font-display text-info">{stats?.new || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -371,7 +371,7 @@ export default function LeadPoolIndex({
                   <TrendingUp className="h-4 w-4 text-warning" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-warning">
+                  <div className="text-xl font-bold font-display text-warning">
                     {stats?.in_progress || 0}
                   </div>
                 </CardContent>
@@ -384,7 +384,7 @@ export default function LeadPoolIndex({
                   <CheckCircle className="h-4 w-4 text-success" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display text-success">
+                  <div className="text-xl font-bold font-display text-success">
                     {stats?.converted || 0}
                   </div>
                 </CardContent>
@@ -446,7 +446,7 @@ export default function LeadPoolIndex({
                 </SelectContent>
               </Select>
               <Button type="submit">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </form>

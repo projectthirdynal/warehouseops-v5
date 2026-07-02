@@ -73,7 +73,7 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold font-display tabular-nums">{value}</div>
+        <div className="text-xl font-bold font-display tabular-nums">{value}</div>
         {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
         {trend && trend.value !== null && (
           <div className="flex items-center gap-1 mt-2">
@@ -146,18 +146,18 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     <AppLayout>
       <Head title="Dashboard" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Dashboard</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Dashboard</h1>
             <p className="text-muted-foreground">
               Overview of warehouse operations and key metrics
             </p>
           </div>
           <Button asChild>
             <Link href="/scanner">
-              <QrCode className="mr-2 h-4 w-4" />
+              <QrCode className="mr-1.5 h-4 w-4" />
               Open Scanner
             </Link>
           </Button>
@@ -288,19 +288,19 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
 
               <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t">
                 <div className="text-center">
-                  <p className="text-2xl font-bold font-display tabular-nums">
+                  <p className="text-xl font-bold font-display tabular-nums">
                     {s.total_waybills.toLocaleString()}
                   </p>
                   <p className="text-xs text-muted-foreground">Total Waybills</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold font-display tabular-nums">
+                  <p className="text-xl font-bold font-display tabular-nums">
                     {s.total_leads.toLocaleString()}
                   </p>
                   <p className="text-xs text-muted-foreground">Total Leads</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold font-display tabular-nums text-success">
+                  <p className="text-xl font-bold font-display tabular-nums text-success">
                     {s.conversion_rate}%
                   </p>
                   <p className="text-xs text-muted-foreground">Conversion Rate</p>

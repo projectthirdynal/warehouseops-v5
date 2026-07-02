@@ -74,11 +74,11 @@ export default function QCIndex({ queue, stats }: Props) {
     <AppLayout>
       <Head title="QC Review" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">QC Review</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">QC Review</h1>
             <p className="text-muted-foreground">
               Review and approve sales before waybill creation
             </p>
@@ -99,7 +99,7 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.pending || 0}</div>
+              <div className="text-xl font-bold font-display">{stats?.pending || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -109,7 +109,7 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.approved_today || 0}
               </div>
             </CardContent>
@@ -121,7 +121,7 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {stats?.rejected_today || 0}
               </div>
             </CardContent>
@@ -133,9 +133,7 @@ export default function QCIndex({ queue, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
-                {stats?.avg_review_time || '0m'}
-              </div>
+              <div className="text-xl font-bold font-display">{stats?.avg_review_time || '0m'}</div>
             </CardContent>
           </Card>
         </div>
@@ -207,7 +205,7 @@ export default function QCIndex({ queue, stats }: Props) {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold font-display text-success">
+                        <div className="text-xl font-bold font-display text-success">
                           ₱{currentItem.amount?.toLocaleString() || 0}
                         </div>
                       </div>
@@ -239,7 +237,7 @@ export default function QCIndex({ queue, stats }: Props) {
                     onClick={handleReject}
                     disabled={isProcessing}
                   >
-                    <XCircle className="mr-2 h-4 w-4" />
+                    <XCircle className="mr-1.5 h-4 w-4" />
                     Reject
                   </Button>
                   <Button
@@ -248,7 +246,7 @@ export default function QCIndex({ queue, stats }: Props) {
                     onClick={handleApprove}
                     disabled={isProcessing}
                   >
-                    <CheckCircle className="mr-2 h-4 w-4" />
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
                     Approve
                   </Button>
                 </div>
@@ -303,11 +301,11 @@ export default function QCIndex({ queue, stats }: Props) {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Button variant="outline" className="w-full justify-start">
-                    <Phone className="mr-2 h-4 w-4" />
+                    <Phone className="mr-1.5 h-4 w-4" />
                     Call Customer
                   </Button>
                   <Button variant="outline" className="w-full justify-start">
-                    <Volume2 className="mr-2 h-4 w-4" />
+                    <Volume2 className="mr-1.5 h-4 w-4" />
                     Play Recording
                   </Button>
                 </CardContent>

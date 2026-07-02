@@ -74,17 +74,17 @@ export default function MappingsPage({ keys, mappings, qbo_active }: Props) {
   return (
     <AppLayout>
       <Head title="QBO Account Mappings" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">QuickBooks Account Mappings</h1>
+            <h1 className="text-xl font-bold font-display">QuickBooks Account Mappings</h1>
             <p className="text-sm text-muted-foreground">
               Map internal financial events to QuickBooks ledger accounts.
             </p>
           </div>
           {qbo_active && (
             <Button variant="outline" onClick={loadAccounts} disabled={loading}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Reload Accounts
             </Button>
           )}

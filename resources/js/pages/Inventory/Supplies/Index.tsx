@@ -345,7 +345,7 @@ export default function SuppliesIndex({
   return (
     <AppLayout>
       <Head title="Materials" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -378,7 +378,7 @@ export default function SuppliesIndex({
                 setMaterialOpen(true);
               }}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               New Material
             </Button>
           </div>
@@ -822,7 +822,7 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
                   Cancel
                 </Button>
                 <Button type="submit" disabled={form.processing}>
-                  <Tag className="mr-2 h-4 w-4" />
+                  <Tag className="mr-1.5 h-4 w-4" />
                   Apply
                 </Button>
               </div>
@@ -891,7 +891,7 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
                 variant="destructive"
                 disabled={form.processing || !form.data.delete_reason.trim()}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 className="mr-1.5 h-4 w-4" />
                 Remove
               </Button>
             </div>
@@ -1392,7 +1392,7 @@ function StockDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={form.processing}>
-                <PackagePlus className="mr-2 h-4 w-4" />
+                <PackagePlus className="mr-1.5 h-4 w-4" />
                 Post
               </Button>
             </div>

@@ -137,18 +137,18 @@ export default function ShopMetaReadiness({
     <AppLayout>
       <Head title="Meta Readiness" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
             <Link href="/shop">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
               Shop
             </Link>
           </Button>
 
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight font-display">Meta Readiness</h1>
+              <h1 className="text-xl font-bold tracking-tight font-display">Meta Readiness</h1>
               <p className="text-muted-foreground">
                 Review-critical configuration, webhook state, and demo evidence for Facebook Login
                 and Messenger
@@ -157,18 +157,18 @@ export default function ShopMetaReadiness({
 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => router.reload()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-1.5 h-4 w-4" />
                 Refresh
               </Button>
               <Button asChild variant="outline">
                 <Link href="/shop/webhooks">
-                  <Radio className="mr-2 h-4 w-4" />
+                  <Radio className="mr-1.5 h-4 w-4" />
                   Webhooks
                 </Link>
               </Button>
               <Button asChild variant="outline">
                 <a href="/shop/facebook/connect">
-                  <Store className="mr-2 h-4 w-4" />
+                  <Store className="mr-1.5 h-4 w-4" />
                   Connect Facebook
                 </a>
               </Button>
@@ -182,7 +182,7 @@ export default function ShopMetaReadiness({
               <CardTitle className="text-sm text-muted-foreground">Checklist</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {readyItems}/{review_items.length}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Review items currently ready</p>
@@ -193,7 +193,7 @@ export default function ShopMetaReadiness({
               <CardTitle className="text-sm text-muted-foreground">Connected Pages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {summary.connected_pages.toLocaleString()}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Pages synced after OAuth</p>
@@ -204,7 +204,7 @@ export default function ShopMetaReadiness({
               <CardTitle className="text-sm text-muted-foreground">Subscribed Pages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {summary.subscribed_pages.toLocaleString()}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Pages with active webhook fields</p>
@@ -215,7 +215,7 @@ export default function ShopMetaReadiness({
               <CardTitle className="text-sm text-muted-foreground">Processed Events</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {summary.processed_events.toLocaleString()}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">Webhook events already ingested</p>
@@ -413,7 +413,7 @@ export default function ShopMetaReadiness({
                     variant="outline"
                     onClick={() => copy('permission-copy', permissionCopy)}
                   >
-                    <Copy className="mr-2 h-4 w-4" />
+                    <Copy className="mr-1.5 h-4 w-4" />
                     {copied === 'permission-copy' ? 'Copied' : 'Copy All'}
                   </Button>
                 </div>
@@ -449,7 +449,7 @@ export default function ShopMetaReadiness({
                           )
                         }
                       >
-                        <Copy className="mr-2 h-4 w-4" />
+                        <Copy className="mr-1.5 h-4 w-4" />
                         {copied === item.scope ? 'Copied' : 'Copy'}
                       </Button>
                     </div>
@@ -541,7 +541,7 @@ export default function ShopMetaReadiness({
                         variant="outline"
                         onClick={() => copy(String(key), String(value))}
                       >
-                        <Copy className="mr-2 h-4 w-4" />
+                        <Copy className="mr-1.5 h-4 w-4" />
                         {copied === key ? 'Copied' : 'Copy'}
                       </Button>
                     </div>
