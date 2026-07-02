@@ -137,7 +137,7 @@ export default function WaybillShow({
     <AppLayout>
       <Head title={`Waybill ${waybill.waybill_number}`} />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -147,7 +147,7 @@ export default function WaybillShow({
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold font-display tracking-tight font-mono">
+              <h1 className="text-xl font-bold font-display tracking-tight font-mono">
                 {waybill.waybill_number}
               </h1>
               <p className="text-muted-foreground">
@@ -329,7 +329,7 @@ export default function WaybillShow({
                     <Star className="h-5 w-5" />
                     Customer Rating
                   </span>
-                  <span className="text-2xl font-bold font-display">{customerRating.score}/5</span>
+                  <span className="text-xl font-bold font-display">{customerRating.score}/5</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -361,23 +361,23 @@ export default function WaybillShow({
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-muted rounded-lg">
-                    <p className="text-2xl font-bold font-display">{customerStats.total_orders}</p>
+                    <p className="text-xl font-bold font-display">{customerStats.total_orders}</p>
                     <p className="text-xs text-muted-foreground">Total Orders</p>
                   </div>
                   <div className="text-center p-3 bg-success/5 rounded-lg">
-                    <p className="text-2xl font-bold font-display text-success">
+                    <p className="text-xl font-bold font-display text-success">
                       {customerStats.delivered}
                     </p>
                     <p className="text-xs text-muted-foreground">Delivered</p>
                   </div>
                   <div className="text-center p-3 bg-destructive/5 rounded-lg">
-                    <p className="text-2xl font-bold font-display text-destructive">
+                    <p className="text-xl font-bold font-display text-destructive">
                       {customerStats.returned}
                     </p>
                     <p className="text-xs text-muted-foreground">Returned</p>
                   </div>
                   <div className="text-center p-3 bg-warning/5 rounded-lg">
-                    <p className="text-2xl font-bold font-display text-warning">
+                    <p className="text-xl font-bold font-display text-warning">
                       {customerStats.pending}
                     </p>
                     <p className="text-xs text-muted-foreground">Pending</p>

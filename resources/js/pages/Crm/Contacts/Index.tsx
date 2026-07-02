@@ -143,11 +143,11 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
     <AppLayout>
       <Head title="CRM — Contacts" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display text-foreground">CRM Contacts</h1>
+            <h1 className="text-xl font-bold font-display text-foreground">CRM Contacts</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Customers, suppliers, prospects and partners
             </p>
@@ -172,7 +172,7 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
               <CardContent className="p-4 flex items-center gap-3">
                 <Icon className={`h-8 w-8 ${color}`} />
                 <div>
-                  <p className="text-2xl font-bold font-display">{value.toLocaleString()}</p>
+                  <p className="text-xl font-bold font-display">{value.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">{label}</p>
                 </div>
               </CardContent>

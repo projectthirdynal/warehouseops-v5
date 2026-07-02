@@ -426,10 +426,10 @@ export default function WaybillImport({ uploads, stats }: Props) {
     <AppLayout>
       <Head title="Import Waybills" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Import Waybills</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Import Waybills</h1>
             <p className="text-muted-foreground">
               Upload courier file. Existing waybills will be updated automatically; new waybills
               will be added.
@@ -437,7 +437,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
           </div>
           <Button variant="outline" asChild>
             <a href={`/waybills/import/template?courier=${selectedCourier}`}>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="mr-1.5 h-4 w-4" />
               Download Template
             </a>
           </Button>
@@ -450,7 +450,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
               <Upload className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats.total_uploads}</div>
+              <div className="text-xl font-bold font-display">{stats.total_uploads}</div>
             </CardContent>
           </Card>
           <Card>
@@ -459,7 +459,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
               <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats.total_imported.toLocaleString()}
               </div>
             </CardContent>
@@ -470,7 +470,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats.pending_uploads}</div>
+              <div className="text-xl font-bold font-display">{stats.pending_uploads}</div>
             </CardContent>
           </Card>
           <Card>
@@ -479,7 +479,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {stats.recent_errors}
               </div>
             </CardContent>
@@ -625,12 +625,12 @@ export default function WaybillImport({ uploads, stats }: Props) {
                     >
                       {isUploading ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                           Uploading {transferPct}%
                         </>
                       ) : (
                         <>
-                          <Upload className="mr-2 h-4 w-4" />
+                          <Upload className="mr-1.5 h-4 w-4" />
                           Upload &amp; Validate
                         </>
                       )}
@@ -750,7 +750,7 @@ export default function WaybillImport({ uploads, stats }: Props) {
                   <div className="flex gap-2 pt-1">
                     {validationResult.valid && (
                       <Button className="flex-1" onClick={handleStartImport}>
-                        <CheckCircle className="mr-2 h-4 w-4" />
+                        <CheckCircle className="mr-1.5 h-4 w-4" />
                         Start Import
                       </Button>
                     )}

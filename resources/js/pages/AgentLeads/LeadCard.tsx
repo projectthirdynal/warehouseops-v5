@@ -104,7 +104,7 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
           <div className="flex items-center gap-2">
             <CallButton leadId={lead.id} onCallInitiated={() => onUpdate?.()} />
             <Button variant="outline" onClick={() => setShowOutcomeModal(true)}>
-              <MessageSquare className="mr-2 h-4 w-4" />
+              <MessageSquare className="mr-1.5 h-4 w-4" />
               Record Outcome
             </Button>
             <Button

@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   Search,
@@ -156,21 +156,19 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
     <AppLayout>
       <Head title="Waybills" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Waybills</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Waybills</h1>
             <p className="text-muted-foreground">Manage and track all shipment waybills</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button variant="outline" size="sm">
-              <Upload className="mr-2 h-4 w-4" />
-              Import
+            <Button asChild variant="outline" size="sm">
+              <Link href="/waybills/import">
+                <Upload className="mr-1.5 h-4 w-4" />
+                Import
+              </Link>
             </Button>
           </div>
         </div>
@@ -182,7 +180,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.total || 0}</div>
+              <div className="text-xl font-bold font-display">{stats?.total || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -190,7 +188,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-warning">
+              <div className="text-xl font-bold font-display text-warning">
                 {stats?.pending || 0}
               </div>
             </CardContent>
@@ -202,7 +200,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-info">
+              <div className="text-xl font-bold font-display text-info">
                 {stats?.dispatched || 0}
               </div>
             </CardContent>
@@ -212,7 +210,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.delivered || 0}
               </div>
             </CardContent>
@@ -222,7 +220,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Returned</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {stats?.returned || 0}
               </div>
             </CardContent>
@@ -257,7 +255,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                 </SelectContent>
               </Select>
               <Button type="submit">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </form>
@@ -400,11 +398,11 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                                         setDrawerOpen(true);
                                       }}
                                     >
-                                      <Eye className="mr-2 h-4 w-4" />
+                                      <Eye className="mr-1.5 h-4 w-4" />
                                       View Details
                                     </DropdownMenuItem>
                                     <DropdownMenuItem>
-                                      <Truck className="mr-2 h-4 w-4" />
+                                      <Truck className="mr-1.5 h-4 w-4" />
                                       Update Status
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>

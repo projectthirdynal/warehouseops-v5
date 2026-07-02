@@ -81,23 +81,23 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
     <AppLayout>
       <Head title="Shop Webhooks" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
             <Link href="/shop">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
               Shop
             </Link>
           </Button>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight font-display">Shop Webhooks</h1>
+              <h1 className="text-xl font-bold tracking-tight font-display">Shop Webhooks</h1>
               <p className="text-muted-foreground">
                 Meta callback setup, raw events, and inbox ingestion diagnostics
               </p>
             </div>
             <Button variant="outline" onClick={() => router.reload()}>
-              <Radio className="mr-2 h-4 w-4" />
+              <Radio className="mr-1.5 h-4 w-4" />
               Refresh
             </Button>
           </div>
@@ -108,25 +108,25 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Raw Events</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold font-display">{stats.events}</CardContent>
+            <CardContent className="text-xl font-bold font-display">{stats.events}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold font-display">{stats.processed}</CardContent>
+            <CardContent className="text-xl font-bold font-display">{stats.processed}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Failed</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold font-display">{stats.failed}</CardContent>
+            <CardContent className="text-xl font-bold font-display">{stats.failed}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Conversations</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold font-display">
+            <CardContent className="text-xl font-bold font-display">
               {stats.conversations}
             </CardContent>
           </Card>
@@ -152,7 +152,7 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                     variant="outline"
                     onClick={() => copy('callback', callback_url)}
                   >
-                    <Copy className="mr-2 h-4 w-4" />
+                    <Copy className="mr-1.5 h-4 w-4" />
                     {copied === 'callback' ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
@@ -162,7 +162,7 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                     <p className="break-all text-muted-foreground">{verify_token}</p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => copy('token', verify_token)}>
-                    <Copy className="mr-2 h-4 w-4" />
+                    <Copy className="mr-1.5 h-4 w-4" />
                     {copied === 'token' ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
@@ -272,7 +272,7 @@ export default function ShopWebhooks({ stats, pages, events, callback_url, verif
                     disabled={processing || pages.length === 0}
                     className="w-full"
                   >
-                    <MessageSquare className="mr-2 h-4 w-4" />
+                    <MessageSquare className="mr-1.5 h-4 w-4" />
                     Process Test Message
                   </Button>
                 </form>

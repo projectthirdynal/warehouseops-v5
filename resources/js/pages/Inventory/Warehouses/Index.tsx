@@ -84,7 +84,7 @@ export default function WarehousesIndex({ warehouses }: Props) {
   return (
     <AppLayout>
       <Head title="Warehouses" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Warehouses</h1>
@@ -95,7 +95,7 @@ export default function WarehousesIndex({ warehouses }: Props) {
           <Dialog open={whOpen} onOpenChange={setWhOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-4 w-4" />
                 New Warehouse
               </Button>
             </DialogTrigger>

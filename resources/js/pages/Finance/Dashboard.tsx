@@ -52,10 +52,10 @@ export default function FinanceDashboard({
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Finance</h1>
+            <h1 className="text-xl font-bold font-display">Finance</h1>
             <p className="text-sm text-muted-foreground">Revenue, commissions, and P&L overview</p>
           </div>
           <div className="flex items-center gap-2">

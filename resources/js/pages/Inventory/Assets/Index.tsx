@@ -73,7 +73,7 @@ export default function AssetsIndex({ assets, stats, filters, categories }: Prop
   return (
     <AppLayout>
       <Head title="CAPEX Assets" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -92,7 +92,7 @@ export default function AssetsIndex({ assets, stats, filters, categories }: Prop
           </div>
           <Link href="/inventory/assets/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               New Asset
             </Button>
           </Link>

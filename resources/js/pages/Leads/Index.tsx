@@ -98,20 +98,20 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
     <AppLayout>
       <Head title="Leads" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Leads</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Leads</h1>
             <p className="text-muted-foreground">Manage customer leads and track conversions</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="mr-1.5 h-4 w-4" />
               Sync
             </Button>
             <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Add Lead
             </Button>
           </div>
@@ -127,7 +127,7 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats?.total || 0}</div>
+              <div className="text-xl font-bold font-display">{stats?.total || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -136,7 +136,7 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
               <Clock className="h-4 w-4 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-info">{stats?.new || 0}</div>
+              <div className="text-xl font-bold font-display text-info">{stats?.new || 0}</div>
             </CardContent>
           </Card>
           <Card>
@@ -145,7 +145,7 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
               <CheckCircle className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.converted || 0}
               </div>
             </CardContent>
@@ -158,7 +158,7 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.conversion_rate || 0}%
               </div>
             </CardContent>
@@ -193,7 +193,7 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
                 </SelectContent>
               </Select>
               <Button type="submit">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </form>
@@ -291,20 +291,20 @@ export default function LeadsIndex({ leads, filters, stats }: Props) {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => router.visit(`/leads/${lead.id}`)}>
-                                  <Eye className="mr-2 h-4 w-4" />
+                                  <Eye className="mr-1.5 h-4 w-4" />
                                   View Details
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
-                                  <Phone className="mr-2 h-4 w-4" />
+                                  <Phone className="mr-1.5 h-4 w-4" />
                                   Call
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem>
-                                  <UserPlus className="mr-2 h-4 w-4" />
+                                  <UserPlus className="mr-1.5 h-4 w-4" />
                                   Assign Agent
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
-                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  <RefreshCw className="mr-1.5 h-4 w-4" />
                                   Recycle
                                 </DropdownMenuItem>
                               </DropdownMenuContent>

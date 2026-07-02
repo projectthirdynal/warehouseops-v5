@@ -88,7 +88,7 @@ export default function MovementsPage({ movements, filters }: Props) {
   return (
     <AppLayout>
       <Head title="Inventory Movements" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -100,7 +100,7 @@ export default function MovementsPage({ movements, filters }: Props) {
                 <ArrowLeft className="h-3 w-3" /> Dashboard
               </Link>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight font-display">Inventory Movements</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Inventory Movements</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Append-only movement ledger for all stock changes across warehouses.
             </p>

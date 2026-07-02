@@ -201,17 +201,17 @@ export default function ShopConversation({
     <AppLayout>
       <Head title="Shop Conversation" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
             <Link href="/shop/inbox">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
               Inbox
             </Link>
           </Button>
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight font-display">
+              <h1 className="text-xl font-bold tracking-tight font-display">
                 {conversation.customer?.name ??
                   conversation.identity?.display_name ??
                   'Facebook Customer'}
@@ -225,7 +225,7 @@ export default function ShopConversation({
             <div className="flex flex-wrap gap-2">
               <Button asChild>
                 <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Create Order
                 </Link>
               </Button>
@@ -344,7 +344,7 @@ export default function ShopConversation({
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
                 <div className="flex justify-end">
                   <Button type="submit" disabled={processing}>
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="mr-1.5 h-4 w-4" />
                     Send / Log Reply
                   </Button>
                 </div>
@@ -554,7 +554,7 @@ export default function ShopConversation({
                 <div className="grid gap-2">
                   <Button asChild size="sm">
                     <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
-                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      <ShoppingCart className="mr-1.5 h-4 w-4" />
                       Use Same Address
                     </Link>
                   </Button>

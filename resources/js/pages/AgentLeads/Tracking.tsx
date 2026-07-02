@@ -168,10 +168,10 @@ export default function AgentTracking({
 
   return (
     <AgentLayout>
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-4">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold font-display">Track Waybill</h1>
+          <h1 className="text-xl font-bold font-display">Track Waybill</h1>
           <p className="text-sm text-muted-foreground">
             Search by tracking number, customer name, or phone number
           </p>

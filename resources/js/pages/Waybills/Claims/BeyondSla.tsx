@@ -298,11 +298,11 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
     <AppLayout>
       <Head title="Beyond SLA" />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold font-display">Beyond SLA</h1>
+            <h1 className="text-xl font-bold font-display">Beyond SLA</h1>
             <p className="text-sm text-muted-foreground">
               Parcels the courier marked RETURNED yesterday or earlier that haven't yet been
               received at the warehouse
@@ -316,7 +316,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-1.5 h-4 w-4" />
                 Export
                 <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
               </Button>
@@ -349,7 +349,7 @@ export default function BeyondSla({ waybills, beyond_sla_count, filters }: Props
             variant={scannerOpen ? 'default' : 'outline'}
             onClick={() => setScannerOpen((v) => !v)}
           >
-            <ScanLine className="mr-2 h-4 w-4" />
+            <ScanLine className="mr-1.5 h-4 w-4" />
             {scannerOpen ? 'Hide Scanner' : 'Scan Received Returns'}
           </Button>
         </div>

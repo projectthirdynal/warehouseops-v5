@@ -229,11 +229,11 @@ export default function InventoryDashboard({
         </div>
       )}
 
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-display">Inventory Dashboard</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Inventory Dashboard</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {stats.total_supplies.toLocaleString()} materials · {stats.total_warehouses}{' '}
               warehouses

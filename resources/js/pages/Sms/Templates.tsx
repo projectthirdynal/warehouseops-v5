@@ -73,7 +73,7 @@ export default function Templates({ templates }: Props) {
     <AppLayout>
       <Head title="SMS Templates" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -83,7 +83,7 @@ export default function Templates({ templates }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Templates</h1>
+              <h1 className="text-xl font-bold font-display tracking-tight">SMS Templates</h1>
               <p className="text-muted-foreground">
                 Reusable message templates for quick campaign creation
               </p>
@@ -93,7 +93,7 @@ export default function Templates({ templates }: Props) {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-4 w-4" />
                 New Template
               </Button>
             </DialogTrigger>
@@ -176,7 +176,7 @@ export default function Templates({ templates }: Props) {
                   Create your first template to speed up campaign creation
                 </p>
                 <Button onClick={() => setOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-1.5 h-4 w-4" />
                   Create Template
                 </Button>
               </div>

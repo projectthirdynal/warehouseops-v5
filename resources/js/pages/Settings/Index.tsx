@@ -134,7 +134,7 @@ function ProfileSection({ user }: { user: UserData }) {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-4 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle>Personal Information</CardTitle>
@@ -174,7 +174,7 @@ function ProfileSection({ user }: { user: UserData }) {
             {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
             <div className="flex justify-end">
               <Button type="submit" disabled={processing}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
                 Save Changes
               </Button>
             </div>
@@ -238,7 +238,7 @@ function SecuritySection() {
             )}
             <div className="flex justify-end">
               <Button type="submit" disabled={pwd.processing}>
-                <Key className="mr-2 h-4 w-4" />
+                <Key className="mr-1.5 h-4 w-4" />
                 Update Password
               </Button>
             </div>
@@ -468,7 +468,7 @@ function SystemSection({ system_settings = {} }: { system_settings?: Record<stri
             </div>
             <div className="flex justify-end">
               <Button type="submit" disabled={processing}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
                 Save Changes
               </Button>
             </div>
@@ -712,7 +712,7 @@ function EmailSection({ email_settings }: { email_settings?: EmailSettings }) {
 
             <div className="flex justify-end">
               <Button type="submit" disabled={processing}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
                 Save Email Settings
               </Button>
             </div>
@@ -755,12 +755,12 @@ function EmailSection({ email_settings }: { email_settings?: EmailSettings }) {
             <Button variant="outline" disabled={testing || !testTo} onClick={sendTest}>
               {testing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   Sending…
                 </>
               ) : (
                 <>
-                  <Mail className="mr-2 h-4 w-4" />
+                  <Mail className="mr-1.5 h-4 w-4" />
                   Send Test
                 </>
               )}
@@ -948,7 +948,7 @@ function LabelPrinterSection({ printer_settings }: { printer_settings?: PrinterS
 
             <div className="flex justify-end">
               <Button type="submit" disabled={processing}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
                 Save Printer Settings
               </Button>
             </div>
@@ -1048,7 +1048,7 @@ function ScannerSection({ scanner_settings }: { scanner_settings?: ScannerSettin
 
             <div className="flex justify-end">
               <Button type="submit" disabled={processing}>
-                <Save className="mr-2 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
                 Save Scanner Settings
               </Button>
             </div>
@@ -1222,7 +1222,7 @@ export default function SettingsPage({
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-5xl mx-auto">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold font-display tracking-tight">
+              <h1 className="text-xl font-bold font-display tracking-tight">
                 {navItems.find((n) => n.id === activeTab)?.label ?? 'Settings'}
               </h1>
               <p className="text-sm text-muted-foreground">

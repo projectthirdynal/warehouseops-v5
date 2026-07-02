@@ -189,7 +189,7 @@ export default function CrmContactsShow({ thirdParty, recentOrders }: Props) {
     <AppLayout>
       <Head title={`${thirdParty.name} — CRM`} />
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default function CrmContactsShow({ thirdParty, recentOrders }: Props) {
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold font-display">{thirdParty.name}</h1>
+                <h1 className="text-xl font-bold font-display">{thirdParty.name}</h1>
                 {thirdParty.alias && (
                   <span className="text-muted-foreground text-sm">({thirdParty.alias})</span>
                 )}

@@ -92,7 +92,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
     <AppLayout>
       <Head title="Create SMS Campaign" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link href="/sms">
@@ -101,7 +101,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Create Campaign</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Create Campaign</h1>
             <p className="text-muted-foreground">Send bulk SMS to your customers</p>
           </div>
         </div>
@@ -302,7 +302,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                     onClick={fetchPreview}
                     disabled={previewLoading}
                   >
-                    <Eye className="mr-2 h-4 w-4" />
+                    <Eye className="mr-1.5 h-4 w-4" />
                     {previewLoading ? 'Loading...' : 'Preview Recipients'}
                   </Button>
 
@@ -397,7 +397,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
               {/* Actions */}
               <div className="flex flex-col gap-2">
                 <Button type="submit" disabled={processing} className="w-full">
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="mr-1.5 h-4 w-4" />
                   {data.scheduled_at ? 'Schedule Campaign' : 'Save as Draft'}
                 </Button>
                 <Link href="/sms" className="w-full">

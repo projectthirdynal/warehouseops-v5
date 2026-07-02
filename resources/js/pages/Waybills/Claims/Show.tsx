@@ -85,7 +85,7 @@ export default function ClaimShow({ claim }: Props) {
     <AppLayout>
       <Head title={`Claim ${claim.claim_number}`} />
 
-      <div className="max-w-3xl space-y-6 p-6">
+      <div className="max-w-3xl space-y-4 p-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">

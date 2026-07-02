@@ -60,9 +60,9 @@ export default function CogsIndex({ entries, totals, by_product, filters }: Prop
   return (
     <AppLayout>
       <Head title="Cost of Goods Sold" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         <div>
-          <h1 className="text-2xl font-bold font-display">Cost of Goods Sold</h1>
+          <h1 className="text-xl font-bold font-display">Cost of Goods Sold</h1>
           <p className="text-sm text-muted-foreground">
             FIFO lot consumption ledger — every sale traces to its source cost lot.
           </p>
@@ -108,7 +108,7 @@ export default function CogsIndex({ entries, totals, by_product, filters }: Prop
             <CardContent>
               <div className="flex items-center gap-2">
                 <TrendingDown className="h-5 w-5 text-destructive" />
-                <span className="text-2xl font-bold font-display">
+                <span className="text-xl font-bold font-display">
                   ₱{totals.total_cost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </span>
               </div>
@@ -123,7 +123,7 @@ export default function CogsIndex({ entries, totals, by_product, filters }: Prop
             <CardContent>
               <div className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-info" />
-                <span className="text-2xl font-bold font-display">
+                <span className="text-xl font-bold font-display">
                   {Number(totals.total_quantity).toLocaleString()}
                 </span>
               </div>
@@ -138,7 +138,7 @@ export default function CogsIndex({ entries, totals, by_product, filters }: Prop
             <CardContent>
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <span className="text-2xl font-bold font-display">{totals.entries_count}</span>
+                <span className="text-xl font-bold font-display">{totals.entries_count}</span>
               </div>
             </CardContent>
           </Card>

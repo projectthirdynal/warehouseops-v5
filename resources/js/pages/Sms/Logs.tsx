@@ -92,7 +92,7 @@ export default function Logs({ logs, stats, filters }: Props) {
     <AppLayout>
       <Head title="SMS Logs" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -102,7 +102,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold font-display tracking-tight">SMS Logs</h1>
+              <h1 className="text-xl font-bold font-display tracking-tight">SMS Logs</h1>
               <p className="text-muted-foreground">
                 View all sent messages and their delivery status
               </p>
@@ -117,7 +117,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats.total.toLocaleString()}</div>
+              <div className="text-xl font-bold font-display">{stats.total.toLocaleString()}</div>
             </CardContent>
           </Card>
 
@@ -126,7 +126,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium text-success">Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats.sent.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -140,7 +140,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium text-destructive">Failed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {stats.failed.toLocaleString()}
               </div>
             </CardContent>
@@ -151,9 +151,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
-                {stats.pending.toLocaleString()}
-              </div>
+              <div className="text-xl font-bold font-display">{stats.pending.toLocaleString()}</div>
             </CardContent>
           </Card>
         </div>
@@ -209,7 +207,7 @@ export default function Logs({ logs, stats, filters }: Props) {
               />
 
               <Button onClick={applyFilters}>
-                <Search className="mr-2 h-4 w-4" />
+                <Search className="mr-1.5 h-4 w-4" />
                 Search
               </Button>
 

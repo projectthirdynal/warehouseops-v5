@@ -110,10 +110,10 @@ export default function Commissions({ commissions, stats, rules, filters }: Prop
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Commissions</h1>
+            <h1 className="text-xl font-bold font-display">Commissions</h1>
             <p className="text-sm text-muted-foreground">Agent commission management</p>
           </div>
           <div className="flex gap-2">

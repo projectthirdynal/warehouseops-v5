@@ -76,7 +76,7 @@ export default function ShopTemplates({ templates }: Props) {
     <AppLayout>
       <Head title="Shop Templates" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/shop">
@@ -85,7 +85,7 @@ export default function ShopTemplates({ templates }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold font-display tracking-tight">
+              <h1 className="text-xl font-bold font-display tracking-tight">
                 Shop Reply Templates
               </h1>
               <p className="text-muted-foreground">
@@ -97,7 +97,7 @@ export default function ShopTemplates({ templates }: Props) {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-4 w-4" />
                 New Template
               </Button>
             </DialogTrigger>
@@ -192,7 +192,7 @@ export default function ShopTemplates({ templates }: Props) {
                   Create your first Shop reply template for the inbox desk.
                 </p>
                 <Button onClick={() => setOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-1.5 h-4 w-4" />
                   Create Template
                 </Button>
               </div>

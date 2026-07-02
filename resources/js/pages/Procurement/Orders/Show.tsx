@@ -120,7 +120,7 @@ export default function PoShow({ po }: Props) {
   return (
     <AppLayout>
       <Head title={po.po_number} />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/procurement/orders">
@@ -130,7 +130,7 @@ export default function PoShow({ po }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold font-display">{po.po_number}</h1>
+              <h1 className="font-mono text-xl font-bold font-display">{po.po_number}</h1>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[po.status]}`}
@@ -152,11 +152,11 @@ export default function PoShow({ po }: Props) {
             {po.status === 'DRAFT' && (
               <>
                 <Button variant="outline" onClick={() => setCancelOpen(true)}>
-                  <XCircle className="mr-2 h-4 w-4" />
+                  <XCircle className="mr-1.5 h-4 w-4" />
                   Cancel
                 </Button>
                 <Button onClick={send}>
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="mr-1.5 h-4 w-4" />
                   Send to Supplier
                 </Button>
               </>
@@ -164,7 +164,7 @@ export default function PoShow({ po }: Props) {
             {canReceive && (
               <Link href={`/procurement/receiving/create?po_id=${po.id}`}>
                 <Button>
-                  <PackagePlus className="mr-2 h-4 w-4" />
+                  <PackagePlus className="mr-1.5 h-4 w-4" />
                   Receive Items (GRN)
                 </Button>
               </Link>

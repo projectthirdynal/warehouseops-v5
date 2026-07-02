@@ -152,16 +152,16 @@ export default function ShopReports({
     <AppLayout>
       <Head title="Shop Reports" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2">
               <Link href="/shop">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Shop
               </Link>
             </Button>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Shop Reports</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Shop Reports</h1>
             <p className="text-muted-foreground">
               Sales, inbox movement, Page performance, and agent output
             </p>
@@ -169,19 +169,19 @@ export default function ShopReports({
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/shop/inbox">
-                <Inbox className="mr-2 h-4 w-4" />
+                <Inbox className="mr-1.5 h-4 w-4" />
                 Inbox
               </Link>
             </Button>
             <Button asChild variant="outline">
               <Link href="/shop/encoder">
-                <ClipboardList className="mr-2 h-4 w-4" />
+                <ClipboardList className="mr-1.5 h-4 w-4" />
                 Encoder
               </Link>
             </Button>
             <Button asChild>
               <Link href="/shop/orders/create">
-                <ShoppingCart className="mr-2 h-4 w-4" />
+                <ShoppingCart className="mr-1.5 h-4 w-4" />
                 Create Order
               </Link>
             </Button>
@@ -264,7 +264,7 @@ export default function ShopReports({
                   <Icon className={`h-4 w-4 ${card.color}`} />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display">{card.value}</div>
+                  <div className="text-xl font-bold font-display">{card.value}</div>
                   <p className="mt-1 text-xs text-muted-foreground">{card.detail}</p>
                 </CardContent>
               </Card>

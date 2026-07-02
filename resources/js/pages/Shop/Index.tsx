@@ -10,6 +10,7 @@ import {
   Radio,
   MapPinned,
   MessageSquare,
+  MoreHorizontal,
   PackageCheck,
   Phone,
   Shield,
@@ -21,6 +22,14 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
 
 interface ShopStats {
   connected_pages: number;
@@ -157,61 +166,69 @@ export default function ShopIndex({
     <AppLayout>
       <Head title="Shop" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Shop</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Shop</h1>
             <p className="text-muted-foreground">Facebook order processing and POS workspace</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href="/shop/inbox">
-                <Inbox className="mr-2 h-4 w-4" />
-                Inbox
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/shop/webhooks">
-                <Radio className="mr-2 h-4 w-4" />
-                Webhooks
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/shop/meta-readiness">
-                <Shield className="mr-2 h-4 w-4" />
-                Meta Ready
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/shop/reports">
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Reports
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/shop/templates">
-                <FileText className="mr-2 h-4 w-4" />
-                Templates
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/shop/encoder">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                Encoder
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/shop/facebook/connect">
-                <Store className="mr-2 h-4 w-4" />
-                Connect Page
-              </a>
-            </Button>
-            <Button asChild>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm">
               <Link href="/shop/orders/create">
-                <ShoppingCart className="mr-2 h-4 w-4" />
+                <ShoppingCart className="mr-1.5 h-4 w-4" />
                 Create Order
               </Link>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/shop/inbox">
+                <Inbox className="mr-1.5 h-4 w-4" />
+                Inbox
+              </Link>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Shop Tools
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/shop/encoder" className="cursor-pointer">
+                    <ClipboardList className="mr-1.5 h-4 w-4" /> Encoder
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/shop/templates" className="cursor-pointer">
+                    <FileText className="mr-1.5 h-4 w-4" /> Templates
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/shop/reports" className="cursor-pointer">
+                    <BarChart3 className="mr-1.5 h-4 w-4" /> Reports
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/shop/meta-readiness" className="cursor-pointer">
+                    <Shield className="mr-1.5 h-4 w-4" /> Meta Readiness
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/shop/webhooks" className="cursor-pointer">
+                    <Radio className="mr-1.5 h-4 w-4" /> Webhooks
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href="/shop/facebook/connect" className="cursor-pointer">
+                    <Store className="mr-1.5 h-4 w-4" /> Connect Page
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -229,7 +246,7 @@ export default function ShopIndex({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-display">
+                  <div className="text-xl font-bold font-display">
                     {stats[item.key].toLocaleString()}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">Live Shop operational count</p>

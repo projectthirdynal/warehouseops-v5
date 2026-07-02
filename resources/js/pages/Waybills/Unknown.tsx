@@ -188,7 +188,7 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
       <div className="space-y-5">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold font-display tracking-tight">Unknown Waybills</h1>
+          <h1 className="text-xl font-bold font-display tracking-tight">Unknown Waybills</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             Waybills scanned but not found in the system. Match to an existing record or dismiss.
           </p>
@@ -204,7 +204,7 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
             <Card key={s.label}>
               <CardContent className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-muted-foreground">{s.label}</span>
-                <span className={cn('text-2xl font-bold font-display tabular-nums', s.cls)}>
+                <span className={cn('text-xl font-bold font-display tabular-nums', s.cls)}>
                   {s.value}
                 </span>
               </CardContent>

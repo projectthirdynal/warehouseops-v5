@@ -98,7 +98,7 @@ export default function PrShow({ pr }: Props) {
   return (
     <AppLayout>
       <Head title={pr.pr_number} />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/procurement/requests">
@@ -108,7 +108,7 @@ export default function PrShow({ pr }: Props) {
               </Button>
             </Link>
             <div>
-              <h1 className="font-mono text-2xl font-bold font-display">{pr.pr_number}</h1>
+              <h1 className="font-mono text-xl font-bold font-display">{pr.pr_number}</h1>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[pr.status]}`}
@@ -122,18 +122,18 @@ export default function PrShow({ pr }: Props) {
           <div className="flex gap-2">
             {pr.status === 'DRAFT' && (
               <Button onClick={submit}>
-                <Send className="mr-2 h-4 w-4" />
+                <Send className="mr-1.5 h-4 w-4" />
                 Submit for Approval
               </Button>
             )}
             {pr.status === 'SUBMITTED' && (
               <>
                 <Button variant="outline" onClick={() => setRejectOpen(true)}>
-                  <XCircle className="mr-2 h-4 w-4" />
+                  <XCircle className="mr-1.5 h-4 w-4" />
                   Reject
                 </Button>
                 <Button onClick={approve}>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
                   Approve
                 </Button>
               </>
@@ -141,7 +141,7 @@ export default function PrShow({ pr }: Props) {
             {pr.status === 'APPROVED' && (
               <Link href={`/procurement/orders/create?pr_id=${pr.id}`}>
                 <Button>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Convert to PO
                 </Button>
               </Link>

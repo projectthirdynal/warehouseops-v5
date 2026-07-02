@@ -100,9 +100,9 @@ export default function OrdersIndex({ orders, stats, filters }: Props) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold font-display">Orders</h1>
+          <h1 className="text-xl font-bold font-display">Orders</h1>
           <p className="text-sm text-muted-foreground">Order fulfillment pipeline</p>
         </div>
 

@@ -86,11 +86,11 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
     <AppLayout>
       <Head title="SMS Messaging" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">SMS Messaging</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">SMS Messaging</h1>
             <p className="text-muted-foreground">
               Send bulk SMS, manage sequences, and track delivery
             </p>
@@ -98,19 +98,19 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
           <div className="flex gap-2">
             <Link href="/sms/sequences">
               <Button variant="outline">
-                <GitBranch className="mr-2 h-4 w-4" />
+                <GitBranch className="mr-1.5 h-4 w-4" />
                 Sequences
               </Button>
             </Link>
             <Link href="/sms/templates">
               <Button variant="outline">
-                <FileText className="mr-2 h-4 w-4" />
+                <FileText className="mr-1.5 h-4 w-4" />
                 Templates
               </Button>
             </Link>
             <Link href="/sms/create">
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-4 w-4" />
                 New Campaign
               </Button>
             </Link>
@@ -125,7 +125,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <Send className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats.total_sent.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">All time messages</p>
@@ -138,7 +138,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <XCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats.total_failed.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -155,7 +155,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats.campaigns_active}</div>
+              <div className="text-xl font-bold font-display">{stats.campaigns_active}</div>
               <p className="text-xs text-muted-foreground">Sending or scheduled</p>
             </CardContent>
           </Card>
@@ -166,7 +166,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
               <GitBranch className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">{stats.sequences_active}</div>
+              <div className="text-xl font-bold font-display">{stats.sequences_active}</div>
               <p className="text-xs text-muted-foreground">Automated follow-ups</p>
             </CardContent>
           </Card>
@@ -267,7 +267,7 @@ export default function SmsIndex({ campaigns, stats, recentLogs }: Props) {
             </div>
             <Link href="/sms/logs">
               <Button variant="outline" size="sm">
-                <History className="mr-2 h-4 w-4" />
+                <History className="mr-1.5 h-4 w-4" />
                 View All Logs
               </Button>
             </Link>

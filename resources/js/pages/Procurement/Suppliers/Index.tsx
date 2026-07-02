@@ -50,10 +50,10 @@ export default function SuppliersIndex({ suppliers, filters }: Props) {
   return (
     <AppLayout>
       <Head title="Suppliers" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Suppliers</h1>
+            <h1 className="text-xl font-bold font-display">Suppliers</h1>
             <p className="text-sm text-muted-foreground">Vendors used in purchase orders.</p>
           </div>
           <Button
@@ -62,7 +62,7 @@ export default function SuppliersIndex({ suppliers, filters }: Props) {
               setOpen(true);
             }}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4" />
             New Supplier
           </Button>
         </div>

@@ -76,15 +76,15 @@ export default function PoIndex({ orders, stats, suppliers, filters }: Props) {
   return (
     <AppLayout>
       <Head title="Purchase Orders" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Purchase Orders</h1>
+            <h1 className="text-xl font-bold font-display">Purchase Orders</h1>
             <p className="text-sm text-muted-foreground">Orders sent to suppliers.</p>
           </div>
           <Link href="/procurement/orders/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               New PO
             </Button>
           </Link>
@@ -258,7 +258,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       <CardContent>
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-2xl font-bold font-display">{value}</span>
+          <span className="text-xl font-bold font-display">{value}</span>
         </div>
       </CardContent>
     </Card>

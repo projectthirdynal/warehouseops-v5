@@ -105,16 +105,16 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
   return (
     <AppLayout>
       <Head title="Invoices" />
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Invoices</h1>
+            <h1 className="text-xl font-bold font-display">Invoices</h1>
             <p className="text-muted-foreground text-sm">{invoices.total} total invoices</p>
           </div>
           <Button asChild>
             <Link href="/finance/invoices/create">
-              <Plus className="mr-2 h-4 w-4" /> New Invoice
+              <Plus className="mr-1.5 h-4 w-4" /> New Invoice
             </Link>
           </Button>
         </div>
@@ -128,7 +128,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display">
+              <p className="text-xl font-bold font-display">
                 ₱{totalAll.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
@@ -140,7 +140,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-success">
+              <p className="text-xl font-bold font-display text-success">
                 ₱{totalPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
@@ -152,7 +152,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-destructive">
+              <p className="text-xl font-bold font-display text-destructive">
                 ₱{totalOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </p>
             </CardContent>

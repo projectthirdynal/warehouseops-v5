@@ -90,7 +90,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
     <AppLayout>
       <Head title={`Campaign: ${campaign.name}`} />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -101,7 +101,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
             </Link>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold font-display tracking-tight">{campaign.name}</h1>
+                <h1 className="text-xl font-bold font-display tracking-tight">{campaign.name}</h1>
                 <Badge variant={status.color as any} className="gap-1">
                   <StatusIcon className="h-3 w-3" />
                   {status.label}
@@ -116,7 +116,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
 
           {['draft', 'scheduled'].includes(campaign.status) && (
             <Button onClick={handleSend}>
-              <Play className="mr-2 h-4 w-4" />
+              <Play className="mr-1.5 h-4 w-4" />
               Send Now
             </Button>
           )}
@@ -129,7 +129,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium">Total Recipients</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {campaign.total_recipients.toLocaleString()}
               </div>
             </CardContent>
@@ -140,7 +140,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium text-success">Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {campaign.sent_count.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">{successRate}% success rate</p>
@@ -152,7 +152,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium text-destructive">Failed</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {campaign.failed_count.toLocaleString()}
               </div>
             </CardContent>
@@ -163,7 +163,7 @@ export default function CampaignShow({ campaign, logs }: Props) {
               <CardTitle className="text-sm font-medium">Delivered</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {campaign.delivered_count.toLocaleString()}
               </div>
             </CardContent>

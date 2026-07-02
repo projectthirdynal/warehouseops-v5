@@ -66,9 +66,9 @@ export default function ReceivingIndex({ grns, open_pos, filters }: Props) {
   return (
     <AppLayout>
       <Head title="Receiving" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div>
-          <h1 className="text-2xl font-bold font-display">Receiving (GRN)</h1>
+          <h1 className="text-xl font-bold font-display">Receiving (GRN)</h1>
           <p className="text-sm text-muted-foreground">
             Receive items into the warehouse against open purchase orders.
           </p>

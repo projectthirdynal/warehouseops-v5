@@ -154,21 +154,21 @@ export default function AdminDashboard({
   return (
     <AppLayout>
       <Head title="Admin Dashboard" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Admin Dashboard</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Admin Dashboard</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Manage users, roles, and module access.
             </p>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => setShowAddUserDialog(true)}>
-              <UserPlus className="mr-2 h-4 w-4" /> Add User
+              <UserPlus className="mr-1.5 h-4 w-4" /> Add User
             </Button>
             <Button variant="outline" onClick={() => window.location.reload()}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              <RefreshCw className="mr-1.5 h-4 w-4" /> Refresh
             </Button>
           </div>
         </div>
@@ -517,7 +517,7 @@ function StatCard({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {label}
             </p>
-            <p className="mt-1 text-2xl font-bold font-display tabular-nums">{value}</p>
+            <p className="mt-1 text-xl font-bold font-display tabular-nums">{value}</p>
           </div>
           <div className={cn('rounded-full bg-muted p-2.5', iconMap[accent])}>{icon}</div>
         </div>

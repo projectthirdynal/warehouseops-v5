@@ -91,15 +91,15 @@ export default function TicketsIndex({ tickets, stats }: Props) {
     <AppLayout>
       <Head title="Tickets" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Support Tickets</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Support Tickets</h1>
             <p className="text-muted-foreground">Manage customer and internal support requests</p>
           </div>
           <Button>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4" />
             Create Ticket
           </Button>
         </div>
@@ -113,7 +113,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display">
+              <div className="text-xl font-bold font-display">
                 {stats?.total || tickets?.length || 0}
               </div>
             </CardContent>
@@ -125,7 +125,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-destructive">
+              <div className="text-xl font-bold font-display text-destructive">
                 {stats?.open || 0}
               </div>
             </CardContent>
@@ -137,7 +137,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-info">
+              <div className="text-xl font-bold font-display text-info">
                 {stats?.in_progress || 0}
               </div>
             </CardContent>
@@ -149,7 +149,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-display text-success">
+              <div className="text-xl font-bold font-display text-success">
                 {stats?.resolved_today || 0}
               </div>
             </CardContent>
@@ -183,7 +183,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
                 </SelectContent>
               </Select>
               <Button variant="outline">
-                <Filter className="mr-2 h-4 w-4" />
+                <Filter className="mr-1.5 h-4 w-4" />
                 Filter
               </Button>
             </div>
@@ -268,15 +268,15 @@ export default function TicketsIndex({ tickets, stats }: Props) {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
+                              <Eye className="mr-1.5 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem>
-                              <MessageSquare className="mr-2 h-4 w-4" />
+                              <MessageSquare className="mr-1.5 h-4 w-4" />
                               Reply
                             </DropdownMenuItem>
                             <DropdownMenuItem>
-                              <CheckCircle className="mr-2 h-4 w-4" />
+                              <CheckCircle className="mr-1.5 h-4 w-4" />
                               Mark Resolved
                             </DropdownMenuItem>
                           </DropdownMenuContent>

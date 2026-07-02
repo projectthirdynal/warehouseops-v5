@@ -107,7 +107,7 @@ export default function PermissionMatrix({ permissions, roles, rolePermissions }
             disabled={savingPermissions || !isDirty}
             variant={isDirty ? 'default' : 'outline'}
           >
-            {savingPermissions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {savingPermissions ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
             {isDirty ? 'Save Changes' : 'Saved'}
           </Button>
         )}

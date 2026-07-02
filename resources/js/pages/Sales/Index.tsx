@@ -80,7 +80,7 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold font-display">{value}</div>
+        <div className="text-xl font-bold font-display">{value}</div>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
@@ -146,11 +146,11 @@ export default function SalesIndex({
     <AppLayout>
       <Head title="Sales Tracking" />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header + Date Range */}
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-display">Sales Tracking</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">Sales Tracking</h1>
             <p className="text-muted-foreground">Revenue pipeline and agent performance</p>
           </div>
 

@@ -57,7 +57,7 @@ export default function CrmContactsCreate() {
     <AppLayout>
       <Head title="New Contact — CRM" />
 
-      <div className="p-6 max-w-3xl space-y-6">
+      <div className="p-6 max-w-3xl space-y-4">
         <div className="flex items-center gap-3">
           <Link href="/crm/contacts">
             <Button variant="ghost" size="icon">
@@ -65,7 +65,7 @@ export default function CrmContactsCreate() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display">New Contact</h1>
+            <h1 className="text-xl font-bold font-display">New Contact</h1>
             <p className="text-sm text-muted-foreground">Add a customer, supplier, or prospect</p>
           </div>
         </div>

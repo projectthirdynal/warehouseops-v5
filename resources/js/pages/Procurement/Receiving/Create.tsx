@@ -108,7 +108,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
   return (
     <AppLayout>
       <Head title={`Receive ${po.po_number}`} />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Link href={`/procurement/orders/${po.id}`}>
             <Button variant="ghost" size="sm">
@@ -117,7 +117,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display">Receive Items</h1>
+            <h1 className="text-xl font-bold font-display">Receive Items</h1>
             <p className="text-sm text-muted-foreground">
               GRN against PO <span className="font-mono">{po.po_number}</span> from{' '}
               <span className="font-medium">{po.supplier?.name}</span>
@@ -285,7 +285,7 @@ export default function ReceivingCreate({ po, locations }: Props) {
               </Button>
             </Link>
             <Button type="submit" disabled={saving}>
-              <PackageCheck className="mr-2 h-4 w-4" />
+              <PackageCheck className="mr-1.5 h-4 w-4" />
               {saving ? 'Saving…' : 'Save Draft GRN'}
             </Button>
           </div>

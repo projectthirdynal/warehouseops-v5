@@ -118,11 +118,11 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
     <AppLayout>
       <Head title="Claims" />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold font-display">Claims</h1>
+            <h1 className="text-xl font-bold font-display">Claims</h1>
             <p className="text-sm text-muted-foreground">
               Manage J&T Express claims for lost or damaged parcels
             </p>
@@ -135,7 +135,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-1.5 h-4 w-4" />
                 Export
                 <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
               </Button>
@@ -166,7 +166,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
           </DropdownMenu>
           <Link href="/waybills/claims/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               File New Claim
             </Button>
           </Link>
@@ -206,7 +206,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-2xl font-bold font-display">{stats.total}</span>
+                <span className="text-xl font-bold font-display">{stats.total}</span>
               </div>
             </CardContent>
           </Card>
@@ -219,7 +219,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-warning" />
-                <span className="text-2xl font-bold font-display text-warning">
+                <span className="text-xl font-bold font-display text-warning">
                   {stats.pending_review}
                 </span>
               </div>
@@ -234,7 +234,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-success" />
-                <span className="text-2xl font-bold font-display text-success">
+                <span className="text-xl font-bold font-display text-success">
                   {stats.approved}
                 </span>
               </div>
@@ -249,7 +249,7 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-2xl font-bold font-display text-muted-foreground">
+                <span className="text-xl font-bold font-display text-muted-foreground">
                   {stats.draft}
                 </span>
               </div>

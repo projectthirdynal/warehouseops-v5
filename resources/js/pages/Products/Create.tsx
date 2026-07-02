@@ -97,7 +97,7 @@ export default function ProductCreate({ categories, brands }: Props) {
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
           <Link href="/products">
@@ -106,7 +106,7 @@ export default function ProductCreate({ categories, brands }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display">Add Product</h1>
+            <h1 className="text-xl font-bold font-display">Add Product</h1>
             <p className="text-sm text-muted-foreground">Create a new product in the catalog</p>
           </div>
         </div>

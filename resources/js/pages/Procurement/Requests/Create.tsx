@@ -89,7 +89,7 @@ export default function PrCreate({ products, supplies, uoms }: Props) {
   return (
     <AppLayout>
       <Head title="New Purchase Request" />
-      <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
+      <div className="space-y-4 p-4 sm:space-y-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Link href="/procurement/requests">
             <Button variant="ghost" size="sm">
@@ -98,7 +98,7 @@ export default function PrCreate({ products, supplies, uoms }: Props) {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold font-display">New Purchase Request</h1>
+            <h1 className="text-xl font-bold font-display">New Purchase Request</h1>
             <p className="text-sm text-muted-foreground">Submit a request for procurement.</p>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function PrCreate({ products, supplies, uoms }: Props) {
               <div className="flex justify-end pt-2">
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">Estimated total</p>
-                  <p className="text-2xl font-bold font-display">
+                  <p className="text-xl font-bold font-display">
                     ₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </p>
                 </div>

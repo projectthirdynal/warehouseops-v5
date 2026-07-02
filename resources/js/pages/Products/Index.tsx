@@ -51,16 +51,16 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display">Products & Inventory</h1>
+            <h1 className="text-xl font-bold font-display">Products & Inventory</h1>
             <p className="text-sm text-muted-foreground">Manage product catalog and stock levels</p>
           </div>
           <Link href="/products/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Add Product
             </Button>
           </Link>
@@ -75,7 +75,7 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                   <Package className="h-5 w-5 text-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold font-display">{stats.total}</p>
+                  <p className="text-xl font-bold font-display">{stats.total}</p>
                   <p className="text-xs text-muted-foreground">Total Products</p>
                 </div>
               </div>
@@ -88,7 +88,7 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                   <Box className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold font-display">{stats.active}</p>
+                  <p className="text-xl font-bold font-display">{stats.active}</p>
                   <p className="text-xs text-muted-foreground">Active</p>
                 </div>
               </div>
@@ -101,7 +101,7 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold font-display">{stats.low_stock}</p>
+                  <p className="text-xl font-bold font-display">{stats.low_stock}</p>
                   <p className="text-xs text-muted-foreground">Low Stock</p>
                 </div>
               </div>
@@ -114,7 +114,7 @@ export default function ProductsIndex({ products, stats, filters }: Props) {
                   <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold font-display">{stats.categories.length}</p>
+                  <p className="text-xl font-bold font-display">{stats.categories.length}</p>
                   <p className="text-xs text-muted-foreground">Categories</p>
                 </div>
               </div>

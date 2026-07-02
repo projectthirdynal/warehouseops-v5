@@ -68,11 +68,11 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
     <AppLayout>
       <Head title="Approved Claims" />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold font-display">Approved Claims</h1>
+            <h1 className="text-xl font-bold font-display">Approved Claims</h1>
             <p className="text-sm text-muted-foreground">
               Claims approved or settled with J&T Express
             </p>
@@ -85,7 +85,7 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-1.5 h-4 w-4" />
                 Export
                 <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
               </Button>
@@ -178,7 +178,7 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-success" />
-                <span className="text-2xl font-bold font-display">{totals.approved_count}</span>
+                <span className="text-xl font-bold font-display">{totals.approved_count}</span>
               </div>
             </CardContent>
           </Card>
@@ -191,7 +191,7 @@ export default function ClaimsApproved({ claims, totals, filters }: Props) {
             <CardContent>
               <div className="flex items-center gap-2">
                 <Banknote className="h-4 w-4 text-success" />
-                <span className="text-2xl font-bold font-display">{totals.settled_count}</span>
+                <span className="text-xl font-bold font-display">{totals.settled_count}</span>
               </div>
             </CardContent>
           </Card>

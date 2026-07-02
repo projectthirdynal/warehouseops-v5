@@ -628,7 +628,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header */}
-          <header className="flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6 shadow-card">
+          <header className="flex h-14 items-center gap-3 border-b bg-card px-3 lg:px-4 shadow-card">
             <Button
               variant="ghost"
               size="icon"
@@ -660,7 +660,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
             <Button
               variant="outline"
               size="sm"
-              className="hidden md:flex h-9 w-64 items-center justify-between rounded-lg border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
+              className="hidden md:flex h-8 w-56 items-center justify-between rounded-lg border bg-muted/50 px-3 text-sm text-muted-foreground shadow-none hover:bg-muted"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <span className="flex items-center gap-2">
@@ -678,14 +678,14 @@ export default function AppLayout({ children }: PropsWithChildren) {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 px-2">
-                  <Avatar className="h-7 w-7">
+                <Button variant="ghost" size="sm" className="gap-1.5 px-2">
+                  <Avatar className="h-6 w-6">
                     <AvatarImage src={authUser?.avatar_url} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-[10px]">
                       {authUser?.name ? getInitials(authUser.name) : 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-sm font-medium">
+                  <span className="hidden lg:inline text-sm font-medium">
                     {authUser?.name || 'User'}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -722,7 +722,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto p-3 lg:p-5">{children}</main>
         </div>
       </div>
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />

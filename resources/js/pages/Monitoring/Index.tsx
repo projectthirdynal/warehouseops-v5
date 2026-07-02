@@ -112,10 +112,10 @@ export default function MonitoringIndex({ metrics, hourly_data }: Props) {
   return (
     <AppLayout>
       <Head title="Monitoring" />
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight">Monitoring Dashboard</h1>
+            <h1 className="text-xl font-bold font-display tracking-tight">Monitoring Dashboard</h1>
             <p className="text-muted-foreground">Real-time analytics and performance tracking</p>
           </div>
           <div className="flex gap-2">
@@ -131,7 +131,7 @@ export default function MonitoringIndex({ metrics, hourly_data }: Props) {
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={() => success('Custom range picker would open')}>
-              <Calendar className="mr-2 h-4 w-4" />
+              <Calendar className="mr-1.5 h-4 w-4" />
               Custom Range
             </Button>
           </div>

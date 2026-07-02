@@ -46,7 +46,7 @@ export default function VerifyEmail({ status, email }: Props) {
 
           <form onSubmit={resend}>
             <Button type="submit" className="w-full" disabled={processing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${processing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${processing ? 'animate-spin' : ''}`} />
               {processing ? 'Sending…' : 'Resend Verification Email'}
             </Button>
           </form>
@@ -58,7 +58,7 @@ export default function VerifyEmail({ status, email }: Props) {
           </div>
 
           <Button variant="outline" className="w-full" onClick={() => router.post('/logout')}>
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-1.5 h-4 w-4" />
             Sign in with a different account
           </Button>
         </CardContent>
