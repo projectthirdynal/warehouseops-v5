@@ -83,11 +83,11 @@ git branch -d feature/pos-module  # delete local branch
 
 To avoid merge conflicts between developers, respect these ownership boundaries:
 
-| Area         | Owner         | Files                                                                                             |
-| ------------ | ------------- | ------------------------------------------------------------------------------------------------- |
-| POS module   | Akiromi       | `resources/js/pages/Shop/POS/*`, `app/Domain/Shop/Http/Controllers/Pos*`, POS migrations & routes |
-| UI/Layout    | Project Owner | `resources/js/layouts/*`, `resources/js/components/ui/*`                                          |
-| Shared files | Coordinate    | `routes/web.php`, `resources/js/layouts/AppLayout.tsx` (navigation)                               |
+| Area         | Owner         | Files                                                                                                        |
+| ------------ | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| Shop module  | Akiromi       | `resources/js/pages/Shop/*`, `app/Http/Controllers/ShopController.php`, shop routes, shop migrations & views |
+| UI/Layout    | Project Owner | `resources/js/layouts/*`, `resources/js/components/ui/*`                                                     |
+| Shared files | Coordinate    | `routes/web.php`, `resources/js/layouts/AppLayout.tsx` (navigation), `resources/js/components/*` (shared)    |
 
 If you need to touch shared files, mention it in your PR and tag the relevant owner for review.
 
