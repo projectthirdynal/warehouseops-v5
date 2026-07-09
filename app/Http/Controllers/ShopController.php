@@ -773,6 +773,11 @@ class ShopController extends Controller
         return back()->with('success', "{$page->page_name} subscription is healthy.");
     }
 
+    public function pos(): Response
+    {
+        return Inertia::render('Shop/POS/Index');
+    }
+
     public function createOrder(Request $request): Response
     {
         $conversation = null;

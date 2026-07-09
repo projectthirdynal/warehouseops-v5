@@ -110,6 +110,7 @@ const CRM_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting']
 const BREADCRUMB_MAP: Record<string, string> = {
   '/': 'Dashboard',
   '/shop': 'Shop',
+  '/shop/pos': 'POS',
   '/waybills': 'Waybills',
   '/waybills/scanner': 'Scanner',
   '/waybills/import': 'Import',

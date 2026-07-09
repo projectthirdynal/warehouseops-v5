@@ -174,9 +174,9 @@ export default function ShopIndex({
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm">
-              <Link href="/shop/orders/create">
+              <Link href="/shop/pos">
                 <ShoppingCart className="mr-1.5 h-4 w-4" />
-                Create Order
+                POS
               </Link>
             </Button>
             <Button asChild variant="outline" size="sm">
