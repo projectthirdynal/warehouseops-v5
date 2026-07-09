@@ -13,13 +13,12 @@ Briefly describe what this PR does and why.
 
 ## Checklist
 
-- [ ] `composer test` passes locally
-- [ ] `composer analyse` passes locally
-- [ ] `composer format` passes locally (or run it)
-- [ ] `npm run lint` passes locally
 - [ ] `npm run build` succeeds
-- [ ] Manual testing performed on affected pages/screens
-- [ ] Security implications reviewed (role guards, validation, SQL injection)
+- [ ] `npm run lint` passes (0 errors)
+- [ ] `composer test` passes (if backend changes)
+- [ ] No hardcoded colors — semantic tokens only (`text-primary`, `bg-card`, etc.)
+- [ ] `font-display` on headings, `tabular-nums` on numbers
+- [ ] Manual testing performed on affected pages
 - [ ] No hardcoded secrets or credentials added
 
 ## Related Issues
