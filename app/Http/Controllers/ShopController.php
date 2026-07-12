@@ -15,6 +15,7 @@ use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
@@ -45,6 +46,7 @@ class ShopController extends Controller
         private readonly MetaConversationIngestor $metaIngestor,
         private readonly CustomerAddressService $customerAddresses,
         private readonly CustomerNoteService $customerNotes,
+        private readonly CustomerTimelineService $customerTimeline,
     ) {}
 
     public function index(): Response
@@ -568,6 +570,8 @@ class ShopController extends Controller
                 'risk_level',
                 'is_blacklisted',
                 'total_orders',
+                'total_revenue',
+                'average_order_value',
                 'last_order_date',
             ]);
 
@@ -737,6 +741,17 @@ class ShopController extends Controller
         $this->customerNotes->setTags($customer, $validated['tags']);
 
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
+    }
+
+    public function customerTimeline(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $activities = $this->customerTimeline->build($customer, $validated['limit'] ?? 50);
+
+        return response()->json(['activities' => $activities]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse

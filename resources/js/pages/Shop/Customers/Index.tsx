@@ -34,6 +34,8 @@ interface Customer {
   risk_level: string;
   is_blacklisted: boolean;
   total_orders: number;
+  total_revenue: number;
+  average_order_value: number;
   last_order_date: string | null;
 }
 
@@ -74,6 +76,8 @@ export default function CustomersIndex({ customers, filters }: Props) {
               <TableHead>Default Address</TableHead>
               <TableHead>Risk</TableHead>
               <TableHead>Orders</TableHead>
+              <TableHead>Revenue</TableHead>
+              <TableHead>AOV</TableHead>
               <TableHead>Last Order</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -81,7 +85,7 @@ export default function CustomersIndex({ customers, filters }: Props) {
           <TableBody>
             {customers.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={10} className="text-center text-muted-foreground">
                   No customers found.
                 </TableCell>
               </TableRow>
@@ -111,6 +115,8 @@ export default function CustomersIndex({ customers, filters }: Props) {
                       </Badge>
                     </TableCell>
                     <TableCell>{customer.total_orders}</TableCell>
+                    <TableCell>₱{customer.total_revenue.toLocaleString()}</TableCell>
+                    <TableCell>₱{customer.average_order_value.toLocaleString()}</TableCell>
                     <TableCell>
                       {customer.last_order_date
                         ? new Date(customer.last_order_date).toLocaleDateString()

@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +38,14 @@ interface Note {
   created_at: string;
 }
 
+interface Activity {
+  type: 'order' | 'note' | 'message' | 'conversation';
+  occurred_at: string;
+  title: string;
+  description: string;
+  metadata: Record<string, unknown>;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -45,6 +53,8 @@ interface Customer {
   facebook_name: string | null;
   canonical_address: string | null;
   total_orders: number;
+  total_revenue: number;
+  average_order_value: number;
   tags: string[] | null;
   addresses: Address[];
   default_address: Address | null;
@@ -61,6 +71,8 @@ export default function CustomersShow({ customer }: Props) {
   const [tags, setTags] = useState<string[]>(customer.tags ?? []);
   const [tagInput, setTagInput] = useState('');
   const [noteForm, setNoteForm] = useState({ body: '', tags: '' });
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
   const [form, setForm] = useState({
     label: '',
     canonical_address: '',
@@ -118,6 +130,14 @@ export default function CustomersShow({ customer }: Props) {
       setNoteLoading(false);
     }
   };
+
+  useEffect(() => {
+    axios
+      .get(`/shop/customers/${customer.id}/timeline`)
+      .then(({ data }) => setActivities(data.activities))
+      .catch(() => setActivities([]))
+      .finally(() => setLoadingTimeline(false));
+  }, [customer.id]);
 
   const setDefault = async (addressId: number) => {
     try {
@@ -182,6 +202,12 @@ export default function CustomersShow({ customer }: Props) {
             )}
             <p>
               <strong>Total orders:</strong> {customer.total_orders}
+            </p>
+            <p>
+              <strong>Total revenue:</strong> ₱{customer.total_revenue.toLocaleString()}
+            </p>
+            <p>
+              <strong>Average order value:</strong> ₱{customer.average_order_value.toLocaleString()}
             </p>
             <p>
               <strong>Current address:</strong> {customer.canonical_address ?? '-'}
@@ -281,6 +307,37 @@ export default function CustomersShow({ customer }: Props) {
                 {noteLoading ? 'Saving...' : 'Add note'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Activity Timeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingTimeline ? (
+              <p className="text-sm text-muted-foreground">Loading timeline...</p>
+            ) : activities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No activity yet.</p>
+            ) : (
+              <div className="relative space-y-4 border-l pl-4">
+                {activities.map((activity, index) => (
+                  <div key={index} className="relative -ml-[21px] flex gap-3">
+                    <div className="mt-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
+                    <div className="flex-1 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{activity.title}</span>
+                        <Badge variant="outline">{activity.type}</Badge>
+                      </div>
+                      <p className="text-muted-foreground">{activity.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(activity.occurred_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

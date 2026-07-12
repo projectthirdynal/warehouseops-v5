@@ -17,14 +17,15 @@ class CustomerStatsService
     {
         $stats = DB::table('orders')
             ->where('customer_id', $customer->id)
-            ->selectRaw(<<-'SQL'
-                count(*) as total_orders,
-                count(*) filter (where status = ?) as successful_orders,
-                count(*) filter (where status = ?) as returned_orders,
-                count(*) filter (where status = ?) as cancelled_orders,
-                coalesce(sum(total_amount), 0) as total_revenue,
-                max(created_at) as last_order_at
-            SQL, [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value, OrderStatus::CANCELLED->value])
+            ->selectRaw(
+                'count(*) as total_orders, '
+                . 'count(*) filter (where status = ?) as successful_orders, '
+                . 'count(*) filter (where status = ?) as returned_orders, '
+                . 'count(*) filter (where status = ?) as cancelled_orders, '
+                . 'coalesce(sum(total_amount), 0) as total_revenue, '
+                . 'max(created_at) as last_order_at',
+                [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value, OrderStatus::CANCELLED->value]
+            )
             ->first();
 
         $totalOrders = (int) ($stats?->total_orders ?? 0);
@@ -33,6 +34,11 @@ class CustomerStatsService
 
         $successRate = $totalOrders > 0
             ? round(($successfulOrders / $totalOrders) * 100, 2)
+            : 0.00;
+
+        $totalRevenue = (float) ($stats?->total_revenue ?? 0);
+        $averageOrderValue = $totalOrders > 0
+            ? round($totalRevenue / $totalOrders, 2)
             : 0.00;
 
         $lastOrder = $customer->orders()
@@ -44,7 +50,8 @@ class CustomerStatsService
             'successful_orders' => $successfulOrders,
             'returned_orders' => $returnedOrders,
             'success_rate' => $successRate,
-            'total_revenue' => $stats?->total_revenue ?? 0,
+            'total_revenue' => $totalRevenue,
+            'average_order_value' => $averageOrderValue,
             'last_order_date' => $lastOrder?->created_at,
             'last_page_ordered_from' => $lastOrder?->facebook_page_id,
         ])->save();

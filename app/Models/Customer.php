@@ -31,6 +31,7 @@ class Customer extends Model
         'returned_orders',
         'success_rate',
         'total_revenue',
+        'average_order_value',
         'risk_level',
         'is_blacklisted',
         'blacklist_reason',
@@ -40,6 +41,7 @@ class Customer extends Model
     protected $casts = [
         'success_rate' => 'decimal:2',
         'total_revenue' => 'decimal:2',
+        'average_order_value' => 'decimal:2',
         'is_blacklisted' => 'boolean',
         'blacklisted_at' => 'datetime',
         'last_order_date' => 'datetime',
