@@ -33,6 +33,9 @@ interface Message {
 interface Conversation {
   id: number;
   status: string;
+  priority: string;
+  is_flagged: boolean;
+  flag_reason: string | null;
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
@@ -89,6 +92,7 @@ interface Props {
   }[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
+  priorities: string[];
 }
 
 function time(value: string | null) {
@@ -152,6 +156,7 @@ export default function ShopConversation({
   saved_templates,
   agents,
   statuses,
+  priorities,
 }: Props) {
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
   const customerForm = useForm({
@@ -173,6 +178,21 @@ export default function ShopConversation({
       `/shop/inbox/${conversation.id}/assignment`,
       {
         assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
+      },
+      { preserveScroll: true }
+    );
+  };
+
+  const updatePriority = (priority: string) => {
+    router.patch(`/shop/inbox/${conversation.id}/priority`, { priority }, { preserveScroll: true });
+  };
+
+  const toggleFlag = () => {
+    router.patch(
+      `/shop/inbox/${conversation.id}/priority`,
+      {
+        priority: conversation.priority,
+        is_flagged: !conversation.is_flagged,
       },
       { preserveScroll: true }
     );
@@ -230,6 +250,20 @@ export default function ShopConversation({
                 </Link>
               </Button>
               <Badge variant="outline">{conversation.status}</Badge>
+              {conversation.priority !== 'normal' && (
+                <Badge
+                  variant={
+                    conversation.priority === 'urgent'
+                      ? 'destructive'
+                      : conversation.priority === 'high'
+                        ? 'default'
+                        : 'secondary'
+                  }
+                >
+                  {conversation.priority}
+                </Badge>
+              )}
+              {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
             </div>
           </div>
@@ -615,6 +649,43 @@ export default function ShopConversation({
                 <p className="text-muted-foreground">
                   Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Priority & Flagging</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <select
+                    id="priority"
+                    value={conversation.priority}
+                    onChange={(e) => updatePriority(e.target.value)}
+                    className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {priorities.map((p) => (
+                      <option key={p} value={p}>
+                        {label(p)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={conversation.is_flagged ? 'destructive' : 'outline'}
+                    size="sm"
+                    onClick={toggleFlag}
+                  >
+                    {conversation.is_flagged ? 'Unflag' : 'Flag conversation'}
+                  </Button>
+                </div>
+                {conversation.is_flagged && conversation.flag_reason && (
+                  <p className="text-xs text-muted-foreground">
+                    Reason: {conversation.flag_reason}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

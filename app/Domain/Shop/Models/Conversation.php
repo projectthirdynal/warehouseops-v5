@@ -22,6 +22,10 @@ class Conversation extends Model
         'assigned_agent_id',
         'channel',
         'status',
+        'priority',
+        'is_flagged',
+        'flag_reason',
+        'flagged_at',
         'thread_key',
         'last_message_preview',
         'last_message_at',
@@ -32,6 +36,8 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'flagged_at' => 'datetime',
+        'is_flagged' => 'boolean',
         'tags' => 'array',
         'metadata' => 'array',
     ];

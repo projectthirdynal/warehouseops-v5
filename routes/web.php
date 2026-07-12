@@ -318,6 +318,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/{conversation}/reply', [ShopController::class, 'sendReply'])->name('shop.conversation.reply');
     Route::patch('/shop/inbox/{conversation}/assignment', [ShopController::class, 'updateConversationAssignment'])->name('shop.conversation.assignment');
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
+    Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
     Route::get('/shop/customers/export', [ShopController::class, 'exportCustomers'])->name('shop.customers.export');
     Route::get('/shop/customers/search', [ShopController::class, 'searchCustomers'])->name('shop.customers.search');

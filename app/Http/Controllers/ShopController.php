@@ -485,12 +485,21 @@ class ShopController extends Controller
                 : $query->where('assigned_agent_id', $request->integer('assigned_agent_id'));
         }
 
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority'));
+        }
+
+        if ($request->boolean('flagged')) {
+            $query->where('is_flagged', true);
+        }
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id']),
+            'priorities' => ['low', 'normal', 'high', 'urgent'],
+            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged']),
         ]);
     }
 
@@ -520,6 +529,7 @@ class ShopController extends Controller
             'saved_templates' => $this->savedTemplatesForConversation($conversation),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
+            'priorities' => ['low', 'normal', 'high', 'urgent'],
         ]);
     }
 
@@ -831,6 +841,24 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', 'Conversation status updated.');
+    }
+
+    public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'priority' => ['required', 'string', 'in:low,normal,high,urgent'],
+            'is_flagged' => ['boolean'],
+            'flag_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $conversation->forceFill([
+            'priority' => $validated['priority'],
+            'is_flagged' => $validated['is_flagged'] ?? false,
+            'flag_reason' => $validated['is_flagged'] ?? false ? ($validated['flag_reason'] ?? null) : null,
+            'flagged_at' => $validated['is_flagged'] ?? false ? ($conversation->flagged_at ?? now()) : null,
+        ])->save();
+
+        return back()->with('success', 'Conversation priority updated.');
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse

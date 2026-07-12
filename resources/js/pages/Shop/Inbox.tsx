@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Inbox, MessageSquare, Phone, Store, User, UserCheck } from 'lucide-react';
+import { Flag, Inbox, MessageSquare, Phone, Store, User, UserCheck } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,9 @@ interface Conversation {
   id: number;
   status: string;
   channel: string;
+  priority: string;
+  is_flagged: boolean;
+  flag_reason: string | null;
   last_message_preview: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -36,10 +39,13 @@ interface Props {
   pages: Page[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
+  priorities: string[];
   filters: {
     page_id?: string;
     status?: string;
     assigned_agent_id?: string;
+    priority?: string;
+    flagged?: string;
   };
 }
 
@@ -52,7 +58,14 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-export default function ShopInbox({ conversations, pages, agents, statuses, filters }: Props) {
+export default function ShopInbox({
+  conversations,
+  pages,
+  agents,
+  statuses,
+  priorities = ['low', 'normal', 'high', 'urgent'],
+  filters = {},
+}: Props) {
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
   };
@@ -109,6 +122,26 @@ export default function ShopInbox({ conversations, pages, agents, statuses, filt
                 </option>
               ))}
             </select>
+            <select
+              value={filters.priority ?? ''}
+              onChange={(event) => updateFilter({ priority: event.target.value || undefined })}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">All Priorities</option>
+              {priorities.map((p) => (
+                <option key={p} value={p}>
+                  {label(p)}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant={filters.flagged ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => updateFilter({ flagged: filters.flagged ? undefined : '1' })}
+            >
+              <Flag className="h-4 w-4" />
+              Flagged
+            </Button>
           </div>
         </div>
 
@@ -142,6 +175,25 @@ export default function ShopInbox({ conversations, pages, agents, statuses, filt
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline">{conversation.status}</Badge>
+                        {(conversation.priority ?? 'normal') !== 'normal' && (
+                          <Badge
+                            variant={
+                              (conversation.priority ?? 'normal') === 'urgent'
+                                ? 'destructive'
+                                : (conversation.priority ?? 'normal') === 'high'
+                                  ? 'default'
+                                  : 'secondary'
+                            }
+                          >
+                            {conversation.priority ?? 'normal'}
+                          </Badge>
+                        )}
+                        {conversation.is_flagged && (
+                          <Badge variant="destructive" className="gap-1">
+                            <Flag className="h-3 w-3" />
+                            Flagged
+                          </Badge>
+                        )}
                         {conversation.unread_count > 0 && (
                           <Badge>{conversation.unread_count} unread</Badge>
                         )}
