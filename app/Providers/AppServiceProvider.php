@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\StatusMapper;
+use App\Domain\Order\Models\Order;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
+use App\Observers\OrderObserver;
 use App\Observers\WaybillObserver;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Waybill::observe(WaybillObserver::class);
+        Order::observe(OrderObserver::class);
         $this->bootMailFromDatabase();
     }
 
