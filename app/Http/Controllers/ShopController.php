@@ -516,6 +516,65 @@ class ShopController extends Controller
         ]);
     }
 
+    public function customers(Request $request): Response
+    {
+        $query = Customer::query()
+            ->when($request->filled('q'), fn ($q) => $this->applyCustomerSearch($q, $request->string('q')->toString()))
+            ->latest('last_order_date')
+            ->latest('id');
+
+        return Inertia::render('Shop/Customers/Index', [
+            'customers' => $query->paginate(25)->withQueryString(),
+            'filters' => $request->only(['q']),
+        ]);
+    }
+
+    public function searchCustomers(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:255'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $query = Customer::query();
+        $this->applyCustomerSearch($query, $validated['q']);
+
+        $customers = $query
+            ->limit($validated['limit'] ?? 10)
+            ->get([
+                'id',
+                'name',
+                'phone',
+                'normalized_phone',
+                'facebook_name',
+                'canonical_address',
+                'risk_level',
+                'is_blacklisted',
+                'total_orders',
+                'last_order_date',
+            ]);
+
+        return response()->json(['customers' => $customers]);
+    }
+
+    /**
+     * Apply name/phone/facebook_name search to a customer query.
+     */
+    private function applyCustomerSearch($query, string $term): void
+    {
+        $normalized = preg_replace('/[^0-9]/', '', $term) ?? '';
+
+        $query->where(function ($q) use ($term, $normalized) {
+            $q->where('name', 'ilike', "%{$term}%")
+              ->orWhere('facebook_name', 'ilike', "%{$term}%");
+
+            if ($normalized !== '') {
+                $q->orWhere('phone', 'ilike', "%{$normalized}%")
+                  ->orWhere('normalized_phone', 'ilike', "%{$normalized}%");
+            }
+        });
+    }
+
     public function updateCustomer(Request $request, Customer $customer): RedirectResponse
     {
         $validated = $request->validate([
