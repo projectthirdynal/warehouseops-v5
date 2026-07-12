@@ -27,6 +27,9 @@ class Conversation extends Model
         'is_flagged',
         'flag_reason',
         'flagged_at',
+        'snoozed_until',
+        'reminder_at',
+        'snooze_reason',
         'thread_key',
         'last_message_preview',
         'last_message_at',
@@ -37,6 +40,8 @@ class Conversation extends Model
     protected $casts = [
         'last_message_at' => 'datetime',
         'flagged_at' => 'datetime',
+        'snoozed_until' => 'datetime',
+        'reminder_at' => 'datetime',
         'is_flagged' => 'boolean',
         'metadata' => 'array',
     ];

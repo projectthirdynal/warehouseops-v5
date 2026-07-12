@@ -37,6 +37,9 @@ interface Conversation {
   priority: string;
   is_flagged: boolean;
   flag_reason: string | null;
+  snoozed_until: string | null;
+  snooze_reason: string | null;
+  reminder_at: string | null;
   tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
@@ -289,6 +292,47 @@ export default function ShopConversation({
         onSuccess: () => setNewTagName(''),
       }
     );
+  };
+
+  const [snoozeUntil, setSnoozeUntil] = useState('');
+  const [snoozeReason, setSnoozeReason] = useState('');
+  const [reminderAt, setReminderAt] = useState('');
+
+  const submitSnooze = (event: FormEvent) => {
+    event.preventDefault();
+    if (!snoozeUntil) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/snooze`,
+      { snoozed_until: snoozeUntil, snooze_reason: snoozeReason || undefined },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setSnoozeUntil('');
+          setSnoozeReason('');
+        },
+      }
+    );
+  };
+
+  const unsnooze = () => {
+    router.delete(`/shop/inbox/${conversation.id}/snooze`, { preserveScroll: true });
+  };
+
+  const submitReminder = (event: FormEvent) => {
+    event.preventDefault();
+    if (!reminderAt) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/reminder`,
+      { reminder_at: reminderAt },
+      {
+        preserveScroll: true,
+        onSuccess: () => setReminderAt(''),
+      }
+    );
+  };
+
+  const clearReminder = () => {
+    router.delete(`/shop/inbox/${conversation.id}/reminder`, { preserveScroll: true });
   };
 
   const updateStatus = (status: string) => {
@@ -753,6 +797,95 @@ export default function ShopConversation({
                 <p className="text-muted-foreground">
                   Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Snooze & Reminder</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {conversation.snoozed_until && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950">
+                    <p className="font-medium text-blue-700 dark:text-blue-300">
+                      Snoozed until {time(conversation.snoozed_until)}
+                    </p>
+                    {conversation.snooze_reason && (
+                      <p className="mt-1 text-muted-foreground">{conversation.snooze_reason}</p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={unsnooze}
+                    >
+                      Unsnooze
+                    </Button>
+                  </div>
+                )}
+                {!conversation.snoozed_until && (
+                  <form onSubmit={submitSnooze} className="space-y-2">
+                    <div>
+                      <Label htmlFor="snooze_until">Snooze until</Label>
+                      <input
+                        id="snooze_until"
+                        type="datetime-local"
+                        value={snoozeUntil}
+                        onChange={(e) => setSnoozeUntil(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="snooze_reason">Reason (optional)</Label>
+                      <input
+                        id="snooze_reason"
+                        type="text"
+                        value={snoozeReason}
+                        onChange={(e) => setSnoozeReason(e.target.value)}
+                        placeholder="Waiting for customer response..."
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" disabled={!snoozeUntil}>
+                      Snooze
+                    </Button>
+                  </form>
+                )}
+
+                {conversation.reminder_at && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
+                    <p className="font-medium text-amber-700 dark:text-amber-300">
+                      Reminder: {time(conversation.reminder_at)}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={clearReminder}
+                    >
+                      Clear Reminder
+                    </Button>
+                  </div>
+                )}
+                {!conversation.reminder_at && (
+                  <form onSubmit={submitReminder} className="space-y-2">
+                    <div>
+                      <Label htmlFor="reminder_at">Set reminder</Label>
+                      <input
+                        id="reminder_at"
+                        type="datetime-local"
+                        value={reminderAt}
+                        onChange={(e) => setReminderAt(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" disabled={!reminderAt}>
+                      Set Reminder
+                    </Button>
+                  </form>
+                )}
               </CardContent>
             </Card>
 

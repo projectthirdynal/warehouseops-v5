@@ -499,6 +499,14 @@ class ShopController extends Controller
             $query->where('is_flagged', true);
         }
 
+        if ($request->string('snoozed')->toString() === 'active') {
+            $query->whereNotNull('snoozed_until')->where('snoozed_until', '>', now());
+        } elseif ($request->string('snoozed')->toString() === 'expired') {
+            $query->whereNotNull('snoozed_until')->where('snoozed_until', '<=', now());
+        } elseif ($request->string('snoozed')->toString() === 'none') {
+            $query->whereNull('snoozed_until');
+        }
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
@@ -506,7 +514,7 @@ class ShopController extends Controller
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id']),
+            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
     }
 
@@ -918,6 +926,53 @@ class ShopController extends Controller
         );
 
         return back()->with('success', 'Tag created.');
+    }
+
+    public function snoozeConversation(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'snoozed_until' => ['required', 'date', 'after:now'],
+            'snooze_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $conversation->forceFill([
+            'snoozed_until' => $validated['snoozed_until'],
+            'snooze_reason' => $validated['snooze_reason'] ?? null,
+        ])->save();
+
+        return back()->with('success', 'Conversation snoozed until ' . $validated['snoozed_until']);
+    }
+
+    public function unsnoozeConversation(Conversation $conversation): RedirectResponse
+    {
+        $conversation->forceFill([
+            'snoozed_until' => null,
+            'snooze_reason' => null,
+        ])->save();
+
+        return back()->with('success', 'Conversation unsnoozed.');
+    }
+
+    public function setConversationReminder(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reminder_at' => ['required', 'date', 'after:now'],
+        ]);
+
+        $conversation->forceFill([
+            'reminder_at' => $validated['reminder_at'],
+        ])->save();
+
+        return back()->with('success', 'Reminder set for ' . $validated['reminder_at']);
+    }
+
+    public function clearConversationReminder(Conversation $conversation): RedirectResponse
+    {
+        $conversation->forceFill([
+            'reminder_at' => null,
+        ])->save();
+
+        return back()->with('success', 'Reminder cleared.');
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse

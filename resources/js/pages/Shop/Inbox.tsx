@@ -29,6 +29,8 @@ interface Conversation {
   priority: string;
   is_flagged: boolean;
   flag_reason: string | null;
+  snoozed_until: string | null;
+  reminder_at: string | null;
   tags: { id: number; name: string; color: string }[];
   last_message_preview: string | null;
   last_message_at: string | null;
@@ -60,6 +62,7 @@ interface Props {
     priority?: string;
     flagged?: string;
     tag_id?: string;
+    snoozed?: string;
   };
 }
 
@@ -190,6 +193,16 @@ export default function ShopInbox({
                 </option>
               ))}
             </select>
+            <select
+              value={filters.snoozed ?? ''}
+              onChange={(event) => updateFilter({ snoozed: event.target.value || undefined })}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">All Snooze States</option>
+              <option value="none">Not Snoozed</option>
+              <option value="active">Snoozed (Active)</option>
+              <option value="expired">Snoozed (Expired)</option>
+            </select>
             <Button
               variant={filters.flagged ? 'default' : 'outline'}
               size="sm"
@@ -309,6 +322,16 @@ export default function ShopInbox({
                                 {tag.name}
                               </Badge>
                             ))}
+                            {conversation.snoozed_until && (
+                              <Badge variant="secondary" className="gap-1">
+                                Snoozed
+                              </Badge>
+                            )}
+                            {conversation.reminder_at && (
+                              <Badge variant="outline" className="gap-1">
+                                Reminder
+                              </Badge>
+                            )}
                             {conversation.unread_count > 0 && (
                               <Badge>{conversation.unread_count} unread</Badge>
                             )}
