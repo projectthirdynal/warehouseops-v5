@@ -21,6 +21,7 @@ use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Models\Customer;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -610,6 +611,9 @@ class ShopController extends Controller
             'body' => $validated['body'],
             'raw_payload' => $delivery,
             'sent_at' => now(),
+            'send_status' => $delivery['status'],
+            'send_error' => $delivery['error'] ?? null,
+            'retry_count' => 0,
         ]);
 
         $conversation->forceFill([
@@ -620,6 +624,29 @@ class ShopController extends Controller
         return back()->with($delivery['status'] === 'failed' ? 'error' : 'success', $delivery['status'] === 'failed'
             ? 'Reply saved locally, but Meta send failed.'
             : 'Reply saved.');
+    }
+
+    /**
+     * Mark inbound messages in a conversation as read.
+     */
+    public function markMessagesRead(Request $request, Conversation $conversation): JsonResponse
+    {
+        $request->validate([
+            'before_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+        ]);
+
+        $query = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', 'inbound')
+            ->whereNull('read_at');
+
+        if ($request->filled('before_message_id')) {
+            $query->where('id', '<=', $request->input('before_message_id'));
+        }
+
+        $query->update(['read_at' => now()]);
+
+        return response()->json(['status' => 'ok']);
     }
 
     public function encoder(): Response

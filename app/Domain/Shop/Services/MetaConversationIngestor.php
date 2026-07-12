@@ -71,12 +71,14 @@ class MetaConversationIngestor
                     'facebook_page_id' => $webhookEvent->facebook_page_id,
                     'customer_identity_id' => $identity->id,
                     'direction' => 'inbound',
-                    'message_type' => data_get($payload, 'message.attachments') ? 'attachment' : 'text',
+                    'message_type' => $this->classifyMessageType($payload),
                     'body' => $body !== '' ? $body : null,
                     'attachments' => data_get($payload, 'message.attachments'),
                     'phone_candidates' => $detectedPhones,
                     'raw_payload' => $payload,
                     'sent_at' => $this->eventTimestamp($payload),
+                    'read_at' => null,
+                    'send_status' => null,
                 ]
             );
 
@@ -167,6 +169,8 @@ class MetaConversationIngestor
                     'phone_candidates' => $detectedPhones,
                     'raw_payload' => $payload,
                     'sent_at' => $this->commentTimestamp($value),
+                    'read_at' => null,
+                    'send_status' => null,
                 ]
             );
 
@@ -197,5 +201,26 @@ class MetaConversationIngestor
         }
 
         return now();
+    }
+
+    /**
+     * Classify inbound Messenger message by payload: text, image, voice, file, fallback.
+     */
+    private function classifyMessageType(array $payload): string
+    {
+        if (! data_get($payload, 'message.attachments')) {
+            return 'text';
+        }
+
+        $attachments = data_get($payload, 'message.attachments');
+        $firstType = data_get($attachments, '0.type') ?? data_get($attachments, '0.payload.sticker_type');
+
+        return match ($firstType) {
+            'image', 'image/jpeg', 'image/png', 'gif' => 'image',
+            'audio', 'voice' => 'voice',
+            'video' => 'video',
+            'file' => 'file',
+            default => 'fallback',
+        };
     }
 }
