@@ -852,6 +852,26 @@ class ShopController extends Controller
         return back()->with('success', 'Conversation status updated.');
     }
 
+    public function bulkUpdateConversationStatus(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
+        ]);
+
+        Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->update([
+                'status' => $validated['status'],
+                'updated_at' => now(),
+            ]);
+
+        $count = count($validated['conversation_ids']);
+
+        return back()->with('success', "{$count} conversation(s) marked as {$validated['status']}.");
+    }
+
     public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([

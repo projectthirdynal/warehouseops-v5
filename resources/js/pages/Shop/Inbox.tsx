@@ -1,5 +1,16 @@
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { Flag, Inbox, MessageSquare, Phone, Store, User, UserCheck } from 'lucide-react';
+import {
+  CheckCheck,
+  Flag,
+  Inbox,
+  MessageSquare,
+  Phone,
+  Store,
+  User,
+  UserCheck,
+  X,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -70,8 +81,37 @@ export default function ShopInbox({
   tags = [],
   filters = {},
 }: Props) {
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<string>('closed');
+
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === conversations.data.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(conversations.data.map((c) => c.id));
+    }
+  };
+
+  const submitBulk = () => {
+    if (selectedIds.length === 0) return;
+    router.post(
+      '/shop/inbox/bulk-status',
+      { conversation_ids: selectedIds, status: bulkStatus },
+      {
+        preserveScroll: true,
+        onSuccess: () => setSelectedIds([]),
+      }
+    );
   };
 
   return (
@@ -172,86 +212,138 @@ export default function ShopInbox({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3">
-            {conversations.data.map((conversation) => (
-              <Link key={conversation.id} href={`/shop/inbox/${conversation.id}`}>
-                <Card className="transition-colors hover:bg-accent/30">
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2 text-base">
-                          <User className="h-4 w-4" />
-                          {conversation.customer?.name ??
-                            conversation.identity?.display_name ??
-                            'Facebook Customer'}
-                        </CardTitle>
-                        <CardDescription>
-                          {conversation.last_message_preview ?? 'No preview available'}
-                        </CardDescription>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">{conversation.status}</Badge>
-                        {(conversation.priority ?? 'normal') !== 'normal' && (
-                          <Badge
-                            variant={
-                              (conversation.priority ?? 'normal') === 'urgent'
-                                ? 'destructive'
-                                : (conversation.priority ?? 'normal') === 'high'
-                                  ? 'default'
-                                  : 'secondary'
-                            }
-                          >
-                            {conversation.priority ?? 'normal'}
-                          </Badge>
-                        )}
-                        {conversation.is_flagged && (
-                          <Badge variant="destructive" className="gap-1">
-                            <Flag className="h-3 w-3" />
-                            Flagged
-                          </Badge>
-                        )}
-                        {(conversation.tags ?? []).map((tag) => (
-                          <Badge
-                            key={tag.id}
-                            variant="outline"
-                            style={{ borderColor: tag.color, color: tag.color }}
-                          >
-                            {tag.name}
-                          </Badge>
-                        ))}
-                        {conversation.unread_count > 0 && (
-                          <Badge>{conversation.unread_count} unread</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 text-sm md:grid-cols-5">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Store className="h-4 w-4" />
-                      {conversation.facebook_page?.page_name ?? 'Unknown Page'}
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      {conversation.customer?.normalized_phone ??
-                        conversation.identity?.phone_detected ??
-                        'No phone detected'}
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MessageSquare className="h-4 w-4" />
-                      {conversation.messages_count} messages
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <UserCheck className="h-4 w-4" />
-                      {conversation.assigned_agent?.name ?? 'Unassigned'}
-                    </div>
-                    <div className="text-muted-foreground">
-                      {formatDate(conversation.last_message_at)}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+          <>
+            {selectedIds.length > 0 && (
+              <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3 shadow-md">
+                <span className="text-sm font-medium">{selectedIds.length} selected</span>
+                <select
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  {statuses.map((s) => (
+                    <option key={s} value={s}>
+                      {label(s)}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulk}>
+                  <CheckCheck className="mr-1 h-4 w-4" />
+                  Apply
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              </div>
+            )}
+
+            <div className="grid gap-3">
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={
+                      conversations.data.length > 0 &&
+                      selectedIds.length === conversations.data.length
+                    }
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  Select all
+                </label>
+              </div>
+              {conversations.data.map((conversation) => (
+                <div key={conversation.id} className="relative">
+                  <div className="absolute left-3 top-1/2 z-10 -translate-y-1/2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(conversation.id)}
+                      onChange={() => toggleSelect(conversation.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                  </div>
+                  <Link href={`/shop/inbox/${conversation.id}`}>
+                    <Card className="transition-colors hover:bg-accent/30 pl-10">
+                      <CardHeader className="pb-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <User className="h-4 w-4" />
+                              {conversation.customer?.name ??
+                                conversation.identity?.display_name ??
+                                'Facebook Customer'}
+                            </CardTitle>
+                            <CardDescription>
+                              {conversation.last_message_preview ?? 'No preview available'}
+                            </CardDescription>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline">{conversation.status}</Badge>
+                            {(conversation.priority ?? 'normal') !== 'normal' && (
+                              <Badge
+                                variant={
+                                  (conversation.priority ?? 'normal') === 'urgent'
+                                    ? 'destructive'
+                                    : (conversation.priority ?? 'normal') === 'high'
+                                      ? 'default'
+                                      : 'secondary'
+                                }
+                              >
+                                {conversation.priority ?? 'normal'}
+                              </Badge>
+                            )}
+                            {conversation.is_flagged && (
+                              <Badge variant="destructive" className="gap-1">
+                                <Flag className="h-3 w-3" />
+                                Flagged
+                              </Badge>
+                            )}
+                            {(conversation.tags ?? []).map((tag) => (
+                              <Badge
+                                key={tag.id}
+                                variant="outline"
+                                style={{ borderColor: tag.color, color: tag.color }}
+                              >
+                                {tag.name}
+                              </Badge>
+                            ))}
+                            {conversation.unread_count > 0 && (
+                              <Badge>{conversation.unread_count} unread</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="grid gap-3 text-sm md:grid-cols-5">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Store className="h-4 w-4" />
+                          {conversation.facebook_page?.page_name ?? 'Unknown Page'}
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Phone className="h-4 w-4" />
+                          {conversation.customer?.normalized_phone ??
+                            conversation.identity?.phone_detected ??
+                            'No phone detected'}
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <MessageSquare className="h-4 w-4" />
+                          {conversation.messages_count} messages
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <UserCheck className="h-4 w-4" />
+                          {conversation.assigned_agent?.name ?? 'Unassigned'}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {formatDate(conversation.last_message_at)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {conversations.last_page > 1 && (
