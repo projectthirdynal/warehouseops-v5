@@ -54,6 +54,7 @@ class MetaWebhookController extends Controller
     {
         $eventId = $event['message']['mid']
             ?? $event['postback']['mid']
+            ?? $event['value']['comment_id']
             ?? hash('sha256', json_encode($event, JSON_UNESCAPED_SLASHES) ?: serialize($event));
 
         $webhookEvent = FacebookWebhookEvent::query()->firstOrCreate(
@@ -62,7 +63,7 @@ class MetaWebhookController extends Controller
                 'facebook_page_id' => $page?->id,
                 'object' => $object,
                 'event_type' => $type,
-                'sender_psid' => data_get($event, 'sender.id'),
+                'sender_psid' => data_get($event, 'sender.id') ?? data_get($event, 'value.from.id'),
                 'recipient_id' => data_get($event, 'recipient.id'),
                 'payload' => $event,
                 'signature_valid' => $signatureValid,
@@ -71,6 +72,8 @@ class MetaWebhookController extends Controller
 
         if ($type === 'messaging') {
             $this->ingestor->process($webhookEvent);
+        } elseif ($type === 'feed') {
+            $this->ingestor->processComment($webhookEvent);
         }
     }
 
