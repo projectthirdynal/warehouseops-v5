@@ -1,5 +1,6 @@
-import { FormEvent } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import {
   AlertCircle,
   ArrowLeft,
@@ -154,10 +155,69 @@ export default function ShopConversation({
   recent_orders,
   quick_replies,
   saved_templates,
-  agents,
-  statuses,
-  priorities,
+  agents = [],
+  statuses = [],
+  priorities = ['low', 'normal', 'high', 'urgent'],
 }: Props) {
+  const safeMessages = conversation?.messages ?? [];
+  const [messages, setMessages] = useState<Message[]>(safeMessages);
+  const [lastMessageId, setLastMessageId] = useState<number>(
+    safeMessages.reduce((max, m) => (m.id > max ? m.id : max), 0)
+  );
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+
+  useEffect(() => {
+    const propIds = new Set(safeMessages.map((m) => m.id));
+    setMessages((prev) => {
+      const existingIds = new Set(prev.map((m) => m.id));
+      const merged = [...prev];
+      // Add any prop messages we don't already have (e.g. after Inertia reload / reply)
+      for (const message of safeMessages) {
+        if (!existingIds.has(message.id)) {
+          merged.push(message);
+        }
+      }
+      // Keep any poll-added messages that aren't in the prop yet
+      for (const message of prev) {
+        if (!propIds.has(message.id) && !existingIds.has(message.id)) {
+          merged.push(message);
+        }
+      }
+      return merged.sort((a, b) => {
+        if (a.sent_at && b.sent_at)
+          return new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime();
+        return a.id - b.id;
+      });
+    });
+    setLastMessageId((prev) => safeMessages.reduce((max, m) => (m.id > max ? m.id : max), prev));
+  }, [safeMessages]);
+
+  useEffect(() => {
+    if (!pollingEnabled || !conversation?.id) return;
+
+    const interval = setInterval(() => {
+      axios
+        .get(`/shop/inbox/${conversation.id}/poll`, {
+          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+        })
+        .then(({ data }) => {
+          if (data.messages?.length > 0) {
+            setMessages((prev) => [...prev, ...data.messages]);
+            const maxId = data.messages.reduce(
+              (max: number, m: Message) => (m.id > max ? m.id : max),
+              lastMessageId
+            );
+            setLastMessageId(maxId);
+          }
+        })
+        .catch(() => {
+          // Silently ignore poll errors to avoid disrupting the agent
+        });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [conversation?.id, lastMessageId, pollingEnabled]);
+
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
@@ -250,17 +310,17 @@ export default function ShopConversation({
                 </Link>
               </Button>
               <Badge variant="outline">{conversation.status}</Badge>
-              {conversation.priority !== 'normal' && (
+              {(conversation.priority ?? 'normal') !== 'normal' && (
                 <Badge
                   variant={
-                    conversation.priority === 'urgent'
+                    (conversation.priority ?? 'normal') === 'urgent'
                       ? 'destructive'
-                      : conversation.priority === 'high'
+                      : (conversation.priority ?? 'normal') === 'high'
                         ? 'default'
                         : 'secondary'
                   }
                 >
-                  {conversation.priority}
+                  {conversation.priority ?? 'normal'}
                 </Badge>
               )}
               {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
@@ -279,9 +339,20 @@ export default function ShopConversation({
                     Inbound Meta messages and locally logged replies
                   </CardDescription>
                 </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/shop/templates">Templates</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={pollingEnabled ? 'default' : 'outline'}
+                    onClick={() => setPollingEnabled((enabled) => !enabled)}
+                    title={pollingEnabled ? 'Polling every 5s' : 'Polling paused'}
+                  >
+                    {pollingEnabled ? 'Live' : 'Paused'}
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/shop/templates">Templates</Link>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -327,10 +398,10 @@ export default function ShopConversation({
                 </div>
               )}
 
-              {conversation.messages.length === 0 ? (
+              {messages.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
               ) : (
-                conversation.messages.map((message) => {
+                messages.map((message) => {
                   const status = deliveryStatus(message);
                   const StatusIcon = status?.icon;
 
@@ -661,7 +732,7 @@ export default function ShopConversation({
                   <Label htmlFor="priority">Priority</Label>
                   <select
                     id="priority"
-                    value={conversation.priority}
+                    value={conversation.priority ?? 'normal'}
                     onChange={(e) => updatePriority(e.target.value)}
                     className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >

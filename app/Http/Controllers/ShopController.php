@@ -934,6 +934,41 @@ class ShopController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
+    public function pollMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'after_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+        ]);
+
+        $query = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->orderBy('sent_at')
+            ->orderBy('id');
+
+        if ($validated['after_message_id'] ?? null) {
+            $query->where('id', '>', $validated['after_message_id']);
+        }
+
+        $messages = $query->get([
+            'id',
+            'direction',
+            'body',
+            'sent_at',
+            'raw_payload',
+            'phone_candidates',
+        ]);
+
+        $conversation->refresh();
+
+        return response()->json([
+            'messages' => $messages,
+            'last_message_preview' => $conversation->last_message_preview,
+            'last_message_at' => $conversation->last_message_at,
+            'unread_count' => $conversation->unread_count,
+            'status' => $conversation->status,
+        ]);
+    }
+
     public function encoder(): Response
     {
         return Inertia::render('Shop/Encoder', [
