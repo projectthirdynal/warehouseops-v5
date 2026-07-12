@@ -326,6 +326,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/inbox/{conversation}/snooze', [ShopController::class, 'unsnoozeConversation'])->name('shop.conversation.unsnooze');
     Route::post('/shop/inbox/{conversation}/reminder', [ShopController::class, 'setConversationReminder'])->name('shop.conversation.reminder');
     Route::delete('/shop/inbox/{conversation}/reminder', [ShopController::class, 'clearConversationReminder'])->name('shop.conversation.reminder.clear');
+    Route::post('/shop/inbox/{conversation}/merge', [ShopController::class, 'mergeConversations'])->name('shop.conversation.merge');
     Route::post('/shop/conversation-tags', [ShopController::class, 'storeTag'])->name('shop.conversation-tags.store');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
     Route::get('/shop/customers/export', [ShopController::class, 'exportCustomers'])->name('shop.customers.export');

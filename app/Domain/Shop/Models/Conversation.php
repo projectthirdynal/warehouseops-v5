@@ -30,6 +30,7 @@ class Conversation extends Model
         'snoozed_until',
         'reminder_at',
         'snooze_reason',
+        'merged_into_id',
         'thread_key',
         'last_message_preview',
         'last_message_at',
@@ -49,6 +50,16 @@ class Conversation extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'conversation_tag');
+    }
+
+    public function mergedInto(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class, 'merged_into_id');
+    }
+
+    public function mergedConversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'merged_into_id');
     }
 
     public function facebookPage(): BelongsTo

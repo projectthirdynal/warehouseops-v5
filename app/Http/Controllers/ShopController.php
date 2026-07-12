@@ -463,6 +463,7 @@ class ShopController extends Controller
     public function inbox(Request $request): Response
     {
         $query = Conversation::query()
+            ->whereNull('merged_into_id')
             ->with([
                 'facebookPage:id,page_name,page_id',
                 'customer:id,name,phone,normalized_phone',
@@ -547,6 +548,19 @@ class ShopController extends Controller
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'merge_candidates' => Conversation::query()
+                ->where('id', '!=', $conversation->id)
+                ->whereNull('merged_into_id')
+                ->when($conversation->customer_id, fn ($q) => $q->where('customer_id', $conversation->customer_id))
+                ->orWhere(function ($q) use ($conversation) {
+                    $q->where('id', '!=', $conversation->id)
+                        ->whereNull('merged_into_id')
+                        ->when($conversation->customer_identity_id, fn ($sub) => $sub->where('customer_identity_id', $conversation->customer_identity_id));
+                })
+                ->with(['customer:id,name', 'identity:id,display_name'])
+                ->latest('last_message_at')
+                ->limit(20)
+                ->get(['id', 'customer_id', 'customer_identity_id', 'last_message_preview', 'status', 'last_message_at']),
         ]);
     }
 
@@ -973,6 +987,53 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', 'Reminder cleared.');
+    }
+
+    public function mergeConversations(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+
+        if ($source->id === $conversation->id) {
+            return back()->withErrors('Cannot merge a conversation into itself.');
+        }
+
+        if ($conversation->merged_into_id) {
+            return back()->withErrors('Target conversation is already merged into another.');
+        }
+
+        DB::transaction(function () use ($source, $conversation): void {
+            // Reassign all messages from source to target
+            $source->messages()->update(['conversation_id' => $conversation->id]);
+
+            // Copy tags from source to target
+            $sourceTagIds = $source->tags()->pluck('tags.id');
+            $conversation->tags()->syncWithoutDetaching($sourceTagIds);
+
+            // Mark source as merged
+            $source->forceFill([
+                'merged_into_id' => $conversation->id,
+                'status' => 'closed',
+            ])->save();
+
+            // Update last message info on target if source has newer activity
+            if ($source->last_message_at && (!$conversation->last_message_at || $source->last_message_at > $conversation->last_message_at)) {
+                $conversation->forceFill([
+                    'last_message_at' => $source->last_message_at,
+                    'last_message_preview' => $source->last_message_preview,
+                ])->save();
+            }
+
+            // Add unread count from source
+            if ($source->unread_count > 0) {
+                $conversation->increment('unread_count', $source->unread_count);
+            }
+        });
+
+        return back()->with('success', "Conversation #{$source->id} merged into this conversation.");
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse

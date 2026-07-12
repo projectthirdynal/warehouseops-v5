@@ -40,6 +40,7 @@ interface Conversation {
   snoozed_until: string | null;
   snooze_reason: string | null;
   reminder_at: string | null;
+  merged_into_id: number | null;
   tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
@@ -99,6 +100,16 @@ interface Props {
   statuses: string[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
+  merge_candidates: {
+    id: number;
+    customer_id: number | null;
+    customer_identity_id: number | null;
+    last_message_preview: string | null;
+    status: string;
+    last_message_at: string | null;
+    customer?: { name: string } | null;
+    identity?: { display_name: string | null } | null;
+  }[];
 }
 
 function time(value: string | null) {
@@ -164,6 +175,7 @@ export default function ShopConversation({
   statuses = [],
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
+  merge_candidates = [],
 }: Props) {
   const safeMessages = conversation?.messages ?? [];
   const [messages, setMessages] = useState<Message[]>(safeMessages);
@@ -333,6 +345,21 @@ export default function ShopConversation({
 
   const clearReminder = () => {
     router.delete(`/shop/inbox/${conversation.id}/reminder`, { preserveScroll: true });
+  };
+
+  const [mergeSourceId, setMergeSourceId] = useState<number | ''>('');
+
+  const submitMerge = (event: FormEvent) => {
+    event.preventDefault();
+    if (!mergeSourceId) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/merge`,
+      { source_conversation_id: mergeSourceId },
+      {
+        preserveScroll: true,
+        onSuccess: () => setMergeSourceId(''),
+      }
+    );
   };
 
   const updateStatus = (status: string) => {
@@ -885,6 +912,54 @@ export default function ShopConversation({
                       Set Reminder
                     </Button>
                   </form>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Merge Duplicate</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {conversation.merged_into_id ? (
+                  <p className="text-sm text-muted-foreground">
+                    This conversation has been merged into #{conversation.merged_into_id}.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Merge another conversation into this one. All messages and tags will be
+                      transferred.
+                    </p>
+                    <form onSubmit={submitMerge} className="space-y-2">
+                      <select
+                        value={mergeSourceId}
+                        onChange={(e) =>
+                          setMergeSourceId(e.target.value ? Number(e.target.value) : '')
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">Select conversation to merge...</option>
+                        {merge_candidates.map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>
+                            #{candidate.id} —{' '}
+                            {candidate.customer?.name ??
+                              candidate.identity?.display_name ??
+                              'Unknown'}{' '}
+                            ({candidate.status})
+                          </option>
+                        ))}
+                      </select>
+                      <Button type="submit" size="sm" disabled={!mergeSourceId}>
+                        Merge into this conversation
+                      </Button>
+                    </form>
+                    {merge_candidates.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        No duplicate conversations found.
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
