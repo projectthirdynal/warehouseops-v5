@@ -41,16 +41,8 @@ return new class extends Migration
 
     private function addIndexIfNotExists(string $table, string $indexName, array $columns): void
     {
-        try {
-            Schema::table($table, function (Blueprint $table) use ($columns) {
-                $table->index($columns);
-            });
-        } catch (\Illuminate\Database\QueryException $e) {
-            if (str_contains($e->getMessage(), 'already exists')) {
-                return;
-            }
-            throw $e;
-        }
+        $cols = implode(', ', array_map(fn ($c) => "\"{$c}\"", $columns));
+        DB::statement("CREATE INDEX IF NOT EXISTS \"{$indexName}\" ON \"{$table}\" ({$cols})");
     }
 
     public function down(): void

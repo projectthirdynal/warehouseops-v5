@@ -1,0 +1,66 @@
+# Local development override — removes external network deps, adds PostgreSQL
+services:
+  app:
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=warehouseops
+      - DB_USERNAME=warehouseops
+      - DB_PASSWORD=secret
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - warehouseops
+
+  nginx:
+    networks:
+      - warehouseops
+
+  redis:
+    networks:
+      - warehouseops
+
+  mailpit:
+    networks:
+      - warehouseops
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: warehouseops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: warehouseops
+      POSTGRES_USER: warehouseops
+      POSTGRES_PASSWORD: secret
+    ports:
+      - '5433:5432'
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U warehouseops -d warehouseops']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouseops
+
+networks:
+  warehouseops:
+    driver: bridge
+  app_bridge:
+    external: false
+    driver: bridge
+  infra:
+    external: false
+    driver: bridge
+
+volumes:
+  pg-data:
