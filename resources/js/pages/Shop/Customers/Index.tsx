@@ -57,6 +57,11 @@ export default function CustomersIndex({ customers, filters }: Props) {
       <div className="space-y-4 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Customers</h1>
+          <Button variant="outline" asChild>
+            <a href={`/shop/customers/export${q ? `?q=${encodeURIComponent(q)}` : ''}`}>
+              Export CSV
+            </a>
+          </Button>
         </div>
         <div className="flex gap-2">
           <Input

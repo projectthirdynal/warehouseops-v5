@@ -319,6 +319,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/inbox/{conversation}/assignment', [ShopController::class, 'updateConversationAssignment'])->name('shop.conversation.assignment');
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
+    Route::get('/shop/customers/export', [ShopController::class, 'exportCustomers'])->name('shop.customers.export');
     Route::get('/shop/customers/search', [ShopController::class, 'searchCustomers'])->name('shop.customers.search');
     Route::get('/shop/customers/{customer}', [ShopController::class, 'showCustomer'])->name('shop.customers.show');
     Route::patch('/shop/customers/{customer}', [ShopController::class, 'updateCustomer'])->name('shop.customers.update');

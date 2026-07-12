@@ -548,6 +548,55 @@ class ShopController extends Controller
         ]);
     }
 
+    public function exportCustomers(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $query = Customer::query()
+            ->with('defaultAddress:id,customer_id,label,canonical_address,barangay,city_municipality,province')
+            ->when($request->filled('q'), fn ($q) => $this->applyCustomerSearch($q, $request->string('q')->toString()))
+            ->latest('last_order_date')
+            ->latest('id');
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="customers-' . date('Y-m-d') . '.csv"',
+        ];
+
+        $columns = [
+            'id', 'name', 'phone', 'normalized_phone', 'facebook_name',
+            'canonical_address', 'barangay', 'city_municipality', 'province', 'region',
+            'total_orders', 'successful_orders', 'returned_orders', 'success_rate',
+            'total_revenue', 'average_order_value',
+            'preferred_courier', 'payment_method',
+            'risk_level', 'is_blacklisted',
+            'last_order_date', 'last_page_ordered_from',
+            'tags',
+        ];
+
+        return response()->stream(function () use ($query, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $columns);
+
+            $query->chunk(200, function ($customers) use ($handle, $columns) {
+                foreach ($customers as $customer) {
+                    $row = [];
+                    foreach ($columns as $col) {
+                        $value = $customer->{$col};
+                        if ($col === 'tags' && is_array($value)) {
+                            $value = implode(';', $value);
+                        }
+                        if ($col === 'is_blacklisted') {
+                            $value = $value ? 'yes' : 'no';
+                        }
+                        $row[$col] = $value ?? '';
+                    }
+                    fputcsv($handle, $row);
+                }
+            });
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function searchCustomers(Request $request): JsonResponse
     {
         $validated = $request->validate([
