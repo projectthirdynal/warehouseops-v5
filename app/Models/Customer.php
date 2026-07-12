@@ -32,6 +32,8 @@ class Customer extends Model
         'success_rate',
         'total_revenue',
         'average_order_value',
+        'preferred_courier',
+        'payment_method',
         'risk_level',
         'is_blacklisted',
         'blacklist_reason',

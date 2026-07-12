@@ -606,6 +606,8 @@ class ShopController extends Controller
             'barangay' => ['nullable', 'string', 'max:255'],
             'city_municipality' => ['nullable', 'string', 'max:255'],
             'province' => ['nullable', 'string', 'max:255'],
+            'preferred_courier' => ['nullable', 'string', 'max:50'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
         ]);
 
         $addressMatch = $this->addressMappings->match([
@@ -625,6 +627,8 @@ class ShopController extends Controller
             'city_municipality' => $validated['city_municipality'] ?? null,
             'province' => $validated['province'] ?? null,
             'region' => $addressMatch['mapping']?->region ?? $customer->region,
+            'preferred_courier' => $validated['preferred_courier'] ?? null,
+            'payment_method' => $validated['payment_method'] ?? null,
         ])->save();
 
         if (! empty($validated['canonical_address'])) {

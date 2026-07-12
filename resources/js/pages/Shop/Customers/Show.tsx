@@ -55,6 +55,8 @@ interface Customer {
   total_orders: number;
   total_revenue: number;
   average_order_value: number;
+  preferred_courier: string | null;
+  payment_method: string | null;
   tags: string[] | null;
   addresses: Address[];
   default_address: Address | null;
@@ -88,6 +90,24 @@ export default function CustomersShow({ customer }: Props) {
   });
   const [loading, setLoading] = useState(false);
   const [noteLoading, setNoteLoading] = useState(false);
+  const [preferences, setPreferences] = useState({
+    preferred_courier: customer.preferred_courier ?? '',
+    payment_method: customer.payment_method ?? '',
+  });
+  const [savingPreferences, setSavingPreferences] = useState(false);
+
+  const savePreferences = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPreferences(true);
+    try {
+      await axios.patch(`/shop/customers/${customer.id}`, preferences);
+      alert('Preferences saved.');
+    } catch (e) {
+      alert('Failed to save preferences.');
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
 
   const saveTags = async () => {
     try {
@@ -212,6 +232,41 @@ export default function CustomersShow({ customer }: Props) {
             <p>
               <strong>Current address:</strong> {customer.canonical_address ?? '-'}
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Preferences</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={savePreferences} className="space-y-3">
+              <div>
+                <Label htmlFor="preferred_courier">Preferred courier</Label>
+                <Input
+                  id="preferred_courier"
+                  value={preferences.preferred_courier}
+                  onChange={(e) =>
+                    setPreferences({ ...preferences, preferred_courier: e.target.value })
+                  }
+                  placeholder="e.g. FLASH, J&T"
+                />
+              </div>
+              <div>
+                <Label htmlFor="payment_method">Payment method</Label>
+                <Input
+                  id="payment_method"
+                  value={preferences.payment_method}
+                  onChange={(e) =>
+                    setPreferences({ ...preferences, payment_method: e.target.value })
+                  }
+                  placeholder="e.g. COD, GCash"
+                />
+              </div>
+              <Button type="submit" disabled={savingPreferences}>
+                {savingPreferences ? 'Saving...' : 'Save preferences'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 
