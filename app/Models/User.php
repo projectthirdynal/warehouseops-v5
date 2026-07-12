@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Domain\Shop\Models\Conversation;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -54,6 +55,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function assignedCycles(): HasMany
     {
         return $this->hasMany(LeadCycle::class, 'assigned_agent_id');
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'assigned_agent_id');
     }
 
     public function isAdmin(): bool

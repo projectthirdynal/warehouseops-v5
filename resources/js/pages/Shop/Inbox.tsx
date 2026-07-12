@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
+  BarChart3,
   CheckCheck,
   Flag,
   Inbox,
@@ -130,6 +131,12 @@ export default function ShopInbox({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/shop/analytics">
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </Link>
+            </Button>
             <select
               value={filters.page_id ?? ''}
               onChange={(event) => updateFilter({ page_id: event.target.value || undefined })}

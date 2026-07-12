@@ -867,9 +867,23 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
-        $conversation->forceFill([
-            'status' => $validated['status'],
-        ])->save();
+        $updates = ['status' => $validated['status']];
+
+        // Track resolution time when conversation is closed
+        if ($validated['status'] === 'closed' && !$conversation->resolved_at) {
+            $updates['resolved_at'] = now();
+            $updates['resolution_time_seconds'] = $conversation->created_at
+                ? (int) now()->diffInSeconds($conversation->created_at)
+                : null;
+        }
+
+        // Reset resolution if reopened
+        if ($validated['status'] !== 'closed' && $conversation->resolved_at) {
+            $updates['resolved_at'] = null;
+            $updates['resolution_time_seconds'] = null;
+        }
+
+        $conversation->forceFill($updates)->save();
 
         return back()->with('success', 'Conversation status updated.');
     }
@@ -882,12 +896,41 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
-        Conversation::query()
-            ->whereIn('id', $validated['conversation_ids'])
-            ->update([
-                'status' => $validated['status'],
-                'updated_at' => now(),
-            ]);
+        $now = now();
+        $updateData = [
+            'status' => $validated['status'],
+            'updated_at' => $now,
+        ];
+
+        if ($validated['status'] === 'closed') {
+            $updateData['resolved_at'] = $now;
+            // Set resolution_time_seconds for conversations that don't have it yet
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->whereNull('resolved_at')
+                ->each(function (Conversation $conv) use ($now) {
+                    $seconds = $conv->created_at ? (int) $now->diffInSeconds($conv->created_at) : null;
+                    $conv->forceFill([
+                        'resolved_at' => $now,
+                        'resolution_time_seconds' => $seconds,
+                    ])->save();
+                });
+        } else {
+            // Reset resolution if reopening
+            $updateData['resolved_at'] = null;
+            $updateData['resolution_time_seconds'] = null;
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->update($updateData);
+        }
+
+        // For closed status, update without overwriting resolution_time_seconds
+        if ($validated['status'] === 'closed') {
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->whereNotNull('resolved_at')
+                ->update(['status' => $validated['status'], 'updated_at' => $now]);
+        }
 
         $count = count($validated['conversation_ids']);
 
@@ -1036,6 +1079,93 @@ class ShopController extends Controller
         return back()->with('success', "Conversation #{$source->id} merged into this conversation.");
     }
 
+    public function conversationAnalytics(Request $request): Response
+    {
+        $range = $request->string('range')->toString();
+        $startDate = match ($range) {
+            '7d' => now()->subDays(7),
+            '30d' => now()->subDays(30),
+            '90d' => now()->subDays(90),
+            default => now()->subDays(30),
+        };
+
+        $baseQuery = Conversation::query()
+            ->whereNull('merged_into_id')
+            ->where('created_at', '>=', $startDate);
+
+        $totalConversations = (clone $baseQuery)->count();
+        $respondedConversations = (clone $baseQuery)->whereNotNull('first_response_at')->count();
+        $resolvedConversations = (clone $baseQuery)->whereNotNull('resolved_at')->count();
+
+        $avgFirstResponse = (clone $baseQuery)
+            ->whereNotNull('first_response_time_seconds')
+            ->avg('first_response_time_seconds');
+
+        $avgResolution = (clone $baseQuery)
+            ->whereNotNull('resolution_time_seconds')
+            ->avg('resolution_time_seconds');
+
+        $medianFirstResponse = (clone $baseQuery)
+            ->whereNotNull('first_response_time_seconds')
+            ->orderBy('first_response_time_seconds')
+            ->value('first_response_time_seconds');
+
+        $medianResolution = (clone $baseQuery)
+            ->whereNotNull('resolution_time_seconds')
+            ->orderBy('resolution_time_seconds')
+            ->value('resolution_time_seconds');
+
+        // Per-agent breakdown
+        $perAgent = User::query()
+            ->select('id', 'name')
+            ->whereHas('conversations', fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate))
+            ->withCount([
+                'conversations as assigned_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate),
+                'conversations as responded_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_at'),
+                'conversations as resolved_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolved_at'),
+            ])
+            ->withAvg([
+                'conversations as avg_response_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
+            ->withAvg([
+                'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
+            ], 'resolution_time_seconds')
+            ->having('assigned_count', '>', 0)
+            ->orderByDesc('assigned_count')
+            ->get();
+
+        // Status distribution
+        $statusDistribution = (clone $baseQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        // Daily trend
+        $dailyTrend = (clone $baseQuery)
+            ->selectRaw("DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved")
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
+            ->get();
+
+        return Inertia::render('Shop/ConversationAnalytics', [
+            'stats' => [
+                'total_conversations' => $totalConversations,
+                'responded_conversations' => $respondedConversations,
+                'resolved_conversations' => $resolvedConversations,
+                'response_rate' => $totalConversations > 0 ? round(($respondedConversations / $totalConversations) * 100, 1) : 0,
+                'resolution_rate' => $totalConversations > 0 ? round(($resolvedConversations / $totalConversations) * 100, 1) : 0,
+                'avg_first_response_seconds' => $avgFirstResponse ? (int) $avgFirstResponse : null,
+                'avg_resolution_seconds' => $avgResolution ? (int) $avgResolution : null,
+                'median_first_response_seconds' => $medianFirstResponse ? (int) $medianFirstResponse : null,
+                'median_resolution_seconds' => $medianResolution ? (int) $medianResolution : null,
+            ],
+            'per_agent' => $perAgent,
+            'status_distribution' => $statusDistribution,
+            'daily_trend' => $dailyTrend,
+            'range' => $range ?: '30d',
+        ]);
+    }
+
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
@@ -1080,6 +1210,14 @@ class ShopController extends Controller
             'last_message_preview' => $validated['body'],
             'last_message_at' => now(),
         ])->save();
+
+        // Track first response time
+        if (!$conversation->first_response_at && $conversation->created_at) {
+            $conversation->forceFill([
+                'first_response_at' => now(),
+                'first_response_time_seconds' => (int) now()->diffInSeconds($conversation->created_at),
+            ])->save();
+        }
 
         return back()->with($delivery['status'] === 'failed' ? 'error' : 'success', $delivery['status'] === 'failed'
             ? 'Reply saved locally, but Meta send failed.'
