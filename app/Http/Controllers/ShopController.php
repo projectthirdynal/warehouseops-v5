@@ -14,6 +14,7 @@ use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\CustomerNoteService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
@@ -43,6 +44,7 @@ class ShopController extends Controller
         private readonly CourierExportService $courierExports,
         private readonly MetaConversationIngestor $metaIngestor,
         private readonly CustomerAddressService $customerAddresses,
+        private readonly CustomerNoteService $customerNotes,
     ) {}
 
     public function index(): Response
@@ -536,7 +538,11 @@ class ShopController extends Controller
     public function showCustomer(Request $request, Customer $customer): Response
     {
         return Inertia::render('Shop/Customers/Show', [
-            'customer' => $customer->load(['addresses', 'defaultAddress']),
+            'customer' => $customer->load([
+                'addresses',
+                'defaultAddress',
+                'notes.user:id,name',
+            ]),
         ]);
     }
 
@@ -688,6 +694,49 @@ class ShopController extends Controller
         $this->customerAddresses->setDefault($customer, $address);
 
         return response()->json(['address' => $address->fresh()]);
+    }
+
+    public function customerNotes(Request $request, Customer $customer): JsonResponse
+    {
+        $notes = $customer->notes()->with('user:id,name')->get([
+            'id',
+            'customer_id',
+            'user_id',
+            'note_type',
+            'body',
+            'tags',
+            'pinned_until',
+            'created_at',
+        ]);
+
+        return response()->json(['notes' => $notes]);
+    }
+
+    public function storeCustomerNote(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+            'note_type' => ['nullable', 'string', 'max:50'],
+            'pinned_until' => ['nullable', 'date'],
+        ]);
+
+        $note = $this->customerNotes->addNote($customer, $validated);
+
+        return response()->json(['note' => $note->load('user:id,name')], 201);
+    }
+
+    public function updateCustomerTags(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'tags' => ['required', 'array'],
+            'tags.*' => ['string', 'max:50'],
+        ]);
+
+        $this->customerNotes->setTags($customer, $validated['tags']);
+
+        return response()->json(['customer' => $customer->only(['id', 'tags'])]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse

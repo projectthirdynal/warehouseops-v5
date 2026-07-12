@@ -27,6 +27,17 @@ interface Address {
   created_at: string;
 }
 
+interface Note {
+  id: number;
+  user_id: number | null;
+  user: { id: number; name: string } | null;
+  note_type: string;
+  body: string;
+  tags: string[] | null;
+  pinned_until: string | null;
+  created_at: string;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -34,8 +45,10 @@ interface Customer {
   facebook_name: string | null;
   canonical_address: string | null;
   total_orders: number;
+  tags: string[] | null;
   addresses: Address[];
   default_address: Address | null;
+  notes: Note[];
 }
 
 interface Props {
@@ -44,6 +57,10 @@ interface Props {
 
 export default function CustomersShow({ customer }: Props) {
   const [addresses, setAddresses] = useState<Address[]>(customer.addresses);
+  const [notes, setNotes] = useState<Note[]>(customer.notes);
+  const [tags, setTags] = useState<string[]>(customer.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
+  const [noteForm, setNoteForm] = useState({ body: '', tags: '' });
   const [form, setForm] = useState({
     label: '',
     canonical_address: '',
@@ -58,6 +75,49 @@ export default function CustomersShow({ customer }: Props) {
     is_default: false,
   });
   const [loading, setLoading] = useState(false);
+  const [noteLoading, setNoteLoading] = useState(false);
+
+  const saveTags = async () => {
+    try {
+      await axios.patch(`/shop/customers/${customer.id}/tags`, { tags });
+    } catch (e) {
+      alert('Failed to save tags.');
+    }
+  };
+
+  const addTag = () => {
+    const value = tagInput.trim().toLowerCase();
+    if (value && !tags.includes(value)) {
+      setTags([...tags, value]);
+    }
+    setTagInput('');
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
+
+  const submitNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNoteLoading(true);
+    try {
+      const noteTags = noteForm.tags
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
+      await axios.post(`/shop/customers/${customer.id}/notes`, {
+        body: noteForm.body,
+        tags: noteTags,
+      });
+      const { data } = await axios.get(`/shop/customers/${customer.id}/notes`);
+      setNotes(data.notes);
+      setNoteForm({ body: '', tags: '' });
+    } catch (e) {
+      alert('Failed to add note.');
+    } finally {
+      setNoteLoading(false);
+    }
+  };
 
   const setDefault = async (addressId: number) => {
     try {
@@ -126,6 +186,101 @@ export default function CustomersShow({ customer }: Props) {
             <p>
               <strong>Current address:</strong> {customer.canonical_address ?? '-'}
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tags</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="gap-1">
+                  {tag}
+                  <button
+                    type="button"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => removeTag(tag)}
+                  >
+                    ×
+                  </button>
+                </Badge>
+              ))}
+              {tags.length === 0 && <span className="text-sm text-muted-foreground">No tags</span>}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add tag..."
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+              />
+              <Button type="button" variant="outline" onClick={addTag}>
+                Add
+              </Button>
+              <Button type="button" onClick={saveTags}>
+                Save tags
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Agent Notes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {notes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No notes yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {notes.map((note) => (
+                  <div key={note.id} className="rounded border p-3 text-sm">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="font-medium">{note.user?.name ?? 'System'}</span>
+                      <span className="text-muted-foreground">
+                        {new Date(note.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{note.body}</p>
+                    {note.tags && note.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {note.tags.map((tag) => (
+                          <Badge key={tag} variant="outline">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={submitNote} className="space-y-2">
+              <div>
+                <Label htmlFor="note_body">Note</Label>
+                <textarea
+                  id="note_body"
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  rows={3}
+                  value={noteForm.body}
+                  onChange={(e) => setNoteForm({ ...noteForm, body: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="note_tags">Tags (comma separated)</Label>
+                <Input
+                  id="note_tags"
+                  value={noteForm.tags}
+                  onChange={(e) => setNoteForm({ ...noteForm, tags: e.target.value })}
+                />
+              </div>
+              <Button type="submit" disabled={noteLoading}>
+                {noteLoading ? 'Saving...' : 'Add note'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 

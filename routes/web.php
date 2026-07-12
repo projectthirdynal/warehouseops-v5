@@ -325,6 +325,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/customers/{customer}/addresses', [ShopController::class, 'customerAddresses'])->name('shop.customers.addresses.index');
     Route::post('/shop/customers/{customer}/addresses', [ShopController::class, 'storeCustomerAddress'])->name('shop.customers.addresses.store');
     Route::patch('/shop/customers/{customer}/addresses/{address}/default', [ShopController::class, 'setDefaultCustomerAddress'])->name('shop.customers.addresses.default');
+    Route::get('/shop/customers/{customer}/notes', [ShopController::class, 'customerNotes'])->name('shop.customers.notes.index');
+    Route::post('/shop/customers/{customer}/notes', [ShopController::class, 'storeCustomerNote'])->name('shop.customers.notes.store');
+    Route::patch('/shop/customers/{customer}/tags', [ShopController::class, 'updateCustomerTags'])->name('shop.customers.tags.update');
     Route::get('/shop/orders', [ShopController::class, 'orders'])->name('shop.orders.index');
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');

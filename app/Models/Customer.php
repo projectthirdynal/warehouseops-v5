@@ -17,6 +17,7 @@ class Customer extends Model
         'normalized_phone',
         'name',
         'facebook_name',
+        'tags',
         'canonical_address',
         'landmark',
         'barangay',
@@ -42,6 +43,7 @@ class Customer extends Model
         'is_blacklisted' => 'boolean',
         'blacklisted_at' => 'datetime',
         'last_order_date' => 'datetime',
+        'tags' => 'array',
     ];
 
     public function leads(): HasMany
@@ -67,5 +69,10 @@ class Customer extends Model
     public function defaultAddress(): HasOne
     {
         return $this->hasOne(CustomerAddress::class)->where('is_default', true);
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(CustomerNote::class)->latest('created_at');
     }
 }
