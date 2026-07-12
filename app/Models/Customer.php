@@ -47,4 +47,14 @@ class Customer extends Model
     {
         return $this->hasMany(Lead::class);
     }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Order\Models\Order::class);
+    }
+
+    public function identities(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\CustomerIdentity::class);
+    }
 }
