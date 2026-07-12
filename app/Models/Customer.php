@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
@@ -56,5 +57,15 @@ class Customer extends Model
     public function identities(): HasMany
     {
         return $this->hasMany(\App\Domain\Shop\Models\CustomerIdentity::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class)->orderByDesc('is_default')->orderByDesc('used_at')->orderByDesc('id');
+    }
+
+    public function defaultAddress(): HasOne
+    {
+        return $this->hasOne(CustomerAddress::class)->where('is_default', true);
     }
 }

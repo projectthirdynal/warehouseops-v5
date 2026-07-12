@@ -12,6 +12,7 @@ use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
+use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
@@ -20,6 +21,7 @@ use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +42,7 @@ class ShopController extends Controller
         private readonly FacebookConnectorService $facebookConnector,
         private readonly CourierExportService $courierExports,
         private readonly MetaConversationIngestor $metaIngestor,
+        private readonly CustomerAddressService $customerAddresses,
     ) {}
 
     public function index(): Response
@@ -519,6 +522,7 @@ class ShopController extends Controller
     public function customers(Request $request): Response
     {
         $query = Customer::query()
+            ->with('defaultAddress:id,customer_id,label,canonical_address,barangay,city_municipality,province')
             ->when($request->filled('q'), fn ($q) => $this->applyCustomerSearch($q, $request->string('q')->toString()))
             ->latest('last_order_date')
             ->latest('id');
@@ -526,6 +530,13 @@ class ShopController extends Controller
         return Inertia::render('Shop/Customers/Index', [
             'customers' => $query->paginate(25)->withQueryString(),
             'filters' => $request->only(['q']),
+        ]);
+    }
+
+    public function showCustomer(Request $request, Customer $customer): Response
+    {
+        return Inertia::render('Shop/Customers/Show', [
+            'customer' => $customer->load(['addresses', 'defaultAddress']),
         ]);
     }
 
@@ -606,7 +617,77 @@ class ShopController extends Controller
             'region' => $addressMatch['mapping']?->region ?? $customer->region,
         ])->save();
 
+        if (! empty($validated['canonical_address'])) {
+            $this->customerAddresses->record($customer, [
+                'label' => 'Default',
+                'canonical_address' => $validated['canonical_address'] ?? null,
+                'landmark' => $validated['landmark'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'region' => $addressMatch['mapping']?->region ?? $customer->region,
+            ], true, 'profile_update');
+        }
+
         return back()->with('success', 'Customer profile updated.');
+    }
+
+    public function customerAddresses(Request $request, Customer $customer): JsonResponse
+    {
+        $addresses = $customer->addresses()->get([
+            'id',
+            'label',
+            'canonical_address',
+            'landmark',
+            'barangay',
+            'city_municipality',
+            'province',
+            'region',
+            'postal_code',
+            'contact_name',
+            'contact_phone',
+            'is_default',
+            'source',
+            'used_at',
+            'created_at',
+        ]);
+
+        return response()->json(['addresses' => $addresses]);
+    }
+
+    public function storeCustomerAddress(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'label' => ['nullable', 'string', 'max:255'],
+            'canonical_address' => ['required', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'region' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'contact_name' => ['nullable', 'string', 'max:255'],
+            'contact_phone' => ['nullable', 'string', 'max:30'],
+            'is_default' => ['boolean'],
+        ]);
+
+        $address = $this->customerAddresses->record(
+            $customer,
+            $validated,
+            $validated['is_default'] ?? false,
+            'manual'
+        );
+
+        return response()->json(['address' => $address], 201);
+    }
+
+    public function setDefaultCustomerAddress(Request $request, Customer $customer, CustomerAddress $address): JsonResponse
+    {
+        abort_unless($address->customer_id === $customer->id, 403, 'Address does not belong to this customer.');
+
+        $this->customerAddresses->setDefault($customer, $address);
+
+        return response()->json(['address' => $address->fresh()]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
@@ -1223,6 +1304,18 @@ class ShopController extends Controller
                 'confirmed_at' => now(),
                 'notes' => $validated['remarks'] ?? null,
             ]);
+
+            $this->customerAddresses->record($customer, [
+                'label' => $conversation?->facebookPage?->page_name ? "Order from {$conversation->facebookPage->page_name}" : 'Order',
+                'canonical_address' => $validated['complete_address'],
+                'landmark' => $validated['landmark'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'region' => $addressMatch['mapping']?->region,
+                'contact_name' => $validated['customer_name'],
+                'contact_phone' => $validated['phone'],
+            ], false, 'order');
 
             foreach ($preparedItems as $item) {
                 ShopOrderItem::query()->create([

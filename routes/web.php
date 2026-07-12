@@ -320,7 +320,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
     Route::get('/shop/customers/search', [ShopController::class, 'searchCustomers'])->name('shop.customers.search');
+    Route::get('/shop/customers/{customer}', [ShopController::class, 'showCustomer'])->name('shop.customers.show');
     Route::patch('/shop/customers/{customer}', [ShopController::class, 'updateCustomer'])->name('shop.customers.update');
+    Route::get('/shop/customers/{customer}/addresses', [ShopController::class, 'customerAddresses'])->name('shop.customers.addresses.index');
+    Route::post('/shop/customers/{customer}/addresses', [ShopController::class, 'storeCustomerAddress'])->name('shop.customers.addresses.store');
+    Route::patch('/shop/customers/{customer}/addresses/{address}/default', [ShopController::class, 'setDefaultCustomerAddress'])->name('shop.customers.addresses.default');
     Route::get('/shop/orders', [ShopController::class, 'orders'])->name('shop.orders.index');
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');

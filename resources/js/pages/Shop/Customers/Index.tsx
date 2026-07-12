@@ -14,6 +14,15 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { PaginatedResponse } from '@/types';
 
+interface Address {
+  id: number;
+  label: string | null;
+  canonical_address: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -21,6 +30,7 @@ interface Customer {
   normalized_phone: string;
   facebook_name: string | null;
   canonical_address: string | null;
+  default_address: Address | null;
   risk_level: string;
   is_blacklisted: boolean;
   total_orders: number;
@@ -61,39 +71,59 @@ export default function CustomersIndex({ customers, filters }: Props) {
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Facebook</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>Default Address</TableHead>
               <TableHead>Risk</TableHead>
               <TableHead>Orders</TableHead>
               <TableHead>Last Order</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {customers.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   No customers found.
                 </TableCell>
               </TableRow>
             ) : (
-              customers.data.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell>{customer.name}</TableCell>
-                  <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.facebook_name ?? '-'}</TableCell>
-                  <TableCell>{customer.canonical_address ?? '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant={customer.is_blacklisted ? 'destructive' : 'secondary'}>
-                      {customer.is_blacklisted ? 'BLACKLISTED' : customer.risk_level}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{customer.total_orders}</TableCell>
-                  <TableCell>
-                    {customer.last_order_date
-                      ? new Date(customer.last_order_date).toLocaleDateString()
-                      : '-'}
-                  </TableCell>
-                </TableRow>
-              ))
+              customers.data.map((customer) => {
+                const defaultAddress = customer.default_address;
+                return (
+                  <TableRow key={customer.id}>
+                    <TableCell>
+                      <Link
+                        href={`/shop/customers/${customer.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {customer.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{customer.phone}</TableCell>
+                    <TableCell>{customer.facebook_name ?? '-'}</TableCell>
+                    <TableCell>
+                      {defaultAddress
+                        ? `${defaultAddress.canonical_address ?? ''}${defaultAddress.barangay || defaultAddress.city_municipality || defaultAddress.province ? ` (${[defaultAddress.barangay, defaultAddress.city_municipality, defaultAddress.province].filter(Boolean).join(', ')})` : ''}`
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={customer.is_blacklisted ? 'destructive' : 'secondary'}>
+                        {customer.is_blacklisted ? 'BLACKLISTED' : customer.risk_level}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{customer.total_orders}</TableCell>
+                    <TableCell>
+                      {customer.last_order_date
+                        ? new Date(customer.last_order_date).toLocaleDateString()
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`/shop/customers/${customer.id}`}>Manage</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
