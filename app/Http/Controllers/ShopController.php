@@ -22,6 +22,7 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\User;
@@ -467,9 +468,14 @@ class ShopController extends Controller
                 'customer:id,name,phone,normalized_phone',
                 'identity:id,display_name,phone_detected',
                 'assignedAgent:id,name',
+                'tags:id,name,color',
             ])
             ->withCount('messages')
             ->latest('last_message_at');
+
+        if ($request->filled('tag_id')) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', $request->integer('tag_id')));
+        }
 
         if ($request->filled('page_id')) {
             $query->where('facebook_page_id', $request->integer('page_id'));
@@ -499,7 +505,8 @@ class ShopController extends Controller
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged']),
+            'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id']),
         ]);
     }
 
@@ -510,6 +517,7 @@ class ShopController extends Controller
             'customer:id,name,phone,normalized_phone,canonical_address,landmark,barangay,city_municipality,province,region,last_order_date,total_orders,successful_orders,returned_orders,success_rate,total_revenue,risk_level,is_blacklisted,blacklist_reason',
             'identity:id,display_name,provider_user_id,phone_detected',
             'assignedAgent:id,name',
+            'tags:id,name,color',
             'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
 
@@ -530,6 +538,7 @@ class ShopController extends Controller
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
+            'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
         ]);
     }
 
@@ -859,6 +868,36 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', 'Conversation priority updated.');
+    }
+
+    public function updateConversationTags(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['integer', 'exists:tags,id'],
+        ]);
+
+        $conversation->tags()->sync($validated['tags'] ?? []);
+
+        return back()->with('success', 'Conversation tags updated.');
+    }
+
+    public function storeTag(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:50'],
+            'color' => ['nullable', 'string', 'max:7', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ]);
+
+        Tag::query()->firstOrCreate(
+            ['slug' => str($validated['name'])->slug()->toString()],
+            [
+                'name' => $validated['name'],
+                'color' => $validated['color'] ?? '#64748b',
+            ]
+        );
+
+        return back()->with('success', 'Tag created.');
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse

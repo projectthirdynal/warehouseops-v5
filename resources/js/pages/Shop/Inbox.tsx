@@ -18,6 +18,7 @@ interface Conversation {
   priority: string;
   is_flagged: boolean;
   flag_reason: string | null;
+  tags: { id: number; name: string; color: string }[];
   last_message_preview: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -40,12 +41,14 @@ interface Props {
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
+  tags: { id: number; name: string; color: string }[];
   filters: {
     page_id?: string;
     status?: string;
     assigned_agent_id?: string;
     priority?: string;
     flagged?: string;
+    tag_id?: string;
   };
 }
 
@@ -64,6 +67,7 @@ export default function ShopInbox({
   agents,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
+  tags = [],
   filters = {},
 }: Props) {
   const updateFilter = (next: Record<string, string | undefined>) => {
@@ -134,6 +138,18 @@ export default function ShopInbox({
                 </option>
               ))}
             </select>
+            <select
+              value={filters.tag_id ?? ''}
+              onChange={(event) => updateFilter({ tag_id: event.target.value || undefined })}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">All Tags</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
             <Button
               variant={filters.flagged ? 'default' : 'outline'}
               size="sm"
@@ -194,6 +210,15 @@ export default function ShopInbox({
                             Flagged
                           </Badge>
                         )}
+                        {(conversation.tags ?? []).map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="outline"
+                            style={{ borderColor: tag.color, color: tag.color }}
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
                         {conversation.unread_count > 0 && (
                           <Badge>{conversation.unread_count} unread</Badge>
                         )}

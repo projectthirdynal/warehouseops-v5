@@ -37,6 +37,7 @@ interface Conversation {
   priority: string;
   is_flagged: boolean;
   flag_reason: string | null;
+  tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
@@ -94,6 +95,7 @@ interface Props {
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
+  tags: { id: number; name: string; color: string }[];
 }
 
 function time(value: string | null) {
@@ -158,6 +160,7 @@ export default function ShopConversation({
   agents = [],
   statuses = [],
   priorities = ['low', 'normal', 'high', 'urgent'],
+  tags = [],
 }: Props) {
   const safeMessages = conversation?.messages ?? [];
   const [messages, setMessages] = useState<Message[]>(safeMessages);
@@ -255,6 +258,36 @@ export default function ShopConversation({
         is_flagged: !conversation.is_flagged,
       },
       { preserveScroll: true }
+    );
+  };
+
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(
+    (conversation.tags ?? []).map((tag) => tag.id)
+  );
+  const [newTagName, setNewTagName] = useState('');
+
+  const toggleTag = (tagId: number) => {
+    const nextIds = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter((id) => id !== tagId)
+      : [...selectedTagIds, tagId];
+    setSelectedTagIds(nextIds);
+    router.patch(
+      `/shop/inbox/${conversation.id}/tags`,
+      { tags: nextIds },
+      { preserveScroll: true }
+    );
+  };
+
+  const createTag = (event: FormEvent) => {
+    event.preventDefault();
+    if (!newTagName.trim()) return;
+    router.post(
+      '/shop/conversation-tags',
+      { name: newTagName.trim() },
+      {
+        preserveScroll: true,
+        onSuccess: () => setNewTagName(''),
+      }
     );
   };
 
@@ -720,6 +753,47 @@ export default function ShopConversation({
                 <p className="text-muted-foreground">
                   Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tags</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Button
+                      key={tag.id}
+                      type="button"
+                      size="sm"
+                      variant={selectedTagIds.includes(tag.id) ? 'default' : 'outline'}
+                      onClick={() => toggleTag(tag.id)}
+                      style={
+                        selectedTagIds.includes(tag.id)
+                          ? {}
+                          : { borderColor: tag.color, color: tag.color }
+                      }
+                    >
+                      {tag.name}
+                    </Button>
+                  ))}
+                  {tags.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No tags yet.</p>
+                  )}
+                </div>
+                <form onSubmit={createTag} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder="New tag name"
+                    className="h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <Button type="submit" size="sm" disabled={!newTagName.trim()}>
+                    Add
+                  </Button>
+                </form>
               </CardContent>
             </Card>
 

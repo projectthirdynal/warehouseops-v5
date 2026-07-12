@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -30,7 +31,6 @@ class Conversation extends Model
         'last_message_preview',
         'last_message_at',
         'unread_count',
-        'tags',
         'metadata',
     ];
 
@@ -38,9 +38,13 @@ class Conversation extends Model
         'last_message_at' => 'datetime',
         'flagged_at' => 'datetime',
         'is_flagged' => 'boolean',
-        'tags' => 'array',
         'metadata' => 'array',
     ];
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'conversation_tag');
+    }
 
     public function facebookPage(): BelongsTo
     {
