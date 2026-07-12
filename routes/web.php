@@ -310,6 +310,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');
     Route::get('/shop/pos', [ShopController::class, 'pos'])->name('shop.pos');
+    Route::get('/shop/pos/search', [ShopController::class, 'posSearch'])->name('shop.pos.search');
+    Route::post('/shop/pos/checkout', [ShopController::class, 'posCheckout'])->name('shop.pos.checkout');
     Route::get('/shop/inbox', [ShopController::class, 'inbox'])->name('shop.inbox');
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/reply', [ShopController::class, 'sendReply'])->name('shop.conversation.reply');

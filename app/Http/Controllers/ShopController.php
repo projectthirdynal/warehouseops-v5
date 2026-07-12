@@ -775,7 +775,191 @@ class ShopController extends Controller
 
     public function pos(): Response
     {
-        return Inertia::render('Shop/POS/Index');
+        $products = Product::query()
+            ->with([
+                'activeVariants:id,product_id,sku,variant_name,selling_price',
+                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                'stock:id,product_id,variant_id,current_stock,reserved_stock',
+            ])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(100)
+            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+
+        return Inertia::render('Shop/POS/Index', [
+            'products' => $products->map(fn (Product $p) => [
+                'id' => $p->id,
+                'sku' => $p->sku,
+                'name' => $p->name,
+                'brand' => $p->brand,
+                'selling_price' => (float) $p->selling_price,
+                'image_url' => $p->image_url,
+                'available_stock' => $p->stock?->available_stock ?? 0,
+                'variants' => $p->activeVariants->map(fn ($v) => [
+                    'id' => $v->id,
+                    'sku' => $v->sku,
+                    'variant_name' => $v->variant_name,
+                    'selling_price' => (float) $v->selling_price,
+                    'available_stock' => $v->stock?->available_stock ?? 0,
+                ])->values(),
+            ])->values(),
+            'payment_methods' => [
+                ['value' => 'CASH', 'label' => 'Cash'],
+                ['value' => 'GCASH', 'label' => 'GCash'],
+                ['value' => 'CARD', 'label' => 'Card'],
+                ['value' => 'COD', 'label' => 'Cash on Delivery'],
+            ],
+        ]);
+    }
+
+    public function posSearch(Request $request)
+    {
+        $request->validate(['q' => ['nullable', 'string', 'max:100']]);
+        $q = $request->string('q')->toString();
+
+        $products = Product::query()
+            ->with([
+                'activeVariants:id,product_id,sku,variant_name,selling_price',
+                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                'stock:id,product_id,variant_id,current_stock,reserved_stock',
+            ])
+            ->where('is_active', true)
+            ->when($q !== '', fn ($query) => $query->search($q))
+            ->orderBy('name')
+            ->limit(30)
+            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+
+        return response()->json([
+            'products' => $products->map(fn (Product $p) => [
+                'id' => $p->id,
+                'sku' => $p->sku,
+                'name' => $p->name,
+                'brand' => $p->brand,
+                'selling_price' => (float) $p->selling_price,
+                'image_url' => $p->image_url,
+                'available_stock' => $p->stock?->available_stock ?? 0,
+                'variants' => $p->activeVariants->map(fn ($v) => [
+                    'id' => $v->id,
+                    'sku' => $v->sku,
+                    'variant_name' => $v->variant_name,
+                    'selling_price' => (float) $v->selling_price,
+                    'available_stock' => $v->stock?->available_stock ?? 0,
+                ])->values(),
+            ])->values(),
+        ]);
+    }
+
+    public function posCheckout(Request $request)
+    {
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'items' => ['required', 'array', 'min:1', 'max:50'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'payment_method' => ['required', 'string', 'in:CASH,GCASH,CARD,COD'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'amount_paid' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $products = Product::query()
+            ->with(['variants:id,product_id,sku,variant_name,selling_price'])
+            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
+            ->get()
+            ->keyBy('id');
+
+        $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
+            $product = $products->get((int) $item['product_id']);
+            abort_unless($product, 422, 'Selected product was not found.');
+
+            $variant = null;
+            if (! empty($item['variant_id'])) {
+                $variant = $product->variants->firstWhere('id', (int) $item['variant_id']);
+                abort_unless($variant, 422, 'Selected variant does not belong to the product.');
+            }
+
+            $quantity = (int) $item['quantity'];
+            $unitPrice = (float) $item['unit_price'];
+            $lineTotal = $quantity * $unitPrice;
+
+            return [
+                'product' => $product,
+                'variant' => $variant,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'line_total' => $lineTotal,
+                'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
+                'sku' => $variant?->sku ?? $product->sku,
+            ];
+        })->values();
+
+        $primaryItem = $preparedItems->first();
+        $discountAmount = (float) ($validated['discount_amount'] ?? 0);
+        $totalQuantity = (int) $preparedItems->sum('quantity');
+        $subtotal = (float) $preparedItems->sum('line_total');
+        $totalAmount = max(0, $subtotal - $discountAmount);
+        $amountPaid = (float) ($validated['amount_paid'] ?? 0);
+        $change = max(0, $amountPaid - $totalAmount);
+
+        $order = DB::transaction(function () use ($validated, $preparedItems, $primaryItem, $discountAmount, $totalQuantity, $subtotal, $totalAmount, $amountPaid, $change) {
+            $customer = null;
+            if (! empty($validated['phone'])) {
+                $customer = $this->customerIdentities->firstOrCreateFromPhone([
+                    'name' => $validated['customer_name'],
+                    'phone' => $validated['phone'],
+                ]);
+            }
+
+            $order = Order::query()->create([
+                'order_number' => Order::generateOrderNumber(),
+                'customer_id' => $customer?->id,
+                'assigned_agent_id' => auth()->id(),
+                'status' => OrderStatus::CONFIRMED,
+                'courier_code' => 'MANUAL',
+                'quantity' => $totalQuantity,
+                'unit_price' => $primaryItem['unit_price'],
+                'total_amount' => $totalAmount,
+                'cod_amount' => $validated['payment_method'] === 'COD' ? $totalAmount : 0,
+                'receiver_name' => $validated['customer_name'],
+                'receiver_phone' => $validated['phone'] ?? null,
+                'source_channel' => 'pos',
+                'export_status' => 'pos',
+                'confirmed_at' => now(),
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            foreach ($preparedItems as $item) {
+                ShopOrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product']->id,
+                    'variant_id' => $item['variant']?->id,
+                    'sku' => $item['sku'],
+                    'product_name' => $item['display_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'discount_amount' => 0,
+                    'line_total' => $item['line_total'],
+                    'metadata' => ['pos_payment_method' => $validated['payment_method']],
+                ]);
+            }
+
+            return $order;
+        });
+
+        return response()->json([
+            'success' => true,
+            'order' => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'total_amount' => (float) $order->total_amount,
+                'change' => $change,
+                'payment_method' => $validated['payment_method'],
+                'items_count' => $totalQuantity,
+            ],
+        ]);
     }
 
     public function createOrder(Request $request): Response
