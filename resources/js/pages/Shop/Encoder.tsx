@@ -27,6 +27,7 @@ interface Batch {
   id: number;
   batch_number: string;
   courier_code: string;
+  region?: string | null;
   status: string;
   row_count: number;
   failed_row_count?: number;
@@ -127,6 +128,7 @@ function AddressEditor({ order }: { order: Order }) {
 
 export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+  const [groupByRegion, setGroupByRegion] = useState(false);
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -144,6 +146,7 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     router.post('/shop/exports', {
       courier_code: courierCode,
       order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+      group_by_region: groupByRegion || undefined,
     });
   };
 
@@ -159,12 +162,21 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
               Confirmed orders ready for address review and courier export
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {orders.data.length > 0 && (
               <Button variant="outline" onClick={toggleAll}>
                 {selectedOrderIds.length === orders.data.length ? 'Clear Selection' : 'Select All'}
               </Button>
             )}
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={groupByRegion}
+                onChange={(e) => setGroupByRegion(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Group by Region
+            </label>
             {couriers.map((courier) => (
               <Button
                 key={courier.value}
@@ -275,7 +287,10 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {batch.courier_code} - {batch.row_count} rows
+                          {batch.courier_code}
+                          {batch.region && <span className="font-medium"> - {batch.region}</span>}
+                          {' - '}
+                          {batch.row_count} rows
                           {batch.failed_row_count && batch.failed_row_count > 0 && (
                             <span className="ml-1 text-destructive">
                               ({batch.failed_row_count} failed)

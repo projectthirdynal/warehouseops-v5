@@ -17,14 +17,15 @@ class CourierExportService
     /**
      * @param Collection<int, Order> $orders
      */
-    public function createBatch(Collection $orders, string $courierCode, ?int $userId): CourierExportBatch
+    public function createBatch(Collection $orders, string $courierCode, ?int $userId, ?string $region = null): CourierExportBatch
     {
         $this->validateOrders($orders, $courierCode);
 
-        return DB::transaction(function () use ($orders, $courierCode, $userId) {
+        return DB::transaction(function () use ($orders, $courierCode, $userId, $region) {
             $batch = CourierExportBatch::query()->create([
                 'batch_number' => $this->batchNumber($courierCode),
                 'courier_code' => $courierCode,
+                'region' => $region,
                 'status' => CourierExportBatch::STATUS_READY,
                 'created_by' => $userId,
                 'row_count' => $orders->count(),
@@ -67,6 +68,19 @@ class CourierExportService
 
             return $batch;
         });
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
+     * @return Collection<int, CourierExportBatch>
+     */
+    public function createBatchesByRegion(Collection $orders, string $courierCode, ?int $userId): Collection
+    {
+        $grouped = $orders->groupBy(fn (Order $order) => $order->state ?? 'Unknown');
+
+        return $grouped->map(fn (Collection $regionOrders, string $region) =>
+            $this->createBatch($regionOrders, $courierCode, $userId, $region)
+        )->values();
     }
 
     /**

@@ -1687,7 +1687,7 @@ class ShopController extends Controller
                 ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
                 ->latest()
                 ->limit(10)
-                ->get(['id', 'batch_number', 'courier_code', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'created_at']),
+                ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'created_at']),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
@@ -1702,6 +1702,7 @@ class ShopController extends Controller
             'courier_code' => ['required', 'string', 'max:30'],
             'order_ids' => ['nullable', 'array'],
             'order_ids.*' => ['integer', 'exists:orders,id'],
+            'group_by_region' => ['nullable', 'boolean'],
         ]);
 
         $orders = Order::query()
@@ -1714,6 +1715,16 @@ class ShopController extends Controller
 
         if ($orders->isEmpty()) {
             return back()->with('error', 'No encoder-ready orders found for export.');
+        }
+
+        if (! empty($validated['group_by_region'])) {
+            $batches = $this->courierExports->createBatchesByRegion($orders, $validated['courier_code'], auth()->id());
+            $count = $batches->count();
+            $regions = $batches->map(fn ($b) => $b->region)->filter()->unique()->implode(', ');
+
+            return redirect()
+                ->route('shop.encoder')
+                ->with('success', "Created {$count} batch(es) by region: {$regions}");
         }
 
         $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());

@@ -28,6 +28,7 @@ class CourierExportBatch extends Model
     protected $fillable = [
         'batch_number',
         'courier_code',
+        'region',
         'status',
         'created_by',
         'row_count',
