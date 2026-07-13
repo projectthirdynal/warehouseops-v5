@@ -32,6 +32,8 @@ interface Conversation {
   flag_reason: string | null;
   snoozed_until: string | null;
   reminder_at: string | null;
+  sentiment: string;
+  sentiment_score: number;
   tags: { id: number; name: string; color: string }[];
   last_message_preview: string | null;
   last_message_at: string | null;
@@ -337,6 +339,16 @@ export default function ShopInbox({
                             {conversation.reminder_at && (
                               <Badge variant="outline" className="gap-1">
                                 Reminder
+                              </Badge>
+                            )}
+                            {conversation.sentiment === 'positive' && (
+                              <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                Positive
+                              </Badge>
+                            )}
+                            {conversation.sentiment === 'negative' && (
+                              <Badge className="gap-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                                Negative
                               </Badge>
                             )}
                             {conversation.unread_count > 0 && (

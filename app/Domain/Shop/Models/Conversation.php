@@ -35,6 +35,8 @@ class Conversation extends Model
         'resolved_at',
         'first_response_time_seconds',
         'resolution_time_seconds',
+        'sentiment',
+        'sentiment_score',
         'thread_key',
         'last_message_preview',
         'last_message_at',
@@ -49,6 +51,7 @@ class Conversation extends Model
         'reminder_at' => 'datetime',
         'first_response_at' => 'datetime',
         'resolved_at' => 'datetime',
+        'sentiment_score' => 'float',
         'is_flagged' => 'boolean',
         'metadata' => 'array',
     ];

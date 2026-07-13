@@ -38,6 +38,7 @@ interface Props {
   stats: Stats;
   per_agent: AgentStat[];
   status_distribution: Record<string, number>;
+  sentiment_distribution: Record<string, number>;
   daily_trend: DailyTrendItem[];
   range: string;
 }
@@ -55,6 +56,7 @@ export default function ConversationAnalytics({
   stats,
   per_agent,
   status_distribution,
+  sentiment_distribution,
   daily_trend,
   range,
 }: Props) {
@@ -179,6 +181,47 @@ export default function ConversationAnalytics({
             </CardContent>
           </Card>
         </div>
+
+        {/* Sentiment distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sentiment Distribution</CardTitle>
+            <CardDescription>Conversations by sentiment classification</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {(['positive', 'neutral', 'negative'] as const).map((sentiment) => {
+                const count = sentiment_distribution[sentiment] ?? 0;
+                const total = Object.values(sentiment_distribution).reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                const colors: Record<string, string> = {
+                  positive: 'bg-green-500',
+                  neutral: 'bg-gray-400',
+                  negative: 'bg-red-500',
+                };
+                return (
+                  <div key={sentiment} className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="capitalize">{sentiment}</span>
+                      <span className="font-medium">
+                        {count} ({pct}%)
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full ${colors[sentiment]}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {Object.keys(sentiment_distribution).length === 0 && (
+                <p className="text-sm text-muted-foreground">No data for this period.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Daily trend chart */}
         <Card>

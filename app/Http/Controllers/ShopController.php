@@ -19,6 +19,7 @@ use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
+use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -48,6 +49,7 @@ class ShopController extends Controller
         private readonly CustomerAddressService $customerAddresses,
         private readonly CustomerNoteService $customerNotes,
         private readonly CustomerTimelineService $customerTimeline,
+        private readonly SentimentAnalysisService $sentimentAnalyzer,
     ) {}
 
     public function index(): Response
@@ -1140,6 +1142,12 @@ class ShopController extends Controller
             ->groupBy('status')
             ->pluck('count', 'status');
 
+        // Sentiment distribution
+        $sentimentDistribution = (clone $baseQuery)
+            ->select('sentiment', DB::raw('count(*) as count'))
+            ->groupBy('sentiment')
+            ->pluck('count', 'sentiment');
+
         // Daily trend
         $dailyTrend = (clone $baseQuery)
             ->selectRaw("DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved")
@@ -1161,6 +1169,7 @@ class ShopController extends Controller
             ],
             'per_agent' => $perAgent,
             'status_distribution' => $statusDistribution,
+            'sentiment_distribution' => $sentimentDistribution,
             'daily_trend' => $dailyTrend,
             'range' => $range ?: '30d',
         ]);

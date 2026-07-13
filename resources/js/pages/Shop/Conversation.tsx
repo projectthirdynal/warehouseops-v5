@@ -41,6 +41,8 @@ interface Conversation {
   snooze_reason: string | null;
   reminder_at: string | null;
   merged_into_id: number | null;
+  sentiment: string;
+  sentiment_score: number;
   tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
@@ -913,6 +915,33 @@ export default function ShopConversation({
                     </Button>
                   </form>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Sentiment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {conversation.sentiment === 'positive' && (
+                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                      Positive
+                    </Badge>
+                  )}
+                  {conversation.sentiment === 'negative' && (
+                    <Badge className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                      Negative
+                    </Badge>
+                  )}
+                  {conversation.sentiment === 'neutral' && <Badge variant="outline">Neutral</Badge>}
+                  <span className="text-sm text-muted-foreground">
+                    Score: {conversation.sentiment_score.toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Based on keyword analysis of recent inbound messages.
+                </p>
               </CardContent>
             </Card>
 

@@ -15,6 +15,7 @@ class MetaConversationIngestor
     public function __construct(
         private readonly PhoneDetectionService $phones,
         private readonly CustomerIdentityService $customerIdentities,
+        private readonly SentimentAnalysisService $sentimentAnalyzer,
     ) {}
 
     public function process(FacebookWebhookEvent $webhookEvent): void
@@ -81,6 +82,23 @@ class MetaConversationIngestor
                     'send_status' => null,
                 ]
             );
+
+            // Update sentiment based on recent inbound messages
+            if ($body !== '') {
+                $recentMessages = $conversation->messages()
+                    ->where('direction', 'inbound')
+                    ->latest('sent_at')
+                    ->limit(10)
+                    ->pluck('body')
+                    ->filter()
+                    ->toArray();
+
+                $sentiment = $this->sentimentAnalyzer->analyze(implode(' ', $recentMessages));
+                $conversation->forceFill([
+                    'sentiment' => $sentiment['sentiment'],
+                    'sentiment_score' => $sentiment['score'],
+                ])->save();
+            }
 
             $webhookEvent->forceFill([
                 'processed_at' => now(),
