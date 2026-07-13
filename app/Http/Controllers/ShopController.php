@@ -1340,6 +1340,7 @@ class ShopController extends Controller
             'message_type',
             'attachments',
             'metadata',
+            'reactions',
             'sent_at',
             'raw_payload',
             'phone_candidates',
@@ -1398,6 +1399,7 @@ class ShopController extends Controller
                 'message_type',
                 'attachments',
                 'metadata',
+                'reactions',
                 'sent_at',
                 'raw_payload',
                 'phone_candidates',
@@ -1411,6 +1413,26 @@ class ShopController extends Controller
             'messages' => $messages->take($messageLimit),
             'has_more' => $hasMore,
         ]);
+    }
+
+    public function toggleReaction(Request $request, Message $message): JsonResponse
+    {
+        $validated = $request->validate([
+            'emoji' => ['required', 'string', 'max:10'],
+        ]);
+
+        $reactions = $message->reactions ?? [];
+        $agentKey = 'agent:' . $request->user()->id;
+
+        if (($reactions[$agentKey] ?? null) === $validated['emoji']) {
+            unset($reactions[$agentKey]);
+        } else {
+            $reactions[$agentKey] = $validated['emoji'];
+        }
+
+        $message->forceFill(['reactions' => $reactions])->save();
+
+        return response()->json(['reactions' => $reactions]);
     }
 
     public function encoder(): Response

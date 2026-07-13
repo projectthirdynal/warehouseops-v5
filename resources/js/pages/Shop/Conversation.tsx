@@ -46,6 +46,7 @@ interface Message {
     quick_reply_payload?: string;
     quick_replies?: { title: string; payload: string }[];
   } | null;
+  reactions?: Record<string, string> | null;
   sent_at: string | null;
   phone_candidates?: string[] | null;
   raw_payload?: Record<string, unknown> | null;
@@ -610,7 +611,7 @@ export default function ShopConversation({
                       className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
+                        className={`group max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
                           message.direction === 'outbound'
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted/40'
@@ -718,6 +719,49 @@ export default function ShopConversation({
                             </span>
                           </div>
                         )}
+                        {message.reactions && Object.keys(message.reactions).length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {Object.entries(message.reactions).map(([key, emoji]) => (
+                              <span
+                                key={key}
+                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                                  message.direction === 'outbound'
+                                    ? 'bg-primary-foreground/20'
+                                    : 'bg-muted'
+                                }`}
+                              >
+                                {emoji}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div
+                          className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                              onClick={() => {
+                                axios
+                                  .post(`/shop/messages/${message.id}/reaction`, { emoji })
+                                  .then(({ data }) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? { ...m, reactions: data.reactions }
+                                          : m
+                                      )
+                                    );
+                                  })
+                                  .catch(() => {});
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   );

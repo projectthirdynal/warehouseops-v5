@@ -45,6 +45,14 @@ class MetaConversationIngestor
             return;
         }
 
+        // Handle reaction events (react/unreact)
+        $reactionAction = data_get($payload, 'reaction.action');
+        if (is_string($reactionAction)) {
+            $this->handleReaction($webhookEvent, $senderPsid, $reactionAction, data_get($payload, 'reaction.emoji'));
+
+            return;
+        }
+
         DB::transaction(function () use ($webhookEvent, $payload, $senderPsid) {
             $body = (string) (data_get($payload, 'message.text') ?? data_get($payload, 'postback.title') ?? '');
             $quickReplyPayload = data_get($payload, 'message.quick_reply.payload');
@@ -244,6 +252,40 @@ class MetaConversationIngestor
                 $conversation->forceFill(['typing_at' => now()])->save();
             } elseif ($action === 'typing_off' || $action === 'mark_seen') {
                 $conversation->forceFill(['typing_at' => null])->save();
+            }
+        }
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
+    }
+
+    /**
+     * Handle reaction events: react (add emoji) or unreact (remove emoji).
+     */
+    private function handleReaction(
+        FacebookWebhookEvent $webhookEvent,
+        string $senderPsid,
+        string $action,
+        ?string $emoji
+    ): void {
+        $payload = $webhookEvent->payload ?? [];
+        $messageMid = data_get($payload, 'reaction.mid') ?? data_get($payload, 'message.mid');
+
+        if (is_string($messageMid)) {
+            $message = Message::query()->where('external_message_id', $messageMid)->first();
+
+            if ($message) {
+                $reactions = $message->reactions ?? [];
+
+                if ($action === 'react' && $emoji) {
+                    $reactions[$senderPsid] = $emoji;
+                } elseif ($action === 'unreact') {
+                    unset($reactions[$senderPsid]);
+                }
+
+                $message->forceFill(['reactions' => $reactions])->save();
             }
         }
 
