@@ -11,8 +11,10 @@ import {
   ImageIcon,
   MapPin,
   PackageCheck,
+  Plus,
   Send,
   ShoppingCart,
+  Trash2,
   User,
   UserCheck,
   Video as VideoIcon,
@@ -39,6 +41,10 @@ interface Message {
   body: string | null;
   message_type?: string;
   attachments?: Attachment[] | null;
+  metadata?: {
+    quick_reply_payload?: string;
+    quick_replies?: { title: string; payload: string }[];
+  } | null;
   sent_at: string | null;
   phone_candidates?: string[] | null;
   raw_payload?: Record<string, unknown> | null;
@@ -251,7 +257,16 @@ export default function ShopConversation({
     return () => clearInterval(interval);
   }, [conversation?.id, lastMessageId, pollingEnabled]);
 
-  const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
+  const { data, setData, post, processing, reset, errors } = useForm<{
+    body: string;
+    quick_replies: { title: string; payload: string }[];
+  }>({
+    body: '',
+    quick_replies: [],
+  });
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [qrTitle, setQrTitle] = useState('');
+  const [qrPayload, setQrPayload] = useState('');
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -385,8 +400,28 @@ export default function ShopConversation({
     event.preventDefault();
     post(`/shop/inbox/${conversation.id}/reply`, {
       preserveScroll: true,
-      onSuccess: () => reset('body'),
+      onSuccess: () => {
+        reset('body', 'quick_replies');
+        setShowQuickReplies(false);
+      },
     });
+  };
+
+  const addQuickReply = () => {
+    if (!qrTitle.trim() || !qrPayload.trim()) return;
+    setData('quick_replies', [
+      ...data.quick_replies,
+      { title: qrTitle.trim().slice(0, 20), payload: qrPayload.trim() },
+    ]);
+    setQrTitle('');
+    setQrPayload('');
+  };
+
+  const removeQuickReply = (index: number) => {
+    setData(
+      'quick_replies',
+      data.quick_replies.filter((_, i) => i !== index)
+    );
   };
 
   const updateCustomer = (event: FormEvent) => {
@@ -537,6 +572,14 @@ export default function ShopConversation({
                         }`}
                       >
                         {message.body && <p>{message.body}</p>}
+                        {message.message_type === 'quick_reply' &&
+                          message.metadata?.quick_reply_payload && (
+                            <p
+                              className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                            >
+                              Quick Reply: {message.metadata.quick_reply_payload}
+                            </p>
+                          )}
                         {message.attachments && message.attachments.length > 0 && (
                           <div className="mt-1 space-y-2">
                             {message.attachments.map((att, idx) => {
@@ -643,7 +686,91 @@ export default function ShopConversation({
                   placeholder="Type a reply..."
                 />
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
-                <div className="flex justify-end">
+
+                {data.quick_replies.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {data.quick_replies.map((qr, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 text-xs"
+                      >
+                        <span className="font-medium">{qr.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeQuickReply(idx)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {showQuickReplies && (
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Add Quick Reply Button</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowQuickReplies(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          Button Title (max 20 chars)
+                        </label>
+                        <Input
+                          value={qrTitle}
+                          onChange={(e) => setQrTitle(e.target.value)}
+                          placeholder="e.g. Confirm Order"
+                          maxLength={20}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs text-muted-foreground">Payload</label>
+                        <Input
+                          value={qrPayload}
+                          onChange={(e) => setQrPayload(e.target.value)}
+                          placeholder="e.g. CONFIRM_ORDER"
+                          className="h-9"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={addQuickReply}
+                        disabled={
+                          !qrTitle.trim() || !qrPayload.trim() || data.quick_replies.length >= 11
+                        }
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Add
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {data.quick_replies.length}/11 buttons — Facebook shows these as tappable
+                      buttons below your message.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowQuickReplies((v) => !v)}
+                  >
+                    <Plus className="mr-1.5 h-3 w-3" />
+                    Quick Reply Buttons
+                  </Button>
                   <Button type="submit" disabled={processing}>
                     <Send className="mr-1.5 h-4 w-4" />
                     Send / Log Reply

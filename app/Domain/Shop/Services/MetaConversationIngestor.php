@@ -39,6 +39,7 @@ class MetaConversationIngestor
 
         DB::transaction(function () use ($webhookEvent, $payload, $senderPsid) {
             $body = (string) (data_get($payload, 'message.text') ?? data_get($payload, 'postback.title') ?? '');
+            $quickReplyPayload = data_get($payload, 'message.quick_reply.payload');
             $detectedPhones = $this->phones->extract($body);
             $customer = $detectedPhones === [] ? null : $this->customerIdentities->findByPhone($detectedPhones[0]);
 
@@ -81,6 +82,7 @@ class MetaConversationIngestor
                     'body' => $body !== '' ? $body : null,
                     'attachments' => data_get($payload, 'message.attachments'),
                     'phone_candidates' => $detectedPhones,
+                    'metadata' => $quickReplyPayload !== null ? ['quick_reply_payload' => $quickReplyPayload] : null,
                     'raw_payload' => $payload,
                     'sent_at' => $this->eventTimestamp($payload),
                     'read_at' => null,
@@ -235,6 +237,14 @@ class MetaConversationIngestor
      */
     private function classifyMessageType(array $payload): string
     {
+        if (data_get($payload, 'message.quick_reply.payload') !== null) {
+            return 'quick_reply';
+        }
+
+        if (data_get($payload, 'postback.payload') !== null) {
+            return 'postback';
+        }
+
         if (! data_get($payload, 'message.attachments')) {
             return 'text';
         }

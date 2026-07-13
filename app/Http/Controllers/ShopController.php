@@ -1213,18 +1213,31 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
+            'quick_replies' => ['nullable', 'array', 'max:11'],
+            'quick_replies.*.title' => ['required', 'string', 'max:20'],
+            'quick_replies.*.payload' => ['required', 'string', 'max:1000'],
         ]);
 
         $conversation->load(['facebookPage', 'identity']);
         $delivery = ['status' => 'logged'];
+        $quickReplies = $validated['quick_replies'] ?? [];
 
         if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
             try {
-                $delivery = $this->facebookConnector->sendMessage(
-                    $conversation->facebookPage,
-                    $conversation->identity->provider_user_id,
-                    $validated['body']
-                );
+                if ($quickReplies !== []) {
+                    $delivery = $this->facebookConnector->sendMessageWithQuickReplies(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $validated['body'],
+                        $quickReplies
+                    );
+                } else {
+                    $delivery = $this->facebookConnector->sendMessage(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $validated['body']
+                    );
+                }
                 $delivery['status'] = 'sent';
             } catch (\Throwable $exception) {
                 $delivery = [
@@ -1240,8 +1253,9 @@ class ShopController extends Controller
             'customer_identity_id' => $conversation->customer_identity_id,
             'external_message_id' => 'local-' . str()->uuid(),
             'direction' => 'outbound',
-            'message_type' => 'text',
+            'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
             'body' => $validated['body'],
+            'metadata' => $quickReplies !== [] ? ['quick_replies' => $quickReplies] : null,
             'raw_payload' => $delivery,
             'sent_at' => now(),
             'send_status' => $delivery['status'],

@@ -19,6 +19,7 @@ class Message extends Model
         'body',
         'attachments',
         'phone_candidates',
+        'metadata',
         'raw_payload',
         'sent_at',
         'read_at',
@@ -30,6 +31,7 @@ class Message extends Model
     protected $casts = [
         'attachments' => 'array',
         'phone_candidates' => 'array',
+        'metadata' => 'array',
         'raw_payload' => 'array',
         'sent_at' => 'datetime',
         'read_at' => 'datetime',
