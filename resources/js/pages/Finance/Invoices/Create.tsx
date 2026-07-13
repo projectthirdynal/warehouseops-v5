@@ -43,7 +43,7 @@ interface Line {
 
 export default function InvoiceCreate({ thirdParties, products }: Props) {
   const { data, setData, post, processing, errors } = useForm({
-    third_party_id: '',
+    third_party_id: 'walk_in',
     type: 'standard',
     date_invoice: new Date().toISOString().split('T')[0],
     date_due: '',
@@ -147,7 +147,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
                     <SelectValue placeholder="Select client..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Walk-in Customer</SelectItem>
+                    <SelectItem value="walk_in">Walk-in Customer</SelectItem>
                     {thirdParties.map((tp) => (
                       <SelectItem key={tp.id} value={tp.id.toString()}>
                         {tp.name} ({tp.type})
@@ -246,7 +246,7 @@ export default function InvoiceCreate({ thirdParties, products }: Props) {
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Custom</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
                         {products.map((p) => (
                           <SelectItem key={p.id} value={p.id.toString()}>
                             {p.name}

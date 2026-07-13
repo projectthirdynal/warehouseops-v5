@@ -7,8 +7,11 @@ namespace App\Domain\Shop\Services;
 use App\Domain\Order\Models\Order;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportRow;
+use App\Models\User;
+use App\Notifications\CourierExportBatchReadyNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -17,15 +20,16 @@ class CourierExportService
     /**
      * @param Collection<int, Order> $orders
      */
-    public function createBatch(Collection $orders, string $courierCode, ?int $userId): CourierExportBatch
+    public function createBatch(Collection $orders, string $courierCode, ?int $userId, ?string $region = null): CourierExportBatch
     {
         $this->validateOrders($orders, $courierCode);
 
-        return DB::transaction(function () use ($orders, $courierCode, $userId) {
+        return DB::transaction(function () use ($orders, $courierCode, $userId, $region) {
             $batch = CourierExportBatch::query()->create([
                 'batch_number' => $this->batchNumber($courierCode),
                 'courier_code' => $courierCode,
-                'status' => 'exported',
+                'region' => $region,
+                'status' => CourierExportBatch::STATUS_READY,
                 'created_by' => $userId,
                 'row_count' => $orders->count(),
                 'exported_at' => now(),
@@ -65,8 +69,42 @@ class CourierExportService
             Storage::put($path, $this->csv($rows, $courierCode));
             $batch->forceFill(['file_path' => $path])->save();
 
+            if ($userId !== null) {
+                $user = User::query()->find($userId);
+                if ($user !== null) {
+                    Notification::send($user, new CourierExportBatchReadyNotification($batch));
+                }
+            }
+
             return $batch;
         });
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
+     * @param array<int, string> $courierCodes
+     * @return Collection<int, CourierExportBatch>
+     */
+    public function createBatchesForCouriers(Collection $orders, array $courierCodes, ?int $userId): Collection
+    {
+        return collect($courierCodes)->flatMap(function (string $courierCode) use ($orders, $userId) {
+            $this->validateOrders($orders, $courierCode);
+
+            return [$this->createBatch($orders, $courierCode, $userId)];
+        })->values();
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
+     * @return Collection<int, CourierExportBatch>
+     */
+    public function createBatchesByRegion(Collection $orders, string $courierCode, ?int $userId): Collection
+    {
+        $grouped = $orders->groupBy(fn (Order $order) => $order->state ?? 'Unknown');
+
+        return $grouped->map(fn (Collection $regionOrders, string $region) =>
+            $this->createBatch($regionOrders, $courierCode, $userId, $region)
+        )->values();
     }
 
     /**
@@ -180,6 +218,83 @@ class CourierExportService
     private function batchNumber(string $courierCode): string
     {
         return sprintf('SHOP-%s-%s-%04d', strtoupper($courierCode), now()->format('Ymd'), CourierExportBatch::whereDate('created_at', today())->count() + 1);
+    }
+
+    public function rebuildBatch(CourierExportBatch $batch): CourierExportBatch
+    {
+        $failedRows = $batch->rows()->where('status', 'failed')->get();
+
+        if ($failedRows->isEmpty()) {
+            return $batch;
+        }
+
+        return DB::transaction(function () use ($batch, $failedRows) {
+            $batch->forceFill([
+                'status' => CourierExportBatch::STATUS_PROCESSING,
+            ])->save();
+
+            $rebuilt = 0;
+            $stillFailed = 0;
+
+            foreach ($failedRows as $row) {
+                $order = $row->order;
+
+                if (! $order) {
+                    $row->forceFill([
+                        'error_message' => 'Linked order no longer exists',
+                    ])->save();
+                    $stillFailed++;
+                    continue;
+                }
+
+                try {
+                    [$productName, $quantity] = $this->orderLineSummary($order);
+
+                    $row->forceFill([
+                        'status' => 'exported',
+                        'receiver_name' => $order->receiver_name,
+                        'phone_number' => $order->receiver_phone,
+                        'complete_address' => $order->receiver_address,
+                        'province' => $order->state,
+                        'city' => $order->city,
+                        'barangay' => $order->barangay,
+                        'product_name' => $productName,
+                        'cod_amount' => $order->cod_amount,
+                        'quantity' => $quantity,
+                        'remarks' => $order->notes,
+                        'error_message' => null,
+                        'exported_at' => now(),
+                    ])->save();
+
+                    $rebuilt++;
+                } catch (\Throwable $e) {
+                    $row->forceFill([
+                        'error_message' => $e->getMessage(),
+                    ])->save();
+                    $stillFailed++;
+                }
+            }
+
+            $allRows = $batch->rows()->orderBy('row_number')->get();
+
+            if ($stillFailed === 0) {
+                $path = "exports/shop/{$batch->batch_number}.csv";
+                Storage::put($path, $this->csv($allRows, $batch->courier_code));
+
+                $batch->forceFill([
+                    'status' => CourierExportBatch::STATUS_READY,
+                    'file_path' => $path,
+                    'row_count' => $allRows->count(),
+                ])->save();
+            } else {
+                $batch->forceFill([
+                    'status' => CourierExportBatch::STATUS_READY,
+                    'row_count' => $allRows->where('status', 'exported')->count(),
+                ])->save();
+            }
+
+            return $batch->refresh();
+        });
     }
 
     /**

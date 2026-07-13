@@ -1,6 +1,18 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Download, FileSpreadsheet, PackageCheck, Truck } from 'lucide-react';
+import {
+  BarChart3,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  PackageCheck,
+  Truck,
+  Archive,
+  RotateCcw,
+  StickyNote,
+  Trash2,
+  X,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,8 +39,17 @@ interface Batch {
   id: number;
   batch_number: string;
   courier_code: string;
+  region?: string | null;
+  status: string;
   row_count: number;
+  failed_row_count?: number;
   file_path?: string | null;
+  exported_at?: string | null;
+  downloaded_at?: string | null;
+  archived_at?: string | null;
+  notes?: string | null;
+  created_by?: number | null;
+  creator?: { id: number; name: string } | null;
   created_at: string;
 }
 
@@ -122,6 +143,68 @@ function AddressEditor({ order }: { order: Order }) {
 
 export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+  const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
+  const [groupByRegion, setGroupByRegion] = useState(false);
+  const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [previewBatch, setPreviewBatch] = useState<{
+    id: number;
+    batch_number: string;
+    courier_code: string;
+    region?: string | null;
+    status: string;
+    row_count: number;
+  } | null>(null);
+  const [previewRows, setPreviewRows] = useState<
+    {
+      id: number;
+      row_number: number;
+      status: string;
+      receiver_name: string;
+      phone_number: string;
+      complete_address: string;
+      province?: string | null;
+      city?: string | null;
+      barangay?: string | null;
+      product_name: string;
+      cod_amount: string;
+      quantity: number;
+      remarks?: string | null;
+      error_message?: string | null;
+    }[]
+  >([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<{
+    per_batch: {
+      id: number;
+      batch_number: string;
+      courier_code: string;
+      region?: string | null;
+      status: string;
+      total_rows: number;
+      exported_rows: number;
+      failed_rows: number;
+      success_rate: number;
+      created_at: string;
+    }[];
+    summary: {
+      total_batches: number;
+      total_rows: number;
+      total_exported: number;
+      total_failed: number;
+      overall_success_rate: number;
+    };
+    by_courier: {
+      courier: string;
+      batch_count: number;
+      total_rows: number;
+      exported_rows: number;
+      failed_rows: number;
+      success_rate: number;
+    }[];
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -135,9 +218,61 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     );
   };
 
+  const saveNotes = (batchId: number) => {
+    router.patch(`/shop/exports/${batchId}/notes`, { notes: notesDraft }, { preserveScroll: true });
+    setEditingNotesId(null);
+  };
+
+  const loadAnalytics = () => {
+    if (analytics) {
+      setShowAnalytics((v) => !v);
+      return;
+    }
+    setAnalyticsLoading(true);
+    fetch('/shop/exports/analytics', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setAnalytics(data);
+        setShowAnalytics(true);
+      })
+      .finally(() => setAnalyticsLoading(false));
+  };
+
+  const openPreview = (batchId: number) => {
+    setPreviewLoading(true);
+    setPreviewBatch(null);
+    setPreviewRows([]);
+    fetch(`/shop/exports/${batchId}/preview`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPreviewBatch(data.batch);
+        setPreviewRows(data.rows);
+      })
+      .finally(() => setPreviewLoading(false));
+  };
+
   const exportCourier = (courierCode: string) => {
     router.post('/shop/exports', {
       courier_code: courierCode,
+      order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+      group_by_region: groupByRegion || undefined,
+    });
+  };
+
+  const toggleCourier = (courierCode: string) => {
+    setSelectedCouriers((current) =>
+      current.includes(courierCode)
+        ? current.filter((code) => code !== courierCode)
+        : [...current, courierCode]
+    );
+  };
+
+  const exportSelectedCouriers = () => {
+    if (selectedCouriers.length === 0) return;
+    router.post('/shop/exports/multi', {
+      courier_codes: selectedCouriers,
       order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
     });
   };
@@ -154,12 +289,21 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
               Confirmed orders ready for address review and courier export
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {orders.data.length > 0 && (
               <Button variant="outline" onClick={toggleAll}>
                 {selectedOrderIds.length === orders.data.length ? 'Clear Selection' : 'Select All'}
               </Button>
             )}
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={groupByRegion}
+                onChange={(e) => setGroupByRegion(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Group by Region
+            </label>
             {couriers.map((courier) => (
               <Button
                 key={courier.value}
@@ -174,8 +318,145 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 Export {courier.label}
               </Button>
             ))}
+            <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
+              <span className="text-xs text-muted-foreground">Multi-courier:</span>
+              {couriers.map((courier) => (
+                <label
+                  key={courier.value}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCouriers.includes(courier.value)}
+                    onChange={() => toggleCourier(courier.value)}
+                    className="h-4 w-4"
+                  />
+                  {courier.label}
+                </label>
+              ))}
+              <Button
+                variant="default"
+                onClick={exportSelectedCouriers}
+                disabled={selectedCouriers.length === 0}
+                size="sm"
+              >
+                <Truck className="mr-1.5 h-4 w-4" />
+                Export {selectedCouriers.length > 0 ? `(${selectedCouriers.length})` : ''}
+              </Button>
+            </div>
+            <Button variant="outline" onClick={loadAnalytics} disabled={analyticsLoading}>
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              {analyticsLoading ? 'Loading...' : 'Analytics'}
+            </Button>
           </div>
         </div>
+
+        {showAnalytics && analytics && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Export Batch Analytics</CardTitle>
+                  <CardDescription>Success rates across recent batches</CardDescription>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAnalytics(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Batches</p>
+                  <p className="text-lg font-semibold">{analytics.summary.total_batches}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Rows</p>
+                  <p className="text-lg font-semibold">{analytics.summary.total_rows}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Exported</p>
+                  <p className="text-lg font-semibold text-green-600">
+                    {analytics.summary.total_exported}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Failed</p>
+                  <p className="text-lg font-semibold text-destructive">
+                    {analytics.summary.total_failed}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Success Rate</p>
+                  <p className="text-lg font-semibold">{analytics.summary.overall_success_rate}%</p>
+                </div>
+              </div>
+
+              {analytics.by_courier.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">By Courier</p>
+                  <div className="space-y-2">
+                    {analytics.by_courier.map((c) => (
+                      <div
+                        key={c.courier}
+                        className="flex items-center gap-3 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <span className="font-medium">{c.courier}</span>
+                        <span className="text-muted-foreground">{c.batch_count} batches</span>
+                        <span className="text-muted-foreground">{c.total_rows} rows</span>
+                        <span className="text-green-600">{c.exported_rows} exported</span>
+                        {c.failed_rows > 0 && (
+                          <span className="text-destructive">{c.failed_rows} failed</span>
+                        )}
+                        <span className="ml-auto font-medium">{c.success_rate}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Per Batch</p>
+                <div className="max-h-60 overflow-auto rounded-md border">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Batch</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Courier</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Status</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Rows</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Exported</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Failed</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Success</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.per_batch.map((b) => (
+                        <tr key={b.id} className="border-t">
+                          <td className="px-2 py-1.5 font-medium">{b.batch_number}</td>
+                          <td className="px-2 py-1.5">{b.courier_code}</td>
+                          <td className="px-2 py-1.5">{b.status}</td>
+                          <td className="px-2 py-1.5 text-right">{b.total_rows}</td>
+                          <td className="px-2 py-1.5 text-right text-green-600">
+                            {b.exported_rows}
+                          </td>
+                          <td className="px-2 py-1.5 text-right text-destructive">
+                            {b.failed_rows}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-medium">{b.success_rate}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {orders.data.length > 0 && (
           <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
@@ -251,19 +532,154 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 recent_batches.map((batch) => (
                   <div key={batch.id} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{batch.batch_number}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{batch.batch_number}</p>
+                          <Badge
+                            variant={
+                              batch.status === 'ready'
+                                ? 'default'
+                                : batch.status === 'downloaded'
+                                  ? 'secondary'
+                                  : batch.status === 'archived'
+                                    ? 'outline'
+                                    : 'destructive'
+                            }
+                            className="text-[10px]"
+                          >
+                            {batch.status}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground">
-                          {batch.courier_code} - {batch.row_count} rows
+                          {batch.courier_code}
+                          {batch.region && <span className="font-medium"> - {batch.region}</span>}
+                          {' - '}
+                          {batch.row_count} rows
+                          {batch.failed_row_count && batch.failed_row_count > 0 && (
+                            <span className="ml-1 text-destructive">
+                              ({batch.failed_row_count} failed)
+                            </span>
+                          )}
+                          {batch.creator && (
+                            <span className="ml-1 text-muted-foreground/70">
+                              by {batch.creator.name}
+                            </span>
+                          )}
                         </p>
+                        {editingNotesId === batch.id ? (
+                          <div className="mt-2 flex items-start gap-2">
+                            <Textarea
+                              value={notesDraft}
+                              onChange={(e) => setNotesDraft(e.target.value)}
+                              placeholder="Add notes for this batch..."
+                              className="min-h-[60px] text-xs"
+                              rows={2}
+                            />
+                            <div className="flex flex-col gap-1">
+                              <Button type="button" size="sm" onClick={() => saveNotes(batch.id)}>
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingNotesId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex items-center gap-2">
+                            {batch.notes && (
+                              <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                                {batch.notes}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingNotesId(batch.id);
+                                setNotesDraft(batch.notes ?? '');
+                              }}
+                              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+                            >
+                              <StickyNote className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {batch.file_path && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/shop/exports/${batch.id}/download`}>
-                            <Download className="h-4 w-4" />
-                          </Link>
+                      <div className="flex items-center gap-2">
+                        {batch.file_path && batch.status !== 'archived' && (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/shop/exports/${batch.id}/download`}>
+                              <Download className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openPreview(batch.id)}
+                        >
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      )}
+                        {batch.failed_row_count &&
+                          batch.failed_row_count > 0 &&
+                          batch.status !== 'archived' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                router.post(
+                                  `/shop/exports/${batch.id}/retry`,
+                                  {},
+                                  { preserveScroll: true }
+                                )
+                              }
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
+                        {(batch.status === 'ready' || batch.status === 'downloaded') && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              router.post(
+                                `/shop/exports/${batch.id}/archive`,
+                                {},
+                                { preserveScroll: true }
+                              )
+                            }
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {batch.status === 'archived' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Delete batch ${batch.batch_number}? This cannot be undone.`
+                                )
+                              ) {
+                                router.delete(`/shop/exports/${batch.id}`, {
+                                  preserveScroll: true,
+                                });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))
@@ -272,6 +688,98 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
           </Card>
         </div>
       </div>
+
+      {previewBatch && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setPreviewBatch(null)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-background shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">{previewBatch.batch_number}</p>
+                <p className="text-xs text-muted-foreground">
+                  {previewBatch.courier_code}
+                  {previewBatch.region && ` - ${previewBatch.region}`}
+                  {' - '}
+                  {previewBatch.row_count} rows
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewBatch(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-muted/50">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left font-medium">#</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Status</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Receiver</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Phone</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Address</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Product</th>
+                    <th className="px-2 py-1.5 text-right font-medium">COD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row) => (
+                    <tr key={row.id} className="border-t">
+                      <td className="px-2 py-1.5 text-muted-foreground">{row.row_number}</td>
+                      <td className="px-2 py-1.5">
+                        <span
+                          className={
+                            row.status === 'exported'
+                              ? 'text-green-600'
+                              : row.status === 'failed'
+                                ? 'text-destructive'
+                                : 'text-muted-foreground'
+                          }
+                        >
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5">{row.receiver_name}</td>
+                      <td className="px-2 py-1.5">{row.phone_number}</td>
+                      <td
+                        className="max-w-[200px] truncate px-2 py-1.5"
+                        title={row.complete_address}
+                      >
+                        {row.complete_address}
+                      </td>
+                      <td className="px-2 py-1.5">{row.product_name}</td>
+                      <td className="px-2 py-1.5 text-right">{row.cod_amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+              {previewBatch.status !== 'archived' && (
+                <Button asChild size="sm">
+                  <Link href={`/shop/exports/${previewBatch.id}/download`}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Download CSV
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <p className="text-sm text-background">Loading preview...</p>
+        </div>
+      )}
     </AppLayout>
   );
 }

@@ -35,20 +35,26 @@ class Conversation extends Model
         'resolved_at',
         'first_response_time_seconds',
         'resolution_time_seconds',
+        'sentiment',
+        'sentiment_score',
         'thread_key',
         'last_message_preview',
         'last_message_at',
+        'typing_at',
+        'draft_body',
         'unread_count',
         'metadata',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'typing_at' => 'datetime',
         'flagged_at' => 'datetime',
         'snoozed_until' => 'datetime',
         'reminder_at' => 'datetime',
         'first_response_at' => 'datetime',
         'resolved_at' => 'datetime',
+        'sentiment_score' => 'float',
         'is_flagged' => 'boolean',
         'metadata' => 'array',
     ];

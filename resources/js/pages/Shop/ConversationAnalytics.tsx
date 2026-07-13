@@ -1,5 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
-import { BarChart3, Clock, CheckCircle2, MessageSquare, TrendingUp, Users } from 'lucide-react';
+import {
+  BarChart3,
+  Clock,
+  CheckCircle2,
+  Download,
+  FileText,
+  MessageSquare,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,11 +43,23 @@ interface DailyTrendItem {
   resolved: number;
 }
 
+interface RecentExport {
+  id: number;
+  export_number: string;
+  status: string;
+  conversation_count: number;
+  message_count: number;
+  file_path: string | null;
+  created_at: string;
+}
+
 interface Props {
   stats: Stats;
   per_agent: AgentStat[];
   status_distribution: Record<string, number>;
+  sentiment_distribution: Record<string, number>;
   daily_trend: DailyTrendItem[];
+  recent_exports: RecentExport[];
   range: string;
 }
 
@@ -55,7 +76,9 @@ export default function ConversationAnalytics({
   stats,
   per_agent,
   status_distribution,
+  sentiment_distribution,
   daily_trend,
+  recent_exports,
   range,
 }: Props) {
   const ranges = [
@@ -180,6 +203,47 @@ export default function ConversationAnalytics({
           </Card>
         </div>
 
+        {/* Sentiment distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sentiment Distribution</CardTitle>
+            <CardDescription>Conversations by sentiment classification</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {(['positive', 'neutral', 'negative'] as const).map((sentiment) => {
+                const count = sentiment_distribution[sentiment] ?? 0;
+                const total = Object.values(sentiment_distribution).reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                const colors: Record<string, string> = {
+                  positive: 'bg-green-500',
+                  neutral: 'bg-gray-400',
+                  negative: 'bg-red-500',
+                };
+                return (
+                  <div key={sentiment} className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="capitalize">{sentiment}</span>
+                      <span className="font-medium">
+                        {count} ({pct}%)
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full ${colors[sentiment]}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {Object.keys(sentiment_distribution).length === 0 && (
+                <p className="text-sm text-muted-foreground">No data for this period.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Daily trend chart */}
         <Card>
           <CardHeader>
@@ -254,6 +318,107 @@ export default function ConversationAnalytics({
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Compliance Export */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Compliance Export</CardTitle>
+            <CardDescription>
+              Export conversation data (including messages) as CSV for compliance and record-keeping
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form
+              action="/shop/conversations/export"
+              method="POST"
+              className="flex flex-wrap items-end gap-3"
+            >
+              <input type="hidden" name="_token" value={(window as any).csrfToken ?? ''} />
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Date From</label>
+                <input
+                  type="date"
+                  name="date_from"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Date To</label>
+                <input
+                  type="date"
+                  name="date_to"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Status</label>
+                <select
+                  name="status"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="open">Open</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Sentiment</label>
+                <select
+                  name="sentiment"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="positive">Positive</option>
+                  <option value="neutral">Neutral</option>
+                  <option value="negative">Negative</option>
+                </select>
+              </div>
+              <Button type="submit" size="sm">
+                <FileText className="mr-2 h-4 w-4" />
+                Generate Export
+              </Button>
+            </form>
+
+            {recent_exports.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Recent Exports</p>
+                <div className="space-y-1">
+                  {recent_exports.map((exp) => (
+                    <div
+                      key={exp.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{exp.export_number}</span>
+                        <Badge variant="outline">{exp.status}</Badge>
+                        <span className="text-muted-foreground">
+                          {exp.conversation_count} conv · {exp.message_count} msgs
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(exp.created_at).toLocaleDateString()}
+                        </span>
+                        {exp.file_path && (
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/shop/conversations/export/${exp.id}/download`}>
+                              <Download className="mr-1 h-3 w-3" />
+                              Download
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

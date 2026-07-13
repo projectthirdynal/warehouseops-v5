@@ -51,7 +51,7 @@ const statusBadge: Record<string, string> = {
 
 export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
-  const [status, setStatus] = useState(filters.status ?? '');
+  const [status, setStatus] = useState(filters.status ?? 'all');
   const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
   const [dateTo, setDateTo] = useState(filters.date_to ?? '');
 
@@ -60,7 +60,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
       '/finance/supplier-invoices',
       {
         search,
-        status,
+        status: status === 'all' ? undefined : status,
         date_from: dateFrom,
         date_to: dateTo,
       },
@@ -70,7 +70,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
 
   function clearFilters() {
     setSearch('');
-    setStatus('');
+    setStatus('all');
     setDateFrom('');
     setDateTo('');
     router.get('/finance/supplier-invoices', {}, { preserveState: true });
@@ -129,7 +129,7 @@ export default function SupplierInvoiceIndex({ invoices, filters, statuses }: Pr
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               {statuses.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}

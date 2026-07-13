@@ -11,19 +11,39 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CourierExportBatch extends Model
 {
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_PROCESSING = 'processing';
+    public const STATUS_READY = 'ready';
+    public const STATUS_DOWNLOADED = 'downloaded';
+    public const STATUS_ARCHIVED = 'archived';
+
+    public const STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_PROCESSING,
+        self::STATUS_READY,
+        self::STATUS_DOWNLOADED,
+        self::STATUS_ARCHIVED,
+    ];
+
     protected $fillable = [
         'batch_number',
         'courier_code',
+        'region',
         'status',
         'created_by',
         'row_count',
         'file_path',
         'exported_at',
+        'downloaded_at',
+        'archived_at',
         'metadata',
+        'notes',
     ];
 
     protected $casts = [
         'exported_at' => 'datetime',
+        'downloaded_at' => 'datetime',
+        'archived_at' => 'datetime',
         'metadata' => 'array',
     ];
 

@@ -10,6 +10,7 @@ use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
@@ -22,6 +23,10 @@ use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
+use App\Domain\Shop\Services\ConversationExportService;
+use App\Domain\Shop\Services\MessageTranslationService;
+use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -34,6 +39,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,7 +57,10 @@ class ShopController extends Controller
         private readonly CustomerAddressService $customerAddresses,
         private readonly CustomerNoteService $customerNotes,
         private readonly CustomerTimelineService $customerTimeline,
+        private readonly SentimentAnalysisService $sentimentAnalyzer,
         private readonly StockService $stockService,
+        private readonly ConversationExportService $conversationExports,
+        private readonly MessageTranslationService $translator,
     ) {}
 
     public function index(): Response
@@ -531,13 +540,27 @@ class ShopController extends Controller
             'identity:id,display_name,provider_user_id,phone_detected',
             'assignedAgent:id,name',
             'tags:id,name,color',
-            'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
+
+        $totalMessages = Message::query()->where('conversation_id', $conversation->id)->count();
+        $messageLimit = 50;
+        $initialMessages = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->latest('id')
+            ->limit($messageLimit)
+            ->get()
+            ->reverse()
+            ->values();
 
         $conversation->forceFill(['unread_count' => 0])->save();
 
         return Inertia::render('Shop/Conversation', [
             'conversation' => $conversation,
+            'messages' => $initialMessages,
+            'has_more_messages' => $totalMessages > $messageLimit,
+            'total_message_count' => $totalMessages,
             'recent_orders' => $conversation->customer_id
                 ? Order::query()
                     ->with('product:id,name,sku')
@@ -565,6 +588,11 @@ class ShopController extends Controller
                 ->latest('last_message_at')
                 ->limit(20)
                 ->get(['id', 'customer_id', 'customer_identity_id', 'last_message_preview', 'status', 'last_message_at']),
+            'scheduled_messages' => ScheduledMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('status', 'pending')
+                ->orderBy('scheduled_at')
+                ->get(['id', 'body', 'scheduled_at', 'status']),
         ]);
     }
 
@@ -1144,6 +1172,12 @@ class ShopController extends Controller
             ->groupBy('status')
             ->pluck('count', 'status');
 
+        // Sentiment distribution
+        $sentimentDistribution = (clone $baseQuery)
+            ->select('sentiment', DB::raw('count(*) as count'))
+            ->groupBy('sentiment')
+            ->pluck('count', 'sentiment');
+
         // Daily trend
         $dailyTrend = (clone $baseQuery)
             ->selectRaw("DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved")
@@ -1165,27 +1199,68 @@ class ShopController extends Controller
             ],
             'per_agent' => $perAgent,
             'status_distribution' => $statusDistribution,
+            'sentiment_distribution' => $sentimentDistribution,
             'daily_trend' => $dailyTrend,
+            'recent_exports' => ConversationExport::query()
+                ->latest()
+                ->limit(10)
+                ->get(['id', 'export_number', 'status', 'conversation_count', 'message_count', 'file_path', 'created_at']),
             'range' => $range ?: '30d',
         ]);
+    }
+
+    public function exportConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'status' => ['nullable', 'string', 'in:open,assigned,resolved,archived,closed'],
+            'sentiment' => ['nullable', 'string', 'in:positive,neutral,negative'],
+        ]);
+
+        $export = $this->conversationExports->createExport($validated, auth()->id());
+
+        return redirect()
+            ->route('shop.analytics')
+            ->with('success', "Compliance export {$export->export_number} created ({$export->conversation_count} conversations, {$export->message_count} messages).");
+    }
+
+    public function downloadConversationExport(ConversationExport $export): BinaryFileResponse
+    {
+        abort_unless($export->file_path && file_exists(storage_path("app/{$export->file_path}")), 404);
+
+        return response()->download(storage_path("app/{$export->file_path}"));
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
+            'quick_replies' => ['nullable', 'array', 'max:11'],
+            'quick_replies.*.title' => ['required', 'string', 'max:20'],
+            'quick_replies.*.payload' => ['required', 'string', 'max:1000'],
         ]);
 
         $conversation->load(['facebookPage', 'identity']);
         $delivery = ['status' => 'logged'];
+        $quickReplies = $validated['quick_replies'] ?? [];
 
         if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
             try {
-                $delivery = $this->facebookConnector->sendMessage(
-                    $conversation->facebookPage,
-                    $conversation->identity->provider_user_id,
-                    $validated['body']
-                );
+                if ($quickReplies !== []) {
+                    $delivery = $this->facebookConnector->sendMessageWithQuickReplies(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $validated['body'],
+                        $quickReplies
+                    );
+                } else {
+                    $delivery = $this->facebookConnector->sendMessage(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $validated['body']
+                    );
+                }
                 $delivery['status'] = 'sent';
             } catch (\Throwable $exception) {
                 $delivery = [
@@ -1201,8 +1276,9 @@ class ShopController extends Controller
             'customer_identity_id' => $conversation->customer_identity_id,
             'external_message_id' => 'local-' . str()->uuid(),
             'direction' => 'outbound',
-            'message_type' => 'text',
+            'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
             'body' => $validated['body'],
+            'metadata' => $quickReplies !== [] ? ['quick_replies' => $quickReplies] : null,
             'raw_payload' => $delivery,
             'sent_at' => now(),
             'send_status' => $delivery['status'],
@@ -1213,6 +1289,7 @@ class ShopController extends Controller
         $conversation->forceFill([
             'last_message_preview' => $validated['body'],
             'last_message_at' => now(),
+            'draft_body' => null,
         ])->save();
 
         // Track first response time
@@ -1270,6 +1347,14 @@ class ShopController extends Controller
             'id',
             'direction',
             'body',
+            'message_type',
+            'attachments',
+            'metadata',
+            'reactions',
+            'is_flagged',
+            'flag_reason',
+            'translated_body',
+            'translated_lang',
             'sent_at',
             'raw_payload',
             'phone_candidates',
@@ -1277,12 +1362,315 @@ class ShopController extends Controller
 
         $conversation->refresh();
 
+        // Customer is typing if typing_at was set within the last 15 seconds
+        $isTyping = $conversation->typing_at !== null
+            && $conversation->typing_at->gt(now()->subSeconds(15));
+
         return response()->json([
             'messages' => $messages,
             'last_message_preview' => $conversation->last_message_preview,
             'last_message_at' => $conversation->last_message_at,
             'unread_count' => $conversation->unread_count,
             'status' => $conversation->status,
+            'is_typing' => $isTyping,
+        ]);
+    }
+
+    public function sendTypingIndicator(Conversation $conversation): JsonResponse
+    {
+        $conversation->load(['facebookPage', 'identity']);
+
+        if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
+            try {
+                $this->facebookConnector->sendTypingIndicator(
+                    $conversation->facebookPage,
+                    $conversation->identity->provider_user_id
+                );
+            } catch (\Throwable) {
+                // Silently ignore — typing indicators are best-effort
+            }
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    public function fetchOlderMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'before_id' => ['required', 'integer', 'exists:messages,id'],
+        ]);
+
+        $messageLimit = 50;
+        $messages = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('id', '<', $validated['before_id'])
+            ->orderByDesc('id')
+            ->limit($messageLimit + 1)
+            ->get([
+                'id',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'reactions',
+                'is_flagged',
+                'flag_reason',
+                'translated_body',
+                'translated_lang',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ])
+            ->reverse()
+            ->values();
+
+        $hasMore = $messages->count() > $messageLimit;
+
+        return response()->json([
+            'messages' => $messages->take($messageLimit),
+            'has_more' => $hasMore,
+        ]);
+    }
+
+    public function toggleReaction(Request $request, Message $message): JsonResponse
+    {
+        $validated = $request->validate([
+            'emoji' => ['required', 'string', 'max:10'],
+        ]);
+
+        $reactions = $message->reactions ?? [];
+        $agentKey = 'agent:' . $request->user()->id;
+
+        if (($reactions[$agentKey] ?? null) === $validated['emoji']) {
+            unset($reactions[$agentKey]);
+        } else {
+            $reactions[$agentKey] = $validated['emoji'];
+        }
+
+        $message->forceFill(['reactions' => $reactions])->save();
+
+        return response()->json(['reactions' => $reactions]);
+    }
+
+    public function searchMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:200'],
+        ]);
+
+        $query = '%' . $validated['q'] . '%';
+
+        $results = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where(function ($q) use ($query) {
+                $q->where('body', 'like', $query)
+                    ->orWhere('metadata', 'like', $query);
+            })
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->limit(50)
+            ->get([
+                'id',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'reactions',
+                'is_flagged',
+                'flag_reason',
+                'translated_body',
+                'translated_lang',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ]);
+
+        return response()->json([
+            'messages' => $results,
+            'query' => $validated['q'],
+        ]);
+    }
+
+    public function toggleMessageFlag(Request $request, Message $message): JsonResponse
+    {
+        $validated = $request->validate([
+            'flag_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($message->is_flagged) {
+            $message->forceFill(['is_flagged' => false, 'flag_reason' => null])->save();
+        } else {
+            $message->forceFill([
+                'is_flagged' => true,
+                'flag_reason' => $validated['flag_reason'] ?? 'Flagged by agent',
+            ])->save();
+        }
+
+        return response()->json([
+            'is_flagged' => $message->is_flagged,
+            'flag_reason' => $message->flag_reason,
+        ]);
+    }
+
+    public function translateMessage(Request $request, Message $message): JsonResponse
+    {
+        $targetLang = $request->input('target_lang', 'en');
+
+        if ($message->translated_body && $message->translated_lang === $targetLang) {
+            return response()->json([
+                'translated_body' => $message->translated_body,
+                'translated_lang' => $message->translated_lang,
+                'cached' => true,
+            ]);
+        }
+
+        if (! $message->body) {
+            return response()->json(['error' => 'No text to translate'], 422);
+        }
+
+        $result = $this->translator->translate($message->body, $targetLang);
+
+        if (! $result) {
+            return response()->json(['error' => 'Translation failed'], 422);
+        }
+
+        $message->forceFill([
+            'translated_body' => $result['translated'],
+            'translated_lang' => $targetLang,
+        ])->save();
+
+        return response()->json([
+            'translated_body' => $result['translated'],
+            'translated_lang' => $targetLang,
+            'detected_source' => $result['detected_source'],
+            'cached' => false,
+        ]);
+    }
+
+    public function saveDraft(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'draft_body' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $conversation->forceFill([
+            'draft_body' => $validated['draft_body'] !== '' ? $validated['draft_body'] : null,
+        ])->save();
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    public function scheduleMessage(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'scheduled_at' => ['required', 'date', 'after:now'],
+            'quick_replies' => ['nullable', 'array', 'max:11'],
+            'quick_replies.*.title' => ['required', 'string', 'max:20'],
+            'quick_replies.*.payload' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $scheduled = ScheduledMessage::query()->create([
+            'conversation_id' => $conversation->id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'customer_identity_id' => $conversation->customer_identity_id,
+            'body' => $validated['body'],
+            'quick_replies' => $validated['quick_replies'] ?? null,
+            'scheduled_at' => $validated['scheduled_at'],
+            'status' => 'pending',
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'scheduled_message' => $scheduled->only(['id', 'body', 'scheduled_at', 'status']),
+        ]);
+    }
+
+    public function cancelScheduledMessage(Request $request, ScheduledMessage $scheduledMessage): JsonResponse
+    {
+        if ($scheduledMessage->status !== 'pending') {
+            return response()->json(['error' => 'Cannot cancel a non-pending scheduled message'], 422);
+        }
+
+        $scheduledMessage->forceFill(['status' => 'cancelled'])->save();
+
+        return response()->json(['status' => 'cancelled']);
+    }
+
+    public function broadcastMessage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'conversation_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'conversation_ids.*' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->with(['facebookPage', 'identity'])
+            ->get();
+
+        $results = [];
+
+        foreach ($conversations as $conversation) {
+            if (! $conversation->facebookPage?->page_access_token || ! $conversation->identity?->provider_user_id) {
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'skipped',
+                    'error' => 'Missing page token or customer PSID',
+                ];
+                continue;
+            }
+
+            try {
+                $delivery = $this->facebookConnector->sendMessage(
+                    $conversation->facebookPage,
+                    $conversation->identity->provider_user_id,
+                    $validated['body']
+                );
+
+                Message::query()->create([
+                    'conversation_id' => $conversation->id,
+                    'facebook_page_id' => $conversation->facebook_page_id,
+                    'customer_identity_id' => $conversation->customer_identity_id,
+                    'external_message_id' => $delivery['message_id'] ?? ('local-' . str()->uuid()),
+                    'direction' => 'outbound',
+                    'message_type' => 'text',
+                    'body' => $validated['body'],
+                    'raw_payload' => $delivery,
+                    'sent_at' => now(),
+                    'send_status' => 'sent',
+                    'retry_count' => 0,
+                ]);
+
+                $conversation->forceFill([
+                    'last_message_preview' => $validated['body'],
+                    'last_message_at' => now(),
+                    'draft_body' => null,
+                ])->save();
+
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'sent',
+                ];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $sent = count(array_filter($results, fn ($r) => $r['status'] === 'sent'));
+        $failed = count(array_filter($results, fn ($r) => $r['status'] === 'failed'));
+        $skipped = count(array_filter($results, fn ($r) => $r['status'] === 'skipped'));
+
+        return response()->json([
+            'results' => $results,
+            'summary' => ['sent' => $sent, 'failed' => $failed, 'skipped' => $skipped],
         ]);
     }
 
@@ -1296,9 +1684,11 @@ class ShopController extends Controller
                 ->latest()
                 ->paginate(25),
             'recent_batches' => CourierExportBatch::query()
+                ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
+                ->with(['creator:id,name'])
                 ->latest()
                 ->limit(10)
-                ->get(['id', 'batch_number', 'courier_code', 'row_count', 'file_path', 'created_at']),
+                ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
@@ -1311,6 +1701,45 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'group_by_region' => ['nullable', 'boolean'],
+        ]);
+
+        $orders = Order::query()
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->when(! empty($validated['order_ids']), fn ($query) => $query->whereIn('id', $validated['order_ids']))
+            ->limit(500)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return back()->with('error', 'No encoder-ready orders found for export.');
+        }
+
+        if (! empty($validated['group_by_region'])) {
+            $batches = $this->courierExports->createBatchesByRegion($orders, $validated['courier_code'], auth()->id());
+            $count = $batches->count();
+            $regions = $batches->map(fn ($b) => $b->region)->filter()->unique()->implode(', ');
+
+            return redirect()
+                ->route('shop.encoder')
+                ->with('success', "Created {$count} batch(es) by region: {$regions}");
+        }
+
+        $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());
+
+        return redirect()
+            ->route('shop.encoder')
+            ->with('success', "Export batch {$batch->batch_number} created.");
+    }
+
+    public function exportMultipleCouriers(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'courier_codes' => ['required', 'array', 'min:1'],
+            'courier_codes.*' => ['string', 'max:30'],
             'order_ids' => ['nullable', 'array'],
             'order_ids.*' => ['integer', 'exists:orders,id'],
         ]);
@@ -1327,11 +1756,147 @@ class ShopController extends Controller
             return back()->with('error', 'No encoder-ready orders found for export.');
         }
 
-        $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());
+        $batches = $this->courierExports->createBatchesForCouriers($orders, $validated['courier_codes'], auth()->id());
+
+        $count = $batches->count();
+        $couriers = $batches->map(fn ($b) => $b->courier_code)->unique()->implode(', ');
 
         return redirect()
             ->route('shop.encoder')
-            ->with('success', "Export batch {$batch->batch_number} created.");
+            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}");
+    }
+
+    public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        if (! in_array($batch->status, [CourierExportBatch::STATUS_DOWNLOADED, CourierExportBatch::STATUS_READY])) {
+            return back()->with('error', 'Only ready or downloaded batches can be archived.');
+        }
+
+        $batch->forceFill([
+            'status' => CourierExportBatch::STATUS_ARCHIVED,
+            'archived_at' => now(),
+        ])->save();
+
+        return back()->with('success', "Batch {$batch->batch_number} archived.");
+    }
+
+    public function deleteCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        if ($batch->status !== CourierExportBatch::STATUS_ARCHIVED) {
+            return back()->with('error', 'Only archived batches can be deleted.');
+        }
+
+        if ($batch->file_path && Storage::disk('local')->exists($batch->file_path)) {
+            Storage::disk('local')->delete($batch->file_path);
+        }
+
+        $batch->rows()->delete();
+        $batch->delete();
+
+        return back()->with('success', "Batch {$batch->batch_number} deleted.");
+    }
+
+    public function updateBatchNotes(Request $request, CourierExportBatch $batch): RedirectResponse
+    {
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $batch->forceFill(['notes' => $validated['notes']])->save();
+
+        return back()->with('success', "Notes updated for batch {$batch->batch_number}.");
+    }
+
+    public function previewBatch(CourierExportBatch $batch): JsonResponse
+    {
+        $rows = $batch->rows()
+            ->orderBy('row_number')
+            ->limit(100)
+            ->get(['id', 'row_number', 'status', 'receiver_name', 'phone_number', 'complete_address', 'province', 'city', 'barangay', 'product_name', 'cod_amount', 'quantity', 'remarks', 'error_message']);
+
+        return response()->json([
+            'batch' => [
+                'id' => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'courier_code' => $batch->courier_code,
+                'region' => $batch->region,
+                'status' => $batch->status,
+                'row_count' => $batch->row_count,
+            ],
+            'rows' => $rows,
+        ]);
+    }
+
+    public function batchAnalytics(): JsonResponse
+    {
+        $batches = CourierExportBatch::query()
+            ->withCount(['rows as total_rows'])
+            ->withCount(['rows as exported_rows' => fn ($q) => $q->where('status', 'exported')])
+            ->withCount(['rows as failed_rows' => fn ($q) => $q->where('status', 'failed')])
+            ->latest()
+            ->limit(50)
+            ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'created_at']);
+
+        $perBatch = $batches->map(fn ($b) => [
+            'id' => $b->id,
+            'batch_number' => $b->batch_number,
+            'courier_code' => $b->courier_code,
+            'region' => $b->region,
+            'status' => $b->status,
+            'total_rows' => $b->total_rows,
+            'exported_rows' => $b->exported_rows,
+            'failed_rows' => $b->failed_rows,
+            'success_rate' => $b->total_rows > 0 ? round(($b->exported_rows / $b->total_rows) * 100, 1) : 0,
+            'created_at' => $b->created_at?->toIso8601String(),
+        ]);
+
+        $totalBatches = $batches->count();
+        $totalRows = $batches->sum('total_rows');
+        $totalExported = $batches->sum('exported_rows');
+        $totalFailed = $batches->sum('failed_rows');
+
+        $byCourier = $batches->groupBy('courier_code')->map(fn ($group, $courier) => [
+            'courier' => $courier,
+            'batch_count' => $group->count(),
+            'total_rows' => $group->sum('total_rows'),
+            'exported_rows' => $group->sum('exported_rows'),
+            'failed_rows' => $group->sum('failed_rows'),
+            'success_rate' => $group->sum('total_rows') > 0
+                ? round(($group->sum('exported_rows') / $group->sum('total_rows')) * 100, 1)
+                : 0,
+        ])->values();
+
+        return response()->json([
+            'per_batch' => $perBatch,
+            'summary' => [
+                'total_batches' => $totalBatches,
+                'total_rows' => $totalRows,
+                'total_exported' => $totalExported,
+                'total_failed' => $totalFailed,
+                'overall_success_rate' => $totalRows > 0 ? round(($totalExported / $totalRows) * 100, 1) : 0,
+            ],
+            'by_courier' => $byCourier,
+        ]);
+    }
+
+    public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        $failedCount = $batch->rows()->where('status', 'failed')->count();
+
+        if ($failedCount === 0) {
+            return back()->with('error', 'No failed rows to retry in this batch.');
+        }
+
+        $this->courierExports->rebuildBatch($batch);
+
+        $stillFailed = $batch->fresh()->rows()->where('status', 'failed')->count();
+
+        return back()->with(
+            $stillFailed > 0 ? 'warning' : 'success',
+            $stillFailed > 0
+                ? 'Rebuilt batch ' . $batch->batch_number . ': ' . ($failedCount - $stillFailed) . ' rows fixed, ' . $stillFailed . ' still failing.'
+                : 'Rebuilt batch ' . $batch->batch_number . ': all ' . $failedCount . ' failed rows fixed.'
+        );
     }
 
     public function updateOrderAddress(Request $request, Order $order): RedirectResponse
@@ -1376,11 +1941,24 @@ class ShopController extends Controller
         return back()->with('success', "{$order->order_number} marked encoded.");
     }
 
-    public function downloadExport(CourierExportBatch $batch): BinaryFileResponse
+    public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        abort_unless($batch->file_path && file_exists(storage_path("app/{$batch->file_path}")), 404);
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
 
-        return response()->download(storage_path("app/{$batch->file_path}"));
+        if ($batch->status === CourierExportBatch::STATUS_READY) {
+            $batch->forceFill([
+                'status' => CourierExportBatch::STATUS_DOWNLOADED,
+                'downloaded_at' => now(),
+            ])->save();
+        }
+
+        $filename = $batch->batch_number . '.csv';
+
+        return Storage::disk('local')->download($batch->file_path, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
     }
 
     public function connectFacebook(): RedirectResponse

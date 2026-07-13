@@ -176,6 +176,42 @@ class FacebookConnectorService
         ])->throw()->json();
     }
 
+    /**
+     * @param array<int, array{title: string, payload: string, image_url?: string}> $quickReplies
+     */
+    public function sendMessageWithQuickReplies(FacebookPage $page, string $recipientPsid, string $body, array $quickReplies): array
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        $message = [
+            'text' => $body,
+            'quick_replies' => array_map(fn ($reply) => array_filter([
+                'content_type' => 'text',
+                'title' => mb_substr($reply['title'], 0, 20),
+                'payload' => $reply['payload'],
+                'image_url' => $reply['image_url'] ?? null,
+            ]), $quickReplies),
+        ];
+
+        return Http::post("{$baseUrl}/me/messages", [
+            'access_token' => $page->page_access_token,
+            'recipient' => ['id' => $recipientPsid],
+            'message' => $message,
+            'messaging_type' => 'RESPONSE',
+        ])->throw()->json();
+    }
+
+    public function sendTypingIndicator(FacebookPage $page, string $recipientPsid): array
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        return Http::post("{$baseUrl}/me/messages", [
+            'access_token' => $page->page_access_token,
+            'recipient' => ['id' => $recipientPsid],
+            'sender_action' => 'typing_on',
+        ])->throw()->json();
+    }
+
     public function isConfigured(): bool
     {
         return filled(config('services.meta.app_id'))

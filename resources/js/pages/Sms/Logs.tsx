@@ -71,14 +71,24 @@ const statusConfig: Record<
 };
 
 export default function Logs({ logs, stats, filters }: Props) {
-  const [localFilters, setLocalFilters] = useState(filters);
+  const [localFilters, setLocalFilters] = useState<{
+    status: string | undefined;
+    phone?: string;
+    date_from?: string;
+    date_to?: string;
+  }>({
+    ...filters,
+    status: filters.status ?? 'all',
+  });
 
   const applyFilters = () => {
-    router.get('/sms/logs', localFilters, { preserveState: true });
+    const { status, ...rest } = localFilters;
+    const payload = status === 'all' ? rest : { ...localFilters };
+    router.get('/sms/logs', payload, { preserveState: true });
   };
 
   const clearFilters = () => {
-    setLocalFilters({});
+    setLocalFilters({ status: 'all' });
     router.get('/sms/logs');
   };
 
@@ -173,16 +183,16 @@ export default function Logs({ logs, stats, filters }: Props) {
               </div>
 
               <Select
-                value={localFilters.status || ''}
+                value={localFilters.status ?? 'all'}
                 onValueChange={(value) =>
-                  setLocalFilters({ ...localFilters, status: value || undefined })
+                  setLocalFilters({ ...localFilters, status: value === 'all' ? undefined : value })
                 }
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="sent">Sent</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>

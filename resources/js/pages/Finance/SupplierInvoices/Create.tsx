@@ -26,7 +26,7 @@ interface Props {
 
 export default function SupplierInvoiceCreate({ thirdParties }: Props) {
   const { data, setData, post, processing, errors } = useForm({
-    third_party_id: '',
+    third_party_id: 'unknown',
     date_invoice: new Date().toISOString().split('T')[0],
     date_due: '',
     total_amount: '',
@@ -73,7 +73,7 @@ export default function SupplierInvoiceCreate({ thirdParties }: Props) {
                     <SelectValue placeholder="Select supplier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unknown Supplier</SelectItem>
+                    <SelectItem value="unknown">Unknown Supplier</SelectItem>
                     {thirdParties.map((tp) => (
                       <SelectItem key={tp.id} value={tp.id.toString()}>
                         {tp.name} ({tp.type})

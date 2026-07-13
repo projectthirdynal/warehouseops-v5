@@ -16,6 +16,7 @@ class MetaConversationIngestor
     public function __construct(
         private readonly PhoneDetectionService $phones,
         private readonly CustomerIdentityService $customerIdentities,
+        private readonly SentimentAnalysisService $sentimentAnalyzer,
     ) {}
 
     public function process(FacebookWebhookEvent $webhookEvent): void
@@ -36,8 +37,25 @@ class MetaConversationIngestor
             return;
         }
 
+        // Handle sender_action events (typing_on, typing_off, mark_seen)
+        $senderAction = data_get($payload, 'sender_action');
+        if (is_string($senderAction)) {
+            $this->handleSenderAction($webhookEvent, $senderPsid, $senderAction);
+
+            return;
+        }
+
+        // Handle reaction events (react/unreact)
+        $reactionAction = data_get($payload, 'reaction.action');
+        if (is_string($reactionAction)) {
+            $this->handleReaction($webhookEvent, $senderPsid, $reactionAction, data_get($payload, 'reaction.emoji'));
+
+            return;
+        }
+
         DB::transaction(function () use ($webhookEvent, $payload, $senderPsid) {
             $body = (string) (data_get($payload, 'message.text') ?? data_get($payload, 'postback.title') ?? '');
+            $quickReplyPayload = data_get($payload, 'message.quick_reply.payload');
             $detectedPhones = $this->phones->extract($body);
             $customer = $detectedPhones === [] ? null : $this->customerIdentities->findByPhone($detectedPhones[0]);
 
@@ -80,12 +98,30 @@ class MetaConversationIngestor
                     'body' => $body !== '' ? $body : null,
                     'attachments' => data_get($payload, 'message.attachments'),
                     'phone_candidates' => $detectedPhones,
+                    'metadata' => $quickReplyPayload !== null ? ['quick_reply_payload' => $quickReplyPayload] : null,
                     'raw_payload' => $payload,
                     'sent_at' => $this->eventTimestamp($payload),
                     'read_at' => null,
                     'send_status' => null,
                 ]
             );
+
+            // Update sentiment based on recent inbound messages
+            if ($body !== '') {
+                $recentMessages = $conversation->messages()
+                    ->where('direction', 'inbound')
+                    ->latest('sent_at')
+                    ->limit(10)
+                    ->pluck('body')
+                    ->filter()
+                    ->toArray();
+
+                $sentiment = $this->sentimentAnalyzer->analyze(implode(' ', $recentMessages));
+                $conversation->forceFill([
+                    'sentiment' => $sentiment['sentiment'],
+                    'sentiment_score' => $sentiment['score'],
+                ])->save();
+            }
 
             $webhookEvent->forceFill([
                 'processed_at' => now(),
@@ -201,6 +237,64 @@ class MetaConversationIngestor
         return now();
     }
 
+    /**
+     * Handle sender_action events: typing_on, typing_off, mark_seen.
+     */
+    private function handleSenderAction(FacebookWebhookEvent $webhookEvent, string $senderPsid, string $action): void
+    {
+        $conversation = Conversation::query()->where(
+            'thread_key',
+            "facebook:{$webhookEvent->facebookPage->page_id}:{$senderPsid}"
+        )->first();
+
+        if ($conversation) {
+            if ($action === 'typing_on') {
+                $conversation->forceFill(['typing_at' => now()])->save();
+            } elseif ($action === 'typing_off' || $action === 'mark_seen') {
+                $conversation->forceFill(['typing_at' => null])->save();
+            }
+        }
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
+    }
+
+    /**
+     * Handle reaction events: react (add emoji) or unreact (remove emoji).
+     */
+    private function handleReaction(
+        FacebookWebhookEvent $webhookEvent,
+        string $senderPsid,
+        string $action,
+        ?string $emoji
+    ): void {
+        $payload = $webhookEvent->payload ?? [];
+        $messageMid = data_get($payload, 'reaction.mid') ?? data_get($payload, 'message.mid');
+
+        if (is_string($messageMid)) {
+            $message = Message::query()->where('external_message_id', $messageMid)->first();
+
+            if ($message) {
+                $reactions = $message->reactions ?? [];
+
+                if ($action === 'react' && $emoji) {
+                    $reactions[$senderPsid] = $emoji;
+                } elseif ($action === 'unreact') {
+                    unset($reactions[$senderPsid]);
+                }
+
+                $message->forceFill(['reactions' => $reactions])->save();
+            }
+        }
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
+    }
+
     private function commentTimestamp(array $value): Carbon
     {
         $timestamp = data_get($value, 'created_time');
@@ -217,6 +311,14 @@ class MetaConversationIngestor
      */
     private function classifyMessageType(array $payload): string
     {
+        if (data_get($payload, 'message.quick_reply.payload') !== null) {
+            return 'quick_reply';
+        }
+
+        if (data_get($payload, 'postback.payload') !== null) {
+            return 'postback';
+        }
+
         if (! data_get($payload, 'message.attachments')) {
             return 'text';
         }

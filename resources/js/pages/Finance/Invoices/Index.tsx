@@ -70,8 +70,8 @@ const statusIcon: Record<string, React.ReactNode> = {
 
 export default function InvoiceIndex({ invoices, filters, statuses, types }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
-  const [status, setStatus] = useState(filters.status ?? '');
-  const [type, setType] = useState(filters.type ?? '');
+  const [status, setStatus] = useState(filters.status ?? 'all');
+  const [type, setType] = useState(filters.type ?? 'all');
   const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
   const [dateTo, setDateTo] = useState(filters.date_to ?? '');
 
@@ -80,8 +80,8 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
       '/finance/invoices',
       {
         search,
-        status,
-        type,
+        status: status === 'all' ? undefined : status,
+        type: type === 'all' ? undefined : type,
         date_from: dateFrom,
         date_to: dateTo,
       },
@@ -91,8 +91,8 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
 
   function clearFilters() {
     setSearch('');
-    setStatus('');
-    setType('');
+    setStatus('all');
+    setType('all');
     setDateFrom('');
     setDateTo('');
     router.get('/finance/invoices', {}, { preserveState: true });
@@ -182,7 +182,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
               {statuses.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
@@ -201,7 +201,7 @@ export default function InvoiceIndex({ invoices, filters, statuses, types }: Pro
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All types</SelectItem>
+              <SelectItem value="all">All types</SelectItem>
               {types.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t}
