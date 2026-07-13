@@ -1280,6 +1280,7 @@ class ShopController extends Controller
         $conversation->forceFill([
             'last_message_preview' => $validated['body'],
             'last_message_at' => now(),
+            'draft_body' => null,
         ])->save();
 
         // Track first response time
@@ -1469,6 +1470,19 @@ class ShopController extends Controller
             'messages' => $results,
             'query' => $validated['q'],
         ]);
+    }
+
+    public function saveDraft(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'draft_body' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $conversation->forceFill([
+            'draft_body' => $validated['draft_body'] !== '' ? $validated['draft_body'] : null,
+        ])->save();
+
+        return response()->json(['status' => 'ok']);
     }
 
     public function encoder(): Response

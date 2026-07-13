@@ -104,6 +104,7 @@ interface Conversation {
     phone_detected?: string | null;
   } | null;
   messages: Message[];
+  draft_body?: string | null;
 }
 
 interface RecentOrder {
@@ -330,9 +331,11 @@ export default function ShopConversation({
     body: string;
     quick_replies: { title: string; payload: string }[];
   }>({
-    body: '',
+    body: conversation.draft_body ?? '',
     quick_replies: [],
   });
+  const [draftSaved, setDraftSaved] = useState(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [qrTitle, setQrTitle] = useState('');
   const [qrPayload, setQrPayload] = useState('');
@@ -879,7 +882,21 @@ export default function ShopConversation({
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
                 <Textarea
                   value={data.body}
-                  onChange={(event) => setData('body', event.target.value)}
+                  onChange={(event) => {
+                    setData('body', event.target.value);
+                    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+                    setDraftSaved(false);
+                    if (conversation?.id) {
+                      draftTimerRef.current = setTimeout(() => {
+                        axiosWithCsrf
+                          .post(`/shop/inbox/${conversation.id}/draft`, {
+                            draft_body: event.target.value,
+                          })
+                          .then(() => setDraftSaved(true))
+                          .catch(() => {});
+                      }, 1000);
+                    }
+                  }}
                   onFocus={() => {
                     if (conversation?.id) {
                       axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
@@ -887,6 +904,7 @@ export default function ShopConversation({
                   }}
                   placeholder="Type a reply..."
                 />
+                {draftSaved && <p className="text-xs text-muted-foreground">Draft saved</p>}
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
 
                 {data.quick_replies.length > 0 && (

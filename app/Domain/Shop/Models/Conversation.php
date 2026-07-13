@@ -41,6 +41,7 @@ class Conversation extends Model
         'last_message_preview',
         'last_message_at',
         'typing_at',
+        'draft_body',
         'unread_count',
         'metadata',
     ];
