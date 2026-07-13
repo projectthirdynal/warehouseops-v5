@@ -6,13 +6,16 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  File as FileIcon,
   History,
+  ImageIcon,
   MapPin,
   PackageCheck,
   Send,
   ShoppingCart,
   User,
   UserCheck,
+  Video as VideoIcon,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -22,10 +25,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
+interface Attachment {
+  type: string;
+  payload: {
+    url?: string;
+    sticker_id?: number;
+  } | null;
+}
+
 interface Message {
   id: number;
   direction: 'inbound' | 'outbound';
   body: string | null;
+  message_type?: string;
+  attachments?: Attachment[] | null;
   sent_at: string | null;
   phone_candidates?: string[] | null;
   raw_payload?: Record<string, unknown> | null;
@@ -523,7 +536,84 @@ export default function ShopConversation({
                             : 'bg-muted/40'
                         }`}
                       >
-                        <p>{message.body ?? 'Attachment or unsupported message'}</p>
+                        {message.body && <p>{message.body}</p>}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <div className="mt-1 space-y-2">
+                            {message.attachments.map((att, idx) => {
+                              const url = att.payload?.url;
+                              if (
+                                att.type === 'image' ||
+                                att.type === 'image/jpeg' ||
+                                att.type === 'image/png' ||
+                                att.type === 'gif'
+                              ) {
+                                return url ? (
+                                  <img
+                                    key={idx}
+                                    src={url}
+                                    alt="Attachment"
+                                    className="max-w-full rounded-md border"
+                                    style={{ maxHeight: '240px' }}
+                                  />
+                                ) : (
+                                  <div key={idx} className="flex items-center gap-1 text-xs">
+                                    <ImageIcon className="h-3 w-3" /> Image
+                                  </div>
+                                );
+                              }
+                              if (att.type === 'audio' || att.type === 'voice') {
+                                return url ? (
+                                  <audio key={idx} controls src={url} className="w-full" />
+                                ) : (
+                                  <div key={idx} className="flex items-center gap-1 text-xs">
+                                    <AlertCircle className="h-3 w-3" /> Voice message
+                                  </div>
+                                );
+                              }
+                              if (att.type === 'video') {
+                                return url ? (
+                                  <video
+                                    key={idx}
+                                    controls
+                                    src={url}
+                                    className="max-w-full rounded-md"
+                                    style={{ maxHeight: '240px' }}
+                                  />
+                                ) : (
+                                  <div key={idx} className="flex items-center gap-1 text-xs">
+                                    <VideoIcon className="h-3 w-3" /> Video
+                                  </div>
+                                );
+                              }
+                              if (att.type === 'file') {
+                                return url ? (
+                                  <a
+                                    key={idx}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs underline"
+                                  >
+                                    <FileIcon className="h-3 w-3" /> Download file
+                                  </a>
+                                ) : (
+                                  <div key={idx} className="flex items-center gap-1 text-xs">
+                                    <FileIcon className="h-3 w-3" /> File attachment
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div key={idx} className="text-xs text-muted-foreground">
+                                  {att.type} attachment
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {!message.body &&
+                          (!message.attachments || message.attachments.length === 0) && (
+                            <p className="text-muted-foreground italic">Unsupported message</p>
+                          )}
                         <p
                           className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
                         >

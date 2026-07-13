@@ -1309,6 +1309,8 @@ class ShopController extends Controller
             'id',
             'direction',
             'body',
+            'message_type',
+            'attachments',
             'sent_at',
             'raw_payload',
             'phone_candidates',
