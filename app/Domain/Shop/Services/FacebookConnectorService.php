@@ -201,6 +201,17 @@ class FacebookConnectorService
         ])->throw()->json();
     }
 
+    public function sendTypingIndicator(FacebookPage $page, string $recipientPsid): array
+    {
+        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+
+        return Http::post("{$baseUrl}/me/messages", [
+            'access_token' => $page->page_access_token,
+            'recipient' => ['id' => $recipientPsid],
+            'sender_action' => 'typing_on',
+        ])->throw()->json();
+    }
+
     public function isConfigured(): bool
     {
         return filled(config('services.meta.app_id'))

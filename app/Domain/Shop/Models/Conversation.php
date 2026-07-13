@@ -40,12 +40,14 @@ class Conversation extends Model
         'thread_key',
         'last_message_preview',
         'last_message_at',
+        'typing_at',
         'unread_count',
         'metadata',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'typing_at' => 'datetime',
         'flagged_at' => 'datetime',
         'snoozed_until' => 'datetime',
         'reminder_at' => 'datetime',

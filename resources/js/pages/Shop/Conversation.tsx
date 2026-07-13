@@ -204,6 +204,7 @@ export default function ShopConversation({
     safeMessages.reduce((max, m) => (m.id > max ? m.id : max), 0)
   );
   const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     const propIds = new Set(safeMessages.map((m) => m.id));
@@ -248,6 +249,7 @@ export default function ShopConversation({
             );
             setLastMessageId(maxId);
           }
+          setIsTyping(Boolean(data.is_typing));
         })
         .catch(() => {
           // Silently ignore poll errors to avoid disrupting the agent
@@ -679,10 +681,25 @@ export default function ShopConversation({
                 })
               )}
 
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-3 py-2">
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
                 <Textarea
                   value={data.body}
                   onChange={(event) => setData('body', event.target.value)}
+                  onFocus={() => {
+                    if (conversation?.id) {
+                      axios.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
+                    }
+                  }}
                   placeholder="Type a reply..."
                 />
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}

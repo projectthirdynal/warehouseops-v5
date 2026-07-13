@@ -37,6 +37,14 @@ class MetaConversationIngestor
             return;
         }
 
+        // Handle sender_action events (typing_on, typing_off, mark_seen)
+        $senderAction = data_get($payload, 'sender_action');
+        if (is_string($senderAction)) {
+            $this->handleSenderAction($webhookEvent, $senderPsid, $senderAction);
+
+            return;
+        }
+
         DB::transaction(function () use ($webhookEvent, $payload, $senderPsid) {
             $body = (string) (data_get($payload, 'message.text') ?? data_get($payload, 'postback.title') ?? '');
             $quickReplyPayload = data_get($payload, 'message.quick_reply.payload');
@@ -219,6 +227,30 @@ class MetaConversationIngestor
         }
 
         return now();
+    }
+
+    /**
+     * Handle sender_action events: typing_on, typing_off, mark_seen.
+     */
+    private function handleSenderAction(FacebookWebhookEvent $webhookEvent, string $senderPsid, string $action): void
+    {
+        $conversation = Conversation::query()->where(
+            'thread_key',
+            "facebook:{$webhookEvent->facebookPage->page_id}:{$senderPsid}"
+        )->first();
+
+        if ($conversation) {
+            if ($action === 'typing_on') {
+                $conversation->forceFill(['typing_at' => now()])->save();
+            } elseif ($action === 'typing_off' || $action === 'mark_seen') {
+                $conversation->forceFill(['typing_at' => null])->save();
+            }
+        }
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
     }
 
     private function commentTimestamp(array $value): Carbon

@@ -1325,6 +1325,7 @@ class ShopController extends Controller
             'body',
             'message_type',
             'attachments',
+            'metadata',
             'sent_at',
             'raw_payload',
             'phone_candidates',
@@ -1332,13 +1333,36 @@ class ShopController extends Controller
 
         $conversation->refresh();
 
+        // Customer is typing if typing_at was set within the last 15 seconds
+        $isTyping = $conversation->typing_at !== null
+            && $conversation->typing_at->gt(now()->subSeconds(15));
+
         return response()->json([
             'messages' => $messages,
             'last_message_preview' => $conversation->last_message_preview,
             'last_message_at' => $conversation->last_message_at,
             'unread_count' => $conversation->unread_count,
             'status' => $conversation->status,
+            'is_typing' => $isTyping,
         ]);
+    }
+
+    public function sendTypingIndicator(Conversation $conversation): JsonResponse
+    {
+        $conversation->load(['facebookPage', 'identity']);
+
+        if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
+            try {
+                $this->facebookConnector->sendTypingIndicator(
+                    $conversation->facebookPage,
+                    $conversation->identity->provider_user_id
+                );
+            } catch (\Throwable) {
+                // Silently ignore — typing indicators are best-effort
+            }
+        }
+
+        return response()->json(['status' => 'ok']);
     }
 
     public function encoder(): Response
