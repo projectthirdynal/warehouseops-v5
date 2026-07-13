@@ -1153,7 +1153,7 @@ export default function ShopConversation({
                   )}
                   {conversation.sentiment === 'neutral' && <Badge variant="outline">Neutral</Badge>}
                   <span className="text-sm text-muted-foreground">
-                    Score: {conversation.sentiment_score.toFixed(2)}
+                    Score: {Number(conversation.sentiment_score).toFixed(2)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
