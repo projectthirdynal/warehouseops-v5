@@ -833,8 +833,8 @@ export default function ShopConversation({
               </CardHeader>
               <CardContent className="space-y-4">
                 {conversation.snoozed_until && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950">
-                    <p className="font-medium text-blue-700 dark:text-blue-300">
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <p className="font-medium text-primary">
                       Snoozed until {time(conversation.snoozed_until)}
                     </p>
                     {conversation.snooze_reason && (
@@ -881,8 +881,8 @@ export default function ShopConversation({
                 )}
 
                 {conversation.reminder_at && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
-                    <p className="font-medium text-amber-700 dark:text-amber-300">
+                  <div className="rounded-md border border-warning/20 bg-warning/5 p-3 text-sm">
+                    <p className="font-medium text-warning">
                       Reminder: {time(conversation.reminder_at)}
                     </p>
                     <Button
