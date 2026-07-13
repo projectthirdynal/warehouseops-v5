@@ -37,6 +37,7 @@ class CourierExportBatch extends Model
         'downloaded_at',
         'archived_at',
         'metadata',
+        'notes',
     ];
 
     protected $casts = [

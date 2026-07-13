@@ -1,6 +1,14 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Download, FileSpreadsheet, PackageCheck, Truck, Archive, RotateCcw } from 'lucide-react';
+import {
+  Download,
+  FileSpreadsheet,
+  PackageCheck,
+  Truck,
+  Archive,
+  RotateCcw,
+  StickyNote,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +43,9 @@ interface Batch {
   exported_at?: string | null;
   downloaded_at?: string | null;
   archived_at?: string | null;
+  notes?: string | null;
+  created_by?: number | null;
+  creator?: { id: number; name: string } | null;
   created_at: string;
 }
 
@@ -129,6 +140,8 @@ function AddressEditor({ order }: { order: Order }) {
 export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const [groupByRegion, setGroupByRegion] = useState(false);
+  const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -140,6 +153,11 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     setSelectedOrderIds((current) =>
       current.length === orders.data.length ? [] : orders.data.map((order) => order.id)
     );
+  };
+
+  const saveNotes = (batchId: number) => {
+    router.patch(`/shop/exports/${batchId}/notes`, { notes: notesDraft }, { preserveScroll: true });
+    setEditingNotesId(null);
   };
 
   const exportCourier = (courierCode: string) => {
@@ -296,7 +314,54 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                               ({batch.failed_row_count} failed)
                             </span>
                           )}
+                          {batch.creator && (
+                            <span className="ml-1 text-muted-foreground/70">
+                              by {batch.creator.name}
+                            </span>
+                          )}
                         </p>
+                        {editingNotesId === batch.id ? (
+                          <div className="mt-2 flex items-start gap-2">
+                            <Textarea
+                              value={notesDraft}
+                              onChange={(e) => setNotesDraft(e.target.value)}
+                              placeholder="Add notes for this batch..."
+                              className="min-h-[60px] text-xs"
+                              rows={2}
+                            />
+                            <div className="flex flex-col gap-1">
+                              <Button type="button" size="sm" onClick={() => saveNotes(batch.id)}>
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingNotesId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex items-center gap-2">
+                            {batch.notes && (
+                              <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                                {batch.notes}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingNotesId(batch.id);
+                                setNotesDraft(batch.notes ?? '');
+                              }}
+                              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+                            >
+                              <StickyNote className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {batch.file_path && batch.status !== 'archived' && (

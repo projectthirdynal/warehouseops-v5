@@ -1685,9 +1685,10 @@ class ShopController extends Controller
                 ->paginate(25),
             'recent_batches' => CourierExportBatch::query()
                 ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
+                ->with(['creator:id,name'])
                 ->latest()
                 ->limit(10)
-                ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'created_at']),
+                ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
@@ -1746,6 +1747,17 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', "Batch {$batch->batch_number} archived.");
+    }
+
+    public function updateBatchNotes(Request $request, CourierExportBatch $batch): RedirectResponse
+    {
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $batch->forceFill(['notes' => $validated['notes']])->save();
+
+        return back()->with('success', "Notes updated for batch {$batch->batch_number}.");
     }
 
     public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
