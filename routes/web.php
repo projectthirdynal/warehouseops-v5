@@ -365,6 +365,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/encoder/orders/{order}/address', [ShopController::class, 'updateOrderAddress'])->name('shop.encoder.address');
     Route::post('/shop/encoder/orders/{order}/encoded', [ShopController::class, 'markEncoded'])->name('shop.encoder.encoded');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
+    Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
     Route::post('/shop/exports/{batch}/archive', [ShopController::class, 'archiveCourierBatch'])->name('shop.exports.archive');
     Route::delete('/shop/exports/{batch}', [ShopController::class, 'deleteCourierBatch'])->name('shop.exports.destroy');

@@ -82,6 +82,20 @@ class CourierExportService
 
     /**
      * @param Collection<int, Order> $orders
+     * @param array<int, string> $courierCodes
+     * @return Collection<int, CourierExportBatch>
+     */
+    public function createBatchesForCouriers(Collection $orders, array $courierCodes, ?int $userId): Collection
+    {
+        return collect($courierCodes)->flatMap(function (string $courierCode) use ($orders, $userId) {
+            $this->validateOrders($orders, $courierCode);
+
+            return [$this->createBatch($orders, $courierCode, $userId)];
+        })->values();
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
      * @return Collection<int, CourierExportBatch>
      */
     public function createBatchesByRegion(Collection $orders, string $courierCode, ?int $userId): Collection

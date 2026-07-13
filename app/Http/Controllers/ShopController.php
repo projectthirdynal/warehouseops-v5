@@ -1735,6 +1735,37 @@ class ShopController extends Controller
             ->with('success', "Export batch {$batch->batch_number} created.");
     }
 
+    public function exportMultipleCouriers(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'courier_codes' => ['required', 'array', 'min:1'],
+            'courier_codes.*' => ['string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->when(! empty($validated['order_ids']), fn ($query) => $query->whereIn('id', $validated['order_ids']))
+            ->limit(500)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return back()->with('error', 'No encoder-ready orders found for export.');
+        }
+
+        $batches = $this->courierExports->createBatchesForCouriers($orders, $validated['courier_codes'], auth()->id());
+
+        $count = $batches->count();
+        $couriers = $batches->map(fn ($b) => $b->courier_code)->unique()->implode(', ');
+
+        return redirect()
+            ->route('shop.encoder')
+            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}");
+    }
+
     public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
     {
         if (! in_array($batch->status, [CourierExportBatch::STATUS_DOWNLOADED, CourierExportBatch::STATUS_READY])) {

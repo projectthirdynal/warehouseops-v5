@@ -143,6 +143,7 @@ function AddressEditor({ order }: { order: Order }) {
 
 export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+  const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
   const [groupByRegion, setGroupByRegion] = useState(false);
   const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
@@ -260,6 +261,22 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     });
   };
 
+  const toggleCourier = (courierCode: string) => {
+    setSelectedCouriers((current) =>
+      current.includes(courierCode)
+        ? current.filter((code) => code !== courierCode)
+        : [...current, courierCode]
+    );
+  };
+
+  const exportSelectedCouriers = () => {
+    if (selectedCouriers.length === 0) return;
+    router.post('/shop/exports/multi', {
+      courier_codes: selectedCouriers,
+      order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+    });
+  };
+
   return (
     <AppLayout>
       <Head title="Shop Encoder" />
@@ -301,6 +318,32 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 Export {courier.label}
               </Button>
             ))}
+            <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
+              <span className="text-xs text-muted-foreground">Multi-courier:</span>
+              {couriers.map((courier) => (
+                <label
+                  key={courier.value}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCouriers.includes(courier.value)}
+                    onChange={() => toggleCourier(courier.value)}
+                    className="h-4 w-4"
+                  />
+                  {courier.label}
+                </label>
+              ))}
+              <Button
+                variant="default"
+                onClick={exportSelectedCouriers}
+                disabled={selectedCouriers.length === 0}
+                size="sm"
+              >
+                <Truck className="mr-1.5 h-4 w-4" />
+                Export {selectedCouriers.length > 0 ? `(${selectedCouriers.length})` : ''}
+              </Button>
+            </div>
             <Button variant="outline" onClick={loadAnalytics} disabled={analyticsLoading}>
               <BarChart3 className="mr-1.5 h-4 w-4" />
               {analyticsLoading ? 'Loading...' : 'Analytics'}
