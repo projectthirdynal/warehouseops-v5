@@ -1,6 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Download, FileSpreadsheet, PackageCheck, Truck } from 'lucide-react';
+import { Download, FileSpreadsheet, PackageCheck, Truck, Archive } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,12 @@ interface Batch {
   id: number;
   batch_number: string;
   courier_code: string;
+  status: string;
   row_count: number;
   file_path?: string | null;
+  exported_at?: string | null;
+  downloaded_at?: string | null;
+  archived_at?: string | null;
   created_at: string;
 }
 
@@ -251,19 +255,53 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 recent_batches.map((batch) => (
                   <div key={batch.id} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{batch.batch_number}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{batch.batch_number}</p>
+                          <Badge
+                            variant={
+                              batch.status === 'ready'
+                                ? 'default'
+                                : batch.status === 'downloaded'
+                                  ? 'secondary'
+                                  : batch.status === 'archived'
+                                    ? 'outline'
+                                    : 'destructive'
+                            }
+                            className="text-[10px]"
+                          >
+                            {batch.status}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {batch.courier_code} - {batch.row_count} rows
                         </p>
                       </div>
-                      {batch.file_path && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/shop/exports/${batch.id}/download`}>
-                            <Download className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {batch.file_path && batch.status !== 'archived' && (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/shop/exports/${batch.id}/download`}>
+                              <Download className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        )}
+                        {(batch.status === 'ready' || batch.status === 'downloaded') && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              router.post(
+                                `/shop/exports/${batch.id}/archive`,
+                                {},
+                                { preserveScroll: true }
+                              )
+                            }
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))

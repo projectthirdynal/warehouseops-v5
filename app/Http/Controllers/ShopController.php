@@ -39,6 +39,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -1685,7 +1686,7 @@ class ShopController extends Controller
             'recent_batches' => CourierExportBatch::query()
                 ->latest()
                 ->limit(10)
-                ->get(['id', 'batch_number', 'courier_code', 'row_count', 'file_path', 'created_at']),
+                ->get(['id', 'batch_number', 'courier_code', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'created_at']),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
@@ -1719,6 +1720,20 @@ class ShopController extends Controller
         return redirect()
             ->route('shop.encoder')
             ->with('success', "Export batch {$batch->batch_number} created.");
+    }
+
+    public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        if (! in_array($batch->status, [CourierExportBatch::STATUS_DOWNLOADED, CourierExportBatch::STATUS_READY])) {
+            return back()->with('error', 'Only ready or downloaded batches can be archived.');
+        }
+
+        $batch->forceFill([
+            'status' => CourierExportBatch::STATUS_ARCHIVED,
+            'archived_at' => now(),
+        ])->save();
+
+        return back()->with('success', "Batch {$batch->batch_number} archived.");
     }
 
     public function updateOrderAddress(Request $request, Order $order): RedirectResponse
@@ -1763,11 +1778,24 @@ class ShopController extends Controller
         return back()->with('success', "{$order->order_number} marked encoded.");
     }
 
-    public function downloadExport(CourierExportBatch $batch): BinaryFileResponse
+    public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        abort_unless($batch->file_path && file_exists(storage_path("app/{$batch->file_path}")), 404);
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
 
-        return response()->download(storage_path("app/{$batch->file_path}"));
+        if ($batch->status === CourierExportBatch::STATUS_READY) {
+            $batch->forceFill([
+                'status' => CourierExportBatch::STATUS_DOWNLOADED,
+                'downloaded_at' => now(),
+            ])->save();
+        }
+
+        $filename = $batch->batch_number . '.csv';
+
+        return Storage::disk('local')->download($batch->file_path, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
     }
 
     public function connectFacebook(): RedirectResponse

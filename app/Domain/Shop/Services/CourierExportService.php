@@ -25,7 +25,7 @@ class CourierExportService
             $batch = CourierExportBatch::query()->create([
                 'batch_number' => $this->batchNumber($courierCode),
                 'courier_code' => $courierCode,
-                'status' => 'exported',
+                'status' => CourierExportBatch::STATUS_READY,
                 'created_by' => $userId,
                 'row_count' => $orders->count(),
                 'exported_at' => now(),
