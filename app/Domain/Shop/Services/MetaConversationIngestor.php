@@ -7,6 +7,7 @@ namespace App\Domain\Shop\Services;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\Tag;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -62,8 +63,12 @@ class MetaConversationIngestor
                 'last_message_preview' => str($body)->limit(160)->toString(),
                 'last_message_at' => $this->eventTimestamp($payload),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
-                'tags' => $detectedPhones === [] ? null : ['phone_detected'],
             ])->save();
+
+            if ($detectedPhones !== [] && ! $conversation->tags()->where('slug', 'phone_detected')->exists()) {
+                $tag = Tag::firstOrCreate(['slug' => 'phone_detected'], ['name' => 'Phone Detected', 'color' => '#22c55e']);
+                $conversation->tags()->syncWithoutDetaching($tag);
+            }
 
             Message::query()->firstOrCreate(
                 ['external_message_id' => $webhookEvent->event_id],
@@ -172,8 +177,12 @@ class MetaConversationIngestor
                 'last_message_preview' => str($body)->limit(160)->toString(),
                 'last_message_at' => $this->commentTimestamp($value),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
-                'tags' => $detectedPhones === [] ? null : ['phone_detected'],
             ])->save();
+
+            if ($detectedPhones !== [] && ! $conversation->tags()->where('slug', 'phone_detected')->exists()) {
+                $tag = Tag::firstOrCreate(['slug' => 'phone_detected'], ['name' => 'Phone Detected', 'color' => '#22c55e']);
+                $conversation->tags()->syncWithoutDetaching($tag);
+            }
 
             Message::query()->firstOrCreate(
                 ['external_message_id' => $commentId],

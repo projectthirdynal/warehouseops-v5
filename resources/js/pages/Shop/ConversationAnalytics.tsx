@@ -238,17 +238,13 @@ export default function ConversationAnalytics({
                   <span className="w-28 shrink-0 text-muted-foreground">{day.date}</span>
                   <div className="flex flex-1 items-center gap-2">
                     <div
-                      className="h-5 rounded bg-blue-200 dark:bg-blue-900"
+                      className="h-5 rounded bg-primary/20"
                       style={{ width: `${(day.total / maxDailyTotal) * 100}%`, minWidth: '2px' }}
                     />
                     <span className="shrink-0 font-medium">{day.total}</span>
                   </div>
-                  <span className="w-16 shrink-0 text-xs text-green-600 dark:text-green-400">
-                    {day.responded} resp
-                  </span>
-                  <span className="w-16 shrink-0 text-xs text-blue-600 dark:text-blue-400">
-                    {day.resolved} resl
-                  </span>
+                  <span className="w-16 shrink-0 text-xs text-success">{day.responded} resp</span>
+                  <span className="w-16 shrink-0 text-xs text-primary">{day.resolved} resl</span>
                 </div>
               ))}
               {daily_trend.length === 0 && (

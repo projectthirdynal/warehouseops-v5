@@ -10,6 +10,9 @@ use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Inventory\Exceptions\InsufficientStockException;
+use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\StockService;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerAddressService;
@@ -50,6 +53,7 @@ class ShopController extends Controller
         private readonly CustomerNoteService $customerNotes,
         private readonly CustomerTimelineService $customerTimeline,
         private readonly SentimentAnalysisService $sentimentAnalyzer,
+        private readonly StockService $stockService,
     ) {}
 
     public function index(): Response
@@ -1580,6 +1584,27 @@ class ShopController extends Controller
                     'name' => $validated['customer_name'],
                     'phone' => $validated['phone'],
                 ]);
+            }
+
+            $warehouse = Warehouse::query()->orderBy('id')->first();
+            if (! $warehouse) {
+                throw new \RuntimeException('No warehouse configured for stock deduction.');
+            }
+
+            foreach ($preparedItems as $item) {
+                try {
+                    $this->stockService->stockOut(
+                        productId: $item['product']->id,
+                        variantId: $item['variant']?->id,
+                        warehouseId: $warehouse->id,
+                        quantity: $item['quantity'],
+                        referenceType: 'pos_order',
+                        referenceId: 0,
+                        performedBy: auth()->id(),
+                    );
+                } catch (InsufficientStockException $e) {
+                    abort(422, "Insufficient stock for {$item['display_name']}: requested {$e->requested}, available {$e->available}.");
+                }
             }
 
             $order = Order::query()->create([
