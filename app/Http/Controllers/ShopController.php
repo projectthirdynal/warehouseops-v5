@@ -22,7 +22,9 @@ use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
+use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -54,6 +56,7 @@ class ShopController extends Controller
         private readonly CustomerTimelineService $customerTimeline,
         private readonly SentimentAnalysisService $sentimentAnalyzer,
         private readonly StockService $stockService,
+        private readonly ConversationExportService $conversationExports,
     ) {}
 
     public function index(): Response
@@ -1175,8 +1178,35 @@ class ShopController extends Controller
             'status_distribution' => $statusDistribution,
             'sentiment_distribution' => $sentimentDistribution,
             'daily_trend' => $dailyTrend,
+            'recent_exports' => ConversationExport::query()
+                ->latest()
+                ->limit(10)
+                ->get(['id', 'export_number', 'status', 'conversation_count', 'message_count', 'file_path', 'created_at']),
             'range' => $range ?: '30d',
         ]);
+    }
+
+    public function exportConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'status' => ['nullable', 'string', 'in:open,assigned,resolved,archived,closed'],
+            'sentiment' => ['nullable', 'string', 'in:positive,neutral,negative'],
+        ]);
+
+        $export = $this->conversationExports->createExport($validated, auth()->id());
+
+        return redirect()
+            ->route('shop.analytics')
+            ->with('success', "Compliance export {$export->export_number} created ({$export->conversation_count} conversations, {$export->message_count} messages).");
+    }
+
+    public function downloadConversationExport(ConversationExport $export): BinaryFileResponse
+    {
+        abort_unless($export->file_path && file_exists(storage_path("app/{$export->file_path}")), 404);
+
+        return response()->download(storage_path("app/{$export->file_path}"));
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse
