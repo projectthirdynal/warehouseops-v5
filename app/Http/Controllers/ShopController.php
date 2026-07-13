@@ -536,13 +536,27 @@ class ShopController extends Controller
             'identity:id,display_name,provider_user_id,phone_detected',
             'assignedAgent:id,name',
             'tags:id,name,color',
-            'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
+
+        $totalMessages = Message::query()->where('conversation_id', $conversation->id)->count();
+        $messageLimit = 50;
+        $initialMessages = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->latest('id')
+            ->limit($messageLimit)
+            ->get()
+            ->reverse()
+            ->values();
 
         $conversation->forceFill(['unread_count' => 0])->save();
 
         return Inertia::render('Shop/Conversation', [
             'conversation' => $conversation,
+            'messages' => $initialMessages,
+            'has_more_messages' => $totalMessages > $messageLimit,
+            'total_message_count' => $totalMessages,
             'recent_orders' => $conversation->customer_id
                 ? Order::query()
                     ->with('product:id,name,sku')
@@ -1363,6 +1377,40 @@ class ShopController extends Controller
         }
 
         return response()->json(['status' => 'ok']);
+    }
+
+    public function fetchOlderMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'before_id' => ['required', 'integer', 'exists:messages,id'],
+        ]);
+
+        $messageLimit = 50;
+        $messages = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('id', '<', $validated['before_id'])
+            ->orderByDesc('id')
+            ->limit($messageLimit + 1)
+            ->get([
+                'id',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ])
+            ->reverse()
+            ->values();
+
+        $hasMore = $messages->count() > $messageLimit;
+
+        return response()->json([
+            'messages' => $messages->take($messageLimit),
+            'has_more' => $hasMore,
+        ]);
     }
 
     public function encoder(): Response

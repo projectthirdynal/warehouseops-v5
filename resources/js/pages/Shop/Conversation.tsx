@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronUp,
   Clock,
   File as FileIcon,
   History,
@@ -108,6 +109,9 @@ interface RecentOrder {
 
 interface Props {
   conversation: Conversation;
+  messages: Message[];
+  has_more_messages: boolean;
+  total_message_count: number;
   recent_orders: RecentOrder[];
   quick_replies: { label: string; body: string }[];
   saved_templates: {
@@ -197,14 +201,36 @@ export default function ShopConversation({
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   merge_candidates = [],
+  messages: initialMessages = [],
+  has_more_messages: initialHasMore = false,
+  total_message_count: totalMessages = 0,
 }: Props) {
-  const safeMessages = conversation?.messages ?? [];
+  const safeMessages = initialMessages;
   const [messages, setMessages] = useState<Message[]>(safeMessages);
   const [lastMessageId, setLastMessageId] = useState<number>(
     safeMessages.reduce((max, m) => (m.id > max ? m.id : max), 0)
   );
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+
+  const loadOlderMessages = () => {
+    if (loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    axios
+      .get(`/shop/inbox/${conversation.id}/messages`, {
+        params: { before_id: messages[0].id },
+      })
+      .then(({ data }) => {
+        if (data.messages?.length > 0) {
+          setMessages((prev) => [...data.messages, ...prev]);
+        }
+        setHasMore(Boolean(data.has_more));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOlder(false));
+  };
 
   useEffect(() => {
     const propIds = new Set(safeMessages.map((m) => m.id));
@@ -551,6 +577,23 @@ export default function ShopConversation({
                       </Button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {hasMore && (
+                <div className="flex justify-center py-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadOlderMessages}
+                    disabled={loadingOlder}
+                  >
+                    <ChevronUp className="mr-1.5 h-4 w-4" />
+                    {loadingOlder
+                      ? 'Loading...'
+                      : `Load older messages (${totalMessages - messages.length} more)`}
+                  </Button>
                 </div>
               )}
 
