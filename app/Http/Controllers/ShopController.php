@@ -1598,6 +1598,81 @@ class ShopController extends Controller
         return response()->json(['status' => 'cancelled']);
     }
 
+    public function broadcastMessage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'conversation_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'conversation_ids.*' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->with(['facebookPage', 'identity'])
+            ->get();
+
+        $results = [];
+
+        foreach ($conversations as $conversation) {
+            if (! $conversation->facebookPage?->page_access_token || ! $conversation->identity?->provider_user_id) {
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'skipped',
+                    'error' => 'Missing page token or customer PSID',
+                ];
+                continue;
+            }
+
+            try {
+                $delivery = $this->facebookConnector->sendMessage(
+                    $conversation->facebookPage,
+                    $conversation->identity->provider_user_id,
+                    $validated['body']
+                );
+
+                Message::query()->create([
+                    'conversation_id' => $conversation->id,
+                    'facebook_page_id' => $conversation->facebook_page_id,
+                    'customer_identity_id' => $conversation->customer_identity_id,
+                    'external_message_id' => $delivery['message_id'] ?? ('local-' . str()->uuid()),
+                    'direction' => 'outbound',
+                    'message_type' => 'text',
+                    'body' => $validated['body'],
+                    'raw_payload' => $delivery,
+                    'sent_at' => now(),
+                    'send_status' => 'sent',
+                    'retry_count' => 0,
+                ]);
+
+                $conversation->forceFill([
+                    'last_message_preview' => $validated['body'],
+                    'last_message_at' => now(),
+                    'draft_body' => null,
+                ])->save();
+
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'sent',
+                ];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'conversation_id' => $conversation->id,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $sent = count(array_filter($results, fn ($r) => $r['status'] === 'sent'));
+        $failed = count(array_filter($results, fn ($r) => $r['status'] === 'failed'));
+        $skipped = count(array_filter($results, fn ($r) => $r['status'] === 'skipped'));
+
+        return response()->json([
+            'results' => $results,
+            'summary' => ['sent' => $sent, 'failed' => $failed, 'skipped' => $skipped],
+        ]);
+    }
+
     public function encoder(): Response
     {
         return Inertia::render('Shop/Encoder', [

@@ -18,6 +18,7 @@ import {
   Search,
   Flag,
   Languages,
+  Megaphone,
   ShoppingCart,
   Trash2,
   User,
@@ -348,6 +349,14 @@ export default function ShopConversation({
   const [scheduledMessages, setScheduledMessages] = useState(initialScheduled);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastIds, setBroadcastIds] = useState<number[]>([]);
+  const [broadcastResult, setBroadcastResult] = useState<{
+    sent: number;
+    failed: number;
+    skipped: number;
+  } | null>(null);
+  const [broadcastSending, setBroadcastSending] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [qrTitle, setQrTitle] = useState('');
   const [qrPayload, setQrPayload] = useState('');
@@ -515,6 +524,29 @@ export default function ShopConversation({
         setScheduledMessages((prev) => prev.filter((sm) => sm.id !== id));
       })
       .catch(() => {});
+  };
+
+  const sendBroadcast = () => {
+    if (!data.body.trim() || broadcastIds.length === 0) return;
+    setBroadcastSending(true);
+    setBroadcastResult(null);
+    axiosWithCsrf
+      .post('/shop/broadcast', {
+        body: data.body,
+        conversation_ids: [conversation.id, ...broadcastIds],
+      })
+      .then(({ data: res }) => {
+        setBroadcastResult(res.summary);
+        reset('body', 'quick_replies');
+        setShowBroadcast(false);
+        setBroadcastIds([]);
+      })
+      .catch(() => {})
+      .finally(() => setBroadcastSending(false));
+  };
+
+  const toggleBroadcastId = (id: number) => {
+    setBroadcastIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const addQuickReply = () => {
@@ -1165,6 +1197,91 @@ export default function ShopConversation({
                   </div>
                 )}
 
+                {showBroadcast && (
+                  <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <Megaphone className="h-4 w-4" />
+                        Broadcast to Other Conversations
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowBroadcast(false);
+                          setBroadcastIds([]);
+                          setBroadcastResult(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select conversations to send the same message to. Current conversation is
+                      included automatically.
+                    </p>
+                    <div className="max-h-48 space-y-1 overflow-y-auto">
+                      {merge_candidates.map((mc) => (
+                        <label
+                          key={mc.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={broadcastIds.includes(mc.id)}
+                            onChange={() => toggleBroadcastId(mc.id)}
+                            className="h-3.5 w-3.5"
+                          />
+                          <span className="flex-1 truncate">
+                            {mc.customer?.name ?? mc.identity?.display_name ?? 'Unknown'}
+                            {mc.last_message_preview && (
+                              <span className="ml-1 text-muted-foreground">
+                                — {mc.last_message_preview.slice(0, 40)}
+                              </span>
+                            )}
+                          </span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {mc.status}
+                          </Badge>
+                        </label>
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={sendBroadcast}
+                      disabled={broadcastSending || !data.body.trim() || broadcastIds.length === 0}
+                    >
+                      <Megaphone className="mr-1.5 h-3 w-3" />
+                      {broadcastSending
+                        ? 'Sending...'
+                        : `Broadcast to ${broadcastIds.length + 1} conversation${broadcastIds.length === 0 ? '' : 's'}`}
+                    </Button>
+                  </div>
+                )}
+
+                {broadcastResult && (
+                  <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-2 text-xs">
+                    <span className="text-green-600">Sent: {broadcastResult.sent}</span>
+                    {broadcastResult.failed > 0 && (
+                      <span className="text-destructive">Failed: {broadcastResult.failed}</span>
+                    )}
+                    {broadcastResult.skipped > 0 && (
+                      <span className="text-muted-foreground">
+                        Skipped: {broadcastResult.skipped}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setBroadcastResult(null)}
+                      className="ml-auto text-muted-foreground hover:text-foreground"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Button
@@ -1184,6 +1301,15 @@ export default function ShopConversation({
                     >
                       <CalendarClock className="mr-1.5 h-3 w-3" />
                       Schedule
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowBroadcast((v) => !v)}
+                    >
+                      <Megaphone className="mr-1.5 h-3 w-3" />
+                      Broadcast
                     </Button>
                   </div>
                   <Button type="submit" disabled={processing}>
