@@ -1684,6 +1684,7 @@ class ShopController extends Controller
                 ->latest()
                 ->paginate(25),
             'recent_batches' => CourierExportBatch::query()
+                ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
                 ->latest()
                 ->limit(10)
                 ->get(['id', 'batch_number', 'courier_code', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'created_at']),
@@ -1734,6 +1735,26 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', "Batch {$batch->batch_number} archived.");
+    }
+
+    public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        $failedCount = $batch->rows()->where('status', 'failed')->count();
+
+        if ($failedCount === 0) {
+            return back()->with('error', 'No failed rows to retry in this batch.');
+        }
+
+        $this->courierExports->rebuildBatch($batch);
+
+        $stillFailed = $batch->fresh()->rows()->where('status', 'failed')->count();
+
+        return back()->with(
+            $stillFailed > 0 ? 'warning' : 'success',
+            $stillFailed > 0
+                ? 'Rebuilt batch ' . $batch->batch_number . ': ' . ($failedCount - $stillFailed) . ' rows fixed, ' . $stillFailed . ' still failing.'
+                : 'Rebuilt batch ' . $batch->batch_number . ': all ' . $failedCount . ' failed rows fixed.'
+        );
     }
 
     public function updateOrderAddress(Request $request, Order $order): RedirectResponse

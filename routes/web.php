@@ -367,6 +367,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
     Route::post('/shop/exports/{batch}/archive', [ShopController::class, 'archiveCourierBatch'])->name('shop.exports.archive');
+    Route::post('/shop/exports/{batch}/retry', [ShopController::class, 'retryCourierBatch'])->name('shop.exports.retry');
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::get('/shop/orders/{order}', [ShopController::class, 'order'])->name('shop.orders.show')->whereNumber('order');

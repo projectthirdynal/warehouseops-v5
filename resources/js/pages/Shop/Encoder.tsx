@@ -1,6 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Download, FileSpreadsheet, PackageCheck, Truck, Archive } from 'lucide-react';
+import { Download, FileSpreadsheet, PackageCheck, Truck, Archive, RotateCcw } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ interface Batch {
   courier_code: string;
   status: string;
   row_count: number;
+  failed_row_count?: number;
   file_path?: string | null;
   exported_at?: string | null;
   downloaded_at?: string | null;
@@ -275,6 +276,11 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {batch.courier_code} - {batch.row_count} rows
+                          {batch.failed_row_count && batch.failed_row_count > 0 && (
+                            <span className="ml-1 text-destructive">
+                              ({batch.failed_row_count} failed)
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -285,6 +291,24 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                             </Link>
                           </Button>
                         )}
+                        {batch.failed_row_count &&
+                          batch.failed_row_count > 0 &&
+                          batch.status !== 'archived' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                router.post(
+                                  `/shop/exports/${batch.id}/retry`,
+                                  {},
+                                  { preserveScroll: true }
+                                )
+                              }
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
                         {(batch.status === 'ready' || batch.status === 'downloaded') && (
                           <Button
                             type="button"

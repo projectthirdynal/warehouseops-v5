@@ -182,6 +182,83 @@ class CourierExportService
         return sprintf('SHOP-%s-%s-%04d', strtoupper($courierCode), now()->format('Ymd'), CourierExportBatch::whereDate('created_at', today())->count() + 1);
     }
 
+    public function rebuildBatch(CourierExportBatch $batch): CourierExportBatch
+    {
+        $failedRows = $batch->rows()->where('status', 'failed')->get();
+
+        if ($failedRows->isEmpty()) {
+            return $batch;
+        }
+
+        return DB::transaction(function () use ($batch, $failedRows) {
+            $batch->forceFill([
+                'status' => CourierExportBatch::STATUS_PROCESSING,
+            ])->save();
+
+            $rebuilt = 0;
+            $stillFailed = 0;
+
+            foreach ($failedRows as $row) {
+                $order = $row->order;
+
+                if (! $order) {
+                    $row->forceFill([
+                        'error_message' => 'Linked order no longer exists',
+                    ])->save();
+                    $stillFailed++;
+                    continue;
+                }
+
+                try {
+                    [$productName, $quantity] = $this->orderLineSummary($order);
+
+                    $row->forceFill([
+                        'status' => 'exported',
+                        'receiver_name' => $order->receiver_name,
+                        'phone_number' => $order->receiver_phone,
+                        'complete_address' => $order->receiver_address,
+                        'province' => $order->state,
+                        'city' => $order->city,
+                        'barangay' => $order->barangay,
+                        'product_name' => $productName,
+                        'cod_amount' => $order->cod_amount,
+                        'quantity' => $quantity,
+                        'remarks' => $order->notes,
+                        'error_message' => null,
+                        'exported_at' => now(),
+                    ])->save();
+
+                    $rebuilt++;
+                } catch (\Throwable $e) {
+                    $row->forceFill([
+                        'error_message' => $e->getMessage(),
+                    ])->save();
+                    $stillFailed++;
+                }
+            }
+
+            $allRows = $batch->rows()->orderBy('row_number')->get();
+
+            if ($stillFailed === 0) {
+                $path = "exports/shop/{$batch->batch_number}.csv";
+                Storage::put($path, $this->csv($allRows, $batch->courier_code));
+
+                $batch->forceFill([
+                    'status' => CourierExportBatch::STATUS_READY,
+                    'file_path' => $path,
+                    'row_count' => $allRows->count(),
+                ])->save();
+            } else {
+                $batch->forceFill([
+                    'status' => CourierExportBatch::STATUS_READY,
+                    'row_count' => $allRows->where('status', 'exported')->count(),
+                ])->save();
+            }
+
+            return $batch->refresh();
+        });
+    }
+
     /**
      * @param Collection<int, Order> $orders
      */
