@@ -16,6 +16,7 @@ import {
   Send,
   Search,
   Flag,
+  Languages,
   ShoppingCart,
   Trash2,
   User,
@@ -58,6 +59,8 @@ interface Message {
   reactions?: Record<string, string> | null;
   is_flagged?: boolean;
   flag_reason?: string | null;
+  translated_body?: string | null;
+  translated_lang?: string | null;
   sent_at: string | null;
   phone_candidates?: string[] | null;
   raw_payload?: Record<string, unknown> | null;
@@ -722,6 +725,17 @@ export default function ShopConversation({
                         } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
                       >
                         {message.body && <p>{message.body}</p>}
+                        {message.translated_body && (
+                          <p
+                            className={`mt-1 border-t pt-1 text-xs italic ${
+                              message.direction === 'outbound'
+                                ? 'border-primary-foreground/20 text-primary-foreground/70'
+                                : 'border-muted text-muted-foreground'
+                            }`}
+                          >
+                            {message.translated_body}
+                          </p>
+                        )}
                         {message.message_type === 'quick_reply' &&
                           message.metadata?.quick_reply_payload && (
                             <p
@@ -918,6 +932,35 @@ export default function ShopConversation({
                           >
                             <Flag className="h-4 w-4" />
                           </button>
+                          {message.body && (
+                            <button
+                              type="button"
+                              className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                              title="Translate to English"
+                              onClick={() => {
+                                axiosWithCsrf
+                                  .post(`/shop/messages/${message.id}/translate`, {
+                                    target_lang: 'en',
+                                  })
+                                  .then(({ data }) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? {
+                                              ...m,
+                                              translated_body: data.translated_body,
+                                              translated_lang: data.translated_lang,
+                                            }
+                                          : m
+                                      )
+                                    );
+                                  })
+                                  .catch(() => {});
+                              }}
+                            >
+                              <Languages className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                         {message.is_flagged && (
                           <div className="mt-1 flex items-center gap-1 text-xs text-destructive">

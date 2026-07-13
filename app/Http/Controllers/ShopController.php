@@ -23,6 +23,7 @@ use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Services\ConversationExportService;
+use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\OrderRemark;
@@ -57,6 +58,7 @@ class ShopController extends Controller
         private readonly SentimentAnalysisService $sentimentAnalyzer,
         private readonly StockService $stockService,
         private readonly ConversationExportService $conversationExports,
+        private readonly MessageTranslationService $translator,
     ) {}
 
     public function index(): Response
@@ -1344,6 +1346,8 @@ class ShopController extends Controller
             'reactions',
             'is_flagged',
             'flag_reason',
+            'translated_body',
+            'translated_lang',
             'sent_at',
             'raw_payload',
             'phone_candidates',
@@ -1405,6 +1409,8 @@ class ShopController extends Controller
                 'reactions',
                 'is_flagged',
                 'flag_reason',
+                'translated_body',
+                'translated_lang',
                 'sent_at',
                 'raw_payload',
                 'phone_candidates',
@@ -1467,6 +1473,8 @@ class ShopController extends Controller
                 'reactions',
                 'is_flagged',
                 'flag_reason',
+                'translated_body',
+                'translated_lang',
                 'sent_at',
                 'raw_payload',
                 'phone_candidates',
@@ -1496,6 +1504,41 @@ class ShopController extends Controller
         return response()->json([
             'is_flagged' => $message->is_flagged,
             'flag_reason' => $message->flag_reason,
+        ]);
+    }
+
+    public function translateMessage(Request $request, Message $message): JsonResponse
+    {
+        $targetLang = $request->input('target_lang', 'en');
+
+        if ($message->translated_body && $message->translated_lang === $targetLang) {
+            return response()->json([
+                'translated_body' => $message->translated_body,
+                'translated_lang' => $message->translated_lang,
+                'cached' => true,
+            ]);
+        }
+
+        if (! $message->body) {
+            return response()->json(['error' => 'No text to translate'], 422);
+        }
+
+        $result = $this->translator->translate($message->body, $targetLang);
+
+        if (! $result) {
+            return response()->json(['error' => 'Translation failed'], 422);
+        }
+
+        $message->forceFill([
+            'translated_body' => $result['translated'],
+            'translated_lang' => $targetLang,
+        ])->save();
+
+        return response()->json([
+            'translated_body' => $result['translated'],
+            'translated_lang' => $targetLang,
+            'detected_source' => $result['detected_source'],
+            'cached' => false,
         ]);
     }
 

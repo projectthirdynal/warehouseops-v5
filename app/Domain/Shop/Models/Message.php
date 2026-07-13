@@ -23,6 +23,8 @@ class Message extends Model
         'reactions',
         'is_flagged',
         'flag_reason',
+        'translated_body',
+        'translated_lang',
         'raw_payload',
         'sent_at',
         'read_at',
