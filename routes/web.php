@@ -334,6 +334,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/messages/{message}/translate', [ShopController::class, 'translateMessage'])->name('shop.messages.translate');
     Route::get('/shop/inbox/{conversation}/search', [ShopController::class, 'searchMessages'])->name('shop.conversation.search');
     Route::post('/shop/inbox/{conversation}/draft', [ShopController::class, 'saveDraft'])->name('shop.conversation.draft');
+    Route::post('/shop/inbox/{conversation}/schedule', [ShopController::class, 'scheduleMessage'])->name('shop.conversation.schedule');
+    Route::delete('/shop/scheduled-messages/{scheduled_message}', [ShopController::class, 'cancelScheduledMessage'])->name('shop.scheduled-messages.cancel');
     Route::get('/shop/analytics', [ShopController::class, 'conversationAnalytics'])->name('shop.analytics');
     Route::post('/shop/conversations/export', [ShopController::class, 'exportConversations'])->name('shop.conversations.export');
     Route::get('/shop/conversations/export/{export}/download', [ShopController::class, 'downloadConversationExport'])->name('shop.conversations.export.download');

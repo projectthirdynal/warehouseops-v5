@@ -10,6 +10,7 @@ use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
@@ -586,6 +587,11 @@ class ShopController extends Controller
                 ->latest('last_message_at')
                 ->limit(20)
                 ->get(['id', 'customer_id', 'customer_identity_id', 'last_message_preview', 'status', 'last_message_at']),
+            'scheduled_messages' => ScheduledMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('status', 'pending')
+                ->orderBy('scheduled_at')
+                ->get(['id', 'body', 'scheduled_at', 'status']),
         ]);
     }
 
@@ -1553,6 +1559,43 @@ class ShopController extends Controller
         ])->save();
 
         return response()->json(['status' => 'ok']);
+    }
+
+    public function scheduleMessage(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'scheduled_at' => ['required', 'date', 'after:now'],
+            'quick_replies' => ['nullable', 'array', 'max:11'],
+            'quick_replies.*.title' => ['required', 'string', 'max:20'],
+            'quick_replies.*.payload' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $scheduled = ScheduledMessage::query()->create([
+            'conversation_id' => $conversation->id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'customer_identity_id' => $conversation->customer_identity_id,
+            'body' => $validated['body'],
+            'quick_replies' => $validated['quick_replies'] ?? null,
+            'scheduled_at' => $validated['scheduled_at'],
+            'status' => 'pending',
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'scheduled_message' => $scheduled->only(['id', 'body', 'scheduled_at', 'status']),
+        ]);
+    }
+
+    public function cancelScheduledMessage(Request $request, ScheduledMessage $scheduledMessage): JsonResponse
+    {
+        if ($scheduledMessage->status !== 'pending') {
+            return response()->json(['error' => 'Cannot cancel a non-pending scheduled message'], 422);
+        }
+
+        $scheduledMessage->forceFill(['status' => 'cancelled'])->save();
+
+        return response()->json(['status' => 'cancelled']);
     }
 
     public function encoder(): Response

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronUp,
   Clock,
+  CalendarClock,
   File as FileIcon,
   History,
   ImageIcon,
@@ -151,6 +152,7 @@ interface Props {
     customer?: { name: string } | null;
     identity?: { display_name: string | null } | null;
   }[];
+  scheduled_messages: { id: number; body: string; scheduled_at: string; status: string }[];
 }
 
 function time(value: string | null) {
@@ -217,6 +219,7 @@ export default function ShopConversation({
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   merge_candidates = [],
+  scheduled_messages: initialScheduled = [],
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -342,6 +345,9 @@ export default function ShopConversation({
   });
   const [draftSaved, setDraftSaved] = useState(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scheduledMessages, setScheduledMessages] = useState(initialScheduled);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [qrTitle, setQrTitle] = useState('');
   const [qrPayload, setQrPayload] = useState('');
@@ -476,6 +482,23 @@ export default function ShopConversation({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (showSchedule && scheduleAt) {
+      axiosWithCsrf
+        .post(`/shop/inbox/${conversation.id}/schedule`, {
+          body: data.body,
+          scheduled_at: scheduleAt,
+          quick_replies: data.quick_replies.length > 0 ? data.quick_replies : undefined,
+        })
+        .then(({ data: res }) => {
+          setScheduledMessages((prev) => [...prev, res.scheduled_message]);
+          reset('body', 'quick_replies');
+          setShowSchedule(false);
+          setScheduleAt('');
+          setShowQuickReplies(false);
+        })
+        .catch(() => {});
+      return;
+    }
     post(`/shop/inbox/${conversation.id}/reply`, {
       preserveScroll: true,
       onSuccess: () => {
@@ -483,6 +506,15 @@ export default function ShopConversation({
         setShowQuickReplies(false);
       },
     });
+  };
+
+  const cancelScheduledMessage = (id: number) => {
+    axiosWithCsrf
+      .delete(`/shop/scheduled-messages/${id}`)
+      .then(() => {
+        setScheduledMessages((prev) => prev.filter((sm) => sm.id !== id));
+      })
+      .catch(() => {});
   };
 
   const addQuickReply = () => {
@@ -1086,19 +1118,77 @@ export default function ShopConversation({
                   </div>
                 )}
 
+                {showSchedule && (
+                  <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3">
+                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="datetime-local"
+                      value={scheduleAt}
+                      onChange={(e) => setScheduleAt(e.target.value)}
+                      className="h-9 flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowSchedule(false);
+                        setScheduleAt('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+
+                {scheduledMessages.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      Scheduled Messages ({scheduledMessages.length})
+                    </p>
+                    {scheduledMessages.map((sm) => (
+                      <div key={sm.id} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex-1 truncate">
+                          <span className="text-muted-foreground">{time(sm.scheduled_at)}</span>
+                          <span className="ml-2">{sm.body}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => cancelScheduledMessage(sm.id)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowQuickReplies((v) => !v)}
-                  >
-                    <Plus className="mr-1.5 h-3 w-3" />
-                    Quick Reply Buttons
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowQuickReplies((v) => !v)}
+                    >
+                      <Plus className="mr-1.5 h-3 w-3" />
+                      Quick Reply Buttons
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSchedule((v) => !v)}
+                    >
+                      <CalendarClock className="mr-1.5 h-3 w-3" />
+                      Schedule
+                    </Button>
+                  </div>
                   <Button type="submit" disabled={processing}>
                     <Send className="mr-1.5 h-4 w-4" />
-                    Send / Log Reply
+                    {showSchedule ? 'Schedule Send' : 'Send / Log Reply'}
                   </Button>
                 </div>
               </form>
