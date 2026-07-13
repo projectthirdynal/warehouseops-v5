@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import {
@@ -14,6 +14,7 @@ import {
   PackageCheck,
   Plus,
   Send,
+  Search,
   ShoppingCart,
   Trash2,
   User,
@@ -222,6 +223,38 @@ export default function ShopConversation({
   const [isTyping, setIsTyping] = useState(false);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Message[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!value.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setIsSearching(true);
+      axios
+        .get(`/shop/inbox/${conversation.id}/search`, { params: { q: value } })
+        .then(({ data }) => setSearchResults(data.messages))
+        .catch(() => setSearchResults([]))
+        .finally(() => setIsSearching(false));
+    }, 300);
+  };
+
+  const scrollToMessage = (messageId: number) => {
+    setSearchQuery('');
+    setSearchResults(null);
+    const el = document.getElementById(`message-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-primary', 'ring-offset-1');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-1'), 2000);
+    }
+  };
 
   const loadOlderMessages = () => {
     if (loadingOlder || messages.length === 0) return;
@@ -588,6 +621,63 @@ export default function ShopConversation({
                 </div>
               )}
 
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder="Search messages..."
+                    className="pl-9 pr-8"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => handleSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {searchResults !== null && (
+                  <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                    {isSearching ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">Searching...</p>
+                    ) : searchResults.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">No results found.</p>
+                    ) : (
+                      <ul className="divide-y">
+                        {searchResults.map((msg) => (
+                          <li key={msg.id}>
+                            <button
+                              type="button"
+                              onClick={() => scrollToMessage(msg.id)}
+                              className="w-full px-3 py-2 text-left text-xs hover:bg-muted/50"
+                            >
+                              <span
+                                className={`mr-1.5 font-medium ${
+                                  msg.direction === 'outbound'
+                                    ? 'text-primary'
+                                    : 'text-muted-foreground'
+                                }`}
+                              >
+                                {msg.direction === 'outbound' ? 'Agent' : 'Customer'}
+                              </span>
+                              <span className="text-muted-foreground">{time(msg.sent_at)}</span>
+                              <p className="mt-0.5 line-clamp-2 text-foreground">
+                                {msg.body || '[attachment]'}
+                              </p>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {hasMore && (
                 <div className="flex justify-center py-2">
                   <Button
@@ -615,6 +705,7 @@ export default function ShopConversation({
                   return (
                     <div
                       key={message.id}
+                      id={`message-${message.id}`}
                       className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div

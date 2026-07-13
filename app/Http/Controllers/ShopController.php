@@ -1435,6 +1435,42 @@ class ShopController extends Controller
         return response()->json(['reactions' => $reactions]);
     }
 
+    public function searchMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:200'],
+        ]);
+
+        $query = '%' . $validated['q'] . '%';
+
+        $results = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where(function ($q) use ($query) {
+                $q->where('body', 'like', $query)
+                    ->orWhere('metadata', 'like', $query);
+            })
+            ->orderBy('sent_at')
+            ->orderBy('id')
+            ->limit(50)
+            ->get([
+                'id',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'reactions',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ]);
+
+        return response()->json([
+            'messages' => $results,
+            'query' => $validated['q'],
+        ]);
+    }
+
     public function encoder(): Response
     {
         return Inertia::render('Shop/Encoder', [
