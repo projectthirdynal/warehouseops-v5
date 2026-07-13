@@ -7,8 +7,11 @@ namespace App\Domain\Shop\Services;
 use App\Domain\Order\Models\Order;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportRow;
+use App\Models\User;
+use App\Notifications\CourierExportBatchReadyNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -65,6 +68,13 @@ class CourierExportService
             $path = "exports/shop/{$batch->batch_number}.csv";
             Storage::put($path, $this->csv($rows, $courierCode));
             $batch->forceFill(['file_path' => $path])->save();
+
+            if ($userId !== null) {
+                $user = User::query()->find($userId);
+                if ($user !== null) {
+                    Notification::send($user, new CourierExportBatchReadyNotification($batch));
+                }
+            }
 
             return $batch;
         });
