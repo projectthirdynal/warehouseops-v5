@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
@@ -16,6 +17,7 @@ class Customer extends Model
         'normalized_phone',
         'name',
         'facebook_name',
+        'tags',
         'canonical_address',
         'landmark',
         'barangay',
@@ -29,6 +31,9 @@ class Customer extends Model
         'returned_orders',
         'success_rate',
         'total_revenue',
+        'average_order_value',
+        'preferred_courier',
+        'payment_method',
         'risk_level',
         'is_blacklisted',
         'blacklist_reason',
@@ -38,13 +43,40 @@ class Customer extends Model
     protected $casts = [
         'success_rate' => 'decimal:2',
         'total_revenue' => 'decimal:2',
+        'average_order_value' => 'decimal:2',
         'is_blacklisted' => 'boolean',
         'blacklisted_at' => 'datetime',
         'last_order_date' => 'datetime',
+        'tags' => 'array',
     ];
 
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Order\Models\Order::class);
+    }
+
+    public function identities(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\CustomerIdentity::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class)->orderByDesc('is_default')->orderByDesc('used_at')->orderByDesc('id');
+    }
+
+    public function defaultAddress(): HasOne
+    {
+        return $this->hasOne(CustomerAddress::class)->where('is_default', true);
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(CustomerNote::class)->latest('created_at');
     }
 }

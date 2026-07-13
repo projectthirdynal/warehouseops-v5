@@ -1,5 +1,6 @@
-import { FormEvent } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import {
   AlertCircle,
   ArrowLeft,
@@ -33,6 +34,14 @@ interface Message {
 interface Conversation {
   id: number;
   status: string;
+  priority: string;
+  is_flagged: boolean;
+  flag_reason: string | null;
+  snoozed_until: string | null;
+  snooze_reason: string | null;
+  reminder_at: string | null;
+  merged_into_id: number | null;
+  tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
@@ -89,6 +98,18 @@ interface Props {
   }[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
+  priorities: string[];
+  tags: { id: number; name: string; color: string }[];
+  merge_candidates: {
+    id: number;
+    customer_id: number | null;
+    customer_identity_id: number | null;
+    last_message_preview: string | null;
+    status: string;
+    last_message_at: string | null;
+    customer?: { name: string } | null;
+    identity?: { display_name: string | null } | null;
+  }[];
 }
 
 function time(value: string | null) {
@@ -150,9 +171,71 @@ export default function ShopConversation({
   recent_orders,
   quick_replies,
   saved_templates,
-  agents,
-  statuses,
+  agents = [],
+  statuses = [],
+  priorities = ['low', 'normal', 'high', 'urgent'],
+  tags = [],
+  merge_candidates = [],
 }: Props) {
+  const safeMessages = conversation?.messages ?? [];
+  const [messages, setMessages] = useState<Message[]>(safeMessages);
+  const [lastMessageId, setLastMessageId] = useState<number>(
+    safeMessages.reduce((max, m) => (m.id > max ? m.id : max), 0)
+  );
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+
+  useEffect(() => {
+    const propIds = new Set(safeMessages.map((m) => m.id));
+    setMessages((prev) => {
+      const existingIds = new Set(prev.map((m) => m.id));
+      const merged = [...prev];
+      // Add any prop messages we don't already have (e.g. after Inertia reload / reply)
+      for (const message of safeMessages) {
+        if (!existingIds.has(message.id)) {
+          merged.push(message);
+        }
+      }
+      // Keep any poll-added messages that aren't in the prop yet
+      for (const message of prev) {
+        if (!propIds.has(message.id) && !existingIds.has(message.id)) {
+          merged.push(message);
+        }
+      }
+      return merged.sort((a, b) => {
+        if (a.sent_at && b.sent_at)
+          return new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime();
+        return a.id - b.id;
+      });
+    });
+    setLastMessageId((prev) => safeMessages.reduce((max, m) => (m.id > max ? m.id : max), prev));
+  }, [safeMessages]);
+
+  useEffect(() => {
+    if (!pollingEnabled || !conversation?.id) return;
+
+    const interval = setInterval(() => {
+      axios
+        .get(`/shop/inbox/${conversation.id}/poll`, {
+          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+        })
+        .then(({ data }) => {
+          if (data.messages?.length > 0) {
+            setMessages((prev) => [...prev, ...data.messages]);
+            const maxId = data.messages.reduce(
+              (max: number, m: Message) => (m.id > max ? m.id : max),
+              lastMessageId
+            );
+            setLastMessageId(maxId);
+          }
+        })
+        .catch(() => {
+          // Silently ignore poll errors to avoid disrupting the agent
+        });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [conversation?.id, lastMessageId, pollingEnabled]);
+
   const { data, setData, post, processing, reset, errors } = useForm({ body: '' });
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
@@ -175,6 +258,107 @@ export default function ShopConversation({
         assigned_agent_id: assignedAgentId ? Number(assignedAgentId) : null,
       },
       { preserveScroll: true }
+    );
+  };
+
+  const updatePriority = (priority: string) => {
+    router.patch(`/shop/inbox/${conversation.id}/priority`, { priority }, { preserveScroll: true });
+  };
+
+  const toggleFlag = () => {
+    router.patch(
+      `/shop/inbox/${conversation.id}/priority`,
+      {
+        priority: conversation.priority,
+        is_flagged: !conversation.is_flagged,
+      },
+      { preserveScroll: true }
+    );
+  };
+
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(
+    (conversation.tags ?? []).map((tag) => tag.id)
+  );
+  const [newTagName, setNewTagName] = useState('');
+
+  const toggleTag = (tagId: number) => {
+    const nextIds = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter((id) => id !== tagId)
+      : [...selectedTagIds, tagId];
+    setSelectedTagIds(nextIds);
+    router.patch(
+      `/shop/inbox/${conversation.id}/tags`,
+      { tags: nextIds },
+      { preserveScroll: true }
+    );
+  };
+
+  const createTag = (event: FormEvent) => {
+    event.preventDefault();
+    if (!newTagName.trim()) return;
+    router.post(
+      '/shop/conversation-tags',
+      { name: newTagName.trim() },
+      {
+        preserveScroll: true,
+        onSuccess: () => setNewTagName(''),
+      }
+    );
+  };
+
+  const [snoozeUntil, setSnoozeUntil] = useState('');
+  const [snoozeReason, setSnoozeReason] = useState('');
+  const [reminderAt, setReminderAt] = useState('');
+
+  const submitSnooze = (event: FormEvent) => {
+    event.preventDefault();
+    if (!snoozeUntil) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/snooze`,
+      { snoozed_until: snoozeUntil, snooze_reason: snoozeReason || undefined },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setSnoozeUntil('');
+          setSnoozeReason('');
+        },
+      }
+    );
+  };
+
+  const unsnooze = () => {
+    router.delete(`/shop/inbox/${conversation.id}/snooze`, { preserveScroll: true });
+  };
+
+  const submitReminder = (event: FormEvent) => {
+    event.preventDefault();
+    if (!reminderAt) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/reminder`,
+      { reminder_at: reminderAt },
+      {
+        preserveScroll: true,
+        onSuccess: () => setReminderAt(''),
+      }
+    );
+  };
+
+  const clearReminder = () => {
+    router.delete(`/shop/inbox/${conversation.id}/reminder`, { preserveScroll: true });
+  };
+
+  const [mergeSourceId, setMergeSourceId] = useState<number | ''>('');
+
+  const submitMerge = (event: FormEvent) => {
+    event.preventDefault();
+    if (!mergeSourceId) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/merge`,
+      { source_conversation_id: mergeSourceId },
+      {
+        preserveScroll: true,
+        onSuccess: () => setMergeSourceId(''),
+      }
     );
   };
 
@@ -230,6 +414,20 @@ export default function ShopConversation({
                 </Link>
               </Button>
               <Badge variant="outline">{conversation.status}</Badge>
+              {(conversation.priority ?? 'normal') !== 'normal' && (
+                <Badge
+                  variant={
+                    (conversation.priority ?? 'normal') === 'urgent'
+                      ? 'destructive'
+                      : (conversation.priority ?? 'normal') === 'high'
+                        ? 'default'
+                        : 'secondary'
+                  }
+                >
+                  {conversation.priority ?? 'normal'}
+                </Badge>
+              )}
+              {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
             </div>
           </div>
@@ -245,9 +443,20 @@ export default function ShopConversation({
                     Inbound Meta messages and locally logged replies
                   </CardDescription>
                 </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/shop/templates">Templates</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={pollingEnabled ? 'default' : 'outline'}
+                    onClick={() => setPollingEnabled((enabled) => !enabled)}
+                    title={pollingEnabled ? 'Polling every 5s' : 'Polling paused'}
+                  >
+                    {pollingEnabled ? 'Live' : 'Paused'}
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/shop/templates">Templates</Link>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -293,10 +502,10 @@ export default function ShopConversation({
                 </div>
               )}
 
-              {conversation.messages.length === 0 ? (
+              {messages.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
               ) : (
-                conversation.messages.map((message) => {
+                messages.map((message) => {
                   const status = deliveryStatus(message);
                   const StatusIcon = status?.icon;
 
@@ -615,6 +824,221 @@ export default function ShopConversation({
                 <p className="text-muted-foreground">
                   Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Snooze & Reminder</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {conversation.snoozed_until && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-900 dark:bg-blue-950">
+                    <p className="font-medium text-blue-700 dark:text-blue-300">
+                      Snoozed until {time(conversation.snoozed_until)}
+                    </p>
+                    {conversation.snooze_reason && (
+                      <p className="mt-1 text-muted-foreground">{conversation.snooze_reason}</p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={unsnooze}
+                    >
+                      Unsnooze
+                    </Button>
+                  </div>
+                )}
+                {!conversation.snoozed_until && (
+                  <form onSubmit={submitSnooze} className="space-y-2">
+                    <div>
+                      <Label htmlFor="snooze_until">Snooze until</Label>
+                      <input
+                        id="snooze_until"
+                        type="datetime-local"
+                        value={snoozeUntil}
+                        onChange={(e) => setSnoozeUntil(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="snooze_reason">Reason (optional)</Label>
+                      <input
+                        id="snooze_reason"
+                        type="text"
+                        value={snoozeReason}
+                        onChange={(e) => setSnoozeReason(e.target.value)}
+                        placeholder="Waiting for customer response..."
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" disabled={!snoozeUntil}>
+                      Snooze
+                    </Button>
+                  </form>
+                )}
+
+                {conversation.reminder_at && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
+                    <p className="font-medium text-amber-700 dark:text-amber-300">
+                      Reminder: {time(conversation.reminder_at)}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={clearReminder}
+                    >
+                      Clear Reminder
+                    </Button>
+                  </div>
+                )}
+                {!conversation.reminder_at && (
+                  <form onSubmit={submitReminder} className="space-y-2">
+                    <div>
+                      <Label htmlFor="reminder_at">Set reminder</Label>
+                      <input
+                        id="reminder_at"
+                        type="datetime-local"
+                        value={reminderAt}
+                        onChange={(e) => setReminderAt(e.target.value)}
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" disabled={!reminderAt}>
+                      Set Reminder
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Merge Duplicate</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {conversation.merged_into_id ? (
+                  <p className="text-sm text-muted-foreground">
+                    This conversation has been merged into #{conversation.merged_into_id}.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Merge another conversation into this one. All messages and tags will be
+                      transferred.
+                    </p>
+                    <form onSubmit={submitMerge} className="space-y-2">
+                      <select
+                        value={mergeSourceId}
+                        onChange={(e) =>
+                          setMergeSourceId(e.target.value ? Number(e.target.value) : '')
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">Select conversation to merge...</option>
+                        {merge_candidates.map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>
+                            #{candidate.id} —{' '}
+                            {candidate.customer?.name ??
+                              candidate.identity?.display_name ??
+                              'Unknown'}{' '}
+                            ({candidate.status})
+                          </option>
+                        ))}
+                      </select>
+                      <Button type="submit" size="sm" disabled={!mergeSourceId}>
+                        Merge into this conversation
+                      </Button>
+                    </form>
+                    {merge_candidates.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        No duplicate conversations found.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tags</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Button
+                      key={tag.id}
+                      type="button"
+                      size="sm"
+                      variant={selectedTagIds.includes(tag.id) ? 'default' : 'outline'}
+                      onClick={() => toggleTag(tag.id)}
+                      style={
+                        selectedTagIds.includes(tag.id)
+                          ? {}
+                          : { borderColor: tag.color, color: tag.color }
+                      }
+                    >
+                      {tag.name}
+                    </Button>
+                  ))}
+                  {tags.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No tags yet.</p>
+                  )}
+                </div>
+                <form onSubmit={createTag} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder="New tag name"
+                    className="h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <Button type="submit" size="sm" disabled={!newTagName.trim()}>
+                    Add
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Priority & Flagging</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <select
+                    id="priority"
+                    value={conversation.priority ?? 'normal'}
+                    onChange={(e) => updatePriority(e.target.value)}
+                    className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {priorities.map((p) => (
+                      <option key={p} value={p}>
+                        {label(p)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={conversation.is_flagged ? 'destructive' : 'outline'}
+                    size="sm"
+                    onClick={toggleFlag}
+                  >
+                    {conversation.is_flagged ? 'Unflag' : 'Flag conversation'}
+                  </Button>
+                </div>
+                {conversation.is_flagged && conversation.flag_reason && (
+                  <p className="text-xs text-muted-foreground">
+                    Reason: {conversation.flag_reason}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

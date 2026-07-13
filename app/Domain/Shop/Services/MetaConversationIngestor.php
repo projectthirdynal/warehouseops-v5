@@ -71,12 +71,106 @@ class MetaConversationIngestor
                     'facebook_page_id' => $webhookEvent->facebook_page_id,
                     'customer_identity_id' => $identity->id,
                     'direction' => 'inbound',
-                    'message_type' => data_get($payload, 'message.attachments') ? 'attachment' : 'text',
+                    'message_type' => $this->classifyMessageType($payload),
                     'body' => $body !== '' ? $body : null,
                     'attachments' => data_get($payload, 'message.attachments'),
                     'phone_candidates' => $detectedPhones,
                     'raw_payload' => $payload,
                     'sent_at' => $this->eventTimestamp($payload),
+                    'read_at' => null,
+                    'send_status' => null,
+                ]
+            );
+
+            $webhookEvent->forceFill([
+                'processed_at' => now(),
+                'error_message' => null,
+            ])->save();
+        });
+    }
+
+    /**
+     * Process a Page comment (feed change) webhook event into a conversation + message.
+     */
+    public function processComment(FacebookWebhookEvent $webhookEvent): void
+    {
+        if ($webhookEvent->processed_at !== null || $webhookEvent->facebookPage === null) {
+            return;
+        }
+
+        $payload = $webhookEvent->payload ?? [];
+        $value = data_get($payload, 'value', []);
+
+        // Only process added comments
+        if (data_get($value, 'item') !== 'comment' || data_get($value, 'verb') !== 'add') {
+            $webhookEvent->forceFill([
+                'processed_at' => now(),
+                'error_message' => 'Not an added comment event.',
+            ])->save();
+
+            return;
+        }
+
+        $commenterId = (string) data_get($value, 'from.id', '');
+        $commenterName = (string) data_get($value, 'from.name', '');
+        $body = (string) (data_get($value, 'message') ?? '');
+        $commentId = (string) data_get($value, 'comment_id', $webhookEvent->event_id);
+        $postId = (string) data_get($value, 'post_id', '');
+
+        if ($commenterId === '') {
+            $webhookEvent->forceFill([
+                'processed_at' => now(),
+                'error_message' => 'Missing commenter ID.',
+            ])->save();
+
+            return;
+        }
+
+        DB::transaction(function () use ($webhookEvent, $value, $commenterId, $commenterName, $body, $commentId, $postId) {
+            $detectedPhones = $this->phones->extract($body);
+            $customer = $detectedPhones === [] ? null : $this->customerIdentities->findByPhone($detectedPhones[0]);
+
+            $identity = $this->customerIdentities->upsertFacebookIdentity(
+                page: $webhookEvent->facebookPage,
+                psid: $commenterId,
+                customer: $customer,
+                displayName: $commenterName !== '' ? $commenterName : null,
+                detectedPhone: $detectedPhones[0] ?? null,
+                metadata: ['source' => 'page_comment', 'post_id' => $postId]
+            );
+
+            $threadKey = "facebook_comment:{$webhookEvent->facebookPage->page_id}:{$commenterId}";
+
+            $conversation = Conversation::query()->firstOrNew([
+                'thread_key' => $threadKey,
+            ]);
+
+            $conversation->fill([
+                'facebook_page_id' => $webhookEvent->facebook_page_id,
+                'customer_id' => $customer?->id,
+                'customer_identity_id' => $identity->id,
+                'channel' => 'comment',
+                'status' => 'open',
+                'last_message_preview' => str($body)->limit(160)->toString(),
+                'last_message_at' => $this->commentTimestamp($value),
+                'unread_count' => ((int) $conversation->unread_count) + 1,
+                'tags' => $detectedPhones === [] ? null : ['phone_detected'],
+            ])->save();
+
+            Message::query()->firstOrCreate(
+                ['external_message_id' => $commentId],
+                [
+                    'conversation_id' => $conversation->id,
+                    'facebook_page_id' => $webhookEvent->facebook_page_id,
+                    'customer_identity_id' => $identity->id,
+                    'direction' => 'inbound',
+                    'message_type' => 'text',
+                    'body' => $body !== '' ? $body : null,
+                    'phone_candidates' => $detectedPhones,
+                    'raw_payload' => $payload,
+                    'sent_at' => $this->commentTimestamp($value),
+                    'read_at' => null,
+                    'send_status' => null,
                 ]
             );
 
@@ -96,5 +190,37 @@ class MetaConversationIngestor
         }
 
         return now();
+    }
+
+    private function commentTimestamp(array $value): Carbon
+    {
+        $timestamp = data_get($value, 'created_time');
+
+        if (is_numeric($timestamp)) {
+            return Carbon::createFromTimestamp((int) $timestamp);
+        }
+
+        return now();
+    }
+
+    /**
+     * Classify inbound Messenger message by payload: text, image, voice, file, fallback.
+     */
+    private function classifyMessageType(array $payload): string
+    {
+        if (! data_get($payload, 'message.attachments')) {
+            return 'text';
+        }
+
+        $attachments = data_get($payload, 'message.attachments');
+        $firstType = data_get($attachments, '0.type') ?? data_get($attachments, '0.payload.sticker_type');
+
+        return match ($firstType) {
+            'image', 'image/jpeg', 'image/png', 'gif' => 'image',
+            'audio', 'voice' => 'voice',
+            'video' => 'video',
+            'file' => 'file',
+            default => 'fallback',
+        };
     }
 }

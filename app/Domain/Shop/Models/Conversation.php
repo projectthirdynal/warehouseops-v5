@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -22,19 +23,50 @@ class Conversation extends Model
         'assigned_agent_id',
         'channel',
         'status',
+        'priority',
+        'is_flagged',
+        'flag_reason',
+        'flagged_at',
+        'snoozed_until',
+        'reminder_at',
+        'snooze_reason',
+        'merged_into_id',
+        'first_response_at',
+        'resolved_at',
+        'first_response_time_seconds',
+        'resolution_time_seconds',
         'thread_key',
         'last_message_preview',
         'last_message_at',
         'unread_count',
-        'tags',
         'metadata',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
-        'tags' => 'array',
+        'flagged_at' => 'datetime',
+        'snoozed_until' => 'datetime',
+        'reminder_at' => 'datetime',
+        'first_response_at' => 'datetime',
+        'resolved_at' => 'datetime',
+        'is_flagged' => 'boolean',
         'metadata' => 'array',
     ];
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'conversation_tag');
+    }
+
+    public function mergedInto(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class, 'merged_into_id');
+    }
+
+    public function mergedConversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'merged_into_id');
+    }
 
     public function facebookPage(): BelongsTo
     {

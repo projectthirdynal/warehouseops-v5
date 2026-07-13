@@ -74,4 +74,12 @@ return [
         ],
     ],
 
+    'shop' => [
+        'sender_name'    => env('SHOP_SENDER_NAME', 'WarehouseOps Shop'),
+        'sender_phone'   => env('SHOP_SENDER_PHONE', ''),
+        'sender_address' => env('SHOP_SENDER_ADDRESS', ''),
+        'sender_city'    => env('SHOP_SENDER_CITY', ''),
+        'sender_province' => env('SHOP_SENDER_PROVINCE', ''),
+    ],
+
 ];

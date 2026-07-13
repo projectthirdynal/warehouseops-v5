@@ -21,6 +21,10 @@ class Message extends Model
         'phone_candidates',
         'raw_payload',
         'sent_at',
+        'read_at',
+        'send_status',
+        'send_error',
+        'retry_count',
     ];
 
     protected $casts = [
@@ -28,6 +32,7 @@ class Message extends Model
         'phone_candidates' => 'array',
         'raw_payload' => 'array',
         'sent_at' => 'datetime',
+        'read_at' => 'datetime',
     ];
 
     public function conversation(): BelongsTo

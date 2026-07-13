@@ -12,15 +12,21 @@ use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
+use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +45,9 @@ class ShopController extends Controller
         private readonly FacebookConnectorService $facebookConnector,
         private readonly CourierExportService $courierExports,
         private readonly MetaConversationIngestor $metaIngestor,
+        private readonly CustomerAddressService $customerAddresses,
+        private readonly CustomerNoteService $customerNotes,
+        private readonly CustomerTimelineService $customerTimeline,
     ) {}
 
     public function index(): Response
@@ -454,14 +463,20 @@ class ShopController extends Controller
     public function inbox(Request $request): Response
     {
         $query = Conversation::query()
+            ->whereNull('merged_into_id')
             ->with([
                 'facebookPage:id,page_name,page_id',
                 'customer:id,name,phone,normalized_phone',
                 'identity:id,display_name,phone_detected',
                 'assignedAgent:id,name',
+                'tags:id,name,color',
             ])
             ->withCount('messages')
             ->latest('last_message_at');
+
+        if ($request->filled('tag_id')) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', $request->integer('tag_id')));
+        }
 
         if ($request->filled('page_id')) {
             $query->where('facebook_page_id', $request->integer('page_id'));
@@ -477,12 +492,30 @@ class ShopController extends Controller
                 : $query->where('assigned_agent_id', $request->integer('assigned_agent_id'));
         }
 
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority'));
+        }
+
+        if ($request->boolean('flagged')) {
+            $query->where('is_flagged', true);
+        }
+
+        if ($request->string('snoozed')->toString() === 'active') {
+            $query->whereNotNull('snoozed_until')->where('snoozed_until', '>', now());
+        } elseif ($request->string('snoozed')->toString() === 'expired') {
+            $query->whereNotNull('snoozed_until')->where('snoozed_until', '<=', now());
+        } elseif ($request->string('snoozed')->toString() === 'none') {
+            $query->whereNull('snoozed_until');
+        }
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id']),
+            'priorities' => ['low', 'normal', 'high', 'urgent'],
+            'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
     }
 
@@ -493,6 +526,7 @@ class ShopController extends Controller
             'customer:id,name,phone,normalized_phone,canonical_address,landmark,barangay,city_municipality,province,region,last_order_date,total_orders,successful_orders,returned_orders,success_rate,total_revenue,risk_level,is_blacklisted,blacklist_reason',
             'identity:id,display_name,provider_user_id,phone_detected',
             'assignedAgent:id,name',
+            'tags:id,name,color',
             'messages' => fn ($query) => $query->orderBy('sent_at')->orderBy('id'),
         ]);
 
@@ -512,7 +546,144 @@ class ShopController extends Controller
             'saved_templates' => $this->savedTemplatesForConversation($conversation),
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
+            'priorities' => ['low', 'normal', 'high', 'urgent'],
+            'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'merge_candidates' => Conversation::query()
+                ->where('id', '!=', $conversation->id)
+                ->whereNull('merged_into_id')
+                ->when($conversation->customer_id, fn ($q) => $q->where('customer_id', $conversation->customer_id))
+                ->orWhere(function ($q) use ($conversation) {
+                    $q->where('id', '!=', $conversation->id)
+                        ->whereNull('merged_into_id')
+                        ->when($conversation->customer_identity_id, fn ($sub) => $sub->where('customer_identity_id', $conversation->customer_identity_id));
+                })
+                ->with(['customer:id,name', 'identity:id,display_name'])
+                ->latest('last_message_at')
+                ->limit(20)
+                ->get(['id', 'customer_id', 'customer_identity_id', 'last_message_preview', 'status', 'last_message_at']),
         ]);
+    }
+
+    public function customers(Request $request): Response
+    {
+        $query = Customer::query()
+            ->with('defaultAddress:id,customer_id,label,canonical_address,barangay,city_municipality,province')
+            ->when($request->filled('q'), fn ($q) => $this->applyCustomerSearch($q, $request->string('q')->toString()))
+            ->latest('last_order_date')
+            ->latest('id');
+
+        return Inertia::render('Shop/Customers/Index', [
+            'customers' => $query->paginate(25)->withQueryString(),
+            'filters' => $request->only(['q']),
+        ]);
+    }
+
+    public function showCustomer(Request $request, Customer $customer): Response
+    {
+        return Inertia::render('Shop/Customers/Show', [
+            'customer' => $customer->load([
+                'addresses',
+                'defaultAddress',
+                'notes.user:id,name',
+            ]),
+        ]);
+    }
+
+    public function exportCustomers(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $query = Customer::query()
+            ->with('defaultAddress:id,customer_id,label,canonical_address,barangay,city_municipality,province')
+            ->when($request->filled('q'), fn ($q) => $this->applyCustomerSearch($q, $request->string('q')->toString()))
+            ->latest('last_order_date')
+            ->latest('id');
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="customers-' . date('Y-m-d') . '.csv"',
+        ];
+
+        $columns = [
+            'id', 'name', 'phone', 'normalized_phone', 'facebook_name',
+            'canonical_address', 'barangay', 'city_municipality', 'province', 'region',
+            'total_orders', 'successful_orders', 'returned_orders', 'success_rate',
+            'total_revenue', 'average_order_value',
+            'preferred_courier', 'payment_method',
+            'risk_level', 'is_blacklisted',
+            'last_order_date', 'last_page_ordered_from',
+            'tags',
+        ];
+
+        return response()->stream(function () use ($query, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $columns);
+
+            $query->chunk(200, function ($customers) use ($handle, $columns) {
+                foreach ($customers as $customer) {
+                    $row = [];
+                    foreach ($columns as $col) {
+                        $value = $customer->{$col};
+                        if ($col === 'tags' && is_array($value)) {
+                            $value = implode(';', $value);
+                        }
+                        if ($col === 'is_blacklisted') {
+                            $value = $value ? 'yes' : 'no';
+                        }
+                        $row[$col] = $value ?? '';
+                    }
+                    fputcsv($handle, $row);
+                }
+            });
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    public function searchCustomers(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:255'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $query = Customer::query();
+        $this->applyCustomerSearch($query, $validated['q']);
+
+        $customers = $query
+            ->limit($validated['limit'] ?? 10)
+            ->get([
+                'id',
+                'name',
+                'phone',
+                'normalized_phone',
+                'facebook_name',
+                'canonical_address',
+                'risk_level',
+                'is_blacklisted',
+                'total_orders',
+                'total_revenue',
+                'average_order_value',
+                'last_order_date',
+            ]);
+
+        return response()->json(['customers' => $customers]);
+    }
+
+    /**
+     * Apply name/phone/facebook_name search to a customer query.
+     */
+    private function applyCustomerSearch($query, string $term): void
+    {
+        $normalized = preg_replace('/[^0-9]/', '', $term) ?? '';
+
+        $query->where(function ($q) use ($term, $normalized) {
+            $q->where('name', 'ilike', "%{$term}%")
+              ->orWhere('facebook_name', 'ilike', "%{$term}%");
+
+            if ($normalized !== '') {
+                $q->orWhere('phone', 'ilike', "%{$normalized}%")
+                  ->orWhere('normalized_phone', 'ilike', "%{$normalized}%");
+            }
+        });
     }
 
     public function updateCustomer(Request $request, Customer $customer): RedirectResponse
@@ -525,6 +696,8 @@ class ShopController extends Controller
             'barangay' => ['nullable', 'string', 'max:255'],
             'city_municipality' => ['nullable', 'string', 'max:255'],
             'province' => ['nullable', 'string', 'max:255'],
+            'preferred_courier' => ['nullable', 'string', 'max:50'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
         ]);
 
         $addressMatch = $this->addressMappings->match([
@@ -544,9 +717,135 @@ class ShopController extends Controller
             'city_municipality' => $validated['city_municipality'] ?? null,
             'province' => $validated['province'] ?? null,
             'region' => $addressMatch['mapping']?->region ?? $customer->region,
+            'preferred_courier' => $validated['preferred_courier'] ?? null,
+            'payment_method' => $validated['payment_method'] ?? null,
         ])->save();
 
+        if (! empty($validated['canonical_address'])) {
+            $this->customerAddresses->record($customer, [
+                'label' => 'Default',
+                'canonical_address' => $validated['canonical_address'] ?? null,
+                'landmark' => $validated['landmark'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'region' => $addressMatch['mapping']?->region ?? $customer->region,
+            ], true, 'profile_update');
+        }
+
         return back()->with('success', 'Customer profile updated.');
+    }
+
+    public function customerAddresses(Request $request, Customer $customer): JsonResponse
+    {
+        $addresses = $customer->addresses()->get([
+            'id',
+            'label',
+            'canonical_address',
+            'landmark',
+            'barangay',
+            'city_municipality',
+            'province',
+            'region',
+            'postal_code',
+            'contact_name',
+            'contact_phone',
+            'is_default',
+            'source',
+            'used_at',
+            'created_at',
+        ]);
+
+        return response()->json(['addresses' => $addresses]);
+    }
+
+    public function storeCustomerAddress(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'label' => ['nullable', 'string', 'max:255'],
+            'canonical_address' => ['required', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'region' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'contact_name' => ['nullable', 'string', 'max:255'],
+            'contact_phone' => ['nullable', 'string', 'max:30'],
+            'is_default' => ['boolean'],
+        ]);
+
+        $address = $this->customerAddresses->record(
+            $customer,
+            $validated,
+            $validated['is_default'] ?? false,
+            'manual'
+        );
+
+        return response()->json(['address' => $address], 201);
+    }
+
+    public function setDefaultCustomerAddress(Request $request, Customer $customer, CustomerAddress $address): JsonResponse
+    {
+        abort_unless($address->customer_id === $customer->id, 403, 'Address does not belong to this customer.');
+
+        $this->customerAddresses->setDefault($customer, $address);
+
+        return response()->json(['address' => $address->fresh()]);
+    }
+
+    public function customerNotes(Request $request, Customer $customer): JsonResponse
+    {
+        $notes = $customer->notes()->with('user:id,name')->get([
+            'id',
+            'customer_id',
+            'user_id',
+            'note_type',
+            'body',
+            'tags',
+            'pinned_until',
+            'created_at',
+        ]);
+
+        return response()->json(['notes' => $notes]);
+    }
+
+    public function storeCustomerNote(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+            'note_type' => ['nullable', 'string', 'max:50'],
+            'pinned_until' => ['nullable', 'date'],
+        ]);
+
+        $note = $this->customerNotes->addNote($customer, $validated);
+
+        return response()->json(['note' => $note->load('user:id,name')], 201);
+    }
+
+    public function updateCustomerTags(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'tags' => ['required', 'array'],
+            'tags.*' => ['string', 'max:50'],
+        ]);
+
+        $this->customerNotes->setTags($customer, $validated['tags']);
+
+        return response()->json(['customer' => $customer->only(['id', 'tags'])]);
+    }
+
+    public function customerTimeline(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $activities = $this->customerTimeline->build($customer, $validated['limit'] ?? 50);
+
+        return response()->json(['activities' => $activities]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
@@ -568,11 +867,303 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
-        $conversation->forceFill([
-            'status' => $validated['status'],
-        ])->save();
+        $updates = ['status' => $validated['status']];
+
+        // Track resolution time when conversation is closed
+        if ($validated['status'] === 'closed' && !$conversation->resolved_at) {
+            $updates['resolved_at'] = now();
+            $updates['resolution_time_seconds'] = $conversation->created_at
+                ? (int) now()->diffInSeconds($conversation->created_at)
+                : null;
+        }
+
+        // Reset resolution if reopened
+        if ($validated['status'] !== 'closed' && $conversation->resolved_at) {
+            $updates['resolved_at'] = null;
+            $updates['resolution_time_seconds'] = null;
+        }
+
+        $conversation->forceFill($updates)->save();
 
         return back()->with('success', 'Conversation status updated.');
+    }
+
+    public function bulkUpdateConversationStatus(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
+        ]);
+
+        $now = now();
+        $updateData = [
+            'status' => $validated['status'],
+            'updated_at' => $now,
+        ];
+
+        if ($validated['status'] === 'closed') {
+            $updateData['resolved_at'] = $now;
+            // Set resolution_time_seconds for conversations that don't have it yet
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->whereNull('resolved_at')
+                ->each(function (Conversation $conv) use ($now) {
+                    $seconds = $conv->created_at ? (int) $now->diffInSeconds($conv->created_at) : null;
+                    $conv->forceFill([
+                        'resolved_at' => $now,
+                        'resolution_time_seconds' => $seconds,
+                    ])->save();
+                });
+        } else {
+            // Reset resolution if reopening
+            $updateData['resolved_at'] = null;
+            $updateData['resolution_time_seconds'] = null;
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->update($updateData);
+        }
+
+        // For closed status, update without overwriting resolution_time_seconds
+        if ($validated['status'] === 'closed') {
+            Conversation::query()
+                ->whereIn('id', $validated['conversation_ids'])
+                ->whereNotNull('resolved_at')
+                ->update(['status' => $validated['status'], 'updated_at' => $now]);
+        }
+
+        $count = count($validated['conversation_ids']);
+
+        return back()->with('success', "{$count} conversation(s) marked as {$validated['status']}.");
+    }
+
+    public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'priority' => ['required', 'string', 'in:low,normal,high,urgent'],
+            'is_flagged' => ['boolean'],
+            'flag_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $conversation->forceFill([
+            'priority' => $validated['priority'],
+            'is_flagged' => $validated['is_flagged'] ?? false,
+            'flag_reason' => $validated['is_flagged'] ?? false ? ($validated['flag_reason'] ?? null) : null,
+            'flagged_at' => $validated['is_flagged'] ?? false ? ($conversation->flagged_at ?? now()) : null,
+        ])->save();
+
+        return back()->with('success', 'Conversation priority updated.');
+    }
+
+    public function updateConversationTags(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['integer', 'exists:tags,id'],
+        ]);
+
+        $conversation->tags()->sync($validated['tags'] ?? []);
+
+        return back()->with('success', 'Conversation tags updated.');
+    }
+
+    public function storeTag(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:50'],
+            'color' => ['nullable', 'string', 'max:7', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ]);
+
+        Tag::query()->firstOrCreate(
+            ['slug' => str($validated['name'])->slug()->toString()],
+            [
+                'name' => $validated['name'],
+                'color' => $validated['color'] ?? '#64748b',
+            ]
+        );
+
+        return back()->with('success', 'Tag created.');
+    }
+
+    public function snoozeConversation(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'snoozed_until' => ['required', 'date', 'after:now'],
+            'snooze_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $conversation->forceFill([
+            'snoozed_until' => $validated['snoozed_until'],
+            'snooze_reason' => $validated['snooze_reason'] ?? null,
+        ])->save();
+
+        return back()->with('success', 'Conversation snoozed until ' . $validated['snoozed_until']);
+    }
+
+    public function unsnoozeConversation(Conversation $conversation): RedirectResponse
+    {
+        $conversation->forceFill([
+            'snoozed_until' => null,
+            'snooze_reason' => null,
+        ])->save();
+
+        return back()->with('success', 'Conversation unsnoozed.');
+    }
+
+    public function setConversationReminder(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reminder_at' => ['required', 'date', 'after:now'],
+        ]);
+
+        $conversation->forceFill([
+            'reminder_at' => $validated['reminder_at'],
+        ])->save();
+
+        return back()->with('success', 'Reminder set for ' . $validated['reminder_at']);
+    }
+
+    public function clearConversationReminder(Conversation $conversation): RedirectResponse
+    {
+        $conversation->forceFill([
+            'reminder_at' => null,
+        ])->save();
+
+        return back()->with('success', 'Reminder cleared.');
+    }
+
+    public function mergeConversations(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+
+        if ($source->id === $conversation->id) {
+            return back()->withErrors('Cannot merge a conversation into itself.');
+        }
+
+        if ($conversation->merged_into_id) {
+            return back()->withErrors('Target conversation is already merged into another.');
+        }
+
+        DB::transaction(function () use ($source, $conversation): void {
+            // Reassign all messages from source to target
+            $source->messages()->update(['conversation_id' => $conversation->id]);
+
+            // Copy tags from source to target
+            $sourceTagIds = $source->tags()->pluck('tags.id');
+            $conversation->tags()->syncWithoutDetaching($sourceTagIds);
+
+            // Mark source as merged
+            $source->forceFill([
+                'merged_into_id' => $conversation->id,
+                'status' => 'closed',
+            ])->save();
+
+            // Update last message info on target if source has newer activity
+            if ($source->last_message_at && (!$conversation->last_message_at || $source->last_message_at > $conversation->last_message_at)) {
+                $conversation->forceFill([
+                    'last_message_at' => $source->last_message_at,
+                    'last_message_preview' => $source->last_message_preview,
+                ])->save();
+            }
+
+            // Add unread count from source
+            if ($source->unread_count > 0) {
+                $conversation->increment('unread_count', $source->unread_count);
+            }
+        });
+
+        return back()->with('success', "Conversation #{$source->id} merged into this conversation.");
+    }
+
+    public function conversationAnalytics(Request $request): Response
+    {
+        $range = $request->string('range')->toString();
+        $startDate = match ($range) {
+            '7d' => now()->subDays(7),
+            '30d' => now()->subDays(30),
+            '90d' => now()->subDays(90),
+            default => now()->subDays(30),
+        };
+
+        $baseQuery = Conversation::query()
+            ->whereNull('merged_into_id')
+            ->where('created_at', '>=', $startDate);
+
+        $totalConversations = (clone $baseQuery)->count();
+        $respondedConversations = (clone $baseQuery)->whereNotNull('first_response_at')->count();
+        $resolvedConversations = (clone $baseQuery)->whereNotNull('resolved_at')->count();
+
+        $avgFirstResponse = (clone $baseQuery)
+            ->whereNotNull('first_response_time_seconds')
+            ->avg('first_response_time_seconds');
+
+        $avgResolution = (clone $baseQuery)
+            ->whereNotNull('resolution_time_seconds')
+            ->avg('resolution_time_seconds');
+
+        $medianFirstResponse = (clone $baseQuery)
+            ->whereNotNull('first_response_time_seconds')
+            ->orderBy('first_response_time_seconds')
+            ->value('first_response_time_seconds');
+
+        $medianResolution = (clone $baseQuery)
+            ->whereNotNull('resolution_time_seconds')
+            ->orderBy('resolution_time_seconds')
+            ->value('resolution_time_seconds');
+
+        // Per-agent breakdown
+        $perAgent = User::query()
+            ->select('id', 'name')
+            ->whereHas('conversations', fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate))
+            ->withCount([
+                'conversations as assigned_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate),
+                'conversations as responded_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_at'),
+                'conversations as resolved_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolved_at'),
+            ])
+            ->withAvg([
+                'conversations as avg_response_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
+            ->withAvg([
+                'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
+            ], 'resolution_time_seconds')
+            ->having('assigned_count', '>', 0)
+            ->orderByDesc('assigned_count')
+            ->get();
+
+        // Status distribution
+        $statusDistribution = (clone $baseQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        // Daily trend
+        $dailyTrend = (clone $baseQuery)
+            ->selectRaw("DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved")
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
+            ->get();
+
+        return Inertia::render('Shop/ConversationAnalytics', [
+            'stats' => [
+                'total_conversations' => $totalConversations,
+                'responded_conversations' => $respondedConversations,
+                'resolved_conversations' => $resolvedConversations,
+                'response_rate' => $totalConversations > 0 ? round(($respondedConversations / $totalConversations) * 100, 1) : 0,
+                'resolution_rate' => $totalConversations > 0 ? round(($resolvedConversations / $totalConversations) * 100, 1) : 0,
+                'avg_first_response_seconds' => $avgFirstResponse ? (int) $avgFirstResponse : null,
+                'avg_resolution_seconds' => $avgResolution ? (int) $avgResolution : null,
+                'median_first_response_seconds' => $medianFirstResponse ? (int) $medianFirstResponse : null,
+                'median_resolution_seconds' => $medianResolution ? (int) $medianResolution : null,
+            ],
+            'per_agent' => $perAgent,
+            'status_distribution' => $statusDistribution,
+            'daily_trend' => $dailyTrend,
+            'range' => $range ?: '30d',
+        ]);
     }
 
     public function sendReply(Request $request, Conversation $conversation): RedirectResponse
@@ -610,6 +1201,9 @@ class ShopController extends Controller
             'body' => $validated['body'],
             'raw_payload' => $delivery,
             'sent_at' => now(),
+            'send_status' => $delivery['status'],
+            'send_error' => $delivery['error'] ?? null,
+            'retry_count' => 0,
         ]);
 
         $conversation->forceFill([
@@ -617,9 +1211,75 @@ class ShopController extends Controller
             'last_message_at' => now(),
         ])->save();
 
+        // Track first response time
+        if (!$conversation->first_response_at && $conversation->created_at) {
+            $conversation->forceFill([
+                'first_response_at' => now(),
+                'first_response_time_seconds' => (int) now()->diffInSeconds($conversation->created_at),
+            ])->save();
+        }
+
         return back()->with($delivery['status'] === 'failed' ? 'error' : 'success', $delivery['status'] === 'failed'
             ? 'Reply saved locally, but Meta send failed.'
             : 'Reply saved.');
+    }
+
+    /**
+     * Mark inbound messages in a conversation as read.
+     */
+    public function markMessagesRead(Request $request, Conversation $conversation): JsonResponse
+    {
+        $request->validate([
+            'before_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+        ]);
+
+        $query = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', 'inbound')
+            ->whereNull('read_at');
+
+        if ($request->filled('before_message_id')) {
+            $query->where('id', '<=', $request->input('before_message_id'));
+        }
+
+        $query->update(['read_at' => now()]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    public function pollMessages(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'after_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+        ]);
+
+        $query = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->orderBy('sent_at')
+            ->orderBy('id');
+
+        if ($validated['after_message_id'] ?? null) {
+            $query->where('id', '>', $validated['after_message_id']);
+        }
+
+        $messages = $query->get([
+            'id',
+            'direction',
+            'body',
+            'sent_at',
+            'raw_payload',
+            'phone_candidates',
+        ]);
+
+        $conversation->refresh();
+
+        return response()->json([
+            'messages' => $messages,
+            'last_message_preview' => $conversation->last_message_preview,
+            'last_message_at' => $conversation->last_message_at,
+            'unread_count' => $conversation->unread_count,
+            'status' => $conversation->status,
+        ]);
     }
 
     public function encoder(): Response
@@ -1137,6 +1797,18 @@ class ShopController extends Controller
                 'confirmed_at' => now(),
                 'notes' => $validated['remarks'] ?? null,
             ]);
+
+            $this->customerAddresses->record($customer, [
+                'label' => $conversation?->facebookPage?->page_name ? "Order from {$conversation->facebookPage->page_name}" : 'Order',
+                'canonical_address' => $validated['complete_address'],
+                'landmark' => $validated['landmark'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'region' => $addressMatch['mapping']?->region,
+                'contact_name' => $validated['customer_name'],
+                'contact_phone' => $validated['phone'],
+            ], false, 'order');
 
             foreach ($preparedItems as $item) {
                 ShopOrderItem::query()->create([

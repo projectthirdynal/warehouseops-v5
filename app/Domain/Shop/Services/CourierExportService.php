@@ -78,9 +78,47 @@ class CourierExportService
         fputcsv($handle, $this->headers($courierCode));
 
         foreach ($rows as $row) {
-            $values = [
+            fputcsv($handle, $this->rowValues($row, $courierCode));
+        }
+
+        rewind($handle);
+
+        return stream_get_contents($handle) ?: '';
+    }
+
+    /**
+     * Map a CourierExportRow to courier-specific CSV values.
+     */
+    private function rowValues(CourierExportRow $row, string $courierCode): array
+    {
+        $orderNumber = $row->order?->order_number ?? $row->order_id;
+        $phone = $this->cleanPhone($row->phone_number);
+        $sender = $this->senderInfo();
+
+        return match (strtoupper($courierCode)) {
+            'JNT' => [
+                $orderNumber,
                 $row->receiver_name,
-                $row->phone_number,
+                $phone,
+                $row->complete_address,
+                $row->province,
+                $row->city,
+                $row->barangay,
+                $row->product_name,
+                $row->quantity,
+                $row->cod_amount,
+                $row->cod_amount,
+                $row->remarks,
+            ],
+            'FLASH' => [
+                $orderNumber,
+                $sender['name'],
+                $sender['phone'],
+                $sender['address'],
+                $sender['province'],
+                $sender['city'],
+                $row->receiver_name,
+                $phone,
                 $row->complete_address,
                 $row->province,
                 $row->city,
@@ -89,14 +127,54 @@ class CourierExportService
                 $row->quantity,
                 $row->cod_amount,
                 $row->remarks,
-            ];
+            ],
+            default => [
+                $orderNumber,
+                $row->receiver_name,
+                $phone,
+                $row->complete_address,
+                $row->province,
+                $row->city,
+                $row->barangay,
+                $row->product_name,
+                $row->quantity,
+                $row->cod_amount,
+                $row->remarks,
+            ],
+        };
+    }
 
-            fputcsv($handle, $values);
+    /**
+     * @return array<string, string>
+     */
+    private function senderInfo(): array
+    {
+        return [
+            'name' => (string) config('services.shop.sender_name'),
+            'phone' => $this->cleanPhone((string) config('services.shop.sender_phone')),
+            'address' => (string) config('services.shop.sender_address'),
+            'province' => (string) config('services.shop.sender_province'),
+            'city' => (string) config('services.shop.sender_city'),
+        ];
+    }
+
+    private function cleanPhone(?string $phone): string
+    {
+        if ($phone === null) {
+            return '';
         }
 
-        rewind($handle);
+        $digits = preg_replace('/[^0-9]/', '', $phone) ?? '';
 
-        return stream_get_contents($handle) ?: '';
+        if (str_starts_with($digits, '63') && strlen($digits) === 12) {
+            return '0' . substr($digits, 2);
+        }
+
+        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
+            return $digits;
+        }
+
+        return $digits;
     }
 
     private function batchNumber(string $courierCode): string
@@ -181,6 +259,7 @@ class CourierExportService
     {
         return match (strtoupper($courierCode)) {
             'JNT' => [
+                'Order Number',
                 'Receiver Name',
                 'Receiver Mobile',
                 'Receiver Address',
@@ -190,21 +269,29 @@ class CourierExportService
                 'Item Name',
                 'Quantity',
                 'COD Amount',
+                'Item Value',
                 'Remark',
             ],
             'FLASH' => [
-                'consignee_name',
-                'consignee_mobile',
-                'consignee_address',
-                'province',
-                'city',
-                'barangay',
-                'goods_name',
-                'quantity',
-                'cod_amount',
-                'remark',
+                'Order Number',
+                'Sender Name',
+                'Sender Mobile',
+                'Sender Address',
+                'Sender Province',
+                'Sender City',
+                'Consignee Name',
+                'Consignee Mobile',
+                'Consignee Address',
+                'Province',
+                'City',
+                'Barangay',
+                'Goods Name',
+                'Quantity',
+                'COD Amount',
+                'Remark',
             ],
             default => [
+                'Order Number',
                 'Receiver Name',
                 'Phone Number',
                 'Complete Address',
