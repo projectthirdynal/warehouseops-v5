@@ -1760,6 +1760,26 @@ class ShopController extends Controller
         return back()->with('success', "Notes updated for batch {$batch->batch_number}.");
     }
 
+    public function previewBatch(CourierExportBatch $batch): JsonResponse
+    {
+        $rows = $batch->rows()
+            ->orderBy('row_number')
+            ->limit(100)
+            ->get(['id', 'row_number', 'status', 'receiver_name', 'phone_number', 'complete_address', 'province', 'city', 'barangay', 'product_name', 'cod_amount', 'quantity', 'remarks', 'error_message']);
+
+        return response()->json([
+            'batch' => [
+                'id' => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'courier_code' => $batch->courier_code,
+                'region' => $batch->region,
+                'status' => $batch->status,
+                'row_count' => $batch->row_count,
+            ],
+            'rows' => $rows,
+        ]);
+    }
+
     public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
     {
         $failedCount = $batch->rows()->where('status', 'failed')->count();
