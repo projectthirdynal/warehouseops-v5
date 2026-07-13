@@ -1342,6 +1342,8 @@ class ShopController extends Controller
             'attachments',
             'metadata',
             'reactions',
+            'is_flagged',
+            'flag_reason',
             'sent_at',
             'raw_payload',
             'phone_candidates',
@@ -1401,6 +1403,8 @@ class ShopController extends Controller
                 'attachments',
                 'metadata',
                 'reactions',
+                'is_flagged',
+                'flag_reason',
                 'sent_at',
                 'raw_payload',
                 'phone_candidates',
@@ -1461,6 +1465,8 @@ class ShopController extends Controller
                 'attachments',
                 'metadata',
                 'reactions',
+                'is_flagged',
+                'flag_reason',
                 'sent_at',
                 'raw_payload',
                 'phone_candidates',
@@ -1469,6 +1475,27 @@ class ShopController extends Controller
         return response()->json([
             'messages' => $results,
             'query' => $validated['q'],
+        ]);
+    }
+
+    public function toggleMessageFlag(Request $request, Message $message): JsonResponse
+    {
+        $validated = $request->validate([
+            'flag_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($message->is_flagged) {
+            $message->forceFill(['is_flagged' => false, 'flag_reason' => null])->save();
+        } else {
+            $message->forceFill([
+                'is_flagged' => true,
+                'flag_reason' => $validated['flag_reason'] ?? 'Flagged by agent',
+            ])->save();
+        }
+
+        return response()->json([
+            'is_flagged' => $message->is_flagged,
+            'flag_reason' => $message->flag_reason,
         ]);
     }
 

@@ -15,6 +15,7 @@ import {
   Plus,
   Send,
   Search,
+  Flag,
   ShoppingCart,
   Trash2,
   User,
@@ -55,6 +56,8 @@ interface Message {
     quick_replies?: { title: string; payload: string }[];
   } | null;
   reactions?: Record<string, string> | null;
+  is_flagged?: boolean;
+  flag_reason?: string | null;
   sent_at: string | null;
   phone_candidates?: string[] | null;
   raw_payload?: Record<string, unknown> | null;
@@ -716,7 +719,7 @@ export default function ShopConversation({
                           message.direction === 'outbound'
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted/40'
-                        }`}
+                        } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
                       >
                         {message.body && <p>{message.body}</p>}
                         {message.message_type === 'quick_reply' &&
@@ -862,7 +865,66 @@ export default function ShopConversation({
                               {emoji}
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
+                              message.is_flagged ? 'text-destructive opacity-100' : ''
+                            }`}
+                            title={
+                              message.is_flagged
+                                ? `Flagged: ${message.flag_reason}`
+                                : 'Flag message'
+                            }
+                            onClick={() => {
+                              if (message.is_flagged) {
+                                axiosWithCsrf
+                                  .post(`/shop/messages/${message.id}/flag`, {})
+                                  .then(({ data }) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? {
+                                              ...m,
+                                              is_flagged: data.is_flagged,
+                                              flag_reason: data.flag_reason,
+                                            }
+                                          : m
+                                      )
+                                    );
+                                  })
+                                  .catch(() => {});
+                              } else {
+                                const reason = window.prompt('Flag reason (optional):');
+                                axiosWithCsrf
+                                  .post(`/shop/messages/${message.id}/flag`, {
+                                    flag_reason: reason || undefined,
+                                  })
+                                  .then(({ data }) => {
+                                    setMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? {
+                                              ...m,
+                                              is_flagged: data.is_flagged,
+                                              flag_reason: data.flag_reason,
+                                            }
+                                          : m
+                                      )
+                                    );
+                                  })
+                                  .catch(() => {});
+                              }
+                            }}
+                          >
+                            <Flag className="h-4 w-4" />
+                          </button>
                         </div>
+                        {message.is_flagged && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                            <Flag className="h-3 w-3" />
+                            <span>{message.flag_reason || 'Flagged'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

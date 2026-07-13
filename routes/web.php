@@ -330,6 +330,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/{conversation}/typing', [ShopController::class, 'sendTypingIndicator'])->name('shop.conversation.typing');
     Route::get('/shop/inbox/{conversation}/messages', [ShopController::class, 'fetchOlderMessages'])->name('shop.conversation.messages');
     Route::post('/shop/messages/{message}/reaction', [ShopController::class, 'toggleReaction'])->name('shop.messages.reaction');
+    Route::post('/shop/messages/{message}/flag', [ShopController::class, 'toggleMessageFlag'])->name('shop.messages.flag');
     Route::get('/shop/inbox/{conversation}/search', [ShopController::class, 'searchMessages'])->name('shop.conversation.search');
     Route::post('/shop/inbox/{conversation}/draft', [ShopController::class, 'saveDraft'])->name('shop.conversation.draft');
     Route::get('/shop/analytics', [ShopController::class, 'conversationAnalytics'])->name('shop.analytics');
