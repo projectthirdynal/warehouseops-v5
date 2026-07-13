@@ -9,6 +9,17 @@ window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
+// Send CSRF token on state-changing requests
+window.axios.interceptors.request.use((config) => {
+  if (['post', 'put', 'patch', 'delete'].includes(config.method ?? '')) {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (token) {
+      config.headers['X-CSRF-TOKEN'] = token;
+    }
+  }
+  return config;
+});
+
 /**
  * Echo exposes an expressive API for subscribing to channels and listening
  * for events that are broadcast by Laravel. Echo and event broadcasting

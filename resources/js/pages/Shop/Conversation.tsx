@@ -28,6 +28,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
+const csrfToken =
+  (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content ?? '';
+
+const axiosWithCsrf = axios.create({
+  headers: { 'X-CSRF-TOKEN': csrfToken },
+});
+
 interface Attachment {
   type: string;
   payload: {
@@ -744,7 +751,7 @@ export default function ShopConversation({
                               type="button"
                               className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
                               onClick={() => {
-                                axios
+                                axiosWithCsrf
                                   .post(`/shop/messages/${message.id}/reaction`, { emoji })
                                   .then(({ data }) => {
                                     setMessages((prev) =>
@@ -784,7 +791,7 @@ export default function ShopConversation({
                   onChange={(event) => setData('body', event.target.value)}
                   onFocus={() => {
                     if (conversation?.id) {
-                      axios.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
+                      axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
                     }
                   }}
                   placeholder="Type a reply..."
