@@ -1749,6 +1749,22 @@ class ShopController extends Controller
         return back()->with('success', "Batch {$batch->batch_number} archived.");
     }
 
+    public function deleteCourierBatch(CourierExportBatch $batch): RedirectResponse
+    {
+        if ($batch->status !== CourierExportBatch::STATUS_ARCHIVED) {
+            return back()->with('error', 'Only archived batches can be deleted.');
+        }
+
+        if ($batch->file_path && Storage::disk('local')->exists($batch->file_path)) {
+            Storage::disk('local')->delete($batch->file_path);
+        }
+
+        $batch->rows()->delete();
+        $batch->delete();
+
+        return back()->with('success', "Batch {$batch->batch_number} deleted.");
+    }
+
     public function updateBatchNotes(Request $request, CourierExportBatch $batch): RedirectResponse
     {
         $validated = $request->validate([

@@ -9,6 +9,7 @@ import {
   Archive,
   RotateCcw,
   StickyNote,
+  Trash2,
   X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
@@ -455,6 +456,26 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                             }
                           >
                             <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {batch.status === 'archived' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Delete batch ${batch.batch_number}? This cannot be undone.`
+                                )
+                              ) {
+                                router.delete(`/shop/exports/${batch.id}`, {
+                                  preserveScroll: true,
+                                });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
