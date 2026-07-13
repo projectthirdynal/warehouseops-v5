@@ -470,7 +470,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
                         </div>
                       </div>
                       {item.availableStock <= 5 && (
-                        <p className="mt-1 text-[10px] text-amber-600">
+                        <p className="mt-1 text-[10px] text-warning">
                           Only {item.availableStock} left in stock
                         </p>
                       )}
@@ -488,7 +488,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
                   <span className="tabular-nums">{money(subtotal)}</span>
                 </div>
                 {discount > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-600">
+                  <div className="flex justify-between text-sm text-success">
                     <span>Discount</span>
                     <span className="tabular-nums">-{money(discount)}</span>
                   </div>
@@ -577,7 +577,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
                     className="tabular-nums text-lg font-semibold"
                   />
                   {paid >= total && change > 0 && (
-                    <p className="text-sm text-emerald-600">
+                    <p className="text-sm text-success">
                       Change: <span className="font-bold tabular-nums">{money(change)}</span>
                     </p>
                   )}
@@ -601,7 +601,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
                 <span className="tabular-nums">{money(subtotal)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-emerald-600">
+                <div className="flex justify-between text-success">
                   <span>Discount</span>
                   <span className="tabular-nums">-{money(discount)}</span>
                 </div>
@@ -647,7 +647,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
           {receipt && (
             <div className="space-y-4 py-2">
               <div className="flex flex-col items-center text-center">
-                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                <CheckCircle2 className="h-12 w-12 text-success" />
                 <p className="mt-2 text-lg font-bold">{receipt.order_number}</p>
                 <p className="text-sm text-muted-foreground">
                   {receipt.items_count} item{receipt.items_count !== 1 ? 's' : ''} ·{' '}
@@ -661,7 +661,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
                   <span className="font-semibold tabular-nums">{money(receipt.total_amount)}</span>
                 </div>
                 {receipt.change > 0 && (
-                  <div className="flex justify-between text-emerald-600">
+                  <div className="flex justify-between text-success">
                     <span>Change</span>
                     <span className="font-bold tabular-nums">{money(receipt.change)}</span>
                   </div>
@@ -736,7 +736,7 @@ function ProductCard({
                 product.available_stock === 0
                   ? 'text-destructive'
                   : product.available_stock <= 5
-                    ? 'text-amber-600'
+                    ? 'text-warning'
                     : 'text-muted-foreground'
               )}
             >
@@ -769,7 +769,7 @@ function ProductCard({
                     v.available_stock === 0
                       ? 'text-destructive'
                       : v.available_stock <= 5
-                        ? 'text-amber-600'
+                        ? 'text-warning'
                         : 'text-muted-foreground'
                   )}
                 >

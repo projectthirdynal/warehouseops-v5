@@ -36,6 +36,21 @@ return new class extends Migration
                 // Reassign customer identities
                 DB::table('customer_identities')->where('customer_id', $r->id)->update(['customer_id' => $keep->id]);
 
+                // Reassign customer addresses (prevent cascade-delete data loss)
+                if (Schema::hasTable('customer_addresses')) {
+                    DB::table('customer_addresses')->where('customer_id', $r->id)->update(['customer_id' => $keep->id]);
+                }
+
+                // Reassign customer notes (prevent cascade-delete data loss)
+                if (Schema::hasTable('customer_notes')) {
+                    DB::table('customer_notes')->where('customer_id', $r->id)->update(['customer_id' => $keep->id]);
+                }
+
+                // Reassign conversations (prevent cascade-delete data loss)
+                if (Schema::hasTable('conversations')) {
+                    DB::table('conversations')->where('customer_id', $r->id)->update(['customer_id' => $keep->id]);
+                }
+
                 // Soft-delete the duplicate
                 DB::table('customers')->where('id', $r->id)->delete();
             }
