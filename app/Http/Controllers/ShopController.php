@@ -1796,6 +1796,58 @@ class ShopController extends Controller
         ]);
     }
 
+    public function batchAnalytics(): JsonResponse
+    {
+        $batches = CourierExportBatch::query()
+            ->withCount(['rows as total_rows'])
+            ->withCount(['rows as exported_rows' => fn ($q) => $q->where('status', 'exported')])
+            ->withCount(['rows as failed_rows' => fn ($q) => $q->where('status', 'failed')])
+            ->latest()
+            ->limit(50)
+            ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'created_at']);
+
+        $perBatch = $batches->map(fn ($b) => [
+            'id' => $b->id,
+            'batch_number' => $b->batch_number,
+            'courier_code' => $b->courier_code,
+            'region' => $b->region,
+            'status' => $b->status,
+            'total_rows' => $b->total_rows,
+            'exported_rows' => $b->exported_rows,
+            'failed_rows' => $b->failed_rows,
+            'success_rate' => $b->total_rows > 0 ? round(($b->exported_rows / $b->total_rows) * 100, 1) : 0,
+            'created_at' => $b->created_at?->toIso8601String(),
+        ]);
+
+        $totalBatches = $batches->count();
+        $totalRows = $batches->sum('total_rows');
+        $totalExported = $batches->sum('exported_rows');
+        $totalFailed = $batches->sum('failed_rows');
+
+        $byCourier = $batches->groupBy('courier_code')->map(fn ($group, $courier) => [
+            'courier' => $courier,
+            'batch_count' => $group->count(),
+            'total_rows' => $group->sum('total_rows'),
+            'exported_rows' => $group->sum('exported_rows'),
+            'failed_rows' => $group->sum('failed_rows'),
+            'success_rate' => $group->sum('total_rows') > 0
+                ? round(($group->sum('exported_rows') / $group->sum('total_rows')) * 100, 1)
+                : 0,
+        ])->values();
+
+        return response()->json([
+            'per_batch' => $perBatch,
+            'summary' => [
+                'total_batches' => $totalBatches,
+                'total_rows' => $totalRows,
+                'total_exported' => $totalExported,
+                'total_failed' => $totalFailed,
+                'overall_success_rate' => $totalRows > 0 ? round(($totalExported / $totalRows) * 100, 1) : 0,
+            ],
+            'by_courier' => $byCourier,
+        ]);
+    }
+
     public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
     {
         $failedCount = $batch->rows()->where('status', 'failed')->count();

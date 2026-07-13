@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import {
+  BarChart3,
   Download,
   Eye,
   FileSpreadsheet,
@@ -172,6 +173,37 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
     }[]
   >([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<{
+    per_batch: {
+      id: number;
+      batch_number: string;
+      courier_code: string;
+      region?: string | null;
+      status: string;
+      total_rows: number;
+      exported_rows: number;
+      failed_rows: number;
+      success_rate: number;
+      created_at: string;
+    }[];
+    summary: {
+      total_batches: number;
+      total_rows: number;
+      total_exported: number;
+      total_failed: number;
+      overall_success_rate: number;
+    };
+    by_courier: {
+      courier: string;
+      batch_count: number;
+      total_rows: number;
+      exported_rows: number;
+      failed_rows: number;
+      success_rate: number;
+    }[];
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -188,6 +220,21 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
   const saveNotes = (batchId: number) => {
     router.patch(`/shop/exports/${batchId}/notes`, { notes: notesDraft }, { preserveScroll: true });
     setEditingNotesId(null);
+  };
+
+  const loadAnalytics = () => {
+    if (analytics) {
+      setShowAnalytics((v) => !v);
+      return;
+    }
+    setAnalyticsLoading(true);
+    fetch('/shop/exports/analytics', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setAnalytics(data);
+        setShowAnalytics(true);
+      })
+      .finally(() => setAnalyticsLoading(false));
   };
 
   const openPreview = (batchId: number) => {
@@ -254,8 +301,119 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 Export {courier.label}
               </Button>
             ))}
+            <Button variant="outline" onClick={loadAnalytics} disabled={analyticsLoading}>
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              {analyticsLoading ? 'Loading...' : 'Analytics'}
+            </Button>
           </div>
         </div>
+
+        {showAnalytics && analytics && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Export Batch Analytics</CardTitle>
+                  <CardDescription>Success rates across recent batches</CardDescription>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAnalytics(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Batches</p>
+                  <p className="text-lg font-semibold">{analytics.summary.total_batches}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total Rows</p>
+                  <p className="text-lg font-semibold">{analytics.summary.total_rows}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Exported</p>
+                  <p className="text-lg font-semibold text-green-600">
+                    {analytics.summary.total_exported}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Failed</p>
+                  <p className="text-lg font-semibold text-destructive">
+                    {analytics.summary.total_failed}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Success Rate</p>
+                  <p className="text-lg font-semibold">{analytics.summary.overall_success_rate}%</p>
+                </div>
+              </div>
+
+              {analytics.by_courier.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">By Courier</p>
+                  <div className="space-y-2">
+                    {analytics.by_courier.map((c) => (
+                      <div
+                        key={c.courier}
+                        className="flex items-center gap-3 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <span className="font-medium">{c.courier}</span>
+                        <span className="text-muted-foreground">{c.batch_count} batches</span>
+                        <span className="text-muted-foreground">{c.total_rows} rows</span>
+                        <span className="text-green-600">{c.exported_rows} exported</span>
+                        {c.failed_rows > 0 && (
+                          <span className="text-destructive">{c.failed_rows} failed</span>
+                        )}
+                        <span className="ml-auto font-medium">{c.success_rate}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Per Batch</p>
+                <div className="max-h-60 overflow-auto rounded-md border">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Batch</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Courier</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Status</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Rows</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Exported</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Failed</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Success</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.per_batch.map((b) => (
+                        <tr key={b.id} className="border-t">
+                          <td className="px-2 py-1.5 font-medium">{b.batch_number}</td>
+                          <td className="px-2 py-1.5">{b.courier_code}</td>
+                          <td className="px-2 py-1.5">{b.status}</td>
+                          <td className="px-2 py-1.5 text-right">{b.total_rows}</td>
+                          <td className="px-2 py-1.5 text-right text-green-600">
+                            {b.exported_rows}
+                          </td>
+                          <td className="px-2 py-1.5 text-right text-destructive">
+                            {b.failed_rows}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-medium">{b.success_rate}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {orders.data.length > 0 && (
           <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
