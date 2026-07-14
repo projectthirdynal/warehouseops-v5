@@ -597,11 +597,31 @@ class ShopController extends Controller
             'agents' => $this->shopAgents(),
             'can_view_all' => $canViewAll,
             'current_user_id' => $request->user()->id,
+            'my_status' => $request->user()->agentStatus(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
+    }
+
+    public function updateAgentStatus(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'is_available' => ['required', 'boolean'],
+        ]);
+
+        $profile = $request->user()->agentProfile()->firstOrCreate(
+            ['user_id' => $request->user()->id],
+            ['is_available' => true]
+        );
+
+        $profile->forceFill([
+            'is_available' => $validated['is_available'],
+            'last_seen_at' => now(),
+        ])->save();
+
+        return back()->with('success', $validated['is_available'] ? 'You are now online.' : 'You are now away.');
     }
 
     public function togglePageFavorite(Request $request): RedirectResponse
@@ -3127,8 +3147,15 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
+            ->with('agentProfile:id,user_id,is_available,last_seen_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'role']);
+            ->get(['id', 'name', 'role'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $user->role,
+                'status' => $user->agentStatus(),
+            ]);
     }
 
     /**

@@ -4,6 +4,7 @@ import {
   BarChart3,
   CheckCheck,
   Check,
+  Circle,
   EyeOff,
   Flag,
   Inbox,
@@ -100,6 +101,24 @@ interface PageCannedResponse {
   page_name: string | null;
 }
 
+interface AgentStatusDotProps {
+  status: string;
+  className?: string;
+}
+
+function AgentStatusDot({ status, className = '' }: AgentStatusDotProps) {
+  const colors: Record<string, string> = {
+    online: 'bg-green-500',
+    away: 'bg-amber-500',
+    offline: 'bg-muted-foreground',
+  };
+  return (
+    <Circle
+      className={`h-2.5 w-2.5 fill-current ${colors[status] ?? colors.offline} ${className}`}
+    />
+  );
+}
+
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
@@ -107,9 +126,10 @@ interface Props {
   assignment_rules?: AssignmentRule[];
   pending_comments?: PendingComment[];
   page_canned_responses?: PageCannedResponse[];
-  agents: { id: number; name: string; role: string }[];
+  agents: { id: number; name: string; role: string; status: string }[];
   can_view_all?: boolean;
   current_user_id?: number;
+  my_status?: string;
   statuses: string[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
@@ -142,6 +162,7 @@ export default function ShopInbox({
   page_canned_responses = [],
   agents,
   can_view_all = true,
+  my_status = 'offline',
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
@@ -326,6 +347,20 @@ export default function ShopInbox({
                 </Badge>
               )}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.post(
+                  '/shop/inbox/agent-status',
+                  { is_available: my_status !== 'online' },
+                  { preserveState: true }
+                )
+              }
+            >
+              <AgentStatusDot status={my_status} className="mr-1" />
+              {my_status === 'online' ? 'Online' : my_status === 'away' ? 'Away' : 'Offline'}
+            </Button>
             <Select
               value={filters.page_id ?? 'all'}
               onValueChange={(value) =>
@@ -436,7 +471,10 @@ export default function ShopInbox({
                   <SelectItem value="unassigned">Unassigned</SelectItem>
                   {agents.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id.toString()}>
-                      {agent.name}
+                      <span className="flex items-center gap-2">
+                        <AgentStatusDot status={agent.status} />
+                        {agent.name}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

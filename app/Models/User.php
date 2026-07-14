@@ -83,4 +83,21 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return in_array($this->role, ['supervisor', 'admin', 'superadmin']);
     }
+
+    public function agentStatus(): string
+    {
+        $profile = $this->agentProfile;
+
+        if (! $profile || ! $profile->is_available) {
+            return 'offline';
+        }
+
+        $lastSeen = $profile->last_seen_at;
+
+        if ($lastSeen && $lastSeen->gt(now()->subMinutes(5))) {
+            return 'online';
+        }
+
+        return 'away';
+    }
 }
