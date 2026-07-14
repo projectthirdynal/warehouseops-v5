@@ -603,6 +603,7 @@ class ShopController extends Controller
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'workload_report' => $canViewAll ? $this->workloadReport() : null,
             'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
     }
@@ -3401,6 +3402,111 @@ class ShopController extends Controller
         }
 
         return $profile->last_seen_at->lt(now()->subMinutes($threshold));
+    }
+
+    /**
+     * @return array{
+     *   total_active: int,
+     *   total_agents: int,
+     *   avg_per_agent: float,
+     *   max_assigned: int,
+     *   min_assigned: int,
+     *   imbalance_ratio: float,
+     *   status: string,
+     *   recommendations: array<int, array{agent_id: int, agent_name: string, active: int, max: int, suggestion: string}>,
+     *   distribution: array<int, array{agent_id: int, agent_name: string, active: int, max: int, utilization: float}>
+     * }
+     */
+    private function workloadReport(): array
+    {
+        $agents = $this->shopAgents()
+            ->filter(fn ($a) => $a['role'] === 'agent' || $a['role'] === 'supervisor');
+
+        $totalActive = $agents->sum('active_conversations');
+        $totalAgents = $agents->count();
+
+        if ($totalAgents === 0) {
+            return [
+                'total_active' => 0,
+                'total_agents' => 0,
+                'avg_per_agent' => 0,
+                'max_assigned' => 0,
+                'min_assigned' => 0,
+                'imbalance_ratio' => 0,
+                'status' => 'no_agents',
+                'recommendations' => [],
+                'distribution' => [],
+            ];
+        }
+
+        $avgPerAgent = round($totalActive / $totalAgents, 1);
+        $maxAssigned = $agents->max('active_conversations');
+        $minAssigned = $agents->min('active_conversations');
+
+        $imbalanceRatio = $avgPerAgent > 0
+            ? round(($maxAssigned - $minAssigned) / $avgPerAgent, 2)
+            : 0;
+
+        $status = match (true) {
+            $imbalanceRatio <= 0.3 => 'balanced',
+            $imbalanceRatio <= 0.7 => 'slightly_imbalanced',
+            default => 'imbalanced',
+        };
+
+        $distribution = $agents
+            ->sortByDesc('active_conversations')
+            ->map(fn ($a) => [
+                'agent_id' => $a['id'],
+                'agent_name' => $a['name'],
+                'active' => $a['active_conversations'],
+                'max' => $a['max_active_conversations'],
+                'utilization' => $a['max_active_conversations'] > 0
+                    ? round(($a['active_conversations'] / $a['max_active_conversations']) * 100, 1)
+                    : 0,
+            ])
+            ->values()
+            ->all();
+
+        $recommendations = [];
+
+        foreach ($agents as $a) {
+            $utilization = $a['max_active_conversations'] > 0
+                ? ($a['active_conversations'] / $a['max_active_conversations']) * 100
+                : 0;
+
+            if ($utilization >= 100 && $a['overflow_enabled']) {
+                $overloaded = $agents->firstWhere('active_conversations', $minAssigned);
+                if ($overloaded && $overloaded['id'] !== $a['id'] && $overloaded['active_conversations'] < $a['active_conversations'] - 3) {
+                    $recommendations[] = [
+                        'agent_id' => $a['id'],
+                        'agent_name' => $a['name'],
+                        'active' => $a['active_conversations'],
+                        'max' => $a['max_active_conversations'],
+                        'suggestion' => "Reassign 2-3 conversations from {$a['name']} to {$overloaded['name']} (currently {$overloaded['active_conversations']} active).",
+                    ];
+                }
+            } elseif ($utilization >= 80 && ! $a['overflow_enabled']) {
+                $recommendations[] = [
+                    'agent_id' => $a['id'],
+                    'agent_name' => $a['name'],
+                    'active' => $a['active_conversations'],
+                    'max' => $a['max_active_conversations'],
+                    'suggestion' => "{$a['name']} is at " . round($utilization) . "% capacity with overflow disabled. Consider enabling overflow or reassigning.",
+                ];
+            }
+        }
+
+        return [
+            'total_active' => $totalActive,
+            'total_agents' => $totalAgents,
+            'avg_per_agent' => $avgPerAgent,
+            'max_assigned' => $maxAssigned,
+            'min_assigned' => $minAssigned,
+            'imbalance_ratio' => $imbalanceRatio,
+            'status' => $status,
+            'recommendations' => $recommendations,
+            'distribution' => $distribution,
+        ];
     }
 
 }

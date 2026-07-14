@@ -163,6 +163,29 @@ interface Props {
     tag_id?: string;
     snoozed?: string;
   };
+  workload_report?: {
+    total_active: number;
+    total_agents: number;
+    avg_per_agent: number;
+    max_assigned: number;
+    min_assigned: number;
+    imbalance_ratio: number;
+    status: string;
+    recommendations: {
+      agent_id: number;
+      agent_name: string;
+      active: number;
+      max: number;
+      suggestion: string;
+    }[];
+    distribution: {
+      agent_id: number;
+      agent_name: string;
+      active: number;
+      max: number;
+      utilization: number;
+    }[];
+  } | null;
 }
 
 function formatDate(value: string | null) {
@@ -187,6 +210,7 @@ export default function ShopInbox({
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
+  workload_report: workloadReport = null,
   filters = {},
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -1347,6 +1371,71 @@ export default function ShopInbox({
                         </div>
                       ))}
                   </div>
+                </div>
+              )}
+
+              {can_view_all && workloadReport && workloadReport.total_agents > 0 && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="flex items-center gap-1.5 text-sm font-medium">
+                      Workload Balancing Report
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          workloadReport.status === 'balanced'
+                            ? 'border-green-500/30 text-green-600'
+                            : workloadReport.status === 'slightly_imbalanced'
+                              ? 'border-yellow-500/30 text-yellow-600'
+                              : 'border-red-500/30 text-red-600'
+                        }`}
+                      >
+                        {label(workloadReport.status)}
+                      </Badge>
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      {workloadReport.total_active} active conversations across{' '}
+                      {workloadReport.total_agents} agent(s). Avg {workloadReport.avg_per_agent} per
+                      agent. Range: {workloadReport.min_assigned}–{workloadReport.max_assigned}.
+                    </p>
+                  </div>
+
+                  <div className="mb-3 space-y-1.5">
+                    {workloadReport.distribution.map((d) => (
+                      <div key={d.agent_id} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium">{d.agent_name}</span>
+                          <span className="text-muted-foreground">
+                            {d.active}/{d.max} ({d.utilization}%)
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={`h-full rounded-full ${
+                              d.utilization >= 100
+                                ? 'bg-red-500'
+                                : d.utilization >= 80
+                                  ? 'bg-yellow-500'
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(d.utilization, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {workloadReport.recommendations.length > 0 && (
+                    <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3">
+                      <p className="mb-1.5 text-xs font-medium text-yellow-600">Recommendations</p>
+                      <ul className="space-y-1">
+                        {workloadReport.recommendations.map((r, i) => (
+                          <li key={i} className="text-xs text-muted-foreground">
+                            {r.suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
