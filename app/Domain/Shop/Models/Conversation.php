@@ -50,6 +50,29 @@ class Conversation extends Model
         self::STATUS_RESOLVED,
     ];
 
+    public const SLA_THRESHOLDS = [
+        self::STATUS_NEW => 60,
+        self::STATUS_ASSIGNED => 240,
+        self::STATUS_AWAITING_CUSTOMER => 1440,
+        self::STATUS_RESOLVED => null,
+        self::STATUS_ARCHIVED => null,
+    ];
+
+    public const SLA_WARNING_PERCENT = 80;
+
+    public static function slaThresholds(): array
+    {
+        $overrides = \App\Models\SiteSetting::get('conversation_sla_thresholds');
+        if ($overrides) {
+            $decoded = json_decode($overrides, true);
+            if (is_array($decoded)) {
+                return array_merge(self::SLA_THRESHOLDS, $decoded);
+            }
+        }
+
+        return self::SLA_THRESHOLDS;
+    }
+
     protected $fillable = [
         'facebook_page_id',
         'customer_id',

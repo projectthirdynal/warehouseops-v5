@@ -57,6 +57,12 @@ interface Conversation {
   last_message_at: string | null;
   unread_count: number;
   messages_count: number;
+  sla?: {
+    elapsed_minutes: number | null;
+    threshold_minutes: number | null;
+    remaining_minutes: number | null;
+    status: string;
+  };
   facebook_page?: Page | null;
   customer?: { id: number; name: string; phone: string; normalized_phone?: string | null } | null;
   identity?: { id: number; display_name?: string | null; phone_detected?: string | null } | null;
@@ -154,6 +160,7 @@ interface Props {
   my_status?: string;
   statuses: string[];
   status_counts?: Record<string, number>;
+  sla_thresholds?: Record<string, number | null>;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -360,6 +367,26 @@ export default function ShopInbox({
         return 'border-purple-500/30 text-purple-600';
       case 'archived':
         return 'border-muted text-muted-foreground';
+      default:
+        return '';
+    }
+  };
+
+  const formatSlaMinutes = (minutes: number): string => {
+    if (minutes < 60) return `${minutes}m`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  };
+
+  const slaBadgeClass = (slaStatus: string) => {
+    switch (slaStatus) {
+      case 'breached':
+        return 'border-red-500/40 text-red-600 bg-red-50';
+      case 'warning':
+        return 'border-amber-500/40 text-amber-600 bg-amber-50';
+      case 'ok':
+        return 'border-green-500/30 text-green-600 bg-green-50';
       default:
         return '';
     }
@@ -1795,6 +1822,17 @@ export default function ShopInbox({
                                 );
                               })}
                             </select>
+                            {conversation.sla && conversation.sla.status !== 'none' && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${slaBadgeClass(conversation.sla.status)}`}
+                                title={`Elapsed: ${formatSlaMinutes(conversation.sla.elapsed_minutes ?? 0)} / ${formatSlaMinutes(conversation.sla.threshold_minutes ?? 0)}`}
+                              >
+                                {conversation.sla.status === 'breached'
+                                  ? `SLA ${formatSlaMinutes(conversation.sla.elapsed_minutes ?? 0)}`
+                                  : `${formatSlaMinutes(conversation.sla.remaining_minutes ?? 0)} left`}
+                              </Badge>
+                            )}
                             {(conversation.priority ?? 'normal') !== 'normal' && (
                               <Badge
                                 variant={

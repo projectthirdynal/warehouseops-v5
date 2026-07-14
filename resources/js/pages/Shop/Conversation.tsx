@@ -171,6 +171,13 @@ interface Props {
     changed_by_role: string | null;
     created_at: string | null;
   }[];
+  sla?: {
+    elapsed_minutes: number | null;
+    threshold_minutes: number | null;
+    remaining_minutes: number | null;
+    status: string;
+  };
+  sla_thresholds?: Record<string, number | null>;
 }
 
 function time(value: string | null) {
@@ -258,6 +265,26 @@ function allowedTransitions(currentStatus: string, role: string): string[] {
   return isSupervisor ? allowed : allowed.filter((s) => agentAllowed.includes(s));
 }
 
+function formatSlaMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function slaBadgeClass(slaStatus: string) {
+  switch (slaStatus) {
+    case 'breached':
+      return 'border-red-500/40 text-red-600 bg-red-50';
+    case 'warning':
+      return 'border-amber-500/40 text-amber-600 bg-amber-50';
+    case 'ok':
+      return 'border-green-500/30 text-green-600 bg-green-50';
+    default:
+      return '';
+  }
+}
+
 export default function ShopConversation({
   conversation,
   recent_orders,
@@ -272,6 +299,7 @@ export default function ShopConversation({
   scheduled_messages: initialScheduled = [],
   assignment_history: assignmentHistory = [],
   status_history: statusHistory = [],
+  sla: slaData,
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -659,6 +687,17 @@ export default function ShopConversation({
               <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
                 {label(conversation.status)}
               </Badge>
+              {slaData && slaData.status !== 'none' && (
+                <Badge
+                  variant="outline"
+                  className={slaBadgeClass(slaData.status)}
+                  title={`Elapsed: ${formatSlaMinutes(slaData.elapsed_minutes ?? 0)} / Threshold: ${formatSlaMinutes(slaData.threshold_minutes ?? 0)}`}
+                >
+                  {slaData.status === 'breached'
+                    ? `SLA breached (${formatSlaMinutes(slaData.elapsed_minutes ?? 0)})`
+                    : `SLA ${formatSlaMinutes(slaData.remaining_minutes ?? 0)} left`}
+                </Badge>
+              )}
               {(conversation.priority ?? 'normal') !== 'normal' && (
                 <Badge
                   variant={

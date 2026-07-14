@@ -599,8 +599,16 @@ class ShopController extends Controller
                 ->toArray()
             : [];
 
+        $slaThresholds = Conversation::slaThresholds();
+
+        $paginated = $query->paginate(20)->withQueryString();
+        $paginated->getCollection()->transform(function (Conversation $conv) use ($slaThresholds) {
+            $conv->sla = $this->computeSla($conv, $slaThresholds);
+            return $conv;
+        });
+
         return Inertia::render('Shop/Inbox', [
-            'conversations' => $query->paginate(20)->withQueryString(),
+            'conversations' => $paginated,
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
             'assignment_rules' => $assignmentRules,
@@ -613,6 +621,7 @@ class ShopController extends Controller
             'my_status' => $request->user()->agentStatus(),
             'statuses' => $this->conversationStatuses(),
             'status_counts' => $statusCounts,
+            'sla_thresholds' => $slaThresholds,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
@@ -946,6 +955,8 @@ class ShopController extends Controller
                         'created_at' => $h->created_at?->toIso8601String(),
                     ])
                 : [],
+            'sla' => $this->computeSla($conversation, Conversation::slaThresholds()),
+            'sla_thresholds' => Conversation::slaThresholds(),
         ]);
     }
 
@@ -3462,6 +3473,47 @@ class ShopController extends Controller
     private function conversationStatuses(): array
     {
         return Conversation::STATUSES;
+    }
+
+    private function computeSla(Conversation $conversation, array $thresholds): array
+    {
+        $threshold = $thresholds[$conversation->status] ?? null;
+
+        if ($threshold === null) {
+            return [
+                'elapsed_minutes' => null,
+                'threshold_minutes' => null,
+                'remaining_minutes' => null,
+                'status' => 'none',
+            ];
+        }
+
+        $startedAt = $conversation->updated_at;
+
+        if (Schema::hasTable('conversation_status_histories')) {
+            $latest = $conversation->statusHistories()->latest('id')->first();
+            if ($latest) {
+                $startedAt = $latest->created_at;
+            }
+        }
+
+        $elapsedMinutes = $startedAt ? (int) now()->diffInMinutes($startedAt) : 0;
+        $remainingMinutes = $threshold - $elapsedMinutes;
+        $warningAt = (int) ($threshold * Conversation::SLA_WARNING_PERCENT / 100);
+
+        $slaStatus = 'ok';
+        if ($elapsedMinutes >= $threshold) {
+            $slaStatus = 'breached';
+        } elseif ($elapsedMinutes >= $warningAt) {
+            $slaStatus = 'warning';
+        }
+
+        return [
+            'elapsed_minutes' => $elapsedMinutes,
+            'threshold_minutes' => $threshold,
+            'remaining_minutes' => max(0, $remainingMinutes),
+            'status' => $slaStatus,
+        ];
     }
 
     private function isAgentIdle(User $user): bool
