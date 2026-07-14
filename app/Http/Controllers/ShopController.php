@@ -523,7 +523,7 @@ class ShopController extends Controller
 
         $pages = FacebookPage::query()
             ->orderBy('page_name')
-            ->get(['id', 'page_id', 'page_name'])
+            ->get(['id', 'page_id', 'page_name', 'connected_status'])
             ->map(function (FacebookPage $page) {
                 $page->unread_count = Conversation::query()
                     ->whereNull('merged_into_id')

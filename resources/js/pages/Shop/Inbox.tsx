@@ -29,6 +29,7 @@ interface Page {
   id: number;
   page_id: string;
   page_name: string;
+  connected_status?: string;
   unread_count?: number;
 }
 
@@ -182,7 +183,17 @@ export default function ShopInbox({
                 {filteredPages.map((page) => (
                   <SelectItem key={page.id} value={page.id.toString()}>
                     <span className="flex items-center justify-between gap-2">
-                      <span>{page.page_name}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${
+                            page.connected_status === 'connected' ? 'bg-green-500' : 'bg-red-500'
+                          }`}
+                          title={
+                            page.connected_status === 'connected' ? 'Connected' : 'Disconnected'
+                          }
+                        />
+                        {page.page_name}
+                      </span>
                       {(page.unread_count ?? 0) > 0 && (
                         <Badge className="ml-auto bg-primary text-primary-foreground">
                           {page.unread_count}
