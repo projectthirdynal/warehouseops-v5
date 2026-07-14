@@ -3,9 +3,12 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
   BarChart3,
   CheckCheck,
+  Check,
+  EyeOff,
   Flag,
   Inbox,
   MessageSquare,
+  MessageCircleWarning,
   Phone,
   Star,
   Store,
@@ -72,11 +75,25 @@ interface AssignmentRule {
   is_active: boolean;
 }
 
+interface PendingComment {
+  id: number;
+  conversation_id: number;
+  facebook_page_id: number;
+  customer_identity_id: number | null;
+  body: string | null;
+  sent_at: string | null;
+  moderation_status: string;
+  facebook_page?: { id: number; page_name: string; page_id: string } | null;
+  identity?: { id: number; display_name: string | null; provider_user_id: string | null } | null;
+  conversation?: { id: number; thread_key: string; channel: string } | null;
+}
+
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
   favorite_page_ids?: number[];
   assignment_rules?: AssignmentRule[];
+  pending_comments?: PendingComment[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
@@ -106,6 +123,7 @@ export default function ShopInbox({
   pages,
   favorite_page_ids = [],
   assignment_rules = [],
+  pending_comments = [],
   agents,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
@@ -116,6 +134,7 @@ export default function ShopInbox({
   const [bulkStatus, setBulkStatus] = useState<string>('closed');
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);
+  const [showModeration, setShowModeration] = useState(false);
   const [rulePageId, setRulePageId] = useState('');
   const [ruleAgentId, setRuleAgentId] = useState('');
 
@@ -161,6 +180,14 @@ export default function ShopInbox({
       data: { rule_id: ruleId },
       preserveState: true,
     });
+  };
+
+  const moderateComment = (messageId: number, action: 'approve' | 'hide') => {
+    router.post(
+      '/shop/inbox/moderate-comment',
+      { message_id: messageId, action },
+      { preserveState: true }
+    );
   };
 
   const updateFilter = (next: Record<string, string | undefined>) => {
@@ -222,6 +249,19 @@ export default function ShopInbox({
               {assignment_rules.length > 0 && (
                 <Badge className="ml-1 bg-primary-foreground text-primary">
                   {assignment_rules.length}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={showModeration ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowModeration(!showModeration)}
+            >
+              <MessageCircleWarning className="h-4 w-4" />
+              Moderation
+              {pending_comments.length > 0 && (
+                <Badge className="ml-1 bg-primary-foreground text-primary">
+                  {pending_comments.length}
                 </Badge>
               )}
             </Button>
@@ -480,6 +520,66 @@ export default function ShopInbox({
                   Add Rule
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {showModeration && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MessageCircleWarning className="h-4 w-4" />
+                Comment Moderation Queue
+              </CardTitle>
+              <CardDescription>
+                Review and approve or hide incoming page comments before they are visible.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pending_comments.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No comments pending moderation.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {pending_comments.map((comment) => (
+                    <div
+                      key={comment.id}
+                      className="flex items-start justify-between gap-3 rounded-md border p-3"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline">
+                            {comment.facebook_page?.page_name ??
+                              `Page #${comment.facebook_page_id}`}
+                          </Badge>
+                          <span>{comment.identity?.display_name ?? 'Unknown user'}</span>
+                          {comment.sent_at && <span>· {formatDate(comment.sent_at)}</span>}
+                        </div>
+                        <p className="text-sm">{comment.body ?? '(no text)'}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => moderateComment(comment.id, 'approve')}
+                          title="Approve"
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => moderateComment(comment.id, 'hide')}
+                          title="Hide"
+                        >
+                          <EyeOff className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

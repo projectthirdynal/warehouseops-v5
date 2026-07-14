@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\User;
 
 class Message extends Model
 {
@@ -30,7 +31,10 @@ class Message extends Model
         'read_at',
         'send_status',
         'send_error',
-        'retry_count',
+        'moderation_status',
+        'moderation_note',
+        'moderated_at',
+        'moderated_by',
     ];
 
     protected $casts = [
@@ -42,6 +46,7 @@ class Message extends Model
         'raw_payload' => 'array',
         'sent_at' => 'datetime',
         'read_at' => 'datetime',
+        'moderated_at' => 'datetime',
     ];
 
     public function conversation(): BelongsTo
@@ -57,5 +62,10 @@ class Message extends Model
     public function identity(): BelongsTo
     {
         return $this->belongsTo(CustomerIdentity::class, 'customer_identity_id');
+    }
+
+    public function moderator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'moderated_by');
     }
 }

@@ -316,6 +316,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/page-favorite', [ShopController::class, 'togglePageFavorite'])->name('shop.page-favorite.toggle');
     Route::post('/shop/inbox/assignment-rules', [ShopController::class, 'storeAssignmentRule'])->name('shop.assignment-rules.store');
     Route::delete('/shop/inbox/assignment-rules', [ShopController::class, 'destroyAssignmentRule'])->name('shop.assignment-rules.destroy');
+    Route::post('/shop/inbox/moderate-comment', [ShopController::class, 'moderateComment'])->name('shop.comment.moderate');
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
     Route::get('/shop/inbox/{conversation}/poll', [ShopController::class, 'pollMessages'])->name('shop.conversation.poll');

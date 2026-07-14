@@ -229,6 +229,7 @@ class MetaConversationIngestor
                     'sent_at' => $this->commentTimestamp($value),
                     'read_at' => null,
                     'send_status' => null,
+                    'moderation_status' => 'pending',
                 ]
             );
 

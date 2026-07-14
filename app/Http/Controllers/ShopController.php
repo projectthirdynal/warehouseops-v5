@@ -549,11 +549,24 @@ class ShopController extends Controller
                 'is_active' => $rule->is_active,
             ]);
 
+        $pendingComments = Message::query()
+            ->where('direction', 'inbound')
+            ->where('moderation_status', 'pending')
+            ->with([
+                'facebookPage:id,page_name,page_id',
+                'identity:id,display_name,provider_user_id',
+                'conversation:id,thread_key,channel',
+            ])
+            ->latest('sent_at')
+            ->limit(50)
+            ->get(['id', 'conversation_id', 'facebook_page_id', 'customer_identity_id', 'body', 'sent_at', 'moderation_status']);
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
             'assignment_rules' => $assignmentRules,
+            'pending_comments' => $pendingComments,
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
@@ -607,6 +620,26 @@ class ShopController extends Controller
         PageAssignmentRule::where('id', $validated['rule_id'])->delete();
 
         return back()->with('success', 'Assignment rule removed.');
+    }
+
+    public function moderateComment(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'message_id' => ['required', 'integer', 'exists:messages,id'],
+            'action' => ['required', 'string', 'in:approve,hide'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $message = Message::findOrFail($validated['message_id']);
+
+        $message->update([
+            'moderation_status' => $validated['action'] === 'approve' ? 'approved' : 'hidden',
+            'moderation_note' => $validated['note'] ?? null,
+            'moderated_at' => now(),
+            'moderated_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', "Comment {$validated['action']}d.");
     }
 
     public function conversation(Conversation $conversation): Response
