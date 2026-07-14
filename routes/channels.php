@@ -24,3 +24,7 @@ Broadcast::channel('agent.{agentId}', function ($user, $agentId) {
 Broadcast::channel('supervisor.leads', function ($user) {
     return in_array($user->role, ['superadmin', 'admin', 'supervisor']);
 });
+
+Broadcast::channel('shop.inbox', function ($user) {
+    return in_array($user->role, ['superadmin', 'admin', 'supervisor', 'agent']);
+});

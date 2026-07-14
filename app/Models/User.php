@@ -9,7 +9,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\FacebookPage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -62,6 +64,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Conversation::class, 'assigned_agent_id');
     }
 
+    public function favoritePages(): BelongsToMany
+    {
+        return $this->belongsToMany(FacebookPage::class, 'page_favorites')->withTimestamps();
+    }
+
     public function isAdmin(): bool
     {
         return in_array($this->role, ['superadmin', 'admin']);
@@ -70,5 +77,27 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isAgent(): bool
     {
         return $this->role === 'agent';
+    }
+
+    public function isSupervisor(): bool
+    {
+        return in_array($this->role, ['supervisor', 'admin', 'superadmin']);
+    }
+
+    public function agentStatus(): string
+    {
+        $profile = $this->agentProfile;
+
+        if (! $profile || ! $profile->is_available) {
+            return 'offline';
+        }
+
+        $lastSeen = $profile->last_seen_at;
+
+        if ($lastSeen && $lastSeen->gt(now()->subMinutes(5))) {
+            return 'online';
+        }
+
+        return 'away';
     }
 }

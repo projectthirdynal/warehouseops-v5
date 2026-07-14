@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   MessageSquare,
+  Store,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -36,6 +37,19 @@ interface AgentStat {
   avg_resolution_seconds: number | null;
 }
 
+interface PageStat {
+  id: number;
+  page_name: string;
+  page_id: string;
+  total_conversations: number;
+  responded_count: number;
+  resolved_count: number;
+  response_rate: number;
+  resolution_rate: number;
+  avg_response_seconds: number | null;
+  avg_resolution_seconds: number | null;
+}
+
 interface DailyTrendItem {
   date: string;
   total: number;
@@ -56,6 +70,7 @@ interface RecentExport {
 interface Props {
   stats: Stats;
   per_agent: AgentStat[];
+  per_page: PageStat[];
   status_distribution: Record<string, number>;
   sentiment_distribution: Record<string, number>;
   daily_trend: DailyTrendItem[];
@@ -75,6 +90,7 @@ function formatDuration(seconds: number | null): string {
 export default function ConversationAnalytics({
   stats,
   per_agent,
+  per_page,
   status_distribution,
   sentiment_distribution,
   daily_trend,
@@ -275,6 +291,176 @@ export default function ConversationAnalytics({
           </CardContent>
         </Card>
 
+        {/* Per-page breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Store className="h-5 w-5" />
+              Per-Page Performance
+            </CardTitle>
+            <CardDescription>
+              Conversations, response time, and resolution metrics by Facebook Page
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Page</th>
+                    <th className="pb-2 pr-4 font-medium">Conversations</th>
+                    <th className="pb-2 pr-4 font-medium">Response Rate</th>
+                    <th className="pb-2 pr-4 font-medium">Resolution Rate</th>
+                    <th className="pb-2 pr-4 font-medium">Avg Response</th>
+                    <th className="pb-2 pr-4 font-medium">Avg Resolution</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {per_page.map((page) => (
+                    <tr key={page.id} className="border-b last:border-0">
+                      <td className="py-2 pr-4 font-medium">{page.page_name}</td>
+                      <td className="py-2 pr-4">{page.total_conversations}</td>
+                      <td className="py-2 pr-4">{page.response_rate}%</td>
+                      <td className="py-2 pr-4">{page.resolution_rate}%</td>
+                      <td className="py-2 pr-4">{formatDuration(page.avg_response_seconds)}</td>
+                      <td className="py-2 pr-4">{formatDuration(page.avg_resolution_seconds)}</td>
+                    </tr>
+                  ))}
+                  {per_page.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center text-muted-foreground">
+                        No page data for this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Page comparison dashboard */}
+        {per_page.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5" />
+                Page Comparison Dashboard
+              </CardTitle>
+              <CardDescription>
+                Side-by-side visual comparison of key metrics across all Facebook Pages
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {(() => {
+                const maxConversations = Math.max(...per_page.map((p) => p.total_conversations), 1);
+                const maxResponseRate = Math.max(...per_page.map((p) => p.response_rate), 1);
+                const maxResolutionRate = Math.max(...per_page.map((p) => p.resolution_rate), 1);
+                const responseTimes = per_page
+                  .map((p) => p.avg_response_seconds)
+                  .filter((v): v is number => v !== null);
+                const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 1;
+                const resolutionTimes = per_page
+                  .map((p) => p.avg_resolution_seconds)
+                  .filter((v): v is number => v !== null);
+                const maxResolutionTime =
+                  resolutionTimes.length > 0 ? Math.max(...resolutionTimes) : 1;
+
+                const metrics: {
+                  label: string;
+                  key: keyof PageStat;
+                  max: number;
+                  format: (val: number | null) => string;
+                  color: string;
+                  invert?: boolean;
+                }[] = [
+                  {
+                    label: 'Total Conversations',
+                    key: 'total_conversations',
+                    max: maxConversations,
+                    format: (v) => String(v ?? 0),
+                    color: 'bg-primary',
+                  },
+                  {
+                    label: 'Response Rate',
+                    key: 'response_rate',
+                    max: maxResponseRate,
+                    format: (v) => `${v}%`,
+                    color: 'bg-blue-500',
+                  },
+                  {
+                    label: 'Resolution Rate',
+                    key: 'resolution_rate',
+                    max: maxResolutionRate,
+                    format: (v) => `${v}%`,
+                    color: 'bg-green-500',
+                  },
+                  {
+                    label: 'Avg Response Time',
+                    key: 'avg_response_seconds',
+                    max: maxResponseTime,
+                    format: (v) => formatDuration(v),
+                    color: 'bg-amber-500',
+                    invert: true,
+                  },
+                  {
+                    label: 'Avg Resolution Time',
+                    key: 'avg_resolution_seconds',
+                    max: maxResolutionTime,
+                    format: (v) => formatDuration(v),
+                    color: 'bg-purple-500',
+                    invert: true,
+                  },
+                ];
+
+                return metrics.map((metric) => {
+                  const sorted = [...per_page].sort((a, b) => {
+                    const av = a[metric.key] as number | null;
+                    const bv = b[metric.key] as number | null;
+                    if (av === null && bv === null) return 0;
+                    if (av === null) return 1;
+                    if (bv === null) return -1;
+                    return metric.invert ? av - bv : bv - av;
+                  });
+
+                  return (
+                    <div key={metric.key} className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">{metric.label}</h4>
+                      <div className="space-y-1.5">
+                        {sorted.map((page) => {
+                          const val = page[metric.key] as number | null;
+                          const pct = val !== null && metric.max > 0 ? (val / metric.max) * 100 : 0;
+                          return (
+                            <div key={page.id} className="flex items-center gap-3 text-sm">
+                              <span
+                                className="w-32 shrink-0 truncate text-xs text-muted-foreground"
+                                title={page.page_name}
+                              >
+                                {page.page_name}
+                              </span>
+                              <div className="flex-1">
+                                <div className="h-5 w-full overflow-hidden rounded-full bg-muted">
+                                  <div
+                                    className={`h-full rounded-full ${metric.color}`}
+                                    style={{ width: `${Math.max(pct, 2)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <span className="w-20 shrink-0 text-right font-medium">
+                                {metric.format(val)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Per-agent breakdown */}
         <Card>
           <CardHeader>
@@ -359,10 +545,10 @@ export default function ConversationAnalytics({
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">All</option>
-                  <option value="open">Open</option>
+                  <option value="new">New</option>
                   <option value="assigned">Assigned</option>
+                  <option value="awaiting_customer">Awaiting Customer</option>
                   <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
                   <option value="archived">Archived</option>
                 </select>
               </div>

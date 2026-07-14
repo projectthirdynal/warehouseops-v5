@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Order\Enums\OrderStatus;
+use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Shop\Models\Conversation;
@@ -10,6 +11,7 @@ use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
@@ -27,12 +29,15 @@ use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Models\ConversationExport;
+use App\Domain\Shop\Models\ConversationAssignmentHistory;
+use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Models\AgentProfile;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -372,7 +377,7 @@ class ShopController extends Controller
                     ->whereIn('status', [OrderStatus::CONFIRMED->value, OrderStatus::QA_APPROVED->value])
                     ->count(),
                 'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                    ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                    ->whereIn('status', Conversation::ACTIVE_STATUSES)
                     ->count()),
                 'webhook_events_today' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')
                     ->whereDate('created_at', today())
@@ -500,9 +505,12 @@ class ShopController extends Controller
         }
 
         if ($request->filled('assigned_agent_id')) {
-            $request->string('assigned_agent_id')->toString() === 'unassigned'
-                ? $query->whereNull('assigned_agent_id')
-                : $query->where('assigned_agent_id', $request->integer('assigned_agent_id'));
+            $agentFilter = $request->string('assigned_agent_id')->toString();
+            match ($agentFilter) {
+                'unassigned' => $query->whereNull('assigned_agent_id'),
+                'me' => $query->where('assigned_agent_id', $request->user()->id),
+                default => $query->where('assigned_agent_id', $request->integer('assigned_agent_id')),
+            };
         }
 
         if ($request->filled('priority')) {
@@ -521,18 +529,345 @@ class ShopController extends Controller
             $query->whereNull('snoozed_until');
         }
 
+        $pages = FacebookPage::query()
+            ->orderBy('page_name')
+            ->get(['id', 'page_id', 'page_name', 'connected_status', 'webhook_status'])
+            ->map(function (FacebookPage $page) {
+                $page->unread_count = Conversation::query()
+                    ->whereNull('merged_into_id')
+                    ->where('facebook_page_id', $page->id)
+                    ->where('unread_count', '>', 0)
+                    ->count();
+                return $page;
+            });
+
+        $favoritePageIds = auth()->user()
+            ? auth()->user()->favoritePages()->pluck('facebook_pages.id')->toArray()
+            : [];
+
+        $assignmentRules = PageAssignmentRule::query()
+            ->with('agent:id,name')
+            ->get(['id', 'facebook_page_id', 'user_id', 'is_active'])
+            ->map(fn (PageAssignmentRule $rule) => [
+                'id' => $rule->id,
+                'facebook_page_id' => $rule->facebook_page_id,
+                'user_id' => $rule->user_id,
+                'agent_name' => $rule->agent?->name,
+                'is_active' => $rule->is_active,
+            ]);
+
+        $pendingComments = Message::query()
+            ->where('direction', 'inbound')
+            ->where('moderation_status', 'pending')
+            ->with([
+                'facebookPage:id,page_name,page_id',
+                'identity:id,display_name,provider_user_id',
+                'conversation:id,thread_key,channel',
+            ])
+            ->latest('sent_at')
+            ->limit(50)
+            ->get(['id', 'conversation_id', 'facebook_page_id', 'customer_identity_id', 'body', 'sent_at', 'moderation_status']);
+
+        $pageCannedResponses = ShopReplyTemplate::query()
+            ->whereNotNull('facebook_page_id')
+            ->with('facebookPage:id,page_name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'message', 'category', 'is_active', 'sort_order', 'facebook_page_id'])
+            ->map(fn (ShopReplyTemplate $template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'message' => $template->message,
+                'category' => $template->category,
+                'is_active' => $template->is_active,
+                'sort_order' => $template->sort_order,
+                'facebook_page_id' => $template->facebook_page_id,
+                'page_name' => $template->facebookPage?->page_name,
+            ]);
+
+        $canViewAll = $request->user()->isSupervisor();
+
+        if (! $canViewAll && ! $request->filled('assigned_agent_id')) {
+            $query->where('assigned_agent_id', $request->user()->id);
+        }
+
+        $statusCounts = Schema::hasTable('conversations')
+            ? Conversation::query()
+                ->whereNull('merged_into_id')
+                ->select('status', \DB::raw('count(*) as count'))
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray()
+            : [];
+
+        $slaThresholds = Conversation::slaThresholds();
+
+        $paginated = $query->paginate(20)->withQueryString();
+        $paginated->getCollection()->transform(function (Conversation $conv) use ($slaThresholds) {
+            $conv->sla = $this->computeSla($conv, $slaThresholds);
+            return $conv;
+        });
+
         return Inertia::render('Shop/Inbox', [
-            'conversations' => $query->paginate(20)->withQueryString(),
-            'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
+            'conversations' => $paginated,
+            'pages' => $pages,
+            'favorite_page_ids' => $favoritePageIds,
+            'assignment_rules' => $assignmentRules,
+            'pending_comments' => $pendingComments,
+            'page_canned_responses' => $pageCannedResponses,
             'agents' => $this->shopAgents(),
+            'can_view_all' => $canViewAll,
+            'current_user_id' => $request->user()->id,
+            'user_role' => $request->user()->role,
+            'my_status' => $request->user()->agentStatus(),
             'statuses' => $this->conversationStatuses(),
+            'status_counts' => $statusCounts,
+            'sla_thresholds' => $slaThresholds,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
+            'workload_report' => $canViewAll ? $this->workloadReport() : null,
             'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
     }
 
-    public function conversation(Conversation $conversation): Response
+    public function updateAgentStatus(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'is_available' => ['required', 'boolean'],
+        ]);
+
+        $profile = $request->user()->agentProfile()->firstOrCreate(
+            ['user_id' => $request->user()->id],
+            ['is_available' => true]
+        );
+
+        $profile->forceFill([
+            'is_available' => $validated['is_available'],
+            'last_seen_at' => now(),
+        ])->save();
+
+        return back()->with('success', $validated['is_available'] ? 'You are now online.' : 'You are now away.');
+    }
+
+    public function toggleAgentAutoAssign(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'auto_assign_enabled' => ['required', 'boolean'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+            ['auto_assign_enabled' => false]
+        );
+
+        $profile->forceFill([
+            'auto_assign_enabled' => $validated['auto_assign_enabled'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Auto-assignment " . ($validated['auto_assign_enabled'] ? 'enabled' : 'disabled') . " for {$agentName}.");
+    }
+
+    public function updateAgentSkills(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'product_skills' => ['nullable', 'array'],
+            'product_skills.*' => ['string', 'max:100'],
+            'regions' => ['nullable', 'array'],
+            'regions.*' => ['string', 'max:100'],
+            'category_skills' => ['nullable', 'array'],
+            'category_skills.*' => ['string', 'max:100'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'product_skills' => $validated['product_skills'] ?? [],
+            'regions' => $validated['regions'] ?? [],
+            'category_skills' => $validated['category_skills'] ?? [],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Skills updated for {$agentName}.");
+    }
+
+    public function updateAgentQueueLimit(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'max_active_conversations' => ['required', 'integer', 'min:1', 'max:100'],
+            'overflow_enabled' => ['required', 'boolean'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'max_active_conversations' => $validated['max_active_conversations'],
+            'overflow_enabled' => $validated['overflow_enabled'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Queue limit updated for {$agentName}.");
+    }
+
+    public function updateAgentShiftSchedule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'shift_start' => ['nullable', 'string', 'date_format:H:i'],
+            'shift_end' => ['nullable', 'string', 'date_format:H:i'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'shift_start' => $validated['shift_start'] ?? null,
+            'shift_end' => $validated['shift_end'] ?? null,
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Shift schedule updated for {$agentName}.");
+    }
+
+    public function updateAgentIdleThreshold(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'idle_threshold_minutes' => ['required', 'integer', 'min:1', 'max:120'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'idle_threshold_minutes' => $validated['idle_threshold_minutes'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Idle threshold updated for {$agentName}.");
+    }
+
+    public function togglePageFavorite(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+        ]);
+
+        $user = $request->user();
+        $pageId = $validated['page_id'];
+
+        if ($user->favoritePages()->where('facebook_page_id', $pageId)->exists()) {
+            $user->favoritePages()->detach($pageId);
+        } else {
+            $user->favoritePages()->attach($pageId);
+        }
+
+        return back();
+    }
+
+    public function storeAssignmentRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        PageAssignmentRule::firstOrCreate(
+            [
+                'facebook_page_id' => $validated['facebook_page_id'],
+                'user_id' => $validated['user_id'],
+            ],
+            ['is_active' => true]
+        );
+
+        return back()->with('success', 'Assignment rule created.');
+    }
+
+    public function destroyAssignmentRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'rule_id' => ['required', 'integer', 'exists:page_assignment_rules,id'],
+        ]);
+
+        PageAssignmentRule::where('id', $validated['rule_id'])->delete();
+
+        return back()->with('success', 'Assignment rule removed.');
+    }
+
+    public function moderateComment(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'message_id' => ['required', 'integer', 'exists:messages,id'],
+            'action' => ['required', 'string', 'in:approve,hide'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $message = Message::findOrFail($validated['message_id']);
+
+        $message->update([
+            'moderation_status' => $validated['action'] === 'approve' ? 'approved' : 'hidden',
+            'moderation_note' => $validated['note'] ?? null,
+            'moderated_at' => now(),
+            'moderated_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', "Comment {$validated['action']}d.");
+    }
+
+    public function storePageCannedResponse(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string', 'max:2000'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        preg_match_all('/\{(\w+)\}/', $validated['message'], $matches);
+
+        ShopReplyTemplate::query()->create([
+            'name' => $validated['name'],
+            'message' => $validated['message'],
+            'category' => $validated['category'] ?? null,
+            'variables' => $matches[0] ?? [],
+            'sort_order' => $validated['sort_order'] ?? 0,
+            'is_active' => true,
+            'created_by' => $request->user()->id,
+            'facebook_page_id' => $validated['facebook_page_id'],
+        ]);
+
+        return back()->with('success', 'Page canned response created.');
+    }
+
+    public function destroyPageCannedResponse(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'integer', 'exists:shop_reply_templates,id'],
+        ]);
+
+        ShopReplyTemplate::where('id', $validated['template_id'])
+            ->whereNotNull('facebook_page_id')
+            ->delete();
+
+        return back()->with('success', 'Page canned response removed.');
+    }
+
+    public function conversation(Request $request, Conversation $conversation): Response
     {
         $conversation->load([
             'facebookPage:id,page_id,page_name,webhook_status',
@@ -572,6 +907,7 @@ class ShopController extends Controller
             'quick_replies' => $this->quickRepliesForConversation($conversation),
             'saved_templates' => $this->savedTemplatesForConversation($conversation),
             'agents' => $this->shopAgents(),
+            'user_role' => $request->user()->role,
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
@@ -593,6 +929,35 @@ class ShopController extends Controller
                 ->where('status', 'pending')
                 ->orderBy('scheduled_at')
                 ->get(['id', 'body', 'scheduled_at', 'status']),
+            'assignment_history' => $conversation->assignmentHistories()
+                ->with(['fromAgent:id,name', 'toAgent:id,name', 'assignedBy:id,name'])
+                ->latest('id')
+                ->limit(20)
+                ->get()
+                ->map(fn ($h) => [
+                    'id' => $h->id,
+                    'from_agent' => $h->fromAgent?->name,
+                    'to_agent' => $h->toAgent?->name ?? 'Unassigned',
+                    'assigned_by' => $h->assignedBy?->name,
+                    'reason' => $h->reason,
+                    'created_at' => $h->created_at?->toIso8601String(),
+                ]),
+            'status_history' => Schema::hasTable('conversation_status_histories')
+                ? $conversation->statusHistories()
+                    ->with(['changedBy:id,name'])
+                    ->limit(30)
+                    ->get()
+                    ->map(fn ($h) => [
+                        'id' => $h->id,
+                        'from_status' => $h->from_status,
+                        'to_status' => $h->to_status,
+                        'changed_by' => $h->changedBy?->name ?? 'System',
+                        'changed_by_role' => $h->changed_by_role,
+                        'created_at' => $h->created_at?->toIso8601String(),
+                    ])
+                : [],
+            'sla' => $this->computeSla($conversation, Conversation::slaThresholds()),
+            'sla_thresholds' => Conversation::slaThresholds(),
         ]);
     }
 
@@ -886,9 +1251,24 @@ class ShopController extends Controller
             'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
+        $oldAgentId = $conversation->assigned_agent_id;
+        $newAgentId = $validated['assigned_agent_id'] ?? null;
+
+        if ($oldAgentId === $newAgentId) {
+            return back()->with('success', 'No change in assignment.');
+        }
+
         $conversation->forceFill([
-            'assigned_agent_id' => $validated['assigned_agent_id'] ?? null,
+            'assigned_agent_id' => $newAgentId,
         ])->save();
+
+        ConversationAssignmentHistory::create([
+            'conversation_id' => $conversation->id,
+            'from_agent_id' => $oldAgentId,
+            'to_agent_id' => $newAgentId,
+            'assigned_by_id' => $request->user()->id,
+            'reason' => 'manual',
+        ]);
 
         return back()->with('success', 'Conversation assignment updated.');
     }
@@ -899,10 +1279,16 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
+        $role = $request->user()->role;
+
+        if (! $conversation->canTransitionTo($validated['status'], $role)) {
+            return back()->with('error', "Cannot transition conversation from '{$conversation->status}' to '{$validated['status']}'.");
+        }
+
         $updates = ['status' => $validated['status']];
 
-        // Track resolution time when conversation is closed
-        if ($validated['status'] === 'closed' && !$conversation->resolved_at) {
+        // Track resolution time when conversation is resolved
+        if ($validated['status'] === Conversation::STATUS_RESOLVED && !$conversation->resolved_at) {
             $updates['resolved_at'] = now();
             $updates['resolution_time_seconds'] = $conversation->created_at
                 ? (int) now()->diffInSeconds($conversation->created_at)
@@ -910,12 +1296,24 @@ class ShopController extends Controller
         }
 
         // Reset resolution if reopened
-        if ($validated['status'] !== 'closed' && $conversation->resolved_at) {
+        if ($validated['status'] !== Conversation::STATUS_RESOLVED && $conversation->resolved_at) {
             $updates['resolved_at'] = null;
             $updates['resolution_time_seconds'] = null;
         }
 
+        $oldStatus = $conversation->status;
+
         $conversation->forceFill($updates)->save();
+
+        ConversationStatusHistory::create([
+            'conversation_id' => $conversation->id,
+            'from_status' => $oldStatus,
+            'to_status' => $validated['status'],
+            'changed_by_id' => $request->user()->id,
+            'changed_by_role' => $role,
+        ]);
+
+        ConversationStatusChanged::dispatch($conversation, $oldStatus, $validated['status'], $request->user());
 
         return back()->with('success', 'Conversation status updated.');
     }
@@ -928,17 +1326,45 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
+        $role = $request->user()->role;
+        $targetStatus = $validated['status'];
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->get(['id', 'status', 'resolved_at', 'created_at']);
+
+        $validIds = [];
+        $historyRows = [];
+        foreach ($conversations as $conversation) {
+            if ($conversation->canTransitionTo($targetStatus, $role)) {
+                $validIds[] = $conversation->id;
+                $historyRows[] = [
+                    'conversation_id' => $conversation->id,
+                    'from_status' => $conversation->status,
+                    'to_status' => $targetStatus,
+                    'changed_by_id' => $request->user()->id,
+                    'changed_by_role' => $role,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+
+        if (empty($validIds)) {
+            return back()->with('error', 'No conversations can be transitioned to the selected status.');
+        }
+
         $now = now();
         $updateData = [
-            'status' => $validated['status'],
+            'status' => $targetStatus,
             'updated_at' => $now,
         ];
 
-        if ($validated['status'] === 'closed') {
+        if ($targetStatus === Conversation::STATUS_RESOLVED) {
             $updateData['resolved_at'] = $now;
             // Set resolution_time_seconds for conversations that don't have it yet
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->whereNull('resolved_at')
                 ->each(function (Conversation $conv) use ($now) {
                     $seconds = $conv->created_at ? (int) $now->diffInSeconds($conv->created_at) : null;
@@ -952,21 +1378,80 @@ class ShopController extends Controller
             $updateData['resolved_at'] = null;
             $updateData['resolution_time_seconds'] = null;
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->update($updateData);
         }
 
-        // For closed status, update without overwriting resolution_time_seconds
-        if ($validated['status'] === 'closed') {
+        // For resolved status, update without overwriting resolution_time_seconds
+        if ($targetStatus === Conversation::STATUS_RESOLVED) {
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->whereNotNull('resolved_at')
-                ->update(['status' => $validated['status'], 'updated_at' => $now]);
+                ->update(['status' => $targetStatus, 'updated_at' => $now]);
+        }
+
+        $count = count($validIds);
+        $skipped = count($validated['conversation_ids']) - $count;
+
+        if (!empty($historyRows)) {
+            ConversationStatusHistory::insert($historyRows);
+        }
+
+        foreach ($conversations as $conversation) {
+            if (in_array($conversation->id, $validIds, true)) {
+                ConversationStatusChanged::dispatch($conversation, $conversation->status, $targetStatus, $request->user());
+            }
+        }
+
+        $message = "{$count} conversation(s) marked as {$targetStatus}.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped due to transition rules.";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function bulkAssignConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $newAgentId = $validated['assigned_agent_id'] ?? null;
+        $userId = $request->user()->id;
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->get(['id', 'assigned_agent_id']);
+
+        foreach ($conversations as $conversation) {
+            if ($conversation->assigned_agent_id === $newAgentId) {
+                continue;
+            }
+
+            ConversationAssignmentHistory::create([
+                'conversation_id' => $conversation->id,
+                'from_agent_id' => $conversation->assigned_agent_id,
+                'to_agent_id' => $newAgentId,
+                'assigned_by_id' => $userId,
+                'reason' => 'bulk',
+            ]);
+
+            $conversation->forceFill(['assigned_agent_id' => $newAgentId])->save();
         }
 
         $count = count($validated['conversation_ids']);
+        $agentName = $newAgentId
+            ? User::query()->where('id', $newAgentId)->value('name')
+            : null;
 
-        return back()->with('success', "{$count} conversation(s) marked as {$validated['status']}.");
+        $message = $agentName
+            ? "{$count} conversation(s) assigned to {$agentName}."
+            : "{$count} conversation(s) unassigned.";
+
+        return back()->with('success', $message);
     }
 
     public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
@@ -1091,7 +1576,7 @@ class ShopController extends Controller
             // Mark source as merged
             $source->forceFill([
                 'merged_into_id' => $conversation->id,
-                'status' => 'closed',
+                'status' => 'archived',
             ])->save();
 
             // Update last message info on target if source has newer activity
@@ -1162,9 +1647,10 @@ class ShopController extends Controller
             ->withAvg([
                 'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
             ], 'resolution_time_seconds')
-            ->having('assigned_count', '>', 0)
             ->orderByDesc('assigned_count')
-            ->get();
+            ->get()
+            ->filter(fn ($agent) => $agent->assigned_count > 0)
+            ->values();
 
         // Status distribution
         $statusDistribution = (clone $baseQuery)
@@ -1185,6 +1671,37 @@ class ShopController extends Controller
             ->orderByRaw('DATE(created_at)')
             ->get();
 
+        // Per-page breakdown
+        $perPage = FacebookPage::query()
+            ->select('id', 'page_name', 'page_id')
+            ->whereHas('conversations', fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate))
+            ->withCount([
+                'conversations as total_conversations' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate),
+                'conversations as responded_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_at'),
+                'conversations as resolved_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolved_at'),
+            ])
+            ->withAvg([
+                'conversations as avg_response_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
+            ->withAvg([
+                'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
+            ], 'resolution_time_seconds')
+            ->orderByDesc('total_conversations')
+            ->get()
+            ->map(fn ($page) => [
+                'id' => $page->id,
+                'page_name' => $page->page_name,
+                'page_id' => $page->page_id,
+                'total_conversations' => $page->total_conversations,
+                'responded_count' => $page->responded_count,
+                'resolved_count' => $page->resolved_count,
+                'response_rate' => $page->total_conversations > 0 ? round(($page->responded_count / $page->total_conversations) * 100, 1) : 0,
+                'resolution_rate' => $page->total_conversations > 0 ? round(($page->resolved_count / $page->total_conversations) * 100, 1) : 0,
+                'avg_response_seconds' => $page->avg_response_seconds ? (int) $page->avg_response_seconds : null,
+                'avg_resolution_seconds' => $page->avg_resolution_seconds ? (int) $page->avg_resolution_seconds : null,
+            ])
+            ->values();
+
         return Inertia::render('Shop/ConversationAnalytics', [
             'stats' => [
                 'total_conversations' => $totalConversations,
@@ -1198,6 +1715,7 @@ class ShopController extends Controller
                 'median_resolution_seconds' => $medianResolution ? (int) $medianResolution : null,
             ],
             'per_agent' => $perAgent,
+            'per_page' => $perPage,
             'status_distribution' => $statusDistribution,
             'sentiment_distribution' => $sentimentDistribution,
             'daily_trend' => $dailyTrend,
@@ -2015,6 +2533,18 @@ class ShopController extends Controller
         return back()->with('success', "{$page->page_name} subscription is healthy.");
     }
 
+    public function disconnectFacebookPage(FacebookPage $page): RedirectResponse
+    {
+        $page->forceFill([
+            'connected_status' => 'disconnected',
+            'webhook_status' => 'unsubscribed',
+            'page_access_token' => null,
+            'token_expires_at' => null,
+        ])->save();
+
+        return back()->with('success', "{$page->page_name} disconnected. Reconnect via Facebook OAuth to restore access.");
+    }
+
     public function pos(): Response
     {
         $products = Product::query()
@@ -2463,7 +2993,7 @@ class ShopController extends Controller
 
                 $conversation->forceFill([
                     'customer_id' => $customer->id,
-                    'status' => 'converted',
+                    'status' => 'resolved',
                     'metadata' => array_merge($conversation->metadata ?? [], [
                         'latest_order_id' => $order->id,
                         'converted_at' => now()->toIso8601String(),
@@ -2491,7 +3021,7 @@ class ShopController extends Controller
                 ->where('connected_status', 'connected')
                 ->count()),
             'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                ->where('status', 'open')
+                ->where('status', Conversation::STATUS_NEW)
                 ->count()),
             'orders_today' => $this->countWhenReady('orders', fn () => DB::table('orders')
                 ->whereDate('created_at', today())
@@ -2504,7 +3034,7 @@ class ShopController extends Controller
     {
         return [
             'inbox' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                ->whereIn('status', Conversation::ACTIVE_STATUSES)
                 ->count()),
             'phone_detected' => $this->countWhenReady('customer_identities', fn () => DB::table('customer_identities')
                 ->whereNotNull('phone_detected')
@@ -2624,7 +3154,7 @@ class ShopController extends Controller
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id')
-                    ->where('conversations.status', 'converted');
+                    ->where('conversations.status', 'resolved');
 
                 $this->applyReportConversationFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'converted_count')
@@ -2682,7 +3212,7 @@ class ShopController extends Controller
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.assigned_agent_id', 'users.id')
-                    ->where('conversations.status', 'converted');
+                    ->where('conversations.status', 'resolved');
 
                 $this->applyReportConversationFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'converted_conversations')
@@ -2851,17 +3381,24 @@ class ShopController extends Controller
             return [];
         }
 
+        $pageId = $conversation->facebook_page_id;
+
         return ShopReplyTemplate::query()
             ->where('is_active', true)
+            ->where(function ($q) use ($pageId) {
+                $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+            })
+            ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'message', 'category', 'variables'])
+            ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
             ->map(fn (ShopReplyTemplate $template) => [
                 'id' => $template->id,
                 'name' => $template->name,
                 'category' => $template->category,
                 'body' => $this->renderReplyTemplate($template->message, $conversation),
                 'variables' => $template->variables ?? [],
+                'is_page_specific' => $template->facebook_page_id !== null,
             ])
             ->all();
     }
@@ -2894,11 +3431,49 @@ class ShopController extends Controller
 
     private function shopAgents(): \Illuminate\Support\Collection
     {
+        $activeStatuses = Conversation::ACTIVE_STATUSES;
+        $thirtyDaysAgo = now()->subDays(30);
+
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled,shift_start,shift_end,idle_threshold_minutes')
+            ->withCount([
+                'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
+                'conversations as total_assigned_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo),
+                'conversations as resolved_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo)->whereNotNull('resolved_at'),
+            ])
+            ->withAvg([
+                'conversations as avg_response_seconds_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
             ->orderBy('name')
-            ->get(['id', 'name', 'role']);
+            ->get(['id', 'name', 'role'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $user->role,
+                'status' => $user->agentStatus(),
+                'active_conversations' => $user->active_conversations,
+                'auto_assign_enabled' => $user->agentProfile?->auto_assign_enabled ?? false,
+                'product_skills' => $user->agentProfile?->product_skills ?? [],
+                'regions' => $user->agentProfile?->regions ?? [],
+                'category_skills' => $user->agentProfile?->category_skills ?? [],
+                'performance_score' => (float) ($user->agentProfile?->performance_score ?? 50),
+                'total_assigned_30d' => $user->total_assigned_30d,
+                'resolved_30d' => $user->resolved_30d,
+                'resolution_rate' => $user->total_assigned_30d > 0
+                    ? round(($user->resolved_30d / $user->total_assigned_30d) * 100, 1)
+                    : 0,
+                'avg_response_seconds_30d' => $user->avg_response_seconds_30d
+                    ? (int) $user->avg_response_seconds_30d
+                    : null,
+                'max_active_conversations' => $user->agentProfile?->max_active_conversations ?? 15,
+                'overflow_enabled' => $user->agentProfile?->overflow_enabled ?? true,
+                'shift_start' => $user->agentProfile?->shift_start,
+                'shift_end' => $user->agentProfile?->shift_end,
+                'idle_threshold_minutes' => $user->agentProfile?->idle_threshold_minutes ?? 15,
+                'is_idle' => $this->isAgentIdle($user),
+            ]);
     }
 
     /**
@@ -2906,7 +3481,174 @@ class ShopController extends Controller
      */
     private function conversationStatuses(): array
     {
-        return ['open', 'pending_details', 'for_confirmation', 'confirmed', 'converted', 'closed'];
+        return Conversation::STATUSES;
+    }
+
+    private function computeSla(Conversation $conversation, array $thresholds): array
+    {
+        $threshold = $thresholds[$conversation->status] ?? null;
+
+        if ($threshold === null) {
+            return [
+                'elapsed_minutes' => null,
+                'threshold_minutes' => null,
+                'remaining_minutes' => null,
+                'status' => 'none',
+            ];
+        }
+
+        $startedAt = $conversation->updated_at;
+
+        if (Schema::hasTable('conversation_status_histories')) {
+            $latest = $conversation->statusHistories()->latest('id')->first();
+            if ($latest) {
+                $startedAt = $latest->created_at;
+            }
+        }
+
+        $elapsedMinutes = $startedAt ? (int) now()->diffInMinutes($startedAt) : 0;
+        $remainingMinutes = $threshold - $elapsedMinutes;
+        $warningAt = (int) ($threshold * Conversation::SLA_WARNING_PERCENT / 100);
+
+        $slaStatus = 'ok';
+        if ($elapsedMinutes >= $threshold) {
+            $slaStatus = 'breached';
+        } elseif ($elapsedMinutes >= $warningAt) {
+            $slaStatus = 'warning';
+        }
+
+        return [
+            'elapsed_minutes' => $elapsedMinutes,
+            'threshold_minutes' => $threshold,
+            'remaining_minutes' => max(0, $remainingMinutes),
+            'status' => $slaStatus,
+        ];
+    }
+
+    private function isAgentIdle(User $user): bool
+    {
+        $profile = $user->agentProfile;
+
+        if (! $profile || ! $profile->is_available) {
+            return false;
+        }
+
+        if ($user->active_conversations < 1) {
+            return false;
+        }
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        if (! $profile->last_seen_at) {
+            return true;
+        }
+
+        return $profile->last_seen_at->lt(now()->subMinutes($threshold));
+    }
+
+    /**
+     * @return array{
+     *   total_active: int,
+     *   total_agents: int,
+     *   avg_per_agent: float,
+     *   max_assigned: int,
+     *   min_assigned: int,
+     *   imbalance_ratio: float,
+     *   status: string,
+     *   recommendations: array<int, array{agent_id: int, agent_name: string, active: int, max: int, suggestion: string}>,
+     *   distribution: array<int, array{agent_id: int, agent_name: string, active: int, max: int, utilization: float}>
+     * }
+     */
+    private function workloadReport(): array
+    {
+        $agents = $this->shopAgents()
+            ->filter(fn ($a) => $a['role'] === 'agent' || $a['role'] === 'supervisor');
+
+        $totalActive = $agents->sum('active_conversations');
+        $totalAgents = $agents->count();
+
+        if ($totalAgents === 0) {
+            return [
+                'total_active' => 0,
+                'total_agents' => 0,
+                'avg_per_agent' => 0,
+                'max_assigned' => 0,
+                'min_assigned' => 0,
+                'imbalance_ratio' => 0,
+                'status' => 'no_agents',
+                'recommendations' => [],
+                'distribution' => [],
+            ];
+        }
+
+        $avgPerAgent = round($totalActive / $totalAgents, 1);
+        $maxAssigned = $agents->max('active_conversations');
+        $minAssigned = $agents->min('active_conversations');
+
+        $imbalanceRatio = $avgPerAgent > 0
+            ? round(($maxAssigned - $minAssigned) / $avgPerAgent, 2)
+            : 0;
+
+        $status = match (true) {
+            $imbalanceRatio <= 0.3 => 'balanced',
+            $imbalanceRatio <= 0.7 => 'slightly_imbalanced',
+            default => 'imbalanced',
+        };
+
+        $distribution = $agents
+            ->sortByDesc('active_conversations')
+            ->map(fn ($a) => [
+                'agent_id' => $a['id'],
+                'agent_name' => $a['name'],
+                'active' => $a['active_conversations'],
+                'max' => $a['max_active_conversations'],
+                'utilization' => $a['max_active_conversations'] > 0
+                    ? round(($a['active_conversations'] / $a['max_active_conversations']) * 100, 1)
+                    : 0,
+            ])
+            ->values()
+            ->all();
+
+        $recommendations = [];
+
+        foreach ($agents as $a) {
+            $utilization = $a['max_active_conversations'] > 0
+                ? ($a['active_conversations'] / $a['max_active_conversations']) * 100
+                : 0;
+
+            if ($utilization >= 100 && $a['overflow_enabled']) {
+                $overloaded = $agents->firstWhere('active_conversations', $minAssigned);
+                if ($overloaded && $overloaded['id'] !== $a['id'] && $overloaded['active_conversations'] < $a['active_conversations'] - 3) {
+                    $recommendations[] = [
+                        'agent_id' => $a['id'],
+                        'agent_name' => $a['name'],
+                        'active' => $a['active_conversations'],
+                        'max' => $a['max_active_conversations'],
+                        'suggestion' => "Reassign 2-3 conversations from {$a['name']} to {$overloaded['name']} (currently {$overloaded['active_conversations']} active).",
+                    ];
+                }
+            } elseif ($utilization >= 80 && ! $a['overflow_enabled']) {
+                $recommendations[] = [
+                    'agent_id' => $a['id'],
+                    'agent_name' => $a['name'],
+                    'active' => $a['active_conversations'],
+                    'max' => $a['max_active_conversations'],
+                    'suggestion' => "{$a['name']} is at " . round($utilization) . "% capacity with overflow disabled. Consider enabling overflow or reassigning.",
+                ];
+            }
+        }
+
+        return [
+            'total_active' => $totalActive,
+            'total_agents' => $totalAgents,
+            'avg_per_agent' => $avgPerAgent,
+            'max_assigned' => $maxAssigned,
+            'min_assigned' => $minAssigned,
+            'imbalance_ratio' => $imbalanceRatio,
+            'status' => $status,
+            'recommendations' => $recommendations,
+            'distribution' => $distribution,
+        ];
     }
 
 }

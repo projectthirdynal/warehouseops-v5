@@ -140,6 +140,7 @@ interface Props {
     variables?: string[];
   }[];
   agents: { id: number; name: string; role: string }[];
+  user_role?: string;
   statuses: string[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
@@ -154,6 +155,29 @@ interface Props {
     identity?: { display_name: string | null } | null;
   }[];
   scheduled_messages: { id: number; body: string; scheduled_at: string; status: string }[];
+  assignment_history: {
+    id: number;
+    from_agent: string | null;
+    to_agent: string | null;
+    assigned_by: string | null;
+    reason: string;
+    created_at: string | null;
+  }[];
+  status_history?: {
+    id: number;
+    from_status: string | null;
+    to_status: string;
+    changed_by: string;
+    changed_by_role: string | null;
+    created_at: string | null;
+  }[];
+  sla?: {
+    elapsed_minutes: number | null;
+    threshold_minutes: number | null;
+    remaining_minutes: number | null;
+    status: string;
+  };
+  sla_thresholds?: Record<string, number | null>;
 }
 
 function time(value: string | null) {
@@ -210,17 +234,72 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case 'new':
+      return 'border-blue-500/30 text-blue-600';
+    case 'assigned':
+      return 'border-green-500/30 text-green-600';
+    case 'awaiting_customer':
+      return 'border-amber-500/30 text-amber-600';
+    case 'resolved':
+      return 'border-purple-500/30 text-purple-600';
+    case 'archived':
+      return 'border-muted text-muted-foreground';
+    default:
+      return '';
+  }
+}
+
+function allowedTransitions(currentStatus: string, role: string): string[] {
+  const transitions: Record<string, string[]> = {
+    new: ['assigned', 'awaiting_customer', 'resolved', 'archived'],
+    assigned: ['awaiting_customer', 'resolved', 'archived', 'new'],
+    awaiting_customer: ['assigned', 'resolved', 'archived'],
+    resolved: ['assigned', 'awaiting_customer', 'archived'],
+    archived: ['resolved', 'assigned'],
+  };
+  const isSupervisor = ['supervisor', 'admin', 'superadmin'].includes(role);
+  const agentAllowed = ['assigned', 'awaiting_customer', 'resolved'];
+  const allowed = transitions[currentStatus] ?? [];
+  return isSupervisor ? allowed : allowed.filter((s) => agentAllowed.includes(s));
+}
+
+function formatSlaMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function slaBadgeClass(slaStatus: string) {
+  switch (slaStatus) {
+    case 'breached':
+      return 'border-red-500/40 text-red-600 bg-red-50';
+    case 'warning':
+      return 'border-amber-500/40 text-amber-600 bg-amber-50';
+    case 'ok':
+      return 'border-green-500/30 text-green-600 bg-green-50';
+    default:
+      return '';
+  }
+}
+
 export default function ShopConversation({
   conversation,
   recent_orders,
   quick_replies,
   saved_templates,
   agents = [],
+  user_role: userRole = 'agent',
   statuses = [],
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   merge_candidates = [],
   scheduled_messages: initialScheduled = [],
+  assignment_history: assignmentHistory = [],
+  status_history: statusHistory = [],
+  sla: slaData,
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -605,7 +684,20 @@ export default function ShopConversation({
                   Create Order
                 </Link>
               </Button>
-              <Badge variant="outline">{conversation.status}</Badge>
+              <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
+                {label(conversation.status)}
+              </Badge>
+              {slaData && slaData.status !== 'none' && (
+                <Badge
+                  variant="outline"
+                  className={slaBadgeClass(slaData.status)}
+                  title={`Elapsed: ${formatSlaMinutes(slaData.elapsed_minutes ?? 0)} / Threshold: ${formatSlaMinutes(slaData.threshold_minutes ?? 0)}`}
+                >
+                  {slaData.status === 'breached'
+                    ? `SLA breached (${formatSlaMinutes(slaData.elapsed_minutes ?? 0)})`
+                    : `SLA ${formatSlaMinutes(slaData.remaining_minutes ?? 0)} left`}
+                </Badge>
+              )}
               {(conversation.priority ?? 'normal') !== 'normal' && (
                 <Badge
                   variant={
@@ -1346,13 +1438,19 @@ export default function ShopConversation({
                 <select
                   value={conversation.status}
                   onChange={(event) => updateStatus(event.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status)}`}
                 >
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>
-                      {label(status)}
-                    </option>
-                  ))}
+                  {statuses.map((status) => {
+                    const permitted =
+                      allowedTransitions(conversation.status, userRole).includes(status) ||
+                      status === conversation.status;
+                    return (
+                      <option key={status} value={status} disabled={!permitted}>
+                        {label(status)}
+                        {!permitted ? ' (not allowed)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </CardContent>
             </Card>
@@ -1825,6 +1923,98 @@ export default function ShopConversation({
                   <p className="text-xs text-muted-foreground">
                     Reason: {conversation.flag_reason}
                   </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Assignment History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {assignmentHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No assignment changes recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignmentHistory.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{h.from_agent ?? 'Unassigned'}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-medium">{h.to_agent ?? 'Unassigned'}</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px]">
+                              {h.reason.replace(/_/g, ' ')}
+                            </Badge>
+                            {h.assigned_by && <span>by {h.assigned_by}</span>}
+                            {h.created_at && <span>{time(h.created_at)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Status History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statusHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No status changes recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {statusHistory.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5">
+                            {h.from_status && (
+                              <>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${statusBadgeClass(h.from_status)}`}
+                                >
+                                  {label(h.from_status)}
+                                </Badge>
+                                <span className="text-muted-foreground">→</span>
+                              </>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${statusBadgeClass(h.to_status)}`}
+                            >
+                              {label(h.to_status)}
+                            </Badge>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
+                            <span>by {h.changed_by}</span>
+                            {h.changed_by_role && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {h.changed_by_role}
+                              </Badge>
+                            )}
+                            {h.created_at && <span>{time(h.created_at)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -16,6 +16,63 @@ class Conversation extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_NEW = 'new';
+    public const STATUS_ASSIGNED = 'assigned';
+    public const STATUS_AWAITING_CUSTOMER = 'awaiting_customer';
+    public const STATUS_RESOLVED = 'resolved';
+    public const STATUS_ARCHIVED = 'archived';
+
+    public const STATUSES = [
+        self::STATUS_NEW,
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+        self::STATUS_RESOLVED,
+        self::STATUS_ARCHIVED,
+    ];
+
+    public const ACTIVE_STATUSES = [
+        self::STATUS_NEW,
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+    ];
+
+    public const TRANSITIONS = [
+        self::STATUS_NEW => [self::STATUS_ASSIGNED, self::STATUS_AWAITING_CUSTOMER, self::STATUS_RESOLVED, self::STATUS_ARCHIVED],
+        self::STATUS_ASSIGNED => [self::STATUS_AWAITING_CUSTOMER, self::STATUS_RESOLVED, self::STATUS_ARCHIVED, self::STATUS_NEW],
+        self::STATUS_AWAITING_CUSTOMER => [self::STATUS_ASSIGNED, self::STATUS_RESOLVED, self::STATUS_ARCHIVED],
+        self::STATUS_RESOLVED => [self::STATUS_ASSIGNED, self::STATUS_AWAITING_CUSTOMER, self::STATUS_ARCHIVED],
+        self::STATUS_ARCHIVED => [self::STATUS_RESOLVED, self::STATUS_ASSIGNED],
+    ];
+
+    public const AGENT_ALLOWED_TARGETS = [
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+        self::STATUS_RESOLVED,
+    ];
+
+    public const SLA_THRESHOLDS = [
+        self::STATUS_NEW => 60,
+        self::STATUS_ASSIGNED => 240,
+        self::STATUS_AWAITING_CUSTOMER => 1440,
+        self::STATUS_RESOLVED => null,
+        self::STATUS_ARCHIVED => null,
+    ];
+
+    public const SLA_WARNING_PERCENT = 80;
+
+    public static function slaThresholds(): array
+    {
+        $overrides = \App\Models\SiteSetting::get('conversation_sla_thresholds');
+        if ($overrides) {
+            $decoded = json_decode($overrides, true);
+            if (is_array($decoded)) {
+                return array_merge(self::SLA_THRESHOLDS, $decoded);
+            }
+        }
+
+        return self::SLA_THRESHOLDS;
+    }
+
     protected $fillable = [
         'facebook_page_id',
         'customer_id',
@@ -59,6 +116,32 @@ class Conversation extends Model
         'metadata' => 'array',
     ];
 
+    public function canTransitionTo(string $targetStatus, ?string $role = null): bool
+    {
+        if ($this->status === $targetStatus) {
+            return true;
+        }
+
+        $allowed = self::TRANSITIONS[$this->status] ?? [];
+
+        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+            $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
+        }
+
+        return in_array($targetStatus, $allowed, true);
+    }
+
+    public function allowedTransitionsForRole(?string $role = null): array
+    {
+        $allowed = self::TRANSITIONS[$this->status] ?? [];
+
+        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+            $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
+        }
+
+        return $allowed;
+    }
+
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'conversation_tag');
@@ -97,5 +180,15 @@ class Conversation extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
+    }
+
+    public function assignmentHistories(): HasMany
+    {
+        return $this->hasMany(ConversationAssignmentHistory::class);
+    }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(ConversationStatusHistory::class)->latest();
     }
 }

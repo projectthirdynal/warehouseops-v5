@@ -4,9 +4,11 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  PlugZap,
   RefreshCw,
   Radio,
   Store,
+  Unplug,
   XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -343,6 +345,58 @@ export default function ShopMetaReadiness({
                             </div>
                           )}
                         </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            router.post(
+                              `/shop/facebook/pages/${page.id}/subscribe`,
+                              {},
+                              { preserveState: true }
+                            )
+                          }
+                        >
+                          <PlugZap className="mr-1.5 h-3.5 w-3.5" />
+                          {page.webhook_status === 'subscribed' ? 'Resubscribe' : 'Subscribe'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            router.post(
+                              `/shop/facebook/pages/${page.id}/check`,
+                              {},
+                              { preserveState: true }
+                            )
+                          }
+                        >
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                          Check Health
+                        </Button>
+                        {page.connected_status === 'connected' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Disconnect ${page.page_name}? You will need to reconnect via Facebook OAuth to restore access.`
+                                )
+                              ) {
+                                router.delete(`/shop/facebook/pages/${page.id}`, {
+                                  preserveState: true,
+                                });
+                              }
+                            }}
+                          >
+                            <Unplug className="mr-1.5 h-3.5 w-3.5" />
+                            Disconnect
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))

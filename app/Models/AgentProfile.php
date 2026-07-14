@@ -16,6 +16,7 @@ class AgentProfile extends Model
         'regions',
         'priority_weight',
         'is_available',
+        'last_seen_at',
         'performance_score',
         'last_assignment_at',
         'distribution_weight',
@@ -27,6 +28,9 @@ class AgentProfile extends Model
         'preferred_lead_sources',
         'excluded_regions',
         'category_skills',
+        'max_active_conversations',
+        'overflow_enabled',
+        'idle_threshold_minutes',
     ];
 
     protected $casts = [
@@ -34,6 +38,7 @@ class AgentProfile extends Model
         'regions' => 'array',
         'priority_weight' => 'decimal:2',
         'is_available' => 'boolean',
+        'last_seen_at' => 'datetime',
         'last_assignment_at' => 'datetime',
         'distribution_weight' => 'decimal:2',
         'auto_assign_enabled' => 'boolean',
@@ -42,6 +47,9 @@ class AgentProfile extends Model
         'preferred_lead_sources' => 'array',
         'excluded_regions' => 'array',
         'category_skills' => 'array',
+        'max_active_conversations' => 'integer',
+        'overflow_enabled' => 'boolean',
+        'idle_threshold_minutes' => 'integer',
     ];
 
     public function user(): BelongsTo
