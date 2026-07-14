@@ -1239,9 +1239,10 @@ class ShopController extends Controller
             ->withAvg([
                 'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
             ], 'resolution_time_seconds')
-            ->having('assigned_count', '>', 0)
             ->orderByDesc('assigned_count')
-            ->get();
+            ->get()
+            ->filter(fn ($agent) => $agent->assigned_count > 0)
+            ->values();
 
         // Status distribution
         $statusDistribution = (clone $baseQuery)
