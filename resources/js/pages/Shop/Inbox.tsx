@@ -16,6 +16,13 @@ import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Page {
   id: number;
@@ -139,79 +146,113 @@ export default function ShopInbox({
                 Analytics
               </Link>
             </Button>
-            <select
-              value={filters.page_id ?? ''}
-              onChange={(event) => updateFilter({ page_id: event.target.value || undefined })}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">All Pages</option>
-              {pages.map((page) => (
-                <option key={page.id} value={page.id}>
-                  {page.page_name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.status ?? ''}
-              onChange={(event) => updateFilter({ status: event.target.value || undefined })}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">All Statuses</option>
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {label(status)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.assigned_agent_id ?? ''}
-              onChange={(event) =>
-                updateFilter({ assigned_agent_id: event.target.value || undefined })
+            <Select
+              value={filters.page_id ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ page_id: value === 'all' ? undefined : value })
               }
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">All Agents</option>
-              <option value="unassigned">Unassigned</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.priority ?? ''}
-              onChange={(event) => updateFilter({ priority: event.target.value || undefined })}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Pages" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Pages</SelectItem>
+                {pages.map((page) => (
+                  <SelectItem key={page.id} value={page.id.toString()}>
+                    {page.page_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.status ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ status: value === 'all' ? undefined : value })
+              }
             >
-              <option value="">All Priorities</option>
-              {priorities.map((p) => (
-                <option key={p} value={p}>
-                  {label(p)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.tag_id ?? ''}
-              onChange={(event) => updateFilter({ tag_id: event.target.value || undefined })}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {statuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {label(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.assigned_agent_id ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ assigned_agent_id: value === 'all' ? undefined : value })
+              }
             >
-              <option value="">All Tags</option>
-              {tags.map((tag) => (
-                <option key={tag.id} value={tag.id}>
-                  {tag.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.snoozed ?? ''}
-              onChange={(event) => updateFilter({ snoozed: event.target.value || undefined })}
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All Agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agents</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id.toString()}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.priority ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ priority: value === 'all' ? undefined : value })
+              }
             >
-              <option value="">All Snooze States</option>
-              <option value="none">Not Snoozed</option>
-              <option value="active">Snoozed (Active)</option>
-              <option value="expired">Snoozed (Expired)</option>
-            </select>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                {priorities.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {label(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.tag_id ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ tag_id: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All Tags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tags</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id.toString()}>
+                    {tag.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.snoozed ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ snoozed: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="All Snooze States" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Snooze States</SelectItem>
+                <SelectItem value="none">Not Snoozed</SelectItem>
+                <SelectItem value="active">Snoozed (Active)</SelectItem>
+                <SelectItem value="expired">Snoozed (Expired)</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant={filters.flagged ? 'default' : 'outline'}
               size="sm"
