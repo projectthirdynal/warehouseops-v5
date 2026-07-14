@@ -321,6 +321,31 @@ export default function ShopInbox({
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
   };
 
+  const changeStatus = (conversationId: number, status: string) => {
+    router.patch(
+      `/shop/inbox/${conversationId}/status`,
+      { status },
+      { preserveScroll: true, preserveState: true }
+    );
+  };
+
+  const statusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'new':
+        return 'border-blue-500/30 text-blue-600';
+      case 'assigned':
+        return 'border-green-500/30 text-green-600';
+      case 'awaiting_customer':
+        return 'border-amber-500/30 text-amber-600';
+      case 'resolved':
+        return 'border-purple-500/30 text-purple-600';
+      case 'archived':
+        return 'border-muted text-muted-foreground';
+      default:
+        return '';
+    }
+  };
+
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
@@ -1688,7 +1713,21 @@ export default function ShopInbox({
                             </CardDescription>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">{conversation.status}</Badge>
+                            <select
+                              value={conversation.status}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                changeStatus(conversation.id, e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status)}`}
+                            >
+                              {statuses.map((s) => (
+                                <option key={s} value={s}>
+                                  {label(s)}
+                                </option>
+                              ))}
+                            </select>
                             {(conversation.priority ?? 'normal') !== 'normal' && (
                               <Badge
                                 variant={

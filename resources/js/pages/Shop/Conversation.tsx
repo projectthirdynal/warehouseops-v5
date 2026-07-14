@@ -218,6 +218,23 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case 'new':
+      return 'border-blue-500/30 text-blue-600';
+    case 'assigned':
+      return 'border-green-500/30 text-green-600';
+    case 'awaiting_customer':
+      return 'border-amber-500/30 text-amber-600';
+    case 'resolved':
+      return 'border-purple-500/30 text-purple-600';
+    case 'archived':
+      return 'border-muted text-muted-foreground';
+    default:
+      return '';
+  }
+}
+
 export default function ShopConversation({
   conversation,
   recent_orders,
@@ -614,7 +631,9 @@ export default function ShopConversation({
                   Create Order
                 </Link>
               </Button>
-              <Badge variant="outline">{conversation.status}</Badge>
+              <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
+                {label(conversation.status)}
+              </Badge>
               {(conversation.priority ?? 'normal') !== 'normal' && (
                 <Badge
                   variant={
@@ -1355,7 +1374,7 @@ export default function ShopConversation({
                 <select
                   value={conversation.status}
                   onChange={(event) => updateStatus(event.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status)}`}
                 >
                   {statuses.map((status) => (
                     <option key={status} value={status}>
