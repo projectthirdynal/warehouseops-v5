@@ -152,6 +152,7 @@ interface Props {
   current_user_id?: number;
   my_status?: string;
   statuses: string[];
+  status_counts?: Record<string, number>;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -208,6 +209,7 @@ export default function ShopInbox({
   can_view_all = true,
   my_status = 'offline',
   statuses,
+  status_counts: statusCounts = {},
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   workload_report: workloadReport = null,
@@ -1615,6 +1617,48 @@ export default function ShopInbox({
             </CardContent>
           </Card>
         )}
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => updateFilter({ status: undefined })}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              !filters.status
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+            }`}
+          >
+            All
+            <span
+              className={`text-xs ${!filters.status ? 'text-primary-foreground/70' : 'text-muted-foreground/70'}`}
+            >
+              {Object.values(statusCounts).reduce((a, b) => a + b, 0)}
+            </span>
+          </button>
+          {statuses.map((status) => {
+            const count = statusCounts[status] ?? 0;
+            const isActive = filters.status === status;
+            return (
+              <button
+                key={status}
+                onClick={() => updateFilter({ status: isActive ? undefined : status })}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                {label(status)}
+                {count > 0 && (
+                  <span
+                    className={`text-xs ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/70'}`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         {conversations.data.length === 0 ? (
           <Card>

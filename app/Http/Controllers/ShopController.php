@@ -589,6 +589,15 @@ class ShopController extends Controller
             $query->where('assigned_agent_id', $request->user()->id);
         }
 
+        $statusCounts = Schema::hasTable('conversations')
+            ? Conversation::query()
+                ->whereNull('merged_into_id')
+                ->select('status', \DB::raw('count(*) as count'))
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray()
+            : [];
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
@@ -601,6 +610,7 @@ class ShopController extends Controller
             'current_user_id' => $request->user()->id,
             'my_status' => $request->user()->agentStatus(),
             'statuses' => $this->conversationStatuses(),
+            'status_counts' => $statusCounts,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
