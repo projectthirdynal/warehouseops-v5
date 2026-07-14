@@ -163,6 +163,14 @@ interface Props {
     reason: string;
     created_at: string | null;
   }[];
+  status_history?: {
+    id: number;
+    from_status: string | null;
+    to_status: string;
+    changed_by: string;
+    changed_by_role: string | null;
+    created_at: string | null;
+  }[];
 }
 
 function time(value: string | null) {
@@ -263,6 +271,7 @@ export default function ShopConversation({
   merge_candidates = [],
   scheduled_messages: initialScheduled = [],
   assignment_history: assignmentHistory = [],
+  status_history: statusHistory = [],
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -1907,6 +1916,60 @@ export default function ShopConversation({
                               {h.reason.replace(/_/g, ' ')}
                             </Badge>
                             {h.assigned_by && <span>by {h.assigned_by}</span>}
+                            {h.created_at && <span>{time(h.created_at)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Status History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statusHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No status changes recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {statusHistory.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5">
+                            {h.from_status && (
+                              <>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${statusBadgeClass(h.from_status)}`}
+                                >
+                                  {label(h.from_status)}
+                                </Badge>
+                                <span className="text-muted-foreground">→</span>
+                              </>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${statusBadgeClass(h.to_status)}`}
+                            >
+                              {label(h.to_status)}
+                            </Badge>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
+                            <span>by {h.changed_by}</span>
+                            {h.changed_by_role && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {h.changed_by_role}
+                              </Badge>
+                            )}
                             {h.created_at && <span>{time(h.created_at)}</span>}
                           </div>
                         </div>

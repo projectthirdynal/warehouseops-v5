@@ -163,4 +163,9 @@ class Conversation extends Model
     {
         return $this->hasMany(ConversationAssignmentHistory::class);
     }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(ConversationStatusHistory::class)->latest();
+    }
 }

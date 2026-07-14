@@ -29,6 +29,7 @@ use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
+use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -931,6 +932,20 @@ class ShopController extends Controller
                     'reason' => $h->reason,
                     'created_at' => $h->created_at?->toIso8601String(),
                 ]),
+            'status_history' => Schema::hasTable('conversation_status_histories')
+                ? $conversation->statusHistories()
+                    ->with(['changedBy:id,name'])
+                    ->limit(30)
+                    ->get()
+                    ->map(fn ($h) => [
+                        'id' => $h->id,
+                        'from_status' => $h->from_status,
+                        'to_status' => $h->to_status,
+                        'changed_by' => $h->changedBy?->name ?? 'System',
+                        'changed_by_role' => $h->changed_by_role,
+                        'created_at' => $h->created_at?->toIso8601String(),
+                    ])
+                : [],
         ]);
     }
 
@@ -1274,7 +1289,17 @@ class ShopController extends Controller
             $updates['resolution_time_seconds'] = null;
         }
 
+        $oldStatus = $conversation->status;
+
         $conversation->forceFill($updates)->save();
+
+        ConversationStatusHistory::create([
+            'conversation_id' => $conversation->id,
+            'from_status' => $oldStatus,
+            'to_status' => $validated['status'],
+            'changed_by_id' => $request->user()->id,
+            'changed_by_role' => $role,
+        ]);
 
         return back()->with('success', 'Conversation status updated.');
     }
@@ -1295,9 +1320,19 @@ class ShopController extends Controller
             ->get(['id', 'status', 'resolved_at', 'created_at']);
 
         $validIds = [];
+        $historyRows = [];
         foreach ($conversations as $conversation) {
             if ($conversation->canTransitionTo($targetStatus, $role)) {
                 $validIds[] = $conversation->id;
+                $historyRows[] = [
+                    'conversation_id' => $conversation->id,
+                    'from_status' => $conversation->status,
+                    'to_status' => $targetStatus,
+                    'changed_by_id' => $request->user()->id,
+                    'changed_by_role' => $role,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
             }
         }
 
@@ -1343,6 +1378,10 @@ class ShopController extends Controller
 
         $count = count($validIds);
         $skipped = count($validated['conversation_ids']) - $count;
+
+        if (!empty($historyRows)) {
+            ConversationStatusHistory::insert($historyRows);
+        }
 
         $message = "{$count} conversation(s) marked as {$targetStatus}.";
         if ($skipped > 0) {
