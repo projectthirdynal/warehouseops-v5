@@ -405,11 +405,14 @@ class MetaConversationIngestor
                 'agent_profiles.category_skills',
                 'agent_profiles.max_active_conversations',
                 'agent_profiles.overflow_enabled',
+                'agent_profiles.shift_start',
+                'agent_profiles.shift_end',
             )
             ->selectRaw(
                 'users.id, users.name, agent_profiles.last_assignment_at, '
                 . 'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
                 . 'agent_profiles.max_active_conversations, agent_profiles.overflow_enabled, '
+                . 'agent_profiles.shift_start, agent_profiles.shift_end, '
                 . 'COUNT(conversations.id) as active_count'
             )
             ->get();
@@ -473,11 +476,33 @@ class MetaConversationIngestor
                 'skill_score' => $score,
                 'max_active_conversations' => (int) ($agent->max_active_conversations ?? 15),
                 'overflow_enabled' => (bool) ($agent->overflow_enabled ?? true),
+                'shift_start' => $agent->shift_start,
+                'shift_end' => $agent->shift_end,
             ];
         });
 
+        // Filter out agents outside their shift hours (null shift = always available)
+        $nowTime = now()->format('H:i');
+        $inShift = $scored->filter(function ($agent) use ($nowTime) {
+            $start = $agent['shift_start'];
+            $end = $agent['shift_end'];
+            if (! $start || ! $end) {
+                return true; // No shift defined = always available
+            }
+            $startTime = \Carbon\Carbon::parse($start)->format('H:i');
+            $endTime = \Carbon\Carbon::parse($end)->format('H:i');
+            if ($endTime < $startTime) {
+                // Overnight shift (e.g. 22:00 - 06:00)
+                return $nowTime >= $startTime || $nowTime < $endTime;
+            }
+            return $nowTime >= $startTime && $nowTime < $endTime;
+        });
+
+        // If all agents are outside shift, fall back to all agents (don't leave unassigned)
+        $shiftPool = $inShift->isNotEmpty() ? $inShift : $scored;
+
         // Filter out agents who have hit their queue limit (unless overflow is enabled)
-        $available = $scored->filter(function ($agent) {
+        $available = $shiftPool->filter(function ($agent) {
             $atLimit = $agent['active_count'] >= $agent['max_active_conversations'];
             if ($atLimit && ! $agent['overflow_enabled']) {
                 return false;
@@ -488,7 +513,7 @@ class MetaConversationIngestor
         // If all agents are at limit and none allow overflow, fall back to all agents
         // (assign to the least-loaded one rather than leaving unassigned)
         if ($available->isEmpty()) {
-            $available = $scored;
+            $available = $shiftPool;
         }
 
         // Sort by: highest skill score first, then never-assigned first,

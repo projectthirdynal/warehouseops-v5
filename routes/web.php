@@ -394,6 +394,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/agent-auto-assign', [ShopController::class, 'toggleAgentAutoAssign'])->name('shop.agent.auto-assign');
     Route::post('/shop/inbox/agent-skills', [ShopController::class, 'updateAgentSkills'])->name('shop.agent.skills');
     Route::post('/shop/inbox/agent-queue-limit', [ShopController::class, 'updateAgentQueueLimit'])->name('shop.agent.queue-limit');
+    Route::post('/shop/inbox/agent-shift', [ShopController::class, 'updateAgentShiftSchedule'])->name('shop.agent.shift');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {

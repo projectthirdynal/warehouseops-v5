@@ -696,6 +696,28 @@ class ShopController extends Controller
         return back()->with('success', "Queue limit updated for {$agentName}.");
     }
 
+    public function updateAgentShiftSchedule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'shift_start' => ['nullable', 'string', 'date_format:H:i'],
+            'shift_end' => ['nullable', 'string', 'date_format:H:i'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'shift_start' => $validated['shift_start'] ?? null,
+            'shift_end' => $validated['shift_end'] ?? null,
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Shift schedule updated for {$agentName}.");
+    }
+
     public function togglePageFavorite(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -3293,7 +3315,7 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled,shift_start,shift_end')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
                 'conversations as total_assigned_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo),
@@ -3325,6 +3347,8 @@ class ShopController extends Controller
                     : null,
                 'max_active_conversations' => $user->agentProfile?->max_active_conversations ?? 15,
                 'overflow_enabled' => $user->agentProfile?->overflow_enabled ?? true,
+                'shift_start' => $user->agentProfile?->shift_start,
+                'shift_end' => $user->agentProfile?->shift_end,
             ]);
     }
 

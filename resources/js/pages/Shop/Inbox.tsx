@@ -143,6 +143,8 @@ interface Props {
     avg_response_seconds_30d: number | null;
     max_active_conversations: number;
     overflow_enabled: boolean;
+    shift_start: string | null;
+    shift_end: string | null;
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -204,6 +206,9 @@ export default function ShopInbox({
   const [queueEditId, setQueueEditId] = useState<number | null>(null);
   const [queueMaxInput, setQueueMaxInput] = useState('15');
   const [queueOverflowInput, setQueueOverflowInput] = useState(true);
+  const [shiftEditId, setShiftEditId] = useState<number | null>(null);
+  const [shiftStartInput, setShiftStartInput] = useState('');
+  const [shiftEndInput, setShiftEndInput] = useState('');
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -384,6 +389,31 @@ export default function ShopInbox({
       {
         preserveState: true,
         onSuccess: () => setQueueEditId(null),
+      }
+    );
+  };
+
+  const startEditShift = (agent: {
+    id: number;
+    shift_start: string | null;
+    shift_end: string | null;
+  }) => {
+    setShiftEditId(agent.id);
+    setShiftStartInput(agent.shift_start ?? '');
+    setShiftEndInput(agent.shift_end ?? '');
+  };
+
+  const saveShiftSchedule = (agentId: number) => {
+    router.post(
+      '/shop/inbox/agent-shift',
+      {
+        user_id: agentId,
+        shift_start: shiftStartInput || null,
+        shift_end: shiftEndInput || null,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => setShiftEditId(null),
       }
     );
   };
@@ -1092,6 +1122,124 @@ export default function ShopInbox({
                                 </div>
                                 <Button size="sm" onClick={() => saveQueueLimit(agent.id)}>
                                   Save
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Shift Schedules</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Set shift hours per agent. Agents outside their shift are skipped during
+                      auto-assignment. Leave blank for 24/7 availability. Supports overnight shifts
+                      (e.g. 22:00–06:00).
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agents
+                      .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                      .map((agent) => {
+                        const hasShift = agent.shift_start && agent.shift_end;
+                        const now = new Date();
+                        const nowMin = now.getHours() * 60 + now.getMinutes();
+                        const parseMin = (t: string) => {
+                          const [h, m] = t.split(':').map(Number);
+                          return h * 60 + m;
+                        };
+                        let inShift = true;
+                        if (hasShift) {
+                          const start = parseMin(agent.shift_start!);
+                          const end = parseMin(agent.shift_end!);
+                          if (end < start) {
+                            inShift = nowMin >= start || nowMin < end;
+                          } else {
+                            inShift = nowMin >= start && nowMin < end;
+                          }
+                        }
+                        return (
+                          <div key={agent.id} className="rounded-md border px-3 py-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <AgentStatusDot status={agent.status} />
+                                {agent.name}
+                                {hasShift ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${inShift ? 'border-green-500/30 text-green-600' : 'border-muted text-muted-foreground'}`}
+                                  >
+                                    {agent.shift_start}–{agent.shift_end}
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs text-muted-foreground"
+                                  >
+                                    24/7
+                                  </Badge>
+                                )}
+                                {hasShift && (
+                                  <span
+                                    className={`text-[10px] font-medium ${inShift ? 'text-green-600' : 'text-muted-foreground'}`}
+                                  >
+                                    {inShift ? 'ON SHIFT' : 'OFF SHIFT'}
+                                  </span>
+                                )}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  shiftEditId === agent.id
+                                    ? setShiftEditId(null)
+                                    : startEditShift(agent)
+                                }
+                              >
+                                {shiftEditId === agent.id ? 'Cancel' : 'Edit Shift'}
+                              </Button>
+                            </div>
+                            {shiftEditId === agent.id && (
+                              <div className="mt-2 flex items-end gap-3">
+                                <div>
+                                  <label className="mb-0.5 block text-xs text-muted-foreground">
+                                    Start (HH:MM)
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={shiftStartInput}
+                                    onChange={(e) => setShiftStartInput(e.target.value)}
+                                    className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="mb-0.5 block text-xs text-muted-foreground">
+                                    End (HH:MM)
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={shiftEndInput}
+                                    onChange={(e) => setShiftEndInput(e.target.value)}
+                                    className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
+                                  />
+                                </div>
+                                <Button size="sm" onClick={() => saveShiftSchedule(agent.id)}>
+                                  Save
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setShiftStartInput('');
+                                    setShiftEndInput('');
+                                  }}
+                                >
+                                  Clear
                                 </Button>
                               </div>
                             )}
