@@ -388,6 +388,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/facebook/pages/manual', [ShopController::class, 'storeManualFacebookPage'])->name('shop.facebook.pages.manual');
     Route::post('/shop/facebook/pages/{page}/subscribe', [ShopController::class, 'subscribeFacebookPage'])->name('shop.facebook.pages.subscribe');
     Route::post('/shop/facebook/pages/{page}/check', [ShopController::class, 'checkFacebookPageSubscription'])->name('shop.facebook.pages.check');
+    Route::delete('/shop/facebook/pages/{page}', [ShopController::class, 'disconnectFacebookPage'])->name('shop.facebook.pages.disconnect');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {

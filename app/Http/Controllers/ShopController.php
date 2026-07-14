@@ -2215,6 +2215,18 @@ class ShopController extends Controller
         return back()->with('success', "{$page->page_name} subscription is healthy.");
     }
 
+    public function disconnectFacebookPage(FacebookPage $page): RedirectResponse
+    {
+        $page->forceFill([
+            'connected_status' => 'disconnected',
+            'webhook_status' => 'unsubscribed',
+            'page_access_token' => null,
+            'token_expires_at' => null,
+        ])->save();
+
+        return back()->with('success', "{$page->page_name} disconnected. Reconnect via Facebook OAuth to restore access.");
+    }
+
     public function pos(): Response
     {
         $products = Product::query()
