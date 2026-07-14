@@ -376,7 +376,7 @@ class MetaConversationIngestor
     {
         $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
 
-        $agent = User::query()
+        $agents = User::query()
             ->where('users.is_active', true)
             ->whereIn('users.role', ['agent', 'supervisor'])
             ->join('agent_profiles', 'agent_profiles.user_id', '=', 'users.id')
@@ -387,20 +387,97 @@ class MetaConversationIngestor
                     ->whereIn('conversations.status', $activeStatuses)
                     ->whereNull('conversations.merged_into_id');
             })
-            ->groupBy('users.id', 'users.name', 'agent_profiles.last_assignment_at')
-            ->selectRaw('users.id, users.name, agent_profiles.last_assignment_at, COUNT(conversations.id) as active_count')
-            ->orderByRaw('agent_profiles.last_assignment_at IS NULL DESC')
-            ->orderBy('agent_profiles.last_assignment_at', 'asc')
-            ->orderBy('active_count', 'asc')
+            ->groupBy(
+                'users.id',
+                'users.name',
+                'agent_profiles.last_assignment_at',
+                'agent_profiles.product_skills',
+                'agent_profiles.regions',
+                'agent_profiles.category_skills',
+            )
+            ->selectRaw(
+                'users.id, users.name, agent_profiles.last_assignment_at, '
+                . 'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
+                . 'COUNT(conversations.id) as active_count'
+            )
+            ->get();
+
+        if ($agents->isEmpty()) {
+            return;
+        }
+
+        $pageCategory = $conversation->facebookPage?->category;
+        $customerRegion = $conversation->customer?->region
+            ?? $conversation->customer?->province
+            ?? $conversation->customer?->city_municipality
+            ?? null;
+        $messageBody = $conversation->last_message_preview ?? '';
+
+        $scored = $agents->map(function ($agent) use ($pageCategory, $customerRegion, $messageBody) {
+            $score = 0;
+
+            $categorySkills = $agent->category_skills ?? [];
+            $regions = $agent->regions ?? [];
+            $productSkills = $agent->product_skills ?? [];
+
+            // Category match (page category → agent category_skills)
+            if ($pageCategory && ! empty($categorySkills)) {
+                $pageCatUpper = strtoupper($pageCategory);
+                foreach ($categorySkills as $skill) {
+                    if (str_contains($pageCatUpper, strtoupper($skill))) {
+                        $score += 3;
+                        break;
+                    }
+                }
+            }
+
+            // Region match (customer region → agent regions)
+            if ($customerRegion && ! empty($regions)) {
+                $custRegionUpper = strtoupper($customerRegion);
+                foreach ($regions as $region) {
+                    if (str_contains($custRegionUpper, strtoupper($region))) {
+                        $score += 2;
+                        break;
+                    }
+                }
+            }
+
+            // Product keyword match (message body → agent product_skills)
+            if ($messageBody !== '' && ! empty($productSkills)) {
+                $bodyUpper = strtoupper($messageBody);
+                foreach ($productSkills as $skill) {
+                    if (str_contains($bodyUpper, strtoupper($skill))) {
+                        $score += 2;
+                        break;
+                    }
+                }
+            }
+
+            return [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'last_assignment_at' => $agent->last_assignment_at,
+                'active_count' => (int) $agent->active_count,
+                'skill_score' => $score,
+            ];
+        });
+
+        // Sort by: highest skill score first, then never-assigned first,
+        // then oldest last_assignment_at, then fewest active conversations
+        $best = $scored
+            ->sortByDesc('skill_score')
+            ->sortBy(fn ($a) => $a['last_assignment_at'] === null ? 0 : 1)
+            ->sortBy('last_assignment_at')
+            ->sortBy('active_count')
             ->first();
 
-        if ($agent !== null) {
+        if ($best !== null) {
             $conversation->forceFill([
-                'assigned_agent_id' => $agent->id,
+                'assigned_agent_id' => $best['id'],
             ])->save();
 
             AgentProfile::query()
-                ->where('user_id', $agent->id)
+                ->where('user_id', $best['id'])
                 ->update(['last_assignment_at' => now()]);
         }
     }

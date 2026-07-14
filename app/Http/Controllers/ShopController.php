@@ -646,6 +646,33 @@ class ShopController extends Controller
         return back()->with('success', "Auto-assignment " . ($validated['auto_assign_enabled'] ? 'enabled' : 'disabled') . " for {$agentName}.");
     }
 
+    public function updateAgentSkills(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'product_skills' => ['nullable', 'array'],
+            'product_skills.*' => ['string', 'max:100'],
+            'regions' => ['nullable', 'array'],
+            'regions.*' => ['string', 'max:100'],
+            'category_skills' => ['nullable', 'array'],
+            'category_skills.*' => ['string', 'max:100'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'product_skills' => $validated['product_skills'] ?? [],
+            'regions' => $validated['regions'] ?? [],
+            'category_skills' => $validated['category_skills'] ?? [],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Skills updated for {$agentName}.");
+    }
+
     public function togglePageFavorite(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -3195,7 +3222,7 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
             ])
@@ -3208,6 +3235,9 @@ class ShopController extends Controller
                 'status' => $user->agentStatus(),
                 'active_conversations' => $user->active_conversations,
                 'auto_assign_enabled' => $user->agentProfile?->auto_assign_enabled ?? false,
+                'product_skills' => $user->agentProfile?->product_skills ?? [],
+                'regions' => $user->agentProfile?->regions ?? [],
+                'category_skills' => $user->agentProfile?->category_skills ?? [],
             ]);
     }
 

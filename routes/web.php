@@ -392,6 +392,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/facebook/pages/{page}', [ShopController::class, 'disconnectFacebookPage'])->name('shop.facebook.pages.disconnect');
     Route::post('/shop/inbox/agent-status', [ShopController::class, 'updateAgentStatus'])->name('shop.agent.status');
     Route::post('/shop/inbox/agent-auto-assign', [ShopController::class, 'toggleAgentAutoAssign'])->name('shop.agent.auto-assign');
+    Route::post('/shop/inbox/agent-skills', [ShopController::class, 'updateAgentSkills'])->name('shop.agent.skills');
 
     // Scanner
     Route::prefix('scanner')->name('scanner.')->group(function () {

@@ -133,6 +133,9 @@ interface Props {
     status: string;
     active_conversations: number;
     auto_assign_enabled: boolean;
+    product_skills: string[];
+    regions: string[];
+    category_skills: string[];
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -187,6 +190,10 @@ export default function ShopInbox({
   const [cannedPageId, setCannedPageId] = useState('');
   const [cannedName, setCannedName] = useState('');
   const [cannedMessage, setCannedMessage] = useState('');
+  const [skillEditId, setSkillEditId] = useState<number | null>(null);
+  const [skillProductInput, setSkillProductInput] = useState('');
+  const [skillRegionInput, setSkillRegionInput] = useState('');
+  const [skillCategoryInput, setSkillCategoryInput] = useState('');
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -309,6 +316,39 @@ export default function ShopInbox({
           setSelectedIds([]);
           setBulkAgentId('');
         },
+      }
+    );
+  };
+
+  const startEditSkills = (agent: {
+    id: number;
+    product_skills: string[];
+    regions: string[];
+    category_skills: string[];
+  }) => {
+    setSkillEditId(agent.id);
+    setSkillProductInput(agent.product_skills.join(', '));
+    setSkillRegionInput(agent.regions.join(', '));
+    setSkillCategoryInput(agent.category_skills.join(', '));
+  };
+
+  const saveSkills = (agentId: number) => {
+    const parse = (s: string) =>
+      s
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+    router.post(
+      '/shop/inbox/agent-skills',
+      {
+        user_id: agentId,
+        product_skills: parse(skillProductInput),
+        regions: parse(skillRegionInput),
+        category_skills: parse(skillCategoryInput),
+      },
+      {
+        preserveState: true,
+        onSuccess: () => setSkillEditId(null),
       }
     );
   };
@@ -725,6 +765,120 @@ export default function ShopInbox({
                           >
                             {agent.auto_assign_enabled ? 'Enabled' : 'Disabled'}
                           </Button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Skill-Based Routing</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Auto-assignment prioritizes agents whose skills match the conversation's page
+                      category, customer region, and message keywords.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agents
+                      .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                      .map((agent) => (
+                        <div key={agent.id} className="rounded-md border px-3 py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <AgentStatusDot status={agent.status} />
+                              {agent.name}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                skillEditId === agent.id
+                                  ? setSkillEditId(null)
+                                  : startEditSkills(agent)
+                              }
+                            >
+                              {skillEditId === agent.id ? 'Cancel' : 'Edit Skills'}
+                            </Button>
+                          </div>
+                          {(agent.product_skills.length > 0 ||
+                            agent.regions.length > 0 ||
+                            agent.category_skills.length > 0) &&
+                            skillEditId !== agent.id && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {agent.category_skills.map((s) => (
+                                  <Badge
+                                    key={`cat-${s}`}
+                                    variant="outline"
+                                    className="text-xs text-blue-600"
+                                  >
+                                    {s}
+                                  </Badge>
+                                ))}
+                                {agent.regions.map((r) => (
+                                  <Badge
+                                    key={`reg-${r}`}
+                                    variant="outline"
+                                    className="text-xs text-green-600"
+                                  >
+                                    {r}
+                                  </Badge>
+                                ))}
+                                {agent.product_skills.map((p) => (
+                                  <Badge
+                                    key={`prod-${p}`}
+                                    variant="outline"
+                                    className="text-xs text-purple-600"
+                                  >
+                                    {p}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          {skillEditId === agent.id && (
+                            <div className="mt-2 space-y-2">
+                              <div>
+                                <label className="mb-0.5 block text-xs text-muted-foreground">
+                                  Category Skills (comma-separated)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={skillCategoryInput}
+                                  onChange={(e) => setSkillCategoryInput(e.target.value)}
+                                  placeholder="e.g. Electronics, Fashion, Food"
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-0.5 block text-xs text-muted-foreground">
+                                  Regions (comma-separated)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={skillRegionInput}
+                                  onChange={(e) => setSkillRegionInput(e.target.value)}
+                                  placeholder="e.g. Metro Manila, Cebu, Davao"
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-0.5 block text-xs text-muted-foreground">
+                                  Product Skills (comma-separated)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={skillProductInput}
+                                  onChange={(e) => setSkillProductInput(e.target.value)}
+                                  placeholder="e.g. iPhone, Samsung, Nike"
+                                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                />
+                              </div>
+                              <Button size="sm" onClick={() => saveSkills(agent.id)}>
+                                Save Skills
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                   </div>
