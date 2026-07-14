@@ -339,6 +339,128 @@ export default function ConversationAnalytics({
           </CardContent>
         </Card>
 
+        {/* Page comparison dashboard */}
+        {per_page.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5" />
+                Page Comparison Dashboard
+              </CardTitle>
+              <CardDescription>
+                Side-by-side visual comparison of key metrics across all Facebook Pages
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {(() => {
+                const maxConversations = Math.max(...per_page.map((p) => p.total_conversations), 1);
+                const maxResponseRate = Math.max(...per_page.map((p) => p.response_rate), 1);
+                const maxResolutionRate = Math.max(...per_page.map((p) => p.resolution_rate), 1);
+                const responseTimes = per_page
+                  .map((p) => p.avg_response_seconds)
+                  .filter((v): v is number => v !== null);
+                const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 1;
+                const resolutionTimes = per_page
+                  .map((p) => p.avg_resolution_seconds)
+                  .filter((v): v is number => v !== null);
+                const maxResolutionTime =
+                  resolutionTimes.length > 0 ? Math.max(...resolutionTimes) : 1;
+
+                const metrics: {
+                  label: string;
+                  key: keyof PageStat;
+                  max: number;
+                  format: (val: number | null) => string;
+                  color: string;
+                  invert?: boolean;
+                }[] = [
+                  {
+                    label: 'Total Conversations',
+                    key: 'total_conversations',
+                    max: maxConversations,
+                    format: (v) => String(v ?? 0),
+                    color: 'bg-primary',
+                  },
+                  {
+                    label: 'Response Rate',
+                    key: 'response_rate',
+                    max: maxResponseRate,
+                    format: (v) => `${v}%`,
+                    color: 'bg-blue-500',
+                  },
+                  {
+                    label: 'Resolution Rate',
+                    key: 'resolution_rate',
+                    max: maxResolutionRate,
+                    format: (v) => `${v}%`,
+                    color: 'bg-green-500',
+                  },
+                  {
+                    label: 'Avg Response Time',
+                    key: 'avg_response_seconds',
+                    max: maxResponseTime,
+                    format: (v) => formatDuration(v),
+                    color: 'bg-amber-500',
+                    invert: true,
+                  },
+                  {
+                    label: 'Avg Resolution Time',
+                    key: 'avg_resolution_seconds',
+                    max: maxResolutionTime,
+                    format: (v) => formatDuration(v),
+                    color: 'bg-purple-500',
+                    invert: true,
+                  },
+                ];
+
+                return metrics.map((metric) => {
+                  const sorted = [...per_page].sort((a, b) => {
+                    const av = a[metric.key] as number | null;
+                    const bv = b[metric.key] as number | null;
+                    if (av === null && bv === null) return 0;
+                    if (av === null) return 1;
+                    if (bv === null) return -1;
+                    return metric.invert ? av - bv : bv - av;
+                  });
+
+                  return (
+                    <div key={metric.key} className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">{metric.label}</h4>
+                      <div className="space-y-1.5">
+                        {sorted.map((page) => {
+                          const val = page[metric.key] as number | null;
+                          const pct = val !== null && metric.max > 0 ? (val / metric.max) * 100 : 0;
+                          return (
+                            <div key={page.id} className="flex items-center gap-3 text-sm">
+                              <span
+                                className="w-32 shrink-0 truncate text-xs text-muted-foreground"
+                                title={page.page_name}
+                              >
+                                {page.page_name}
+                              </span>
+                              <div className="flex-1">
+                                <div className="h-5 w-full overflow-hidden rounded-full bg-muted">
+                                  <div
+                                    className={`h-full rounded-full ${metric.color}`}
+                                    style={{ width: `${Math.max(pct, 2)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <span className="w-20 shrink-0 text-right font-medium">
+                                {metric.format(val)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Per-agent breakdown */}
         <Card>
           <CardHeader>
