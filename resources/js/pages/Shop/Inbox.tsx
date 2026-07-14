@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
   BarChart3,
@@ -16,6 +16,7 @@ import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -97,6 +98,16 @@ export default function ShopInbox({
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('closed');
+  const [pageSearch, setPageSearch] = useState('');
+
+  const filteredPages = useMemo(() => {
+    if (!pageSearch.trim()) return pages;
+    const query = pageSearch.toLowerCase().trim();
+    return pages.filter(
+      (page) =>
+        page.page_name.toLowerCase().includes(query) || page.page_id.toLowerCase().includes(query)
+    );
+  }, [pages, pageSearch]);
 
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
@@ -157,8 +168,18 @@ export default function ShopInbox({
                 <SelectValue placeholder="All Pages" />
               </SelectTrigger>
               <SelectContent>
+                <div className="p-2 border-b sticky top-0 bg-background z-10">
+                  <Input
+                    placeholder="Search pages..."
+                    value={pageSearch}
+                    onChange={(e) => setPageSearch(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="h-8 text-sm"
+                  />
+                </div>
                 <SelectItem value="all">All Pages</SelectItem>
-                {pages.map((page) => (
+                {filteredPages.map((page) => (
                   <SelectItem key={page.id} value={page.id.toString()}>
                     <span className="flex items-center justify-between gap-2">
                       <span>{page.page_name}</span>
@@ -170,6 +191,11 @@ export default function ShopInbox({
                     </span>
                   </SelectItem>
                 ))}
+                {filteredPages.length === 0 && (
+                  <div className="py-4 text-center text-sm text-muted-foreground">
+                    No pages found
+                  </div>
+                )}
               </SelectContent>
             </Select>
             <Select
