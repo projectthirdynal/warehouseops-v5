@@ -9,6 +9,7 @@ import {
   Inbox,
   MessageSquare,
   MessageCircleWarning,
+  MessagesSquare,
   Phone,
   Star,
   Store,
@@ -88,12 +89,24 @@ interface PendingComment {
   conversation?: { id: number; thread_key: string; channel: string } | null;
 }
 
+interface PageCannedResponse {
+  id: number;
+  name: string;
+  message: string;
+  category: string | null;
+  is_active: boolean;
+  sort_order: number;
+  facebook_page_id: number;
+  page_name: string | null;
+}
+
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
   favorite_page_ids?: number[];
   assignment_rules?: AssignmentRule[];
   pending_comments?: PendingComment[];
+  page_canned_responses?: PageCannedResponse[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
@@ -124,6 +137,7 @@ export default function ShopInbox({
   favorite_page_ids = [],
   assignment_rules = [],
   pending_comments = [],
+  page_canned_responses = [],
   agents,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
@@ -135,8 +149,12 @@ export default function ShopInbox({
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
+  const [showCanned, setShowCanned] = useState(false);
   const [rulePageId, setRulePageId] = useState('');
   const [ruleAgentId, setRuleAgentId] = useState('');
+  const [cannedPageId, setCannedPageId] = useState('');
+  const [cannedName, setCannedName] = useState('');
+  const [cannedMessage, setCannedMessage] = useState('');
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -188,6 +206,33 @@ export default function ShopInbox({
       { message_id: messageId, action },
       { preserveState: true }
     );
+  };
+
+  const addCannedResponse = () => {
+    if (!cannedPageId || !cannedName || !cannedMessage) return;
+    router.post(
+      '/shop/inbox/page-canned-responses',
+      {
+        facebook_page_id: Number(cannedPageId),
+        name: cannedName,
+        message: cannedMessage,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setCannedPageId('');
+          setCannedName('');
+          setCannedMessage('');
+        },
+      }
+    );
+  };
+
+  const removeCannedResponse = (templateId: number) => {
+    router.delete('/shop/inbox/page-canned-responses', {
+      data: { template_id: templateId },
+      preserveState: true,
+    });
   };
 
   const updateFilter = (next: Record<string, string | undefined>) => {
@@ -262,6 +307,19 @@ export default function ShopInbox({
               {pending_comments.length > 0 && (
                 <Badge className="ml-1 bg-primary-foreground text-primary">
                   {pending_comments.length}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={showCanned ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowCanned(!showCanned)}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              Canned
+              {page_canned_responses.length > 0 && (
+                <Badge className="ml-1 bg-primary-foreground text-primary">
+                  {page_canned_responses.length}
                 </Badge>
               )}
             </Button>
@@ -580,6 +638,95 @@ export default function ShopInbox({
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {showCanned && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MessagesSquare className="h-4 w-4" />
+                Page-Level Canned Response Defaults
+              </CardTitle>
+              <CardDescription>
+                Define default reply templates per Facebook Page. Page-specific templates appear
+                first when replying to conversations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {page_canned_responses.length > 0 && (
+                <div className="space-y-1.5">
+                  {page_canned_responses.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      className="flex items-start justify-between gap-3 rounded-md border p-3"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline">
+                            {tpl.page_name ?? `Page #${tpl.facebook_page_id}`}
+                          </Badge>
+                          {tpl.category && <Badge variant="secondary">{tpl.category}</Badge>}
+                        </div>
+                        <p className="text-sm font-medium">{tpl.name}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{tpl.message}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCannedResponse(tpl.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="mb-1 block text-xs text-muted-foreground">Page</label>
+                    <Select value={cannedPageId} onValueChange={setCannedPageId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select page" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pages.map((page) => (
+                          <SelectItem key={page.id} value={page.id.toString()}>
+                            {page.page_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1 block text-xs text-muted-foreground">Name</label>
+                    <Input
+                      value={cannedName}
+                      onChange={(e) => setCannedName(e.target.value)}
+                      placeholder="e.g. Welcome Reply"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">Message</label>
+                  <textarea
+                    value={cannedMessage}
+                    onChange={(e) => setCannedMessage(e.target.value)}
+                    placeholder="Hello po {customer_name}, thank you for messaging {page_name}..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px]"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={addCannedResponse}
+                  disabled={!cannedPageId || !cannedName || !cannedMessage}
+                >
+                  Add Canned Response
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

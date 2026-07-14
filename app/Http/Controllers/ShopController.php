@@ -561,12 +561,30 @@ class ShopController extends Controller
             ->limit(50)
             ->get(['id', 'conversation_id', 'facebook_page_id', 'customer_identity_id', 'body', 'sent_at', 'moderation_status']);
 
+        $pageCannedResponses = ShopReplyTemplate::query()
+            ->whereNotNull('facebook_page_id')
+            ->with('facebookPage:id,page_name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'message', 'category', 'is_active', 'sort_order', 'facebook_page_id'])
+            ->map(fn (ShopReplyTemplate $template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'message' => $template->message,
+                'category' => $template->category,
+                'is_active' => $template->is_active,
+                'sort_order' => $template->sort_order,
+                'facebook_page_id' => $template->facebook_page_id,
+                'page_name' => $template->facebookPage?->page_name,
+            ]);
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
             'assignment_rules' => $assignmentRules,
             'pending_comments' => $pendingComments,
+            'page_canned_responses' => $pageCannedResponses,
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
@@ -640,6 +658,45 @@ class ShopController extends Controller
         ]);
 
         return back()->with('success', "Comment {$validated['action']}d.");
+    }
+
+    public function storePageCannedResponse(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string', 'max:2000'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        preg_match_all('/\{(\w+)\}/', $validated['message'], $matches);
+
+        ShopReplyTemplate::query()->create([
+            'name' => $validated['name'],
+            'message' => $validated['message'],
+            'category' => $validated['category'] ?? null,
+            'variables' => $matches[0] ?? [],
+            'sort_order' => $validated['sort_order'] ?? 0,
+            'is_active' => true,
+            'created_by' => $request->user()->id,
+            'facebook_page_id' => $validated['facebook_page_id'],
+        ]);
+
+        return back()->with('success', 'Page canned response created.');
+    }
+
+    public function destroyPageCannedResponse(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'integer', 'exists:shop_reply_templates,id'],
+        ]);
+
+        ShopReplyTemplate::where('id', $validated['template_id'])
+            ->whereNotNull('facebook_page_id')
+            ->delete();
+
+        return back()->with('success', 'Page canned response removed.');
     }
 
     public function conversation(Conversation $conversation): Response
@@ -2962,17 +3019,24 @@ class ShopController extends Controller
             return [];
         }
 
+        $pageId = $conversation->facebook_page_id;
+
         return ShopReplyTemplate::query()
             ->where('is_active', true)
+            ->where(function ($q) use ($pageId) {
+                $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+            })
+            ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'message', 'category', 'variables'])
+            ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
             ->map(fn (ShopReplyTemplate $template) => [
                 'id' => $template->id,
                 'name' => $template->name,
                 'category' => $template->category,
                 'body' => $this->renderReplyTemplate($template->message, $conversation),
                 'variables' => $template->variables ?? [],
+                'is_page_specific' => $template->facebook_page_id !== null,
             ])
             ->all();
     }
