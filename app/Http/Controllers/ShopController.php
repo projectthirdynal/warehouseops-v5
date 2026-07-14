@@ -718,6 +718,26 @@ class ShopController extends Controller
         return back()->with('success', "Shift schedule updated for {$agentName}.");
     }
 
+    public function updateAgentIdleThreshold(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'idle_threshold_minutes' => ['required', 'integer', 'min:1', 'max:120'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'idle_threshold_minutes' => $validated['idle_threshold_minutes'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Idle threshold updated for {$agentName}.");
+    }
+
     public function togglePageFavorite(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -3315,7 +3335,7 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled,shift_start,shift_end')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled,shift_start,shift_end,idle_threshold_minutes')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
                 'conversations as total_assigned_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo),
@@ -3349,6 +3369,8 @@ class ShopController extends Controller
                 'overflow_enabled' => $user->agentProfile?->overflow_enabled ?? true,
                 'shift_start' => $user->agentProfile?->shift_start,
                 'shift_end' => $user->agentProfile?->shift_end,
+                'idle_threshold_minutes' => $user->agentProfile?->idle_threshold_minutes ?? 15,
+                'is_idle' => $this->isAgentIdle($user),
             ]);
     }
 
@@ -3358,6 +3380,27 @@ class ShopController extends Controller
     private function conversationStatuses(): array
     {
         return ['open', 'pending_details', 'for_confirmation', 'confirmed', 'converted', 'closed'];
+    }
+
+    private function isAgentIdle(User $user): bool
+    {
+        $profile = $user->agentProfile;
+
+        if (! $profile || ! $profile->is_available) {
+            return false;
+        }
+
+        if ($user->active_conversations < 1) {
+            return false;
+        }
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        if (! $profile->last_seen_at) {
+            return true;
+        }
+
+        return $profile->last_seen_at->lt(now()->subMinutes($threshold));
     }
 
 }

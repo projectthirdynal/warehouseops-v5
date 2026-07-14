@@ -30,6 +30,7 @@ class AgentProfile extends Model
         'category_skills',
         'max_active_conversations',
         'overflow_enabled',
+        'idle_threshold_minutes',
     ];
 
     protected $casts = [
@@ -48,6 +49,7 @@ class AgentProfile extends Model
         'category_skills' => 'array',
         'max_active_conversations' => 'integer',
         'overflow_enabled' => 'boolean',
+        'idle_threshold_minutes' => 'integer',
     ];
 
     public function user(): BelongsTo

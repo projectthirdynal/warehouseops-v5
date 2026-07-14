@@ -145,6 +145,8 @@ interface Props {
     overflow_enabled: boolean;
     shift_start: string | null;
     shift_end: string | null;
+    idle_threshold_minutes: number;
+    is_idle: boolean;
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -209,6 +211,8 @@ export default function ShopInbox({
   const [shiftEditId, setShiftEditId] = useState<number | null>(null);
   const [shiftStartInput, setShiftStartInput] = useState('');
   const [shiftEndInput, setShiftEndInput] = useState('');
+  const [idleEditId, setIdleEditId] = useState<number | null>(null);
+  const [idleThresholdInput, setIdleThresholdInput] = useState('15');
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -414,6 +418,25 @@ export default function ShopInbox({
       {
         preserveState: true,
         onSuccess: () => setShiftEditId(null),
+      }
+    );
+  };
+
+  const startEditIdle = (agent: { id: number; idle_threshold_minutes: number }) => {
+    setIdleEditId(agent.id);
+    setIdleThresholdInput(String(agent.idle_threshold_minutes));
+  };
+
+  const saveIdleThreshold = (agentId: number) => {
+    router.post(
+      '/shop/inbox/agent-idle-threshold',
+      {
+        user_id: agentId,
+        idle_threshold_minutes: parseInt(idleThresholdInput, 10) || 15,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => setIdleEditId(null),
       }
     );
   };
@@ -1246,6 +1269,83 @@ export default function ShopInbox({
                           </div>
                         );
                       })}
+                  </div>
+                </div>
+              )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div>
+                      <h4 className="flex items-center gap-1.5 text-sm font-medium">
+                        Idle Alerts
+                        {agents.some((a) => a.is_idle) && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            {agents.filter((a) => a.is_idle).length} IDLE
+                          </Badge>
+                        )}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Agents with active conversations who haven&apos;t been seen for longer than
+                        their idle threshold.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agents
+                      .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                      .map((agent) => (
+                        <div key={agent.id} className="rounded-md border px-3 py-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <AgentStatusDot status={agent.status} />
+                              {agent.name}
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${agent.is_idle ? 'border-red-500/30 text-red-600' : 'text-muted-foreground'}`}
+                              >
+                                {agent.is_idle
+                                  ? 'IDLE'
+                                  : `threshold: ${agent.idle_threshold_minutes}m`}
+                              </Badge>
+                              {agent.is_idle && (
+                                <span className="text-[10px] font-medium text-red-600">
+                                  {agent.active_conversations} active convo(s) unattended
+                                </span>
+                              )}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                idleEditId === agent.id ? setIdleEditId(null) : startEditIdle(agent)
+                              }
+                            >
+                              {idleEditId === agent.id ? 'Cancel' : 'Edit Threshold'}
+                            </Button>
+                          </div>
+                          {idleEditId === agent.id && (
+                            <div className="mt-2 flex items-end gap-3">
+                              <div>
+                                <label className="mb-0.5 block text-xs text-muted-foreground">
+                                  Idle threshold (minutes)
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={120}
+                                  value={idleThresholdInput}
+                                  onChange={(e) => setIdleThresholdInput(e.target.value)}
+                                  className="h-8 w-32 rounded-md border border-input bg-background px-2 text-sm"
+                                />
+                              </div>
+                              <Button size="sm" onClick={() => saveIdleThreshold(agent.id)}>
+                                Save
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
