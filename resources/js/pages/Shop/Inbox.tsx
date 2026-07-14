@@ -428,6 +428,7 @@ export default function ShopInbox({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Agents</SelectItem>
+                <SelectItem value="me">My Conversations</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {agents.map((agent) => (
                   <SelectItem key={agent.id} value={agent.id.toString()}>

@@ -501,9 +501,12 @@ class ShopController extends Controller
         }
 
         if ($request->filled('assigned_agent_id')) {
-            $request->string('assigned_agent_id')->toString() === 'unassigned'
-                ? $query->whereNull('assigned_agent_id')
-                : $query->where('assigned_agent_id', $request->integer('assigned_agent_id'));
+            $agentFilter = $request->string('assigned_agent_id')->toString();
+            match ($agentFilter) {
+                'unassigned' => $query->whereNull('assigned_agent_id'),
+                'me' => $query->where('assigned_agent_id', $request->user()->id),
+                default => $query->where('assigned_agent_id', $request->integer('assigned_agent_id')),
+            };
         }
 
         if ($request->filled('priority')) {
