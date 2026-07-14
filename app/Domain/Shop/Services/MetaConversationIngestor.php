@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Models\PageAssignmentRule;
@@ -365,6 +366,14 @@ class MetaConversationIngestor
                 'assigned_agent_id' => $rule->user_id,
             ])->save();
 
+            ConversationAssignmentHistory::create([
+                'conversation_id' => $conversation->id,
+                'from_agent_id' => null,
+                'to_agent_id' => $rule->user_id,
+                'assigned_by_id' => null,
+                'reason' => 'page_rule',
+            ]);
+
             return;
         }
 
@@ -475,6 +484,14 @@ class MetaConversationIngestor
             $conversation->forceFill([
                 'assigned_agent_id' => $best['id'],
             ])->save();
+
+            ConversationAssignmentHistory::create([
+                'conversation_id' => $conversation->id,
+                'from_agent_id' => null,
+                'to_agent_id' => $best['id'],
+                'assigned_by_id' => null,
+                'reason' => 'auto_round_robin',
+            ]);
 
             AgentProfile::query()
                 ->where('user_id', $best['id'])

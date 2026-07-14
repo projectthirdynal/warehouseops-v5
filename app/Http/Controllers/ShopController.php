@@ -28,6 +28,7 @@ use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Models\ConversationExport;
+use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
@@ -840,6 +841,19 @@ class ShopController extends Controller
                 ->where('status', 'pending')
                 ->orderBy('scheduled_at')
                 ->get(['id', 'body', 'scheduled_at', 'status']),
+            'assignment_history' => $conversation->assignmentHistories()
+                ->with(['fromAgent:id,name', 'toAgent:id,name', 'assignedBy:id,name'])
+                ->latest('id')
+                ->limit(20)
+                ->get()
+                ->map(fn ($h) => [
+                    'id' => $h->id,
+                    'from_agent' => $h->fromAgent?->name,
+                    'to_agent' => $h->toAgent?->name ?? 'Unassigned',
+                    'assigned_by' => $h->assignedBy?->name,
+                    'reason' => $h->reason,
+                    'created_at' => $h->created_at?->toIso8601String(),
+                ]),
         ]);
     }
 
@@ -1133,9 +1147,24 @@ class ShopController extends Controller
             'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
+        $oldAgentId = $conversation->assigned_agent_id;
+        $newAgentId = $validated['assigned_agent_id'] ?? null;
+
+        if ($oldAgentId === $newAgentId) {
+            return back()->with('success', 'No change in assignment.');
+        }
+
         $conversation->forceFill([
-            'assigned_agent_id' => $validated['assigned_agent_id'] ?? null,
+            'assigned_agent_id' => $newAgentId,
         ])->save();
+
+        ConversationAssignmentHistory::create([
+            'conversation_id' => $conversation->id,
+            'from_agent_id' => $oldAgentId,
+            'to_agent_id' => $newAgentId,
+            'assigned_by_id' => $request->user()->id,
+            'reason' => 'manual',
+        ]);
 
         return back()->with('success', 'Conversation assignment updated.');
     }
@@ -1224,13 +1253,32 @@ class ShopController extends Controller
             'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
-        Conversation::query()
+        $newAgentId = $validated['assigned_agent_id'] ?? null;
+        $userId = $request->user()->id;
+
+        $conversations = Conversation::query()
             ->whereIn('id', $validated['conversation_ids'])
-            ->update(['assigned_agent_id' => $validated['assigned_agent_id'] ?? null]);
+            ->get(['id', 'assigned_agent_id']);
+
+        foreach ($conversations as $conversation) {
+            if ($conversation->assigned_agent_id === $newAgentId) {
+                continue;
+            }
+
+            ConversationAssignmentHistory::create([
+                'conversation_id' => $conversation->id,
+                'from_agent_id' => $conversation->assigned_agent_id,
+                'to_agent_id' => $newAgentId,
+                'assigned_by_id' => $userId,
+                'reason' => 'bulk',
+            ]);
+
+            $conversation->forceFill(['assigned_agent_id' => $newAgentId])->save();
+        }
 
         $count = count($validated['conversation_ids']);
-        $agentName = $validated['assigned_agent_id']
-            ? User::query()->where('id', $validated['assigned_agent_id'])->value('name')
+        $agentName = $newAgentId
+            ? User::query()->where('id', $newAgentId)->value('name')
             : null;
 
         $message = $agentName

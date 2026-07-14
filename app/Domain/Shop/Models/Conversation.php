@@ -98,4 +98,9 @@ class Conversation extends Model
     {
         return $this->hasMany(Message::class);
     }
+
+    public function assignmentHistories(): HasMany
+    {
+        return $this->hasMany(ConversationAssignmentHistory::class);
+    }
 }

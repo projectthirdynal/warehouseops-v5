@@ -154,6 +154,14 @@ interface Props {
     identity?: { display_name: string | null } | null;
   }[];
   scheduled_messages: { id: number; body: string; scheduled_at: string; status: string }[];
+  assignment_history: {
+    id: number;
+    from_agent: string | null;
+    to_agent: string | null;
+    assigned_by: string | null;
+    reason: string;
+    created_at: string | null;
+  }[];
 }
 
 function time(value: string | null) {
@@ -221,6 +229,7 @@ export default function ShopConversation({
   tags = [],
   merge_candidates = [],
   scheduled_messages: initialScheduled = [],
+  assignment_history: assignmentHistory = [],
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -1825,6 +1834,44 @@ export default function ShopConversation({
                   <p className="text-xs text-muted-foreground">
                     Reason: {conversation.flag_reason}
                   </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Assignment History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {assignmentHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No assignment changes recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignmentHistory.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{h.from_agent ?? 'Unassigned'}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-medium">{h.to_agent ?? 'Unassigned'}</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px]">
+                              {h.reason.replace(/_/g, ' ')}
+                            </Badge>
+                            {h.assigned_by && <span>by {h.assigned_by}</span>}
+                            {h.created_at && <span>{time(h.created_at)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
