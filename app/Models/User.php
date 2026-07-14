@@ -9,7 +9,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\FacebookPage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -60,6 +62,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class, 'assigned_agent_id');
+    }
+
+    public function favoritePages(): BelongsToMany
+    {
+        return $this->belongsToMany(FacebookPage::class, 'page_favorites')->withTimestamps();
     }
 
     public function isAdmin(): bool

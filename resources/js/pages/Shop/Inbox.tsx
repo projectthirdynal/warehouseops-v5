@@ -7,6 +7,7 @@ import {
   Inbox,
   MessageSquare,
   Phone,
+  Star,
   Store,
   User,
   UserCheck,
@@ -65,6 +66,7 @@ interface Paginated<T> {
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
+  favorite_page_ids?: number[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
@@ -92,6 +94,7 @@ function label(value: string) {
 export default function ShopInbox({
   conversations,
   pages,
+  favorite_page_ids = [],
   agents,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
@@ -103,13 +106,26 @@ export default function ShopInbox({
   const [pageSearch, setPageSearch] = useState('');
 
   const filteredPages = useMemo(() => {
-    if (!pageSearch.trim()) return pages;
     const query = pageSearch.toLowerCase().trim();
-    return pages.filter(
-      (page) =>
-        page.page_name.toLowerCase().includes(query) || page.page_id.toLowerCase().includes(query)
-    );
-  }, [pages, pageSearch]);
+    const filtered = query
+      ? pages.filter(
+          (page) =>
+            page.page_name.toLowerCase().includes(query) ||
+            page.page_id.toLowerCase().includes(query)
+        )
+      : pages;
+    return [...filtered].sort((a, b) => {
+      const aFav = favorite_page_ids.includes(a.id) ? 0 : 1;
+      const bFav = favorite_page_ids.includes(b.id) ? 0 : 1;
+      return aFav - bFav;
+    });
+  }, [pages, pageSearch, favorite_page_ids]);
+
+  const toggleFavorite = (pageId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    router.post('/shop/inbox/page-favorite', { page_id: pageId }, { preserveState: true });
+  };
 
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
@@ -181,38 +197,54 @@ export default function ShopInbox({
                   />
                 </div>
                 <SelectItem value="all">All Pages</SelectItem>
-                {filteredPages.map((page) => (
-                  <SelectItem key={page.id} value={page.id.toString()}>
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            page.connected_status === 'connected' ? 'bg-green-500' : 'bg-red-500'
-                          }`}
-                          title={
-                            page.connected_status === 'connected' ? 'Connected' : 'Disconnected'
-                          }
-                        />
-                        {page.page_name}
-                        {page.webhook_status && page.webhook_status !== 'subscribed' && (
+                {filteredPages.map((page) => {
+                  const isFavorite = favorite_page_ids.includes(page.id);
+                  return (
+                    <SelectItem key={page.id} value={page.id.toString()}>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => toggleFavorite(page.id, e)}
+                            className="shrink-0"
+                          >
+                            <Star
+                              className={`h-3.5 w-3.5 ${
+                                isFavorite
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-muted-foreground'
+                              }`}
+                            />
+                          </button>
                           <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                              page.webhook_status === 'needs_retry'
-                                ? 'bg-orange-500'
-                                : 'bg-yellow-500'
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              page.connected_status === 'connected' ? 'bg-green-500' : 'bg-red-500'
                             }`}
-                            title={`Webhook: ${page.webhook_status}`}
+                            title={
+                              page.connected_status === 'connected' ? 'Connected' : 'Disconnected'
+                            }
                           />
+                          {page.page_name}
+                          {page.webhook_status && page.webhook_status !== 'subscribed' && (
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                page.webhook_status === 'needs_retry'
+                                  ? 'bg-orange-500'
+                                  : 'bg-yellow-500'
+                              }`}
+                              title={`Webhook: ${page.webhook_status}`}
+                            />
+                          )}
+                        </span>
+                        {(page.unread_count ?? 0) > 0 && (
+                          <Badge className="ml-auto bg-primary text-primary-foreground">
+                            {page.unread_count}
+                          </Badge>
                         )}
                       </span>
-                      {(page.unread_count ?? 0) > 0 && (
-                        <Badge className="ml-auto bg-primary text-primary-foreground">
-                          {page.unread_count}
-                        </Badge>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  );
+                })}
                 {filteredPages.length === 0 && (
                   <div className="py-4 text-center text-sm text-muted-foreground">
                     No pages found

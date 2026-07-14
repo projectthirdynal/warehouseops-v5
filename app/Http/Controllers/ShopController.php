@@ -533,15 +533,38 @@ class ShopController extends Controller
                 return $page;
             });
 
+        $favoritePageIds = auth()->user()
+            ? auth()->user()->favoritePages()->pluck('facebook_pages.id')->toArray()
+            : [];
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
+            'favorite_page_ids' => $favoritePageIds,
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
         ]);
+    }
+
+    public function togglePageFavorite(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+        ]);
+
+        $user = $request->user();
+        $pageId = $validated['page_id'];
+
+        if ($user->favoritePages()->where('facebook_page_id', $pageId)->exists()) {
+            $user->favoritePages()->detach($pageId);
+        } else {
+            $user->favoritePages()->attach($pageId);
+        }
+
+        return back();
     }
 
     public function conversation(Conversation $conversation): Response
