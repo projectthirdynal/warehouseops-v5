@@ -30,6 +30,7 @@ interface Page {
   page_id: string;
   page_name: string;
   connected_status?: string;
+  webhook_status?: string;
   unread_count?: number;
 }
 
@@ -193,6 +194,16 @@ export default function ShopInbox({
                           }
                         />
                         {page.page_name}
+                        {page.webhook_status && page.webhook_status !== 'subscribed' && (
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                              page.webhook_status === 'needs_retry'
+                                ? 'bg-orange-500'
+                                : 'bg-yellow-500'
+                            }`}
+                            title={`Webhook: ${page.webhook_status}`}
+                          />
+                        )}
                       </span>
                       {(page.unread_count ?? 0) > 0 && (
                         <Badge className="ml-auto bg-primary text-primary-foreground">
