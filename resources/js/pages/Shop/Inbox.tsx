@@ -126,7 +126,13 @@ interface Props {
   assignment_rules?: AssignmentRule[];
   pending_comments?: PendingComment[];
   page_canned_responses?: PageCannedResponse[];
-  agents: { id: number; name: string; role: string; status: string }[];
+  agents: {
+    id: number;
+    name: string;
+    role: string;
+    status: string;
+    active_conversations: number;
+  }[];
   can_view_all?: boolean;
   current_user_id?: number;
   my_status?: string;
@@ -474,6 +480,20 @@ export default function ShopInbox({
                       <span className="flex items-center gap-2">
                         <AgentStatusDot status={agent.status} />
                         {agent.name}
+                        {agent.active_conversations > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className={`ml-1 text-xs ${
+                              agent.active_conversations >= 15
+                                ? 'bg-red-500/10 text-red-600'
+                                : agent.active_conversations >= 8
+                                  ? 'bg-amber-500/10 text-amber-600'
+                                  : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {agent.active_conversations}
+                          </Badge>
+                        )}
                       </span>
                     </SelectItem>
                   ))}

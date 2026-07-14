@@ -3144,10 +3144,15 @@ class ShopController extends Controller
 
     private function shopAgents(): \Illuminate\Support\Collection
     {
+        $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
             ->with('agentProfile:id,user_id,is_available,last_seen_at')
+            ->withCount([
+                'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
+            ])
             ->orderBy('name')
             ->get(['id', 'name', 'role'])
             ->map(fn (User $user) => [
@@ -3155,6 +3160,7 @@ class ShopController extends Controller
                 'name' => $user->name,
                 'role' => $user->role,
                 'status' => $user->agentStatus(),
+                'active_conversations' => $user->active_conversations,
             ]);
     }
 
