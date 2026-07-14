@@ -4,9 +4,11 @@ namespace App\Providers;
 
 use App\Domain\Courier\Events\TrackingStatusUpdated;
 use App\Domain\Courier\Listeners\TriggerSmsOnStatusChange;
+use App\Events\ConversationStatusChanged;
 use App\Events\LeadAssigned;
 use App\Events\LeadCreated;
 use App\Listeners\AutoDistributeOnLeadCreated;
+use App\Listeners\NotifyOnConversationStatusChanged;
 use App\Listeners\UpdateAgentWorkloadOnAssignment;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
@@ -32,6 +34,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         LeadCreated::class => [
             AutoDistributeOnLeadCreated::class,
+        ],
+        ConversationStatusChanged::class => [
+            NotifyOnConversationStatusChanged::class,
         ],
     ];
 

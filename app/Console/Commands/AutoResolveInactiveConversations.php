@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\ConversationStatusHistory;
+use App\Events\ConversationStatusChanged;
 use App\Models\SiteSetting;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -59,6 +60,8 @@ class AutoResolveInactiveConversations extends Command
                     'changed_by_role' => 'system',
                     'reason' => 'auto_inactivity',
                 ]);
+
+                ConversationStatusChanged::dispatch($conversation, $status, Conversation::STATUS_RESOLVED, null, 'auto_inactivity');
 
                 $resolvedCount++;
             }

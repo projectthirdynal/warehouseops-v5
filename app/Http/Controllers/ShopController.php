@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Order\Enums\OrderStatus;
+use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Shop\Models\Conversation;
@@ -1312,6 +1313,8 @@ class ShopController extends Controller
             'changed_by_role' => $role,
         ]);
 
+        ConversationStatusChanged::dispatch($conversation, $oldStatus, $validated['status'], $request->user());
+
         return back()->with('success', 'Conversation status updated.');
     }
 
@@ -1392,6 +1395,12 @@ class ShopController extends Controller
 
         if (!empty($historyRows)) {
             ConversationStatusHistory::insert($historyRows);
+        }
+
+        foreach ($conversations as $conversation) {
+            if (in_array($conversation->id, $validIds, true)) {
+                ConversationStatusChanged::dispatch($conversation, $conversation->status, $targetStatus, $request->user());
+            }
         }
 
         $message = "{$count} conversation(s) marked as {$targetStatus}.";
