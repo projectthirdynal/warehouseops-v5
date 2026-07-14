@@ -856,7 +856,7 @@ class ShopController extends Controller
         return back()->with('success', 'Page canned response removed.');
     }
 
-    public function conversation(Conversation $conversation): Response
+    public function conversation(Request $request, Conversation $conversation): Response
     {
         $conversation->load([
             'facebookPage:id,page_id,page_name,webhook_status',
