@@ -28,6 +28,7 @@ interface Page {
   id: number;
   page_id: string;
   page_name: string;
+  unread_count?: number;
 }
 
 interface Conversation {
@@ -159,7 +160,14 @@ export default function ShopInbox({
                 <SelectItem value="all">All Pages</SelectItem>
                 {pages.map((page) => (
                   <SelectItem key={page.id} value={page.id.toString()}>
-                    {page.page_name}
+                    <span className="flex items-center justify-between gap-2">
+                      <span>{page.page_name}</span>
+                      {(page.unread_count ?? 0) > 0 && (
+                        <Badge className="ml-auto bg-primary text-primary-foreground">
+                          {page.unread_count}
+                        </Badge>
+                      )}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

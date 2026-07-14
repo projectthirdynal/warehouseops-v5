@@ -521,9 +521,21 @@ class ShopController extends Controller
             $query->whereNull('snoozed_until');
         }
 
+        $pages = FacebookPage::query()
+            ->orderBy('page_name')
+            ->get(['id', 'page_id', 'page_name'])
+            ->map(function (FacebookPage $page) {
+                $page->unread_count = Conversation::query()
+                    ->whereNull('merged_into_id')
+                    ->where('facebook_page_id', $page->id)
+                    ->where('unread_count', '>', 0)
+                    ->count();
+                return $page;
+            });
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
-            'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_id', 'page_name']),
+            'pages' => $pages,
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
