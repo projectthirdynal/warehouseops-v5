@@ -44,6 +44,12 @@ class Conversation extends Model
         self::STATUS_ARCHIVED => [self::STATUS_RESOLVED, self::STATUS_ASSIGNED],
     ];
 
+    public const AGENT_ALLOWED_TARGETS = [
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+        self::STATUS_RESOLVED,
+    ];
+
     protected $fillable = [
         'facebook_page_id',
         'customer_id',
@@ -87,7 +93,7 @@ class Conversation extends Model
         'metadata' => 'array',
     ];
 
-    public function canTransitionTo(string $targetStatus): bool
+    public function canTransitionTo(string $targetStatus, ?string $role = null): bool
     {
         if ($this->status === $targetStatus) {
             return true;
@@ -95,7 +101,22 @@ class Conversation extends Model
 
         $allowed = self::TRANSITIONS[$this->status] ?? [];
 
+        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+            $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
+        }
+
         return in_array($targetStatus, $allowed, true);
+    }
+
+    public function allowedTransitionsForRole(?string $role = null): array
+    {
+        $allowed = self::TRANSITIONS[$this->status] ?? [];
+
+        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+            $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
+        }
+
+        return $allowed;
     }
 
     public function tags(): BelongsToMany

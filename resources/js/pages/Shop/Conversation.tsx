@@ -140,6 +140,7 @@ interface Props {
     variables?: string[];
   }[];
   agents: { id: number; name: string; role: string }[];
+  user_role?: string;
   statuses: string[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
@@ -235,12 +236,27 @@ function statusBadgeClass(status: string) {
   }
 }
 
+function allowedTransitions(currentStatus: string, role: string): string[] {
+  const transitions: Record<string, string[]> = {
+    new: ['assigned', 'awaiting_customer', 'resolved', 'archived'],
+    assigned: ['awaiting_customer', 'resolved', 'archived', 'new'],
+    awaiting_customer: ['assigned', 'resolved', 'archived'],
+    resolved: ['assigned', 'awaiting_customer', 'archived'],
+    archived: ['resolved', 'assigned'],
+  };
+  const isSupervisor = ['supervisor', 'admin', 'superadmin'].includes(role);
+  const agentAllowed = ['assigned', 'awaiting_customer', 'resolved'];
+  const allowed = transitions[currentStatus] ?? [];
+  return isSupervisor ? allowed : allowed.filter((s) => agentAllowed.includes(s));
+}
+
 export default function ShopConversation({
   conversation,
   recent_orders,
   quick_replies,
   saved_templates,
   agents = [],
+  user_role: userRole = 'agent',
   statuses = [],
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
@@ -1376,11 +1392,17 @@ export default function ShopConversation({
                   onChange={(event) => updateStatus(event.target.value)}
                   className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status)}`}
                 >
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>
-                      {label(status)}
-                    </option>
-                  ))}
+                  {statuses.map((status) => {
+                    const permitted =
+                      allowedTransitions(conversation.status, userRole).includes(status) ||
+                      status === conversation.status;
+                    return (
+                      <option key={status} value={status} disabled={!permitted}>
+                        {label(status)}
+                        {!permitted ? ' (not allowed)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </CardContent>
             </Card>

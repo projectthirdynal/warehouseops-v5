@@ -150,6 +150,7 @@ interface Props {
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
+  user_role?: string;
   my_status?: string;
   statuses: string[];
   status_counts?: Record<string, number>;
@@ -207,6 +208,7 @@ export default function ShopInbox({
   page_canned_responses = [],
   agents,
   can_view_all = true,
+  user_role: userRole = 'agent',
   my_status = 'offline',
   statuses,
   status_counts: statusCounts = {},
@@ -317,6 +319,21 @@ export default function ShopInbox({
       data: { template_id: templateId },
       preserveState: true,
     });
+  };
+
+  const isSupervisor = ['supervisor', 'admin', 'superadmin'].includes(userRole);
+
+  const allowedTransitions = (currentStatus: string): string[] => {
+    const transitions: Record<string, string[]> = {
+      new: ['assigned', 'awaiting_customer', 'resolved', 'archived'],
+      assigned: ['awaiting_customer', 'resolved', 'archived', 'new'],
+      awaiting_customer: ['assigned', 'resolved', 'archived'],
+      resolved: ['assigned', 'awaiting_customer', 'archived'],
+      archived: ['resolved', 'assigned'],
+    };
+    const agentAllowed = ['assigned', 'awaiting_customer', 'resolved'];
+    const allowed = transitions[currentStatus] ?? [];
+    return isSupervisor ? allowed : allowed.filter((s) => agentAllowed.includes(s));
   };
 
   const updateFilter = (next: Record<string, string | undefined>) => {
@@ -1766,11 +1783,17 @@ export default function ShopInbox({
                               onClick={(e) => e.stopPropagation()}
                               className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status)}`}
                             >
-                              {statuses.map((s) => (
-                                <option key={s} value={s}>
-                                  {label(s)}
-                                </option>
-                              ))}
+                              {statuses.map((s) => {
+                                const permitted =
+                                  allowedTransitions(conversation.status).includes(s) ||
+                                  s === conversation.status;
+                                return (
+                                  <option key={s} value={s} disabled={!permitted}>
+                                    {label(s)}
+                                    {!permitted ? ' (not allowed)' : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
                             {(conversation.priority ?? 'normal') !== 'normal' && (
                               <Badge

@@ -608,6 +608,7 @@ class ShopController extends Controller
             'agents' => $this->shopAgents(),
             'can_view_all' => $canViewAll,
             'current_user_id' => $request->user()->id,
+            'user_role' => $request->user()->role,
             'my_status' => $request->user()->agentStatus(),
             'statuses' => $this->conversationStatuses(),
             'status_counts' => $statusCounts,
@@ -895,6 +896,7 @@ class ShopController extends Controller
             'quick_replies' => $this->quickRepliesForConversation($conversation),
             'saved_templates' => $this->savedTemplatesForConversation($conversation),
             'agents' => $this->shopAgents(),
+            'user_role' => $request->user()->role,
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
@@ -1250,6 +1252,12 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
+        $role = $request->user()->role;
+
+        if (! $conversation->canTransitionTo($validated['status'], $role)) {
+            return back()->with('error', "Cannot transition conversation from '{$conversation->status}' to '{$validated['status']}'.");
+        }
+
         $updates = ['status' => $validated['status']];
 
         // Track resolution time when conversation is resolved
@@ -1279,17 +1287,35 @@ class ShopController extends Controller
             'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
         ]);
 
+        $role = $request->user()->role;
+        $targetStatus = $validated['status'];
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->get(['id', 'status', 'resolved_at', 'created_at']);
+
+        $validIds = [];
+        foreach ($conversations as $conversation) {
+            if ($conversation->canTransitionTo($targetStatus, $role)) {
+                $validIds[] = $conversation->id;
+            }
+        }
+
+        if (empty($validIds)) {
+            return back()->with('error', 'No conversations can be transitioned to the selected status.');
+        }
+
         $now = now();
         $updateData = [
-            'status' => $validated['status'],
+            'status' => $targetStatus,
             'updated_at' => $now,
         ];
 
-        if ($validated['status'] === Conversation::STATUS_RESOLVED) {
+        if ($targetStatus === Conversation::STATUS_RESOLVED) {
             $updateData['resolved_at'] = $now;
             // Set resolution_time_seconds for conversations that don't have it yet
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->whereNull('resolved_at')
                 ->each(function (Conversation $conv) use ($now) {
                     $seconds = $conv->created_at ? (int) $now->diffInSeconds($conv->created_at) : null;
@@ -1303,21 +1329,27 @@ class ShopController extends Controller
             $updateData['resolved_at'] = null;
             $updateData['resolution_time_seconds'] = null;
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->update($updateData);
         }
 
         // For resolved status, update without overwriting resolution_time_seconds
-        if ($validated['status'] === Conversation::STATUS_RESOLVED) {
+        if ($targetStatus === Conversation::STATUS_RESOLVED) {
             Conversation::query()
-                ->whereIn('id', $validated['conversation_ids'])
+                ->whereIn('id', $validIds)
                 ->whereNotNull('resolved_at')
-                ->update(['status' => $validated['status'], 'updated_at' => $now]);
+                ->update(['status' => $targetStatus, 'updated_at' => $now]);
         }
 
-        $count = count($validated['conversation_ids']);
+        $count = count($validIds);
+        $skipped = count($validated['conversation_ids']) - $count;
 
-        return back()->with('success', "{$count} conversation(s) marked as {$validated['status']}.");
+        $message = "{$count} conversation(s) marked as {$targetStatus}.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped due to transition rules.";
+        }
+
+        return back()->with('success', $message);
     }
 
     public function bulkAssignConversations(Request $request): RedirectResponse
