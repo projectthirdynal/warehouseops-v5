@@ -136,6 +136,11 @@ interface Props {
     product_skills: string[];
     regions: string[];
     category_skills: string[];
+    performance_score: number;
+    total_assigned_30d: number;
+    resolved_30d: number;
+    resolution_rate: number;
+    avg_response_seconds_30d: number | null;
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -881,6 +886,99 @@ export default function ShopInbox({
                           )}
                         </div>
                       ))}
+                  </div>
+                </div>
+              )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Performance Snapshot (30d)</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Key metrics for each agent over the last 30 days.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="py-1.5 pr-3 font-medium">Agent</th>
+                          <th className="py-1.5 px-2 font-medium">Perf</th>
+                          <th className="py-1.5 px-2 font-medium">Assigned</th>
+                          <th className="py-1.5 px-2 font-medium">Resolved</th>
+                          <th className="py-1.5 px-2 font-medium">Res. Rate</th>
+                          <th className="py-1.5 px-2 font-medium">Avg Response</th>
+                          <th className="py-1.5 pl-2 font-medium">Active</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {agents
+                          .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                          .map((agent) => {
+                            const formatDuration = (seconds: number | null) => {
+                              if (seconds === null) return '\u2014';
+                              if (seconds < 60) return `${seconds}s`;
+                              if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+                              return `${(seconds / 3600).toFixed(1)}h`;
+                            };
+                            const perfColor =
+                              agent.performance_score >= 75
+                                ? 'text-green-600'
+                                : agent.performance_score >= 50
+                                  ? 'text-amber-600'
+                                  : 'text-red-600';
+                            return (
+                              <tr key={agent.id} className="border-b last:border-0">
+                                <td className="py-1.5 pr-3">
+                                  <span className="flex items-center gap-1.5">
+                                    <AgentStatusDot status={agent.status} />
+                                    {agent.name}
+                                  </span>
+                                </td>
+                                <td className={`py-1.5 px-2 font-medium ${perfColor}`}>
+                                  {Math.round(agent.performance_score)}
+                                </td>
+                                <td className="py-1.5 px-2 text-muted-foreground">
+                                  {agent.total_assigned_30d}
+                                </td>
+                                <td className="py-1.5 px-2 text-muted-foreground">
+                                  {agent.resolved_30d}
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <span
+                                    className={
+                                      agent.resolution_rate >= 70
+                                        ? 'text-green-600'
+                                        : agent.resolution_rate >= 40
+                                          ? 'text-amber-600'
+                                          : 'text-red-600'
+                                    }
+                                  >
+                                    {agent.resolution_rate}%
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-2 text-muted-foreground">
+                                  {formatDuration(agent.avg_response_seconds_30d)}
+                                </td>
+                                <td className="py-1.5 pl-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${
+                                      agent.active_conversations >= 15
+                                        ? 'border-red-500/30 text-red-600'
+                                        : agent.active_conversations >= 8
+                                          ? 'border-amber-500/30 text-amber-600'
+                                          : ''
+                                    }`}
+                                  >
+                                    {agent.active_conversations}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}

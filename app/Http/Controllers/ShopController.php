@@ -3218,14 +3218,20 @@ class ShopController extends Controller
     private function shopAgents(): \Illuminate\Support\Collection
     {
         $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+        $thirtyDaysAgo = now()->subDays(30);
 
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
+                'conversations as total_assigned_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo),
+                'conversations as resolved_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo)->whereNotNull('resolved_at'),
             ])
+            ->withAvg([
+                'conversations as avg_response_seconds_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
             ->orderBy('name')
             ->get(['id', 'name', 'role'])
             ->map(fn (User $user) => [
@@ -3238,6 +3244,15 @@ class ShopController extends Controller
                 'product_skills' => $user->agentProfile?->product_skills ?? [],
                 'regions' => $user->agentProfile?->regions ?? [],
                 'category_skills' => $user->agentProfile?->category_skills ?? [],
+                'performance_score' => (float) ($user->agentProfile?->performance_score ?? 50),
+                'total_assigned_30d' => $user->total_assigned_30d,
+                'resolved_30d' => $user->resolved_30d,
+                'resolution_rate' => $user->total_assigned_30d > 0
+                    ? round(($user->resolved_30d / $user->total_assigned_30d) * 100, 1)
+                    : 0,
+                'avg_response_seconds_30d' => $user->avg_response_seconds_30d
+                    ? (int) $user->avg_response_seconds_30d
+                    : null,
             ]);
     }
 
