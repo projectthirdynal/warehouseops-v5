@@ -82,7 +82,7 @@ class MetaConversationIngestor
                 'customer_id' => $customer?->id,
                 'customer_identity_id' => $identity->id,
                 'channel' => 'messenger',
-                'status' => 'open',
+                'status' => Conversation::STATUS_NEW,
                 'last_message_preview' => str($body)->limit(160)->toString(),
                 'last_message_at' => $this->eventTimestamp($payload),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
@@ -203,7 +203,7 @@ class MetaConversationIngestor
                 'customer_id' => $customer?->id,
                 'customer_identity_id' => $identity->id,
                 'channel' => 'comment',
-                'status' => 'open',
+                'status' => Conversation::STATUS_NEW,
                 'last_message_preview' => str($body)->limit(160)->toString(),
                 'last_message_at' => $this->commentTimestamp($value),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
@@ -364,6 +364,7 @@ class MetaConversationIngestor
         if ($rule !== null) {
             $conversation->forceFill([
                 'assigned_agent_id' => $rule->user_id,
+                'status' => Conversation::STATUS_ASSIGNED,
             ])->save();
 
             ConversationAssignmentHistory::create([
@@ -383,7 +384,7 @@ class MetaConversationIngestor
 
     private function roundRobinAssign(Conversation $conversation): void
     {
-        $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+        $activeStatuses = Conversation::ACTIVE_STATUSES;
 
         $agents = User::query()
             ->where('users.is_active', true)
@@ -528,6 +529,7 @@ class MetaConversationIngestor
         if ($best !== null) {
             $conversation->forceFill([
                 'assigned_agent_id' => $best['id'],
+                'status' => Conversation::STATUS_ASSIGNED,
             ])->save();
 
             ConversationAssignmentHistory::create([

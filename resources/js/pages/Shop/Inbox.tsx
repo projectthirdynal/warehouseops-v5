@@ -214,7 +214,7 @@ export default function ShopInbox({
   filters = {},
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [bulkStatus, setBulkStatus] = useState<string>('closed');
+  const [bulkStatus, setBulkStatus] = useState<string>('resolved');
   const [bulkAgentId, setBulkAgentId] = useState<string>('');
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);

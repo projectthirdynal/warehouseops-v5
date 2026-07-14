@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Shop\Models\Conversation;
 use App\Models\AgentProfile;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -16,7 +17,7 @@ class CheckIdleAgents extends Command
 
     public function handle(): int
     {
-        $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+        $activeStatuses = Conversation::ACTIVE_STATUSES;
 
         $agents = User::query()
             ->where('users.is_active', true)

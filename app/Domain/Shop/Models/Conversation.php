@@ -16,6 +16,34 @@ class Conversation extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_NEW = 'new';
+    public const STATUS_ASSIGNED = 'assigned';
+    public const STATUS_AWAITING_CUSTOMER = 'awaiting_customer';
+    public const STATUS_RESOLVED = 'resolved';
+    public const STATUS_ARCHIVED = 'archived';
+
+    public const STATUSES = [
+        self::STATUS_NEW,
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+        self::STATUS_RESOLVED,
+        self::STATUS_ARCHIVED,
+    ];
+
+    public const ACTIVE_STATUSES = [
+        self::STATUS_NEW,
+        self::STATUS_ASSIGNED,
+        self::STATUS_AWAITING_CUSTOMER,
+    ];
+
+    public const TRANSITIONS = [
+        self::STATUS_NEW => [self::STATUS_ASSIGNED, self::STATUS_AWAITING_CUSTOMER, self::STATUS_RESOLVED, self::STATUS_ARCHIVED],
+        self::STATUS_ASSIGNED => [self::STATUS_AWAITING_CUSTOMER, self::STATUS_RESOLVED, self::STATUS_ARCHIVED, self::STATUS_NEW],
+        self::STATUS_AWAITING_CUSTOMER => [self::STATUS_ASSIGNED, self::STATUS_RESOLVED, self::STATUS_ARCHIVED],
+        self::STATUS_RESOLVED => [self::STATUS_ASSIGNED, self::STATUS_AWAITING_CUSTOMER, self::STATUS_ARCHIVED],
+        self::STATUS_ARCHIVED => [self::STATUS_RESOLVED, self::STATUS_ASSIGNED],
+    ];
+
     protected $fillable = [
         'facebook_page_id',
         'customer_id',
@@ -58,6 +86,17 @@ class Conversation extends Model
         'is_flagged' => 'boolean',
         'metadata' => 'array',
     ];
+
+    public function canTransitionTo(string $targetStatus): bool
+    {
+        if ($this->status === $targetStatus) {
+            return true;
+        }
+
+        $allowed = self::TRANSITIONS[$this->status] ?? [];
+
+        return in_array($targetStatus, $allowed, true);
+    }
 
     public function tags(): BelongsToMany
     {

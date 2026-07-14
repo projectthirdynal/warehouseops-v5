@@ -545,10 +545,10 @@ export default function ConversationAnalytics({
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">All</option>
-                  <option value="open">Open</option>
+                  <option value="new">New</option>
                   <option value="assigned">Assigned</option>
+                  <option value="awaiting_customer">Awaiting Customer</option>
                   <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
                   <option value="archived">Archived</option>
                 </select>
               </div>

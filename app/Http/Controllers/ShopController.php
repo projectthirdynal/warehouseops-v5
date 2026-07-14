@@ -375,7 +375,7 @@ class ShopController extends Controller
                     ->whereIn('status', [OrderStatus::CONFIRMED->value, OrderStatus::QA_APPROVED->value])
                     ->count(),
                 'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                    ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                    ->whereIn('status', Conversation::ACTIVE_STATUSES)
                     ->count()),
                 'webhook_events_today' => $this->countWhenReady('facebook_webhook_events', fn () => DB::table('facebook_webhook_events')
                     ->whereDate('created_at', today())
@@ -1242,8 +1242,8 @@ class ShopController extends Controller
 
         $updates = ['status' => $validated['status']];
 
-        // Track resolution time when conversation is closed
-        if ($validated['status'] === 'closed' && !$conversation->resolved_at) {
+        // Track resolution time when conversation is resolved
+        if ($validated['status'] === Conversation::STATUS_RESOLVED && !$conversation->resolved_at) {
             $updates['resolved_at'] = now();
             $updates['resolution_time_seconds'] = $conversation->created_at
                 ? (int) now()->diffInSeconds($conversation->created_at)
@@ -1251,7 +1251,7 @@ class ShopController extends Controller
         }
 
         // Reset resolution if reopened
-        if ($validated['status'] !== 'closed' && $conversation->resolved_at) {
+        if ($validated['status'] !== Conversation::STATUS_RESOLVED && $conversation->resolved_at) {
             $updates['resolved_at'] = null;
             $updates['resolution_time_seconds'] = null;
         }
@@ -1275,7 +1275,7 @@ class ShopController extends Controller
             'updated_at' => $now,
         ];
 
-        if ($validated['status'] === 'closed') {
+        if ($validated['status'] === Conversation::STATUS_RESOLVED) {
             $updateData['resolved_at'] = $now;
             // Set resolution_time_seconds for conversations that don't have it yet
             Conversation::query()
@@ -1297,8 +1297,8 @@ class ShopController extends Controller
                 ->update($updateData);
         }
 
-        // For closed status, update without overwriting resolution_time_seconds
-        if ($validated['status'] === 'closed') {
+        // For resolved status, update without overwriting resolution_time_seconds
+        if ($validated['status'] === Conversation::STATUS_RESOLVED) {
             Conversation::query()
                 ->whereIn('id', $validated['conversation_ids'])
                 ->whereNotNull('resolved_at')
@@ -1475,7 +1475,7 @@ class ShopController extends Controller
             // Mark source as merged
             $source->forceFill([
                 'merged_into_id' => $conversation->id,
-                'status' => 'closed',
+                'status' => 'archived',
             ])->save();
 
             // Update last message info on target if source has newer activity
@@ -2892,7 +2892,7 @@ class ShopController extends Controller
 
                 $conversation->forceFill([
                     'customer_id' => $customer->id,
-                    'status' => 'converted',
+                    'status' => 'resolved',
                     'metadata' => array_merge($conversation->metadata ?? [], [
                         'latest_order_id' => $order->id,
                         'converted_at' => now()->toIso8601String(),
@@ -2920,7 +2920,7 @@ class ShopController extends Controller
                 ->where('connected_status', 'connected')
                 ->count()),
             'open_conversations' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                ->where('status', 'open')
+                ->where('status', Conversation::STATUS_NEW)
                 ->count()),
             'orders_today' => $this->countWhenReady('orders', fn () => DB::table('orders')
                 ->whereDate('created_at', today())
@@ -2933,7 +2933,7 @@ class ShopController extends Controller
     {
         return [
             'inbox' => $this->countWhenReady('conversations', fn () => DB::table('conversations')
-                ->whereIn('status', ['open', 'pending_details', 'for_confirmation'])
+                ->whereIn('status', Conversation::ACTIVE_STATUSES)
                 ->count()),
             'phone_detected' => $this->countWhenReady('customer_identities', fn () => DB::table('customer_identities')
                 ->whereNotNull('phone_detected')
@@ -3053,7 +3053,7 @@ class ShopController extends Controller
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.facebook_page_id', 'facebook_pages.id')
-                    ->where('conversations.status', 'converted');
+                    ->where('conversations.status', 'resolved');
 
                 $this->applyReportConversationFilters($query, array_merge($filters, ['page_id' => null]));
             }, 'converted_count')
@@ -3111,7 +3111,7 @@ class ShopController extends Controller
                 $query->from('conversations')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('conversations.assigned_agent_id', 'users.id')
-                    ->where('conversations.status', 'converted');
+                    ->where('conversations.status', 'resolved');
 
                 $this->applyReportConversationFilters($query, array_merge($filters, ['agent_id' => null]));
             }, 'converted_conversations')
@@ -3330,7 +3330,7 @@ class ShopController extends Controller
 
     private function shopAgents(): \Illuminate\Support\Collection
     {
-        $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+        $activeStatuses = Conversation::ACTIVE_STATUSES;
         $thirtyDaysAgo = now()->subDays(30);
 
         return User::query()
@@ -3380,7 +3380,7 @@ class ShopController extends Controller
      */
     private function conversationStatuses(): array
     {
-        return ['open', 'pending_details', 'for_confirmation', 'confirmed', 'converted', 'closed'];
+        return Conversation::STATUSES;
     }
 
     private function isAgentIdle(User $user): bool
