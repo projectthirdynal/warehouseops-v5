@@ -132,6 +132,7 @@ interface Props {
     role: string;
     status: string;
     active_conversations: number;
+    auto_assign_enabled: boolean;
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -497,6 +498,14 @@ export default function ShopInbox({
                       <span className="flex items-center gap-2">
                         <AgentStatusDot status={agent.status} />
                         {agent.name}
+                        {agent.auto_assign_enabled && (
+                          <span
+                            className="text-[10px] font-medium text-blue-600"
+                            title="Auto-assignment enabled"
+                          >
+                            AUTO
+                          </span>
+                        )}
                         {agent.active_conversations > 0 && (
                           <Badge
                             variant="secondary"
@@ -675,6 +684,52 @@ export default function ShopInbox({
                   Add Rule
                 </Button>
               </div>
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Round-Robin Auto-Assignment</h4>
+                    <p className="text-xs text-muted-foreground">
+                      New conversations without a page-specific rule are auto-assigned to available
+                      agents with the fewest active conversations.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agents
+                      .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                      .map((agent) => (
+                        <div
+                          key={agent.id}
+                          className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                        >
+                          <span className="flex items-center gap-2">
+                            <AgentStatusDot status={agent.status} />
+                            {agent.name}
+                            <Badge variant="outline" className="text-xs">
+                              {agent.active_conversations} active
+                            </Badge>
+                          </span>
+                          <Button
+                            variant={agent.auto_assign_enabled ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() =>
+                              router.post(
+                                '/shop/inbox/agent-auto-assign',
+                                {
+                                  user_id: agent.id,
+                                  auto_assign_enabled: !agent.auto_assign_enabled,
+                                },
+                                { preserveState: true }
+                              )
+                            }
+                          >
+                            {agent.auto_assign_enabled ? 'Enabled' : 'Disabled'}
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

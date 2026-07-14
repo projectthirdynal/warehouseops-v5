@@ -34,6 +34,7 @@ use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Models\AgentProfile;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -622,6 +623,27 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', $validated['is_available'] ? 'You are now online.' : 'You are now away.');
+    }
+
+    public function toggleAgentAutoAssign(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'auto_assign_enabled' => ['required', 'boolean'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+            ['auto_assign_enabled' => false]
+        );
+
+        $profile->forceFill([
+            'auto_assign_enabled' => $validated['auto_assign_enabled'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Auto-assignment " . ($validated['auto_assign_enabled'] ? 'enabled' : 'disabled') . " for {$agentName}.");
     }
 
     public function togglePageFavorite(Request $request): RedirectResponse
@@ -3173,7 +3195,7 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
             ])
@@ -3185,6 +3207,7 @@ class ShopController extends Controller
                 'role' => $user->role,
                 'status' => $user->agentStatus(),
                 'active_conversations' => $user->active_conversations,
+                'auto_assign_enabled' => $user->agentProfile?->auto_assign_enabled ?? false,
             ]);
     }
 

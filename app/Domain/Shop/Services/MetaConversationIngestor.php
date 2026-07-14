@@ -9,6 +9,8 @@ use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\Tag;
+use App\Models\AgentProfile;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -351,6 +353,7 @@ class MetaConversationIngestor
 
     private function applyAssignmentRules(Conversation $conversation): void
     {
+        // 1. Check for a page-specific assignment rule first
         $rule = PageAssignmentRule::query()
             ->where('facebook_page_id', $conversation->facebook_page_id)
             ->where('is_active', true)
@@ -361,6 +364,44 @@ class MetaConversationIngestor
             $conversation->forceFill([
                 'assigned_agent_id' => $rule->user_id,
             ])->save();
+
+            return;
+        }
+
+        // 2. Fall back to round-robin auto-assignment
+        $this->roundRobinAssign($conversation);
+    }
+
+    private function roundRobinAssign(Conversation $conversation): void
+    {
+        $activeStatuses = ['open', 'pending_details', 'for_confirmation', 'confirmed'];
+
+        $agent = User::query()
+            ->where('users.is_active', true)
+            ->whereIn('users.role', ['agent', 'supervisor'])
+            ->join('agent_profiles', 'agent_profiles.user_id', '=', 'users.id')
+            ->where('agent_profiles.auto_assign_enabled', true)
+            ->where('agent_profiles.is_available', true)
+            ->leftJoin('conversations', function ($join) use ($activeStatuses) {
+                $join->on('conversations.assigned_agent_id', '=', 'users.id')
+                    ->whereIn('conversations.status', $activeStatuses)
+                    ->whereNull('conversations.merged_into_id');
+            })
+            ->groupBy('users.id', 'users.name', 'agent_profiles.last_assignment_at')
+            ->selectRaw('users.id, users.name, agent_profiles.last_assignment_at, COUNT(conversations.id) as active_count')
+            ->orderByRaw('agent_profiles.last_assignment_at IS NULL DESC')
+            ->orderBy('agent_profiles.last_assignment_at', 'asc')
+            ->orderBy('active_count', 'asc')
+            ->first();
+
+        if ($agent !== null) {
+            $conversation->forceFill([
+                'assigned_agent_id' => $agent->id,
+            ])->save();
+
+            AgentProfile::query()
+                ->where('user_id', $agent->id)
+                ->update(['last_assignment_at' => now()]);
         }
     }
 }
