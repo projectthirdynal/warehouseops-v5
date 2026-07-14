@@ -176,6 +176,7 @@ export default function ShopInbox({
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('closed');
+  const [bulkAgentId, setBulkAgentId] = useState<string>('');
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
@@ -291,6 +292,22 @@ export default function ShopInbox({
       {
         preserveScroll: true,
         onSuccess: () => setSelectedIds([]),
+      }
+    );
+  };
+
+  const submitBulkAssign = () => {
+    if (selectedIds.length === 0) return;
+    const agentId = bulkAgentId === 'unassign' ? null : bulkAgentId || null;
+    router.post(
+      '/shop/inbox/bulk-assign',
+      { conversation_ids: selectedIds, assigned_agent_id: agentId },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setSelectedIds([]);
+          setBulkAgentId('');
+        },
       }
     );
   };
@@ -839,7 +856,25 @@ export default function ShopInbox({
                 </select>
                 <Button size="sm" onClick={submitBulk}>
                   <CheckCheck className="mr-1 h-4 w-4" />
-                  Apply
+                  Apply Status
+                </Button>
+                <div className="h-5 w-px bg-border" />
+                <select
+                  value={bulkAgentId}
+                  onChange={(e) => setBulkAgentId(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  <option value="">Assign to...</option>
+                  <option value="unassign">Unassign</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id.toString()}>
+                      {agent.name} ({agent.active_conversations})
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulkAssign}>
+                  <UserCheck className="mr-1 h-4 w-4" />
+                  Assign
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
                   <X className="h-4 w-4" />

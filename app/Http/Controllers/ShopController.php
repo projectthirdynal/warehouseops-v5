@@ -1167,6 +1167,30 @@ class ShopController extends Controller
         return back()->with('success', "{$count} conversation(s) marked as {$validated['status']}.");
     }
 
+    public function bulkAssignConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'assigned_agent_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->update(['assigned_agent_id' => $validated['assigned_agent_id'] ?? null]);
+
+        $count = count($validated['conversation_ids']);
+        $agentName = $validated['assigned_agent_id']
+            ? User::query()->where('id', $validated['assigned_agent_id'])->value('name')
+            : null;
+
+        $message = $agentName
+            ? "{$count} conversation(s) assigned to {$agentName}."
+            : "{$count} conversation(s) unassigned.";
+
+        return back()->with('success', $message);
+    }
+
     public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([

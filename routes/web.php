@@ -326,6 +326,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/inbox/{conversation}/assignment', [ShopController::class, 'updateConversationAssignment'])->name('shop.conversation.assignment');
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
     Route::post('/shop/inbox/bulk-status', [ShopController::class, 'bulkUpdateConversationStatus'])->name('shop.conversation.bulk-status');
+    Route::post('/shop/inbox/bulk-assign', [ShopController::class, 'bulkAssignConversations'])->name('shop.conversation.bulk-assign');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');
     Route::patch('/shop/inbox/{conversation}/tags', [ShopController::class, 'updateConversationTags'])->name('shop.conversation.tags');
     Route::post('/shop/inbox/{conversation}/snooze', [ShopController::class, 'snoozeConversation'])->name('shop.conversation.snooze');
