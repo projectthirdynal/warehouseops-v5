@@ -28,6 +28,8 @@ class AgentProfile extends Model
         'preferred_lead_sources',
         'excluded_regions',
         'category_skills',
+        'max_active_conversations',
+        'overflow_enabled',
     ];
 
     protected $casts = [
@@ -44,6 +46,8 @@ class AgentProfile extends Model
         'preferred_lead_sources' => 'array',
         'excluded_regions' => 'array',
         'category_skills' => 'array',
+        'max_active_conversations' => 'integer',
+        'overflow_enabled' => 'boolean',
     ];
 
     public function user(): BelongsTo

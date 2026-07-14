@@ -141,6 +141,8 @@ interface Props {
     resolved_30d: number;
     resolution_rate: number;
     avg_response_seconds_30d: number | null;
+    max_active_conversations: number;
+    overflow_enabled: boolean;
   }[];
   can_view_all?: boolean;
   current_user_id?: number;
@@ -199,6 +201,9 @@ export default function ShopInbox({
   const [skillProductInput, setSkillProductInput] = useState('');
   const [skillRegionInput, setSkillRegionInput] = useState('');
   const [skillCategoryInput, setSkillCategoryInput] = useState('');
+  const [queueEditId, setQueueEditId] = useState<number | null>(null);
+  const [queueMaxInput, setQueueMaxInput] = useState('15');
+  const [queueOverflowInput, setQueueOverflowInput] = useState(true);
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -354,6 +359,31 @@ export default function ShopInbox({
       {
         preserveState: true,
         onSuccess: () => setSkillEditId(null),
+      }
+    );
+  };
+
+  const startEditQueue = (agent: {
+    id: number;
+    max_active_conversations: number;
+    overflow_enabled: boolean;
+  }) => {
+    setQueueEditId(agent.id);
+    setQueueMaxInput(String(agent.max_active_conversations));
+    setQueueOverflowInput(agent.overflow_enabled);
+  };
+
+  const saveQueueLimit = (agentId: number) => {
+    router.post(
+      '/shop/inbox/agent-queue-limit',
+      {
+        user_id: agentId,
+        max_active_conversations: parseInt(queueMaxInput, 10) || 15,
+        overflow_enabled: queueOverflowInput,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => setQueueEditId(null),
       }
     );
   };
@@ -979,6 +1009,95 @@ export default function ShopInbox({
                           })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Queue Limits & Overflow</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Set max active conversations per agent. When at limit, overflow-enabled agents
+                      still receive assignments; others are skipped.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {agents
+                      .filter((a) => a.role === 'agent' || a.role === 'supervisor')
+                      .map((agent) => {
+                        const atLimit =
+                          agent.active_conversations >= agent.max_active_conversations;
+                        return (
+                          <div key={agent.id} className="rounded-md border px-3 py-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <AgentStatusDot status={agent.status} />
+                                {agent.name}
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    atLimit ? 'border-red-500/30 text-red-600' : ''
+                                  }`}
+                                >
+                                  {agent.active_conversations}/{agent.max_active_conversations}
+                                </Badge>
+                                {agent.overflow_enabled && (
+                                  <span className="text-[10px] font-medium text-blue-600">
+                                    OVERFLOW
+                                  </span>
+                                )}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  queueEditId === agent.id
+                                    ? setQueueEditId(null)
+                                    : startEditQueue(agent)
+                                }
+                              >
+                                {queueEditId === agent.id ? 'Cancel' : 'Edit Limit'}
+                              </Button>
+                            </div>
+                            {queueEditId === agent.id && (
+                              <div className="mt-2 flex items-end gap-3">
+                                <div>
+                                  <label className="mb-0.5 block text-xs text-muted-foreground">
+                                    Max Active
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={queueMaxInput}
+                                    onChange={(e) => setQueueMaxInput(e.target.value)}
+                                    className="h-8 w-24 rounded-md border border-input bg-background px-2 text-sm"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5 pb-1.5">
+                                  <input
+                                    type="checkbox"
+                                    id={`overflow-${agent.id}`}
+                                    checked={queueOverflowInput}
+                                    onChange={(e) => setQueueOverflowInput(e.target.checked)}
+                                    className="h-4 w-4 rounded border-input"
+                                  />
+                                  <label
+                                    htmlFor={`overflow-${agent.id}`}
+                                    className="text-xs text-muted-foreground"
+                                  >
+                                    Allow overflow
+                                  </label>
+                                </div>
+                                <Button size="sm" onClick={() => saveQueueLimit(agent.id)}>
+                                  Save
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}

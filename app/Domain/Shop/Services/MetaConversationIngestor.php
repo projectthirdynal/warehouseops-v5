@@ -403,10 +403,13 @@ class MetaConversationIngestor
                 'agent_profiles.product_skills',
                 'agent_profiles.regions',
                 'agent_profiles.category_skills',
+                'agent_profiles.max_active_conversations',
+                'agent_profiles.overflow_enabled',
             )
             ->selectRaw(
                 'users.id, users.name, agent_profiles.last_assignment_at, '
                 . 'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
+                . 'agent_profiles.max_active_conversations, agent_profiles.overflow_enabled, '
                 . 'COUNT(conversations.id) as active_count'
             )
             ->get();
@@ -468,12 +471,29 @@ class MetaConversationIngestor
                 'last_assignment_at' => $agent->last_assignment_at,
                 'active_count' => (int) $agent->active_count,
                 'skill_score' => $score,
+                'max_active_conversations' => (int) ($agent->max_active_conversations ?? 15),
+                'overflow_enabled' => (bool) ($agent->overflow_enabled ?? true),
             ];
         });
 
+        // Filter out agents who have hit their queue limit (unless overflow is enabled)
+        $available = $scored->filter(function ($agent) {
+            $atLimit = $agent['active_count'] >= $agent['max_active_conversations'];
+            if ($atLimit && ! $agent['overflow_enabled']) {
+                return false;
+            }
+            return true;
+        });
+
+        // If all agents are at limit and none allow overflow, fall back to all agents
+        // (assign to the least-loaded one rather than leaving unassigned)
+        if ($available->isEmpty()) {
+            $available = $scored;
+        }
+
         // Sort by: highest skill score first, then never-assigned first,
         // then oldest last_assignment_at, then fewest active conversations
-        $best = $scored
+        $best = $available
             ->sortByDesc('skill_score')
             ->sortBy(fn ($a) => $a['last_assignment_at'] === null ? 0 : 1)
             ->sortBy('last_assignment_at')

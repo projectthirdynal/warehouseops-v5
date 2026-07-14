@@ -674,6 +674,28 @@ class ShopController extends Controller
         return back()->with('success', "Skills updated for {$agentName}.");
     }
 
+    public function updateAgentQueueLimit(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'max_active_conversations' => ['required', 'integer', 'min:1', 'max:100'],
+            'overflow_enabled' => ['required', 'boolean'],
+        ]);
+
+        $profile = AgentProfile::query()->firstOrCreate(
+            ['user_id' => $validated['user_id']],
+        );
+
+        $profile->forceFill([
+            'max_active_conversations' => $validated['max_active_conversations'],
+            'overflow_enabled' => $validated['overflow_enabled'],
+        ])->save();
+
+        $agentName = User::query()->where('id', $validated['user_id'])->value('name');
+
+        return back()->with('success', "Queue limit updated for {$agentName}.");
+    }
+
     public function togglePageFavorite(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -3271,7 +3293,7 @@ class ShopController extends Controller
         return User::query()
             ->where('is_active', true)
             ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
-            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score')
+            ->with('agentProfile:id,user_id,is_available,last_seen_at,auto_assign_enabled,product_skills,regions,category_skills,performance_score,max_active_conversations,overflow_enabled')
             ->withCount([
                 'conversations as active_conversations' => fn ($q) => $q->whereIn('status', $activeStatuses)->whereNull('merged_into_id'),
                 'conversations as total_assigned_30d' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $thirtyDaysAgo),
@@ -3301,6 +3323,8 @@ class ShopController extends Controller
                 'avg_response_seconds_30d' => $user->avg_response_seconds_30d
                     ? (int) $user->avg_response_seconds_30d
                     : null,
+                'max_active_conversations' => $user->agentProfile?->max_active_conversations ?? 15,
+                'overflow_enabled' => $user->agentProfile?->overflow_enabled ?? true,
             ]);
     }
 
