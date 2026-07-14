@@ -9,6 +9,7 @@ import {
   Phone,
   Star,
   Store,
+  UserCog,
   User,
   UserCheck,
   X,
@@ -63,10 +64,19 @@ interface Paginated<T> {
   last_page: number;
 }
 
+interface AssignmentRule {
+  id: number;
+  facebook_page_id: number;
+  user_id: number;
+  agent_name: string | null;
+  is_active: boolean;
+}
+
 interface Props {
   conversations: Paginated<Conversation>;
   pages: Page[];
   favorite_page_ids?: number[];
+  assignment_rules?: AssignmentRule[];
   agents: { id: number; name: string; role: string }[];
   statuses: string[];
   priorities: string[];
@@ -95,6 +105,7 @@ export default function ShopInbox({
   conversations,
   pages,
   favorite_page_ids = [],
+  assignment_rules = [],
   agents,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
@@ -104,6 +115,9 @@ export default function ShopInbox({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('closed');
   const [pageSearch, setPageSearch] = useState('');
+  const [showRules, setShowRules] = useState(false);
+  const [rulePageId, setRulePageId] = useState('');
+  const [ruleAgentId, setRuleAgentId] = useState('');
 
   const filteredPages = useMemo(() => {
     const query = pageSearch.toLowerCase().trim();
@@ -125,6 +139,28 @@ export default function ShopInbox({
     e.stopPropagation();
     e.preventDefault();
     router.post('/shop/inbox/page-favorite', { page_id: pageId }, { preserveState: true });
+  };
+
+  const addAssignmentRule = () => {
+    if (!rulePageId || !ruleAgentId) return;
+    router.post(
+      '/shop/inbox/assignment-rules',
+      { facebook_page_id: Number(rulePageId), user_id: Number(ruleAgentId) },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setRulePageId('');
+          setRuleAgentId('');
+        },
+      }
+    );
+  };
+
+  const removeAssignmentRule = (ruleId: number) => {
+    router.delete('/shop/inbox/assignment-rules', {
+      data: { rule_id: ruleId },
+      preserveState: true,
+    });
   };
 
   const updateFilter = (next: Record<string, string | undefined>) => {
@@ -175,6 +211,19 @@ export default function ShopInbox({
                 <BarChart3 className="h-4 w-4" />
                 Analytics
               </Link>
+            </Button>
+            <Button
+              variant={showRules ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowRules(!showRules)}
+            >
+              <UserCog className="h-4 w-4" />
+              Rules
+              {assignment_rules.length > 0 && (
+                <Badge className="ml-1 bg-primary-foreground text-primary">
+                  {assignment_rules.length}
+                </Badge>
+              )}
             </Button>
             <Select
               value={filters.page_id ?? 'all'}
@@ -351,6 +400,89 @@ export default function ShopInbox({
             </Button>
           </div>
         </div>
+
+        {showRules && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserCog className="h-4 w-4" />
+                Page Assignment Rules
+              </CardTitle>
+              <CardDescription>
+                New conversations from a page are auto-assigned to the configured agent.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {assignment_rules.length > 0 && (
+                <div className="space-y-1.5">
+                  {assignment_rules.map((rule) => {
+                    const page = pages.find((p) => p.id === rule.facebook_page_id);
+                    return (
+                      <div
+                        key={rule.id}
+                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {page?.page_name ?? `Page #${rule.facebook_page_id}`}
+                          </Badge>
+                          <span className="text-muted-foreground">→</span>
+                          <span>{rule.agent_name ?? `Agent #${rule.user_id}`}</span>
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAssignmentRule(rule.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-muted-foreground">Page</label>
+                  <Select value={rulePageId} onValueChange={setRulePageId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select page" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pages.map((page) => (
+                        <SelectItem key={page.id} value={page.id.toString()}>
+                          {page.page_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-muted-foreground">Agent</label>
+                  <Select value={ruleAgentId} onValueChange={setRuleAgentId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id.toString()}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={addAssignmentRule}
+                  disabled={!rulePageId || !ruleAgentId}
+                >
+                  Add Rule
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {conversations.data.length === 0 ? (
           <Card>

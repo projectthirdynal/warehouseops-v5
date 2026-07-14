@@ -60,4 +60,9 @@ class FacebookPage extends Model
     {
         return $this->hasMany(Message::class);
     }
+
+    public function assignmentRules(): HasMany
+    {
+        return $this->hasMany(PageAssignmentRule::class);
+    }
 }

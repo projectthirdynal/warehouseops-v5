@@ -7,6 +7,7 @@ namespace App\Domain\Shop\Services;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\Tag;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,8 @@ class MetaConversationIngestor
                 'thread_key' => "facebook:{$webhookEvent->facebookPage->page_id}:{$senderPsid}",
             ]);
 
+            $isNewConversation = ! $conversation->exists;
+
             $conversation->fill([
                 'facebook_page_id' => $webhookEvent->facebook_page_id,
                 'customer_id' => $customer?->id,
@@ -81,6 +84,10 @@ class MetaConversationIngestor
                 'last_message_at' => $this->eventTimestamp($payload),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
             ])->save();
+
+            if ($isNewConversation && $conversation->assigned_agent_id === null) {
+                $this->applyAssignmentRules($conversation);
+            }
 
             if ($detectedPhones !== [] && ! $conversation->tags()->where('slug', 'phone_detected')->exists()) {
                 $tag = Tag::firstOrCreate(['slug' => 'phone_detected'], ['name' => 'Phone Detected', 'color' => '#22c55e']);
@@ -186,6 +193,8 @@ class MetaConversationIngestor
                 'thread_key' => $threadKey,
             ]);
 
+            $isNewConversation = ! $conversation->exists;
+
             $conversation->fill([
                 'facebook_page_id' => $webhookEvent->facebook_page_id,
                 'customer_id' => $customer?->id,
@@ -196,6 +205,10 @@ class MetaConversationIngestor
                 'last_message_at' => $this->commentTimestamp($value),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
             ])->save();
+
+            if ($isNewConversation && $conversation->assigned_agent_id === null) {
+                $this->applyAssignmentRules($conversation);
+            }
 
             if ($detectedPhones !== [] && ! $conversation->tags()->where('slug', 'phone_detected')->exists()) {
                 $tag = Tag::firstOrCreate(['slug' => 'phone_detected'], ['name' => 'Phone Detected', 'color' => '#22c55e']);
@@ -333,5 +346,20 @@ class MetaConversationIngestor
             'file' => 'file',
             default => 'fallback',
         };
+    }
+
+    private function applyAssignmentRules(Conversation $conversation): void
+    {
+        $rule = PageAssignmentRule::query()
+            ->where('facebook_page_id', $conversation->facebook_page_id)
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        if ($rule !== null) {
+            $conversation->forceFill([
+                'assigned_agent_id' => $rule->user_id,
+            ])->save();
+        }
     }
 }

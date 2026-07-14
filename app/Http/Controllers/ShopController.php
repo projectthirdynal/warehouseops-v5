@@ -10,6 +10,7 @@ use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
@@ -537,10 +538,22 @@ class ShopController extends Controller
             ? auth()->user()->favoritePages()->pluck('facebook_pages.id')->toArray()
             : [];
 
+        $assignmentRules = PageAssignmentRule::query()
+            ->with('agent:id,name')
+            ->get(['id', 'facebook_page_id', 'user_id', 'is_active'])
+            ->map(fn (PageAssignmentRule $rule) => [
+                'id' => $rule->id,
+                'facebook_page_id' => $rule->facebook_page_id,
+                'user_id' => $rule->user_id,
+                'agent_name' => $rule->agent?->name,
+                'is_active' => $rule->is_active,
+            ]);
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
+            'assignment_rules' => $assignmentRules,
             'agents' => $this->shopAgents(),
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
@@ -565,6 +578,35 @@ class ShopController extends Controller
         }
 
         return back();
+    }
+
+    public function storeAssignmentRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        PageAssignmentRule::firstOrCreate(
+            [
+                'facebook_page_id' => $validated['facebook_page_id'],
+                'user_id' => $validated['user_id'],
+            ],
+            ['is_active' => true]
+        );
+
+        return back()->with('success', 'Assignment rule created.');
+    }
+
+    public function destroyAssignmentRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'rule_id' => ['required', 'integer', 'exists:page_assignment_rules,id'],
+        ]);
+
+        PageAssignmentRule::where('id', $validated['rule_id'])->delete();
+
+        return back()->with('success', 'Assignment rule removed.');
     }
 
     public function conversation(Conversation $conversation): Response
