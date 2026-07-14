@@ -1353,6 +1353,37 @@ class ShopController extends Controller
             ->orderByRaw('DATE(created_at)')
             ->get();
 
+        // Per-page breakdown
+        $perPage = FacebookPage::query()
+            ->select('id', 'page_name', 'page_id')
+            ->whereHas('conversations', fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate))
+            ->withCount([
+                'conversations as total_conversations' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate),
+                'conversations as responded_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_at'),
+                'conversations as resolved_count' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolved_at'),
+            ])
+            ->withAvg([
+                'conversations as avg_response_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('first_response_time_seconds'),
+            ], 'first_response_time_seconds')
+            ->withAvg([
+                'conversations as avg_resolution_seconds' => fn ($q) => $q->whereNull('merged_into_id')->where('created_at', '>=', $startDate)->whereNotNull('resolution_time_seconds'),
+            ], 'resolution_time_seconds')
+            ->orderByDesc('total_conversations')
+            ->get()
+            ->map(fn ($page) => [
+                'id' => $page->id,
+                'page_name' => $page->page_name,
+                'page_id' => $page->page_id,
+                'total_conversations' => $page->total_conversations,
+                'responded_count' => $page->responded_count,
+                'resolved_count' => $page->resolved_count,
+                'response_rate' => $page->total_conversations > 0 ? round(($page->responded_count / $page->total_conversations) * 100, 1) : 0,
+                'resolution_rate' => $page->total_conversations > 0 ? round(($page->resolved_count / $page->total_conversations) * 100, 1) : 0,
+                'avg_response_seconds' => $page->avg_response_seconds ? (int) $page->avg_response_seconds : null,
+                'avg_resolution_seconds' => $page->avg_resolution_seconds ? (int) $page->avg_resolution_seconds : null,
+            ])
+            ->values();
+
         return Inertia::render('Shop/ConversationAnalytics', [
             'stats' => [
                 'total_conversations' => $totalConversations,
@@ -1366,6 +1397,7 @@ class ShopController extends Controller
                 'median_resolution_seconds' => $medianResolution ? (int) $medianResolution : null,
             ],
             'per_agent' => $perAgent,
+            'per_page' => $perPage,
             'status_distribution' => $statusDistribution,
             'sentiment_distribution' => $sentimentDistribution,
             'daily_trend' => $dailyTrend,

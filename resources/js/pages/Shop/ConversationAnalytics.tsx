@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   MessageSquare,
+  Store,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -36,6 +37,19 @@ interface AgentStat {
   avg_resolution_seconds: number | null;
 }
 
+interface PageStat {
+  id: number;
+  page_name: string;
+  page_id: string;
+  total_conversations: number;
+  responded_count: number;
+  resolved_count: number;
+  response_rate: number;
+  resolution_rate: number;
+  avg_response_seconds: number | null;
+  avg_resolution_seconds: number | null;
+}
+
 interface DailyTrendItem {
   date: string;
   total: number;
@@ -56,6 +70,7 @@ interface RecentExport {
 interface Props {
   stats: Stats;
   per_agent: AgentStat[];
+  per_page: PageStat[];
   status_distribution: Record<string, number>;
   sentiment_distribution: Record<string, number>;
   daily_trend: DailyTrendItem[];
@@ -75,6 +90,7 @@ function formatDuration(seconds: number | null): string {
 export default function ConversationAnalytics({
   stats,
   per_agent,
+  per_page,
   status_distribution,
   sentiment_distribution,
   daily_trend,
@@ -271,6 +287,54 @@ export default function ConversationAnalytics({
               {daily_trend.length === 0 && (
                 <p className="text-sm text-muted-foreground">No data for this period.</p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Per-page breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Store className="h-5 w-5" />
+              Per-Page Performance
+            </CardTitle>
+            <CardDescription>
+              Conversations, response time, and resolution metrics by Facebook Page
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Page</th>
+                    <th className="pb-2 pr-4 font-medium">Conversations</th>
+                    <th className="pb-2 pr-4 font-medium">Response Rate</th>
+                    <th className="pb-2 pr-4 font-medium">Resolution Rate</th>
+                    <th className="pb-2 pr-4 font-medium">Avg Response</th>
+                    <th className="pb-2 pr-4 font-medium">Avg Resolution</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {per_page.map((page) => (
+                    <tr key={page.id} className="border-b last:border-0">
+                      <td className="py-2 pr-4 font-medium">{page.page_name}</td>
+                      <td className="py-2 pr-4">{page.total_conversations}</td>
+                      <td className="py-2 pr-4">{page.response_rate}%</td>
+                      <td className="py-2 pr-4">{page.resolution_rate}%</td>
+                      <td className="py-2 pr-4">{formatDuration(page.avg_response_seconds)}</td>
+                      <td className="py-2 pr-4">{formatDuration(page.avg_resolution_seconds)}</td>
+                    </tr>
+                  ))}
+                  {per_page.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center text-muted-foreground">
+                        No page data for this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
