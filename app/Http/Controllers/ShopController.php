@@ -581,6 +581,12 @@ class ShopController extends Controller
                 'page_name' => $template->facebookPage?->page_name,
             ]);
 
+        $canViewAll = $request->user()->isSupervisor();
+
+        if (! $canViewAll && ! $request->filled('assigned_agent_id')) {
+            $query->where('assigned_agent_id', $request->user()->id);
+        }
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $query->paginate(20)->withQueryString(),
             'pages' => $pages,
@@ -589,6 +595,8 @@ class ShopController extends Controller
             'pending_comments' => $pendingComments,
             'page_canned_responses' => $pageCannedResponses,
             'agents' => $this->shopAgents(),
+            'can_view_all' => $canViewAll,
+            'current_user_id' => $request->user()->id,
             'statuses' => $this->conversationStatuses(),
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),

@@ -108,6 +108,8 @@ interface Props {
   pending_comments?: PendingComment[];
   page_canned_responses?: PageCannedResponse[];
   agents: { id: number; name: string; role: string }[];
+  can_view_all?: boolean;
+  current_user_id?: number;
   statuses: string[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
@@ -139,6 +141,7 @@ export default function ShopInbox({
   pending_comments = [],
   page_canned_responses = [],
   agents,
+  can_view_all = true,
   statuses,
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
@@ -417,26 +420,44 @@ export default function ShopInbox({
                 ))}
               </SelectContent>
             </Select>
-            <Select
-              value={filters.assigned_agent_id ?? 'all'}
-              onValueChange={(value) =>
-                updateFilter({ assigned_agent_id: value === 'all' ? undefined : value })
-              }
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="All Agents" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Agents</SelectItem>
-                <SelectItem value="me">My Conversations</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id.toString()}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {can_view_all && (
+              <Select
+                value={filters.assigned_agent_id ?? 'all'}
+                onValueChange={(value) =>
+                  updateFilter({ assigned_agent_id: value === 'all' ? undefined : value })
+                }
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="All Agents" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Agents</SelectItem>
+                  <SelectItem value="me">My Conversations</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id.toString()}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!can_view_all && (
+              <Select
+                value={filters.assigned_agent_id ?? 'me'}
+                onValueChange={(value) =>
+                  updateFilter({ assigned_agent_id: value === 'me' ? undefined : value })
+                }
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="My Conversations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="me">My Conversations</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Select
               value={filters.priority ?? 'all'}
               onValueChange={(value) =>
