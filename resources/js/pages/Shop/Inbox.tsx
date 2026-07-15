@@ -12,6 +12,7 @@ import {
   MessageCircleWarning,
   MessagesSquare,
   Phone,
+  Plus,
   Star,
   Store,
   UserCog,
@@ -161,6 +162,7 @@ interface Props {
   statuses: string[];
   status_counts?: Record<string, number>;
   sla_thresholds?: Record<string, number | null>;
+  status_labels?: Record<number, Record<string, string>>;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -206,6 +208,17 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function statusLabel(
+  status: string,
+  pageId: number | undefined,
+  labels: Record<number, Record<string, string>>
+): string {
+  if (pageId && labels[pageId]?.[status]) {
+    return labels[pageId][status];
+  }
+  return label(status);
+}
+
 export default function ShopInbox({
   conversations,
   pages,
@@ -219,6 +232,7 @@ export default function ShopInbox({
   my_status = 'offline',
   statuses,
   status_counts: statusCounts = {},
+  status_labels: statusLabels = {},
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   workload_report: workloadReport = null,
@@ -236,6 +250,9 @@ export default function ShopInbox({
   const [cannedPageId, setCannedPageId] = useState('');
   const [cannedName, setCannedName] = useState('');
   const [cannedMessage, setCannedMessage] = useState('');
+  const [labelPageId, setLabelPageId] = useState('');
+  const [labelStatus, setLabelStatus] = useState('');
+  const [labelText, setLabelText] = useState('');
   const [skillEditId, setSkillEditId] = useState<number | null>(null);
   const [skillProductInput, setSkillProductInput] = useState('');
   const [skillRegionInput, setSkillRegionInput] = useState('');
@@ -324,6 +341,29 @@ export default function ShopInbox({
   const removeCannedResponse = (templateId: number) => {
     router.delete('/shop/inbox/page-canned-responses', {
       data: { template_id: templateId },
+      preserveState: true,
+    });
+  };
+
+  const saveStatusLabel = () => {
+    if (!labelPageId || !labelStatus || !labelText) return;
+    router.post(
+      '/shop/inbox/status-labels',
+      { page_id: Number(labelPageId), status: labelStatus, label: labelText },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setLabelPageId('');
+          setLabelStatus('');
+          setLabelText('');
+        },
+      }
+    );
+  };
+
+  const removeStatusLabel = (pageId: number, status: string) => {
+    router.delete('/shop/inbox/status-labels', {
+      data: { page_id: pageId, status },
       preserveState: true,
     });
   };
@@ -1509,6 +1549,85 @@ export default function ShopInbox({
                   )}
                 </div>
               )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Custom Status Labels</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Override the default status display text per page. Useful for pages that use
+                      different terminology.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {Object.entries(statusLabels).map(([pageId, labels]) => {
+                      const page = pages.find((p) => p.id === Number(pageId));
+                      return Object.entries(labels).map(([status, text]) => (
+                        <div
+                          key={`${pageId}-${status}`}
+                          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs"
+                        >
+                          <Badge variant="outline">{page?.page_name ?? `Page #${pageId}`}</Badge>
+                          <span className="text-muted-foreground">{label(status)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-medium">{text}</span>
+                          <button
+                            onClick={() => removeStatusLabel(Number(pageId), status)}
+                            className="ml-auto text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ));
+                    })}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Page</label>
+                      <select
+                        value={labelPageId}
+                        onChange={(e) => setLabelPageId(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="">Select page...</option>
+                        {pages.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.page_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Status</label>
+                      <select
+                        value={labelStatus}
+                        onChange={(e) => setLabelStatus(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="">Select status...</option>
+                        {statuses.map((s) => (
+                          <option key={s} value={s}>
+                            {label(s)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Custom Label</label>
+                      <Input
+                        value={labelText}
+                        onChange={(e) => setLabelText(e.target.value)}
+                        placeholder="e.g. Pending Payment"
+                        className="h-8 w-40 text-xs"
+                      />
+                    </div>
+                    <Button size="sm" variant="outline" onClick={saveStatusLabel}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add Label
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -1691,7 +1810,11 @@ export default function ShopInbox({
                     : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                 }`}
               >
-                {label(status)}
+                {statusLabel(
+                  status,
+                  filters.page_id ? Number(filters.page_id) : undefined,
+                  statusLabels
+                )}
                 {count > 0 && (
                   <span
                     className={`text-xs ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/70'}`}
@@ -1726,7 +1849,11 @@ export default function ShopInbox({
                 >
                   {statuses.map((s) => (
                     <option key={s} value={s}>
-                      {label(s)}
+                      {statusLabel(
+                        s,
+                        filters.page_id ? Number(filters.page_id) : undefined,
+                        statusLabels
+                      )}
                     </option>
                   ))}
                 </select>
@@ -1816,7 +1943,7 @@ export default function ShopInbox({
                                   s === conversation.status;
                                 return (
                                   <option key={s} value={s} disabled={!permitted}>
-                                    {label(s)}
+                                    {statusLabel(s, conversation.facebook_page?.id, statusLabels)}
                                     {!permitted ? ' (not allowed)' : ''}
                                   </option>
                                 );

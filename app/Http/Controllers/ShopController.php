@@ -12,6 +12,7 @@ use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Models\PageAssignmentRule;
+use App\Domain\Shop\Models\PageStatusLabel;
 use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
@@ -608,6 +609,12 @@ class ShopController extends Controller
             return $conv;
         });
 
+        $statusLabels = PageStatusLabel::query()
+            ->get(['facebook_page_id', 'status', 'label'])
+            ->groupBy('facebook_page_id')
+            ->map(fn ($items) => $items->pluck('label', 'status')->toArray())
+            ->toArray();
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $paginated,
             'pages' => $pages,
@@ -623,6 +630,7 @@ class ShopController extends Controller
             'statuses' => $this->conversationStatuses(),
             'status_counts' => $statusCounts,
             'sla_thresholds' => $slaThresholds,
+            'status_labels' => $statusLabels,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
@@ -777,6 +785,39 @@ class ShopController extends Controller
         }
 
         return back();
+    }
+
+    public function storeStatusLabel(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'label' => ['required', 'string', 'max:50'],
+        ]);
+
+        PageStatusLabel::updateOrCreate(
+            [
+                'facebook_page_id' => $validated['page_id'],
+                'status' => $validated['status'],
+            ],
+            ['label' => $validated['label']]
+        );
+
+        return back()->with('success', 'Status label saved.');
+    }
+
+    public function destroyStatusLabel(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+        ]);
+
+        PageStatusLabel::where('facebook_page_id', $validated['page_id'])
+            ->where('status', $validated['status'])
+            ->delete();
+
+        return back()->with('success', 'Status label removed.');
     }
 
     public function storeAssignmentRule(Request $request): RedirectResponse
@@ -958,6 +999,10 @@ class ShopController extends Controller
                 : [],
             'sla' => $this->computeSla($conversation, Conversation::slaThresholds()),
             'sla_thresholds' => Conversation::slaThresholds(),
+            'status_labels' => PageStatusLabel::query()
+                ->where('facebook_page_id', $conversation->facebook_page_id)
+                ->pluck('label', 'status')
+                ->toArray(),
         ]);
     }
 

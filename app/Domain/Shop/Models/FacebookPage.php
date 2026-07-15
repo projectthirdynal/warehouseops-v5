@@ -65,4 +65,9 @@ class FacebookPage extends Model
     {
         return $this->hasMany(PageAssignmentRule::class);
     }
+
+    public function statusLabels(): HasMany
+    {
+        return $this->hasMany(PageStatusLabel::class);
+    }
 }

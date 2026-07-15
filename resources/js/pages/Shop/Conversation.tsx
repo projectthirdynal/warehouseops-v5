@@ -178,6 +178,7 @@ interface Props {
     status: string;
   };
   sla_thresholds?: Record<string, number | null>;
+  status_labels?: Record<string, string>;
 }
 
 function time(value: string | null) {
@@ -230,7 +231,10 @@ function customerAddress(conversation: Conversation) {
   );
 }
 
-function label(value: string) {
+function label(value: string, customLabels?: Record<string, string>): string {
+  if (customLabels?.[value]) {
+    return customLabels[value];
+  }
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
@@ -300,6 +304,7 @@ export default function ShopConversation({
   assignment_history: assignmentHistory = [],
   status_history: statusHistory = [],
   sla: slaData,
+  status_labels: statusLabels = {},
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -685,7 +690,7 @@ export default function ShopConversation({
                 </Link>
               </Button>
               <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
-                {label(conversation.status)}
+                {label(conversation.status, statusLabels)}
               </Badge>
               {slaData && slaData.status !== 'none' && (
                 <Badge
@@ -1446,7 +1451,7 @@ export default function ShopConversation({
                       status === conversation.status;
                     return (
                       <option key={status} value={status} disabled={!permitted}>
-                        {label(status)}
+                        {label(status, statusLabels)}
                         {!permitted ? ' (not allowed)' : ''}
                       </option>
                     );
@@ -1990,7 +1995,7 @@ export default function ShopConversation({
                                   variant="outline"
                                   className={`text-[10px] ${statusBadgeClass(h.from_status)}`}
                                 >
-                                  {label(h.from_status)}
+                                  {label(h.from_status, statusLabels)}
                                 </Badge>
                                 <span className="text-muted-foreground">→</span>
                               </>
@@ -1999,7 +2004,7 @@ export default function ShopConversation({
                               variant="outline"
                               className={`text-[10px] ${statusBadgeClass(h.to_status)}`}
                             >
-                              {label(h.to_status)}
+                              {label(h.to_status, statusLabels)}
                             </Badge>
                           </div>
                           <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
