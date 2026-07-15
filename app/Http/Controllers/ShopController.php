@@ -3015,6 +3015,53 @@ class ShopController extends Controller
         ]);
     }
 
+    public function checkDuplicates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['nullable', 'string', 'max:30'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $phone = $validated['phone'] ?? '';
+        $productIds = $validated['product_ids'] ?? [];
+
+        $normalizedPhone = $this->phones->normalize($phone);
+        if (! $normalizedPhone) {
+            return response()->json(['duplicates' => []]);
+        }
+
+        $query = Order::query()
+            ->with('product:id,name,sku')
+            ->where('receiver_phone', $normalizedPhone)
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->where('created_at', '>=', now()->subDays(30))
+            ->where('status', '!=', OrderStatus::DRAFT)
+            ->latest()
+            ->limit(10);
+
+        if (! empty($productIds)) {
+            $query->where(function ($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds)
+                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
+                        $sq->whereIn('product_id', $productIds);
+                    });
+            });
+        }
+
+        $duplicates = $query->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at'])
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'status' => $o->status->value,
+                'total_amount' => (float) $o->total_amount,
+                'created_at' => $o->created_at?->toIso8601String(),
+                'product' => $o->product?->only(['id', 'name', 'sku']),
+            ]);
+
+        return response()->json(['duplicates' => $duplicates]);
+    }
+
     public function calculateShipping(Request $request): JsonResponse
     {
         $validated = $request->validate([

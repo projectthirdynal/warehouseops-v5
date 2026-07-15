@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
   AlertTriangle,
@@ -234,9 +234,42 @@ export default function CreateShopOrder({
   const [draftId, setDraftId] = useState<number | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftList, setDraftList] = useState<DraftSummary[]>(drafts);
+  const [liveDuplicates, setLiveDuplicates] = useState<DuplicateWarning[]>([]);
 
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+  useEffect(() => {
+    const phone = data.phone.trim();
+    if (phone.length < 7) {
+      setLiveDuplicates([]);
+      return;
+    }
+
+    const productIds = data.items.map((item) => Number(item.product_id)).filter((id) => id > 0);
+
+    const timer = setTimeout(() => {
+      fetch('/shop/orders/check-duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({ phone, product_ids: productIds }),
+      })
+        .then((res) => res.json())
+        .then((result: { duplicates: DuplicateWarning[] }) => {
+          setLiveDuplicates(result.duplicates ?? []);
+        })
+        .catch(() => undefined);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [data.phone, data.items, csrfToken]);
+
+  const allDuplicates = [...duplicate_warnings, ...liveDuplicates].filter(
+    (dup, index, self) => index === self.findIndex((d) => d.id === dup.id)
+  );
 
   const saveDraft = () => {
     setSavingDraft(true);
@@ -372,6 +405,19 @@ export default function CreateShopOrder({
             </Button>
           </div>
         </div>
+
+        {liveDuplicates.length > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+            <span className="text-muted-foreground">
+              <span className="font-medium text-warning">
+                {liveDuplicates.length} possible duplicate order
+                {liveDuplicates.length > 1 ? 's' : ''}
+              </span>{' '}
+              found for this phone number in the last 30 days. Review before submitting.
+            </span>
+          </div>
+        )}
 
         <div className="grid gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">
@@ -660,17 +706,19 @@ export default function CreateShopOrder({
           </div>
 
           <div className="space-y-6">
-            {duplicate_warnings.length > 0 && (
+            {allDuplicates.length > 0 && (
               <Card className="border-warning/20 bg-warning/5/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-warning">
                     <AlertTriangle className="h-5 w-5" />
                     Possible Duplicates
                   </CardTitle>
-                  <CardDescription>Recent Shop orders found for this phone number</CardDescription>
+                  <CardDescription>
+                    Recent Shop orders found for this phone number or products
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {duplicate_warnings.map((order) => (
+                  {allDuplicates.map((order) => (
                     <Link
                       key={order.id}
                       href={`/orders/${order.id}`}
@@ -936,6 +984,18 @@ export default function CreateShopOrder({
             </div>
 
             <div className="space-y-4">
+              {allDuplicates.length > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium text-warning">
+                      {allDuplicates.length} possible duplicate order
+                      {allDuplicates.length > 1 ? 's' : ''}
+                    </span>{' '}
+                    found for this customer. Please review before confirming.
+                  </span>
+                </div>
+              )}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-md border p-3">
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Customer</p>
