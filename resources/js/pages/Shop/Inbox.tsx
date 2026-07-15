@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { CSSProperties, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
+  AlertTriangle,
   BarChart3,
   CheckCheck,
   Check,
   Circle,
+  Download,
   EyeOff,
   Flag,
   Inbox,
@@ -12,8 +14,10 @@ import {
   MessageCircleWarning,
   MessagesSquare,
   Phone,
+  Plus,
   Star,
   Store,
+  Tag,
   UserCog,
   User,
   UserCheck,
@@ -130,6 +134,14 @@ interface Props {
   pages: Page[];
   favorite_page_ids?: number[];
   assignment_rules?: AssignmentRule[];
+  status_rules?: {
+    id: number;
+    facebook_page_id: number;
+    from_status: string;
+    to_status: string;
+    inactivity_minutes: number;
+    is_active: boolean;
+  }[];
   pending_comments?: PendingComment[];
   page_canned_responses?: PageCannedResponse[];
   agents: {
@@ -161,6 +173,14 @@ interface Props {
   statuses: string[];
   status_counts?: Record<string, number>;
   sla_thresholds?: Record<string, number | null>;
+  status_labels?: Record<number, Record<string, { label: string; color: string | null }>>;
+  status_funnel?: {
+    status: string;
+    count: number;
+    percentage: number;
+    avg_time_minutes: number | null;
+  }[];
+  escalation_count?: number;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -206,11 +226,34 @@ function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function statusLabel(
+  status: string,
+  pageId: number | undefined,
+  labels: Record<number, Record<string, { label: string; color: string | null }>>
+): string {
+  if (pageId && labels[pageId]?.[status]) {
+    return labels[pageId][status].label;
+  }
+  return label(status);
+}
+
+function statusColor(
+  status: string,
+  pageId: number | undefined,
+  labels: Record<number, Record<string, { label: string; color: string | null }>>
+): string | null {
+  if (pageId && labels[pageId]?.[status]) {
+    return labels[pageId][status].color;
+  }
+  return null;
+}
+
 export default function ShopInbox({
   conversations,
   pages,
   favorite_page_ids = [],
   assignment_rules = [],
+  status_rules: statusRules = [],
   pending_comments = [],
   page_canned_responses = [],
   agents,
@@ -219,6 +262,9 @@ export default function ShopInbox({
   my_status = 'offline',
   statuses,
   status_counts: statusCounts = {},
+  status_labels: statusLabels = {},
+  status_funnel: statusFunnel = [],
+  escalation_count: escalationCount = 0,
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   workload_report: workloadReport = null,
@@ -227,15 +273,26 @@ export default function ShopInbox({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('resolved');
   const [bulkAgentId, setBulkAgentId] = useState<string>('');
+  const [bulkPriority, setBulkPriority] = useState<string>('normal');
+  const [bulkTagId, setBulkTagId] = useState<string>('');
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
+  const [showFunnel, setShowFunnel] = useState(false);
   const [rulePageId, setRulePageId] = useState('');
   const [ruleAgentId, setRuleAgentId] = useState('');
+  const [statusRulePageId, setStatusRulePageId] = useState('');
+  const [statusRuleFrom, setStatusRuleFrom] = useState('');
+  const [statusRuleTo, setStatusRuleTo] = useState('');
+  const [statusRuleInactivity, setStatusRuleInactivity] = useState('');
   const [cannedPageId, setCannedPageId] = useState('');
   const [cannedName, setCannedName] = useState('');
   const [cannedMessage, setCannedMessage] = useState('');
+  const [labelPageId, setLabelPageId] = useState('');
+  const [labelStatus, setLabelStatus] = useState('');
+  const [labelText, setLabelText] = useState('');
+  const [labelColor, setLabelColor] = useState('');
   const [skillEditId, setSkillEditId] = useState<number | null>(null);
   const [skillProductInput, setSkillProductInput] = useState('');
   const [skillRegionInput, setSkillRegionInput] = useState('');
@@ -293,6 +350,35 @@ export default function ShopInbox({
     });
   };
 
+  const addStatusRule = () => {
+    if (!statusRulePageId || !statusRuleFrom || !statusRuleTo) return;
+    router.post(
+      '/shop/inbox/status-rules',
+      {
+        facebook_page_id: Number(statusRulePageId),
+        from_status: statusRuleFrom,
+        to_status: statusRuleTo,
+        inactivity_minutes: statusRuleInactivity ? Number(statusRuleInactivity) : 0,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setStatusRulePageId('');
+          setStatusRuleFrom('');
+          setStatusRuleTo('');
+          setStatusRuleInactivity('');
+        },
+      }
+    );
+  };
+
+  const removeStatusRule = (ruleId: number) => {
+    router.delete('/shop/inbox/status-rules', {
+      data: { rule_id: ruleId },
+      preserveState: true,
+    });
+  };
+
   const moderateComment = (messageId: number, action: 'approve' | 'hide') => {
     router.post(
       '/shop/inbox/moderate-comment',
@@ -328,6 +414,35 @@ export default function ShopInbox({
     });
   };
 
+  const saveStatusLabel = () => {
+    if (!labelPageId || !labelStatus || !labelText) return;
+    router.post(
+      '/shop/inbox/status-labels',
+      {
+        page_id: Number(labelPageId),
+        status: labelStatus,
+        label: labelText,
+        color: labelColor || null,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setLabelPageId('');
+          setLabelStatus('');
+          setLabelText('');
+          setLabelColor('');
+        },
+      }
+    );
+  };
+
+  const removeStatusLabel = (pageId: number, status: string) => {
+    router.delete('/shop/inbox/status-labels', {
+      data: { page_id: pageId, status },
+      preserveState: true,
+    });
+  };
+
   const isSupervisor = ['supervisor', 'admin', 'superadmin'].includes(userRole);
 
   const allowedTransitions = (currentStatus: string): string[] => {
@@ -355,7 +470,8 @@ export default function ShopInbox({
     );
   };
 
-  const statusBadgeClass = (status: string) => {
+  const statusBadgeClass = (status: string, customColor?: string | null): string => {
+    if (customColor) return 'border';
     switch (status) {
       case 'new':
         return 'border-blue-500/30 text-blue-600';
@@ -370,6 +486,14 @@ export default function ShopInbox({
       default:
         return '';
     }
+  };
+
+  const statusBadgeStyle = (customColor?: string | null): CSSProperties | undefined => {
+    if (!customColor) return undefined;
+    return {
+      color: customColor,
+      borderColor: customColor + '4d',
+    };
   };
 
   const formatSlaMinutes = (minutes: number): string => {
@@ -390,6 +514,11 @@ export default function ShopInbox({
       default:
         return '';
     }
+  };
+
+  const reminderOverdue = (reminderAt: string | null): boolean => {
+    if (!reminderAt) return false;
+    return new Date(reminderAt).getTime() < Date.now();
   };
 
   const toggleSelect = (id: number) => {
@@ -430,6 +559,45 @@ export default function ShopInbox({
           setSelectedIds([]);
           setBulkAgentId('');
         },
+      }
+    );
+  };
+
+  const submitBulkPriority = () => {
+    if (selectedIds.length === 0) return;
+    router.post(
+      '/shop/inbox/bulk-priority',
+      { conversation_ids: selectedIds, priority: bulkPriority },
+      {
+        preserveScroll: true,
+        onSuccess: () => setSelectedIds([]),
+      }
+    );
+  };
+
+  const submitBulkTag = () => {
+    if (selectedIds.length === 0 || !bulkTagId) return;
+    router.post(
+      '/shop/inbox/bulk-tag',
+      { conversation_ids: selectedIds, tag_id: Number(bulkTagId) },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setSelectedIds([]);
+          setBulkTagId('');
+        },
+      }
+    );
+  };
+
+  const quickBulkStatus = (targetStatus: string) => {
+    if (selectedIds.length === 0) return;
+    router.post(
+      '/shop/inbox/bulk-status',
+      { conversation_ids: selectedIds, status: targetStatus },
+      {
+        preserveScroll: true,
+        onSuccess: () => setSelectedIds([]),
       }
     );
   };
@@ -593,6 +761,47 @@ export default function ShopInbox({
                   {page_canned_responses.length}
                 </Badge>
               )}
+            </Button>
+            <Button
+              variant={showFunnel ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowFunnel(!showFunnel)}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Funnel
+            </Button>
+            {escalationCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  updateFilter({ flagged: filters.flagged === 'true' ? undefined : 'true' })
+                }
+                className={filters.flagged === 'true' ? 'border-red-500/40 text-red-600' : ''}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Escalated
+                <Badge className="ml-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                  {escalationCount}
+                </Badge>
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (filters.page_id) params.set('page_id', filters.page_id);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.assigned_agent_id)
+                  params.set('assigned_agent_id', filters.assigned_agent_id);
+                if (filters.priority) params.set('priority', filters.priority);
+                if (filters.flagged === 'true') params.set('flagged', '1');
+                window.location.href = `/shop/inbox/export-statuses${params.toString() ? '?' + params.toString() : ''}`;
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Export
             </Button>
             <Button
               variant="outline"
@@ -906,6 +1115,107 @@ export default function ShopInbox({
                 >
                   Add Rule
                 </Button>
+              </div>
+
+              <div className="border-t pt-3">
+                <h4 className="mb-2 text-sm font-semibold">Status Automation Rules</h4>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Automatically transition conversation status after a period of inactivity.
+                </p>
+                {statusRules.length > 0 && (
+                  <div className="mb-2 space-y-1.5">
+                    {statusRules.map((rule) => {
+                      const page = pages.find((p) => p.id === rule.facebook_page_id);
+                      return (
+                        <div
+                          key={rule.id}
+                          className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm"
+                        >
+                          <span className="font-medium">{page?.page_name ?? 'Unknown'}</span>
+                          <span className="text-muted-foreground">:</span>
+                          <span>{statusLabel(rule.from_status, undefined, statusLabels)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span>{statusLabel(rule.to_status, undefined, statusLabels)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({rule.inactivity_minutes}m idle)
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeStatusRule(rule.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">Page</label>
+                    <Select value={statusRulePageId} onValueChange={setStatusRulePageId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select page" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pages.map((page) => (
+                          <SelectItem key={page.id} value={page.id.toString()}>
+                            {page.page_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">From</label>
+                    <Select value={statusRuleFrom} onValueChange={setStatusRuleFrom}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="From status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {statusLabel(s, undefined, statusLabels)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">To</label>
+                    <Select value={statusRuleTo} onValueChange={setStatusRuleTo}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="To status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {statusLabel(s, undefined, statusLabels)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-24">
+                    <label className="mb-1 block text-xs text-muted-foreground">Idle (min)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={statusRuleInactivity}
+                      onChange={(e) => setStatusRuleInactivity(e.target.value)}
+                      placeholder="e.g. 60"
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={addStatusRule}
+                    disabled={!statusRulePageId || !statusRuleFrom || !statusRuleTo}
+                  >
+                    Add Rule
+                  </Button>
+                </div>
               </div>
 
               {can_view_all && (
@@ -1509,6 +1819,109 @@ export default function ShopInbox({
                   )}
                 </div>
               )}
+
+              {can_view_all && (
+                <div className="border-t pt-3">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium">Custom Status Labels</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Override the default status display text per page. Useful for pages that use
+                      different terminology.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {Object.entries(statusLabels).map(([pageId, labels]) => {
+                      const page = pages.find((p) => p.id === Number(pageId));
+                      return Object.entries(labels).map(([status, entry]) => (
+                        <div
+                          key={`${pageId}-${status}`}
+                          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs"
+                        >
+                          <Badge variant="outline">{page?.page_name ?? `Page #${pageId}`}</Badge>
+                          <span className="text-muted-foreground">{label(status)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          {entry.color && (
+                            <span
+                              className="inline-block h-3 w-3 rounded-full border"
+                              style={{ backgroundColor: entry.color }}
+                            />
+                          )}
+                          <span className="font-medium">{entry.label}</span>
+                          <button
+                            onClick={() => removeStatusLabel(Number(pageId), status)}
+                            className="ml-auto text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ));
+                    })}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Page</label>
+                      <select
+                        value={labelPageId}
+                        onChange={(e) => setLabelPageId(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="">Select page...</option>
+                        {pages.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.page_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Status</label>
+                      <select
+                        value={labelStatus}
+                        onChange={(e) => setLabelStatus(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="">Select status...</option>
+                        {statuses.map((s) => (
+                          <option key={s} value={s}>
+                            {label(s)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Custom Label</label>
+                      <Input
+                        value={labelText}
+                        onChange={(e) => setLabelText(e.target.value)}
+                        placeholder="e.g. Pending Payment"
+                        className="h-8 w-40 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Color</label>
+                      <input
+                        type="color"
+                        value={labelColor || '#6366f1'}
+                        onChange={(e) => setLabelColor(e.target.value)}
+                        className="h-8 w-10 cursor-pointer rounded-md border border-input bg-background"
+                        title="Pick a color (optional)"
+                      />
+                      {labelColor && (
+                        <button
+                          onClick={() => setLabelColor('')}
+                          className="text-xs text-muted-foreground hover:text-destructive"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={saveStatusLabel}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add Label
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -1662,6 +2075,99 @@ export default function ShopInbox({
           </Card>
         )}
 
+        {showFunnel && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
+                Status Funnel Analytics
+              </CardTitle>
+              <CardDescription>
+                Distribution and average time spent in each conversation status.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {statusFunnel.map((stage, idx) => {
+                  const maxCount = Math.max(...statusFunnel.map((s) => s.count), 1);
+                  const barWidth = (stage.count / maxCount) * 100;
+                  const customColor = statusColor(
+                    stage.status,
+                    filters.page_id ? Number(filters.page_id) : undefined,
+                    statusLabels
+                  );
+                  const stageLabel = statusLabel(
+                    stage.status,
+                    filters.page_id ? Number(filters.page_id) : undefined,
+                    statusLabels
+                  );
+                  const prevCount = idx > 0 ? statusFunnel[idx - 1].count : 0;
+                  const conversionRate =
+                    prevCount > 0 ? ((stage.count / prevCount) * 100).toFixed(0) : null;
+                  return (
+                    <div key={stage.status} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{stageLabel}</span>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                          {stage.avg_time_minutes !== null && (
+                            <span className="text-xs">
+                              avg{' '}
+                              {stage.avg_time_minutes < 60
+                                ? `${stage.avg_time_minutes}m`
+                                : `${Math.floor(stage.avg_time_minutes / 60)}h ${stage.avg_time_minutes % 60}m`}
+                            </span>
+                          )}
+                          {conversionRate && <span className="text-xs">{conversionRate}%</span>}
+                          <span className="font-medium text-foreground">{stage.count}</span>
+                          <span className="text-xs">({stage.percentage}%)</span>
+                        </div>
+                      </div>
+                      <div className="h-6 w-full overflow-hidden rounded-md bg-muted">
+                        <div
+                          className="flex h-full items-center rounded-md transition-all"
+                          style={{
+                            width: `${Math.max(barWidth, 2)}%`,
+                            backgroundColor: customColor || undefined,
+                            ...statusBadgeStyle(customColor),
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-4 border-t pt-3 text-xs text-muted-foreground">
+                <span>
+                  Total:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.reduce((sum, s) => sum + s.count, 0)}
+                  </strong>
+                </span>
+                <span>
+                  Active:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel
+                      .filter((s) => ['new', 'assigned', 'awaiting_customer'].includes(s.status))
+                      .reduce((sum, s) => sum + s.count, 0)}
+                  </strong>
+                </span>
+                <span>
+                  Resolved:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.find((s) => s.status === 'resolved')?.count ?? 0}
+                  </strong>
+                </span>
+                <span>
+                  Archived:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.find((s) => s.status === 'archived')?.count ?? 0}
+                  </strong>
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => updateFilter({ status: undefined })}
@@ -1691,7 +2197,11 @@ export default function ShopInbox({
                     : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                 }`}
               >
-                {label(status)}
+                {statusLabel(
+                  status,
+                  filters.page_id ? Number(filters.page_id) : undefined,
+                  statusLabels
+                )}
                 {count > 0 && (
                   <span
                     className={`text-xs ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground/70'}`}
@@ -1719,6 +2229,42 @@ export default function ShopInbox({
             {selectedIds.length > 0 && (
               <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3 shadow-md">
                 <span className="text-sm font-medium">{selectedIds.length} selected</span>
+
+                {filters.status && (
+                  <>
+                    <Button size="sm" variant="default" onClick={() => quickBulkStatus('resolved')}>
+                      <CheckCheck className="mr-1 h-4 w-4" />
+                      Resolve All
+                    </Button>
+                    {filters.status === 'resolved' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('archived')}
+                      >
+                        Archive All
+                      </Button>
+                    ) : filters.status === 'new' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('assigned')}
+                      >
+                        Mark Assigned
+                      </Button>
+                    ) : filters.status === 'assigned' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('awaiting_customer')}
+                      >
+                        Mark Awaiting
+                      </Button>
+                    ) : null}
+                    <div className="h-5 w-px bg-border" />
+                  </>
+                )}
+
                 <select
                   value={bulkStatus}
                   onChange={(e) => setBulkStatus(e.target.value)}
@@ -1726,7 +2272,11 @@ export default function ShopInbox({
                 >
                   {statuses.map((s) => (
                     <option key={s} value={s}>
-                      {label(s)}
+                      {statusLabel(
+                        s,
+                        filters.page_id ? Number(filters.page_id) : undefined,
+                        statusLabels
+                      )}
                     </option>
                   ))}
                 </select>
@@ -1752,7 +2302,45 @@ export default function ShopInbox({
                   <UserCheck className="mr-1 h-4 w-4" />
                   Assign
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
+                <div className="h-5 w-px bg-border" />
+                <select
+                  value={bulkPriority}
+                  onChange={(e) => setBulkPriority(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  {priorities.map((p) => (
+                    <option key={p} value={p}>
+                      {label(p)}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulkPriority}>
+                  <Flag className="mr-1 h-4 w-4" />
+                  Set Priority
+                </Button>
+                <div className="h-5 w-px bg-border" />
+                <select
+                  value={bulkTagId}
+                  onChange={(e) => setBulkTagId(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  <option value="">Add tag...</option>
+                  {tags.map((t) => (
+                    <option key={t.id} value={t.id.toString()}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulkTag} disabled={!bulkTagId}>
+                  <Tag className="mr-1 h-4 w-4" />
+                  Add Tag
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedIds([])}
+                  className="ml-auto"
+                >
                   <X className="h-4 w-4" />
                   Clear
                 </Button>
@@ -1808,7 +2396,14 @@ export default function ShopInbox({
                                 changeStatus(conversation.id, e.target.value);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status)}`}
+                              className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status, statusColor(conversation.status, conversation.facebook_page?.id, statusLabels))}`}
+                              style={statusBadgeStyle(
+                                statusColor(
+                                  conversation.status,
+                                  conversation.facebook_page?.id,
+                                  statusLabels
+                                )
+                              )}
                             >
                               {statuses.map((s) => {
                                 const permitted =
@@ -1816,7 +2411,7 @@ export default function ShopInbox({
                                   s === conversation.status;
                                 return (
                                   <option key={s} value={s} disabled={!permitted}>
-                                    {label(s)}
+                                    {statusLabel(s, conversation.facebook_page?.id, statusLabels)}
                                     {!permitted ? ' (not allowed)' : ''}
                                   </option>
                                 );
@@ -1867,8 +2462,13 @@ export default function ShopInbox({
                               </Badge>
                             )}
                             {conversation.reminder_at && (
-                              <Badge variant="outline" className="gap-1">
-                                Reminder
+                              <Badge
+                                variant="outline"
+                                className={`gap-1 ${reminderOverdue(conversation.reminder_at) ? 'border-red-500/40 text-red-600 bg-red-50' : 'border-amber-500/40 text-amber-600 bg-amber-50'}`}
+                              >
+                                {reminderOverdue(conversation.reminder_at)
+                                  ? 'Reminder Due'
+                                  : 'Reminder'}
                               </Badge>
                             )}
                             {conversation.sentiment === 'positive' && (

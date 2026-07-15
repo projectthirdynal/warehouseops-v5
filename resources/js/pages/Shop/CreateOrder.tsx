@@ -1,16 +1,23 @@
-import { FormEvent } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
   AlertTriangle,
   ArrowLeft,
   Calculator,
+  CheckCircle2,
+  Eye,
+  FileText,
+  LayoutGrid,
   MapPinned,
   PackagePlus,
   Phone,
   Plus,
-  Save,
+  RotateCcw,
+  Sparkles,
   Trash2,
+  Upload,
   User,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +32,7 @@ interface ProductVariant {
   sku: string;
   variant_name: string;
   selling_price: string | number | null;
+  available_stock?: number;
 }
 
 interface Product {
@@ -32,6 +40,7 @@ interface Product {
   sku: string;
   name: string;
   selling_price: string | number;
+  available_stock?: number;
   active_variants: ProductVariant[];
 }
 
@@ -54,6 +63,7 @@ interface CartItemForm {
   variant_id: string;
   quantity: string;
   unit_price: string;
+  discount_amount: string;
 }
 
 interface OrderForm {
@@ -66,9 +76,42 @@ interface OrderForm {
   province: string;
   items: CartItemForm[];
   shipping_fee: string;
+  discount_amount: string;
+  tax_rate: string;
   courier_code: string;
   remarks: string;
   conversation_id: string;
+}
+
+interface DraftSummary {
+  id: number;
+  order_number: string;
+  customer_name: string;
+  phone: string;
+  created_at: string;
+  items_count: number;
+}
+
+interface TemplateSummary {
+  id: number;
+  name: string;
+  items: CartItemForm[];
+  courier_code: string;
+  shipping_fee: number;
+  discount_amount: number;
+  tax_rate: number;
+  remarks: string | null;
+  is_shared: boolean;
+  is_owner: boolean;
+  items_count: number;
+  created_at: string;
+}
+
+interface RecommendedProduct {
+  id: number;
+  sku: string;
+  name: string;
+  selling_price: number;
 }
 
 interface Props {
@@ -76,6 +119,7 @@ interface Props {
   couriers: Courier[];
   prefill?: Partial<OrderForm> | null;
   duplicate_warnings: DuplicateWarning[];
+  drafts: DraftSummary[];
 }
 
 function money(value: number) {
@@ -97,6 +141,7 @@ function createEmptyItem(): CartItemForm {
     variant_id: '',
     quantity: '1',
     unit_price: '',
+    discount_amount: '0',
   };
 }
 
@@ -105,17 +150,20 @@ export default function CreateShopOrder({
   couriers,
   prefill,
   duplicate_warnings,
+  drafts,
 }: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
     complete_address: prefill?.complete_address ?? '',
-    landmark: '',
-    barangay: '',
-    city_municipality: '',
-    province: '',
+    landmark: prefill?.landmark ?? '',
+    barangay: prefill?.barangay ?? '',
+    city_municipality: prefill?.city_municipality ?? '',
+    province: prefill?.province ?? '',
     items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
     shipping_fee: '0',
+    discount_amount: '0',
+    tax_rate: '0',
     courier_code: 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
@@ -188,7 +236,10 @@ export default function CreateShopOrder({
   };
 
   const subtotal = data.items.reduce(
-    (total, item) => total + Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price),
+    (total, item) =>
+      total +
+      Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price) -
+      numeric(item.discount_amount),
     0
   );
   const totalQuantity = data.items.reduce(
@@ -196,10 +247,381 @@ export default function CreateShopOrder({
     0
   );
   const shippingFee = numeric(data.shipping_fee);
-  const total = subtotal + shippingFee;
+  const orderDiscount = numeric(data.discount_amount);
+  const taxRate = numeric(data.tax_rate);
+  const taxableAmount = Math.max(0, subtotal - orderDiscount);
+  const taxAmount = taxRate > 0 ? Math.round(taxableAmount * taxRate) / 100 : 0;
+  const total = Math.max(0, taxableAmount + shippingFee + taxAmount);
+
+  const [showPreview, setShowPreview] = useState(false);
+  const [shippingZone, setShippingZone] = useState<string | null>(null);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftList, setDraftList] = useState<DraftSummary[]>(drafts);
+  const [liveDuplicates, setLiveDuplicates] = useState<DuplicateWarning[]>([]);
+
+  const csrfToken =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+  useEffect(() => {
+    const phone = data.phone.trim();
+    if (phone.length < 7) {
+      setLiveDuplicates([]);
+      return;
+    }
+
+    const productIds = data.items.map((item) => Number(item.product_id)).filter((id) => id > 0);
+
+    const timer = setTimeout(() => {
+      fetch('/shop/orders/check-duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({ phone, product_ids: productIds }),
+      })
+        .then((res) => res.json())
+        .then((result: { duplicates: DuplicateWarning[] }) => {
+          setLiveDuplicates(result.duplicates ?? []);
+        })
+        .catch(() => undefined);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [data.phone, data.items, csrfToken]);
+
+  const allDuplicates = [...duplicate_warnings, ...liveDuplicates].filter(
+    (dup, index, self) => index === self.findIndex((d) => d.id === dup.id)
+  );
+
+  const saveDraft = () => {
+    setSavingDraft(true);
+    fetch('/shop/orders/draft', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({ ...data, draft_id: draftId }),
+    })
+      .then((res) => res.json())
+      .then((result: { success: boolean; draft_id: number }) => {
+        if (result.success) {
+          setDraftId(result.draft_id);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setSavingDraft(false));
+  };
+
+  const loadDraft = (id: number) => {
+    fetch(`/shop/orders/${id}/draft`, { headers: { 'X-CSRF-TOKEN': csrfToken } })
+      .then((res) => res.json())
+      .then((result: { success: boolean; draft: Partial<OrderForm> }) => {
+        if (result.success && result.draft) {
+          const d = result.draft;
+          setData({
+            customer_name: d.customer_name ?? '',
+            phone: d.phone ?? '',
+            complete_address: d.complete_address ?? '',
+            landmark: d.landmark ?? '',
+            barangay: d.barangay ?? '',
+            city_municipality: d.city_municipality ?? '',
+            province: d.province ?? '',
+            items: d.items && d.items.length > 0 ? d.items : [createEmptyItem()],
+            shipping_fee: d.shipping_fee ?? '0',
+            discount_amount: d.discount_amount ?? '0',
+            tax_rate: d.tax_rate ?? '0',
+            courier_code: d.courier_code ?? 'MANUAL',
+            remarks: d.remarks ?? '',
+            conversation_id: d.conversation_id ?? '',
+          });
+          setDraftId(id);
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  const deleteDraft = (id: number) => {
+    fetch(`/shop/orders/${id}/draft`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': csrfToken },
+    })
+      .then(() => {
+        setDraftList((prev) => prev.filter((d) => d.id !== id));
+        if (draftId === id) {
+          setDraftId(null);
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateShared, setTemplateShared] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const fetchTemplates = () => {
+    fetch('/shop/templates', { headers: { 'X-CSRF-TOKEN': csrfToken } })
+      .then((res) => res.json())
+      .then((result: { templates: TemplateSummary[] }) => {
+        setTemplates(result.templates ?? []);
+      })
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const saveTemplate = () => {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    fetch('/shop/templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({
+        name: templateName.trim(),
+        items: data.items,
+        courier_code: data.courier_code,
+        shipping_fee: data.shipping_fee,
+        discount_amount: data.discount_amount,
+        tax_rate: data.tax_rate,
+        remarks: data.remarks,
+        is_shared: templateShared,
+      }),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        setShowTemplateModal(false);
+        setTemplateName('');
+        setTemplateShared(false);
+        fetchTemplates();
+      })
+      .catch(() => undefined)
+      .finally(() => setSavingTemplate(false));
+  };
+
+  const applyTemplate = (tpl: TemplateSummary) => {
+    setData({
+      ...data,
+      items: tpl.items.length > 0 ? tpl.items : [createEmptyItem()],
+      courier_code: tpl.courier_code || 'MANUAL',
+      shipping_fee: String(tpl.shipping_fee ?? 0),
+      discount_amount: String(tpl.discount_amount ?? 0),
+      tax_rate: String(tpl.tax_rate ?? 0),
+      remarks: tpl.remarks ?? data.remarks,
+    });
+  };
+
+  const deleteTemplate = (id: number) => {
+    fetch(`/shop/templates/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': csrfToken },
+    })
+      .then(() => {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+      })
+      .catch(() => undefined);
+  };
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    items: CartItemForm[];
+    errors: string[];
+  } | null>(null);
+
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleCsvFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) {
+        setImportPreview({ items: [], errors: ['CSV file is empty or has no data rows.'] });
+        return;
+      }
+
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+      const colIdx = (names: string[]) => headers.findIndex((h) => names.includes(h));
+
+      const skuCol = colIdx(['sku', 'product_sku']);
+      const idCol = colIdx(['product_id', 'id']);
+      const variantSkuCol = colIdx(['variant_sku', 'variant']);
+      const variantIdCol = colIdx(['variant_id']);
+      const qtyCol = colIdx(['quantity', 'qty']);
+      const priceCol = colIdx(['unit_price', 'price']);
+      const discountCol = colIdx(['discount_amount', 'discount']);
+
+      if (skuCol === -1 && idCol === -1) {
+        setImportPreview({
+          items: [],
+          errors: ['CSV must have a "sku" or "product_id" column.'],
+        });
+        return;
+      }
+
+      const newItems: CartItemForm[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const sku = skuCol >= 0 ? cols[skuCol] : '';
+        const productId = idCol >= 0 ? cols[idCol] : '';
+
+        const product = products.find(
+          (p) =>
+            (sku && p.sku.toLowerCase() === sku.toLowerCase()) ||
+            (productId && String(p.id) === productId)
+        );
+
+        if (!product) {
+          errors.push(`Row ${i + 1}: Product "${sku || productId}" not found.`);
+          continue;
+        }
+
+        let variantId = '';
+        if (variantIdCol >= 0 && cols[variantIdCol]) {
+          variantId = cols[variantIdCol];
+        } else if (variantSkuCol >= 0 && cols[variantSkuCol]) {
+          const variant = product.active_variants.find(
+            (v) => v.sku.toLowerCase() === cols[variantSkuCol].toLowerCase()
+          );
+          if (variant) variantId = String(variant.id);
+        }
+
+        const quantity = qtyCol >= 0 ? cols[qtyCol] : '1';
+        const unitPrice = priceCol >= 0 ? cols[priceCol] : String(product.selling_price);
+        const discount = discountCol >= 0 ? cols[discountCol] : '0';
+
+        if (!quantity || Number(quantity) < 1) {
+          errors.push(`Row ${i + 1}: Invalid quantity "${quantity}".`);
+          continue;
+        }
+
+        newItems.push({
+          product_id: String(product.id),
+          variant_id: variantId,
+          quantity,
+          unit_price: unitPrice,
+          discount_amount: discount || '0',
+        });
+      }
+
+      setImportPreview({ items: newItems, errors });
+    };
+    reader.readAsText(file);
+  };
+
+  const applyImport = () => {
+    if (!importPreview || importPreview.items.length === 0) return;
+    setData('items', importPreview.items);
+    setShowImportModal(false);
+    setImportPreview(null);
+  };
+
+  const [recommendations, setRecommendations] = useState<RecommendedProduct[]>([]);
+
+  useEffect(() => {
+    const productIds = data.items.map((item) => Number(item.product_id)).filter((id) => id > 0);
+    if (productIds.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch('/shop/orders/recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({ product_ids: productIds }),
+      })
+        .then((res) => res.json())
+        .then((result: { recommendations: RecommendedProduct[] }) => {
+          setRecommendations(result.recommendations ?? []);
+        })
+        .catch(() => undefined);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [data.items]);
+
+  const addRecommendation = (rec: RecommendedProduct) => {
+    setData('items', [
+      ...data.items,
+      {
+        product_id: String(rec.id),
+        variant_id: '',
+        quantity: '1',
+        unit_price: String(rec.selling_price),
+        discount_amount: '0',
+      },
+    ]);
+  };
+
+  const calculateShipping = () => {
+    setCalculatingShipping(true);
+    fetch('/shop/orders/calculate-shipping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({
+        province: data.province,
+        city_municipality: data.city_municipality,
+        barangay: data.barangay,
+        address: data.complete_address,
+        courier_code: data.courier_code,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result: { fee: number; zone: string | null; has_rate: boolean }) => {
+        setData('shipping_fee', result.fee.toFixed(2));
+        setShippingZone(result.zone);
+      })
+      .catch(() => undefined)
+      .finally(() => setCalculatingShipping(false));
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    setShowPreview(true);
+  };
+
+  const confirmSubmit = () => {
+    setShowPreview(false);
     post('/shop/orders');
   };
 
@@ -223,11 +645,51 @@ export default function CreateShopOrder({
                 : 'Manual POS entry for Facebook, chat, and phone orders'}
             </p>
           </div>
-          <Button type="submit" disabled={processing}>
-            <Save className="mr-1.5 h-4 w-4" />
-            Save Order
-          </Button>
+          <div className="flex items-center gap-2">
+            {draftId && (
+              <Badge variant="secondary" className="text-xs">
+                <FileText className="mr-1 h-3 w-3" />
+                Draft #{draftId}
+              </Badge>
+            )}
+            <Button type="button" variant="outline" onClick={saveDraft} disabled={savingDraft}>
+              <FileText className="mr-1.5 h-4 w-4" />
+              {savingDraft ? 'Saving...' : 'Save Draft'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowTemplateModal(true)}>
+              <LayoutGrid className="mr-1.5 h-4 w-4" />
+              Save Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setImportPreview(null);
+                setShowImportModal(true);
+              }}
+            >
+              <Upload className="mr-1.5 h-4 w-4" />
+              Import CSV
+            </Button>
+            <Button type="submit" disabled={processing}>
+              <Eye className="mr-1.5 h-4 w-4" />
+              Review Order
+            </Button>
+          </div>
         </div>
+
+        {liveDuplicates.length > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+            <span className="text-muted-foreground">
+              <span className="font-medium text-warning">
+                {liveDuplicates.length} possible duplicate order
+                {liveDuplicates.length > 1 ? 's' : ''}
+              </span>{' '}
+              found for this phone number in the last 30 days. Review before submitting.
+            </span>
+          </div>
+        )}
 
         <div className="grid gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">
@@ -356,7 +818,13 @@ export default function CreateShopOrder({
                     (variant) => String(variant.id) === item.variant_id
                   );
                   const quantity = Math.max(1, Number(item.quantity || 1));
-                  const lineTotal = quantity * numeric(item.unit_price);
+                  const lineDiscount = numeric(item.discount_amount);
+                  const lineTotal = Math.max(0, quantity * numeric(item.unit_price) - lineDiscount);
+                  const availableStock = selectedVariant
+                    ? (selectedVariant.available_stock ?? 0)
+                    : (selectedProduct?.available_stock ?? 0);
+                  const isOutOfStock = selectedProduct && availableStock <= 0;
+                  const isInsufficient = selectedProduct && quantity > availableStock;
 
                   return (
                     <div key={index} className="rounded-lg border p-4">
@@ -401,6 +869,15 @@ export default function CreateShopOrder({
                               {itemError(index, 'product_id')}
                             </p>
                           )}
+                          {selectedProduct && (
+                            <p
+                              className={`text-xs ${isOutOfStock ? 'text-destructive' : availableStock <= 5 ? 'text-amber-600' : 'text-muted-foreground'}`}
+                            >
+                              {isOutOfStock
+                                ? 'Out of stock'
+                                : `${availableStock} in stock${availableStock <= 5 ? ' (low)' : ''}`}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -418,6 +895,8 @@ export default function CreateShopOrder({
                             {selectedProduct?.active_variants.map((variant) => (
                               <option key={variant.id} value={variant.id}>
                                 {variant.variant_name} ({variant.sku})
+                                {variant.available_stock !== undefined &&
+                                  ` — ${variant.available_stock} in stock`}
                               </option>
                             ))}
                           </select>
@@ -442,6 +921,11 @@ export default function CreateShopOrder({
                               {itemError(index, 'quantity')}
                             </p>
                           )}
+                          {isInsufficient && (
+                            <p className="text-xs text-destructive">
+                              Only {availableStock} available — requested {quantity}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -463,6 +947,20 @@ export default function CreateShopOrder({
                           )}
                         </div>
 
+                        <div className="space-y-2">
+                          <Label htmlFor={`discount_${index}`}>Line discount</Label>
+                          <Input
+                            id={`discount_${index}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.discount_amount}
+                            onChange={(event) =>
+                              updateItem(index, 'discount_amount', event.target.value)
+                            }
+                          />
+                        </div>
+
                         <div className="flex items-end">
                           <div className="w-full rounded-lg bg-muted px-3 py-2 text-sm">
                             <div className="flex justify-between">
@@ -480,17 +978,19 @@ export default function CreateShopOrder({
           </div>
 
           <div className="space-y-6">
-            {duplicate_warnings.length > 0 && (
+            {allDuplicates.length > 0 && (
               <Card className="border-warning/20 bg-warning/5/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-warning">
                     <AlertTriangle className="h-5 w-5" />
                     Possible Duplicates
                   </CardTitle>
-                  <CardDescription>Recent Shop orders found for this phone number</CardDescription>
+                  <CardDescription>
+                    Recent Shop orders found for this phone number or products
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {duplicate_warnings.map((order) => (
+                  {allDuplicates.map((order) => (
                     <Link
                       key={order.id}
                       href={`/orders/${order.id}`}
@@ -515,6 +1015,135 @@ export default function CreateShopOrder({
               </Card>
             )}
 
+            {draftList.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Saved Drafts
+                  </CardTitle>
+                  <CardDescription>Resume or delete draft orders</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {draftList.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{draft.customer_name || 'Unnamed'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {draft.items_count} item(s) ·{' '}
+                          {draft.created_at ? new Date(draft.created_at).toLocaleDateString() : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => loadDraft(draft.id)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteDraft(draft.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {templates.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <LayoutGrid className="h-5 w-5" />
+                    Cart Templates
+                  </CardTitle>
+                  <CardDescription>Apply a saved bundle to the cart</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {templates.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{tpl.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {tpl.items_count} item(s)
+                          {tpl.is_shared ? ' · Shared' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => applyTemplate(tpl)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        {tpl.is_owner && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteTemplate(tpl.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {recommendations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    Frequently Bought Together
+                  </CardTitle>
+                  <CardDescription>Products commonly ordered with your cart items</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {recommendations.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{rec.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {rec.sku} · {money(rec.selling_price)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => addRecommendation(rec)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -533,7 +1162,10 @@ export default function CreateShopOrder({
                       (variant) => String(variant.id) === item.variant_id
                     );
                     const quantity = Math.max(1, Number(item.quantity || 1));
-                    const lineTotal = quantity * numeric(item.unit_price);
+                    const lineTotal = Math.max(
+                      0,
+                      quantity * numeric(item.unit_price) - numeric(item.discount_amount)
+                    );
 
                     return (
                       <div key={index} className="rounded-lg border p-3">
@@ -568,6 +1200,18 @@ export default function CreateShopOrder({
                     <span className="text-muted-foreground">Shipping</span>
                     <span>{money(shippingFee)}</span>
                   </div>
+                  {orderDiscount > 0 && (
+                    <div className="flex justify-between text-destructive">
+                      <span className="text-muted-foreground">Order discount</span>
+                      <span>−{money(orderDiscount)}</span>
+                    </div>
+                  )}
+                  {taxAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax ({taxRate}%)</span>
+                      <span>{money(taxAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t pt-3 text-base font-semibold">
                     <span>Total COD</span>
                     <span>{money(total)}</span>
@@ -586,7 +1230,19 @@ export default function CreateShopOrder({
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="shipping_fee">Shipping fee</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="shipping_fee">Shipping fee</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={calculateShipping}
+                      disabled={calculatingShipping || !data.province}
+                    >
+                      <Calculator className="mr-1 h-3.5 w-3.5" />
+                      {calculatingShipping ? 'Calculating...' : 'Auto-calc'}
+                    </Button>
+                  </div>
                   <Input
                     id="shipping_fee"
                     type="number"
@@ -595,9 +1251,42 @@ export default function CreateShopOrder({
                     value={data.shipping_fee}
                     onChange={(event) => setData('shipping_fee', event.target.value)}
                   />
+                  {shippingZone && (
+                    <p className="text-xs text-muted-foreground">Zone: {shippingZone}</p>
+                  )}
                   {errors.shipping_fee && (
                     <p className="text-xs text-destructive">{errors.shipping_fee}</p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="discount_amount">Order discount</Label>
+                  <Input
+                    id="discount_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.discount_amount}
+                    onChange={(event) => setData('discount_amount', event.target.value)}
+                  />
+                  {errors.discount_amount && (
+                    <p className="text-xs text-destructive">{errors.discount_amount}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tax_rate">Tax rate (%)</Label>
+                  <Input
+                    id="tax_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={data.tax_rate}
+                    onChange={(event) => setData('tax_rate', event.target.value)}
+                  />
+                  {taxAmount > 0 && (
+                    <p className="text-xs text-muted-foreground">Tax amount: {money(taxAmount)}</p>
+                  )}
+                  {errors.tax_rate && <p className="text-xs text-destructive">{errors.tax_rate}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="courier_code">Courier</Label>
@@ -629,6 +1318,334 @@ export default function CreateShopOrder({
           </div>
         </div>
       </form>
+
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Eye className="h-5 w-5" />
+                Order Preview
+              </h2>
+              <button type="button" onClick={() => setShowPreview(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {allDuplicates.length > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                  <span className="text-muted-foreground">
+                    <span className="font-medium text-warning">
+                      {allDuplicates.length} possible duplicate order
+                      {allDuplicates.length > 1 ? 's' : ''}
+                    </span>{' '}
+                    found for this customer. Please review before confirming.
+                  </span>
+                </div>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-md border p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Customer</p>
+                  <p className="text-sm font-medium">{data.customer_name || '—'}</p>
+                  <p className="text-sm text-muted-foreground">{data.phone || '—'}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
+                  <p className="text-sm">{data.complete_address || '—'}</p>
+                  {(data.barangay || data.city_municipality || data.province) && (
+                    <p className="text-xs text-muted-foreground">
+                      {[data.barangay, data.city_municipality, data.province]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Item</th>
+                      <th className="px-3 py-2 text-right font-medium">Qty</th>
+                      <th className="px-3 py-2 text-right font-medium">Price</th>
+                      <th className="px-3 py-2 text-right font-medium">Disc</th>
+                      <th className="px-3 py-2 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {data.items.map((item, index) => {
+                      const product = products.find((p) => String(p.id) === item.product_id);
+                      const variant = product?.active_variants.find(
+                        (v) => String(v.id) === item.variant_id
+                      );
+                      const qty = Math.max(1, Number(item.quantity || 1));
+                      const lineTotal = Math.max(
+                        0,
+                        qty * numeric(item.unit_price) - numeric(item.discount_amount)
+                      );
+                      return (
+                        <tr key={index}>
+                          <td className="px-3 py-2">
+                            {variant?.variant_name ?? product?.name ?? `Item ${index + 1}`}
+                            <p className="text-xs text-muted-foreground">
+                              {variant?.sku ?? product?.sku ?? 'No SKU'}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-right">{qty}</td>
+                          <td className="px-3 py-2 text-right">
+                            {money(numeric(item.unit_price))}
+                          </td>
+                          <td className="px-3 py-2 text-right text-destructive">
+                            {numeric(item.discount_amount) > 0
+                              ? `−${money(numeric(item.discount_amount))}`
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-medium">{money(lineTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total items</span>
+                  <span>{totalQuantity}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{money(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Shipping</span>
+                  <span>{money(shippingFee)}</span>
+                </div>
+                {orderDiscount > 0 && (
+                  <div className="flex justify-between text-destructive">
+                    <span className="text-muted-foreground">Order discount</span>
+                    <span>−{money(orderDiscount)}</span>
+                  </div>
+                )}
+                {taxAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax ({taxRate}%)</span>
+                    <span>{money(taxAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t pt-2 text-base font-semibold">
+                  <span>Total COD</span>
+                  <span>{money(total)}</span>
+                </div>
+              </div>
+
+              {data.courier_code && (
+                <div className="rounded-md border p-3 text-sm">
+                  <span className="text-muted-foreground">Courier: </span>
+                  <span className="font-medium">
+                    {couriers.find((c) => c.value === data.courier_code)?.label ??
+                      data.courier_code}
+                  </span>
+                </div>
+              )}
+
+              {data.remarks && (
+                <div className="rounded-md border p-3 text-sm">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Remarks</p>
+                  <p className="whitespace-pre-wrap">{data.remarks}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
+                  <X className="mr-1.5 h-4 w-4" />
+                  Edit Order
+                </Button>
+                <Button type="button" onClick={confirmSubmit} disabled={processing}>
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  Confirm & Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowTemplateModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <LayoutGrid className="h-5 w-5" />
+                Save as Template
+              </h2>
+              <button type="button" onClick={() => setShowTemplateModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="template_name">Template name</Label>
+                <Input
+                  id="template_name"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g. Bestseller Bundle"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="template_shared"
+                  checked={templateShared}
+                  onChange={(e) => setTemplateShared(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="template_shared" className="text-sm font-normal">
+                  Share with other agents
+                </Label>
+              </div>
+              <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                Saves {data.items.length} item(s) with current pricing, discounts, shipping, and tax
+                settings.
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowTemplateModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={saveTemplate}
+                  disabled={savingTemplate || !templateName.trim()}
+                >
+                  {savingTemplate ? 'Saving...' : 'Save Template'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowImportModal(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Upload className="h-5 w-5" />
+                Import Cart from CSV
+              </h2>
+              <button type="button" onClick={() => setShowImportModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-medium text-foreground">Expected columns:</p>
+                <p>
+                  sku (or product_id), variant_sku (or variant_id), quantity, unit_price,
+                  discount_amount
+                </p>
+                <p className="mt-1">
+                  Only sku/product_id and quantity are required. Others default to product settings.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="csv_file">CSV file</Label>
+                <Input
+                  id="csv_file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCsvFile(file);
+                  }}
+                />
+              </div>
+
+              {importPreview && (
+                <>
+                  {importPreview.errors.length > 0 && (
+                    <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                      <p className="mb-1 text-sm font-medium text-warning">
+                        {importPreview.errors.length} warning(s)
+                      </p>
+                      <ul className="space-y-1 text-xs text-muted-foreground">
+                        {importPreview.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {importPreview.items.length > 0 && (
+                    <div className="rounded-md border p-3">
+                      <p className="mb-2 text-sm font-medium">
+                        {importPreview.items.length} item(s) ready to import
+                      </p>
+                      <div className="max-h-40 space-y-1 overflow-y-auto text-xs">
+                        {importPreview.items.map((item, i) => {
+                          const product = products.find((p) => String(p.id) === item.product_id);
+                          return (
+                            <div key={i} className="flex justify-between">
+                              <span className="truncate">
+                                {product?.name ?? `Product #${item.product_id}`}
+                              </span>
+                              <span className="text-muted-foreground">x{item.quantity}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {importPreview.items.length === 0 && importPreview.errors.length > 0 && (
+                    <p className="text-sm text-destructive">No valid items found in CSV.</p>
+                  )}
+                </>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowImportModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={applyImport}
+                  disabled={!importPreview || importPreview.items.length === 0}
+                >
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  Add to Cart
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

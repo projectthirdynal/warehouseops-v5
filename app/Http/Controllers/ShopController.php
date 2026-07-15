@@ -12,6 +12,8 @@ use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Models\PageAssignmentRule;
+use App\Domain\Shop\Models\PageStatusLabel;
+use App\Domain\Shop\Models\PageStatusRule;
 use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
@@ -28,12 +30,14 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\CartTemplate;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
@@ -66,6 +70,7 @@ class ShopController extends Controller
         private readonly StockService $stockService,
         private readonly ConversationExportService $conversationExports,
         private readonly MessageTranslationService $translator,
+        private readonly ShippingRateService $shippingRates,
     ) {}
 
     public function index(): Response
@@ -478,6 +483,88 @@ class ShopController extends Controller
             ->with('success', 'Simulated inbound message processed. Check the Shop inbox.');
     }
 
+    public function exportConversationStatuses(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $query = Conversation::query()
+            ->whereNull('merged_into_id')
+            ->with([
+                'facebookPage:id,page_name',
+                'customerIdentity:id,display_name',
+                'assignedAgent:id,name',
+                'tags:id,name',
+            ])
+            ->latest('last_message_at');
+
+        if ($request->filled('page_id')) {
+            $query->where('facebook_page_id', $request->integer('page_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+        if ($request->filled('assigned_agent_id')) {
+            $agentFilter = $request->string('assigned_agent_id')->toString();
+            match ($agentFilter) {
+                'unassigned' => $query->whereNull('assigned_agent_id'),
+                'me' => $query->where('assigned_agent_id', $request->user()->id),
+                default => $query->where('assigned_agent_id', $request->integer('assigned_agent_id')),
+            };
+        }
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority'));
+        }
+        if ($request->boolean('flagged')) {
+            $query->where('is_flagged', true);
+        }
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="conversation-statuses-' . date('Y-m-d') . '.csv"',
+        ];
+
+        $columns = [
+            'id', 'page', 'customer', 'channel', 'status', 'priority',
+            'assigned_agent', 'is_flagged', 'flag_reason',
+            'sentiment', 'snoozed_until', 'reminder_at',
+            'first_response_at', 'first_response_time_seconds',
+            'resolved_at', 'resolution_time_seconds',
+            'last_message_at', 'created_at', 'tags',
+        ];
+
+        return response()->stream(function () use ($query, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $columns);
+
+            $query->chunk(200, function ($conversations) use ($handle, $columns) {
+                foreach ($conversations as $c) {
+                    $row = [
+                        $c->id,
+                        $c->facebookPage?->page_name ?? '',
+                        $c->customerIdentity?->display_name ?? '',
+                        $c->channel ?? '',
+                        $c->status ?? '',
+                        $c->priority ?? '',
+                        $c->assignedAgent?->name ?? 'Unassigned',
+                        $c->is_flagged ? 'yes' : 'no',
+                        $c->flag_reason ?? '',
+                        $c->sentiment ?? '',
+                        $c->snoozed_until ?? '',
+                        $c->reminder_at ?? '',
+                        $c->first_response_at ?? '',
+                        $c->first_response_time_seconds ?? '',
+                        $c->resolved_at ?? '',
+                        $c->resolution_time_seconds ?? '',
+                        $c->last_message_at ?? '',
+                        $c->created_at?->toDateTimeString() ?? '',
+                        $c->tags->pluck('name')->implode(';'),
+                    ];
+                    fputcsv($handle, $row);
+                }
+            });
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function inbox(Request $request): Response
     {
         $query = Conversation::query()
@@ -556,6 +643,17 @@ class ShopController extends Controller
                 'is_active' => $rule->is_active,
             ]);
 
+        $statusRules = PageStatusRule::query()
+            ->get(['id', 'facebook_page_id', 'from_status', 'to_status', 'inactivity_minutes', 'is_active'])
+            ->map(fn (PageStatusRule $rule) => [
+                'id' => $rule->id,
+                'facebook_page_id' => $rule->facebook_page_id,
+                'from_status' => $rule->from_status,
+                'to_status' => $rule->to_status,
+                'inactivity_minutes' => $rule->inactivity_minutes,
+                'is_active' => $rule->is_active,
+            ]);
+
         $pendingComments = Message::query()
             ->where('direction', 'inbound')
             ->where('moderation_status', 'pending')
@@ -608,11 +706,29 @@ class ShopController extends Controller
             return $conv;
         });
 
+        $statusLabels = PageStatusLabel::query()
+            ->get(['facebook_page_id', 'status', 'label', 'color'])
+            ->groupBy('facebook_page_id')
+            ->map(fn ($items) => $items->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
+            ->toArray())
+            ->toArray();
+
+        $statusFunnel = $this->statusFunnel($statusCounts);
+
+        $escalationCount = Schema::hasTable('conversations')
+            ? Conversation::query()
+                ->whereNull('merged_into_id')
+                ->where('is_flagged', true)
+                ->whereNull('resolved_at')
+                ->count()
+            : 0;
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $paginated,
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
             'assignment_rules' => $assignmentRules,
+            'status_rules' => $statusRules,
             'pending_comments' => $pendingComments,
             'page_canned_responses' => $pageCannedResponses,
             'agents' => $this->shopAgents(),
@@ -623,6 +739,9 @@ class ShopController extends Controller
             'statuses' => $this->conversationStatuses(),
             'status_counts' => $statusCounts,
             'sla_thresholds' => $slaThresholds,
+            'status_labels' => $statusLabels,
+            'status_funnel' => $statusFunnel,
+            'escalation_count' => $escalationCount,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
@@ -779,6 +898,43 @@ class ShopController extends Controller
         return back();
     }
 
+    public function storeStatusLabel(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'label' => ['required', 'string', 'max:50'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ]);
+
+        PageStatusLabel::updateOrCreate(
+            [
+                'facebook_page_id' => $validated['page_id'],
+                'status' => $validated['status'],
+            ],
+            [
+                'label' => $validated['label'],
+                'color' => $validated['color'] ?? null,
+            ]
+        );
+
+        return back()->with('success', 'Status label saved.');
+    }
+
+    public function destroyStatusLabel(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+        ]);
+
+        PageStatusLabel::where('facebook_page_id', $validated['page_id'])
+            ->where('status', $validated['status'])
+            ->delete();
+
+        return back()->with('success', 'Status label removed.');
+    }
+
     public function storeAssignmentRule(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -806,6 +962,41 @@ class ShopController extends Controller
         PageAssignmentRule::where('id', $validated['rule_id'])->delete();
 
         return back()->with('success', 'Assignment rule removed.');
+    }
+
+    public function storeStatusRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'from_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'to_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'inactivity_minutes' => ['nullable', 'integer', 'min:0', 'max:525600'],
+        ]);
+
+        PageStatusRule::firstOrCreate(
+            [
+                'facebook_page_id' => $validated['facebook_page_id'],
+                'from_status' => $validated['from_status'],
+                'to_status' => $validated['to_status'],
+            ],
+            [
+                'inactivity_minutes' => $validated['inactivity_minutes'] ?? 0,
+                'is_active' => true,
+            ]
+        );
+
+        return back()->with('success', 'Status automation rule created.');
+    }
+
+    public function destroyStatusRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'rule_id' => ['required', 'integer', 'exists:page_status_rules,id'],
+        ]);
+
+        PageStatusRule::where('id', $validated['rule_id'])->delete();
+
+        return back()->with('success', 'Status automation rule removed.');
     }
 
     public function moderateComment(Request $request): RedirectResponse
@@ -881,13 +1072,17 @@ class ShopController extends Controller
         $messageLimit = 50;
         $initialMessages = Message::query()
             ->where('conversation_id', $conversation->id)
+            ->with(['sender:id,name'])
             ->orderBy('sent_at')
             ->orderBy('id')
             ->latest('id')
             ->limit($messageLimit)
             ->get()
             ->reverse()
-            ->values();
+            ->values()
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]));
 
         $conversation->forceFill(['unread_count' => 0])->save();
 
@@ -958,6 +1153,24 @@ class ShopController extends Controller
                 : [],
             'sla' => $this->computeSla($conversation, Conversation::slaThresholds()),
             'sla_thresholds' => Conversation::slaThresholds(),
+            'status_labels' => PageStatusLabel::query()
+                ->where('facebook_page_id', $conversation->facebook_page_id)
+                ->get(['status', 'label', 'color'])
+                ->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
+                ->toArray(),
+            'remarks' => OrderRemark::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('type', 'conversation_note')
+                ->with('user:id,name')
+                ->latest('id')
+                ->limit(50)
+                ->get()
+                ->map(fn (OrderRemark $r) => [
+                    'id' => $r->id,
+                    'body' => $r->body,
+                    'user_name' => $r->user?->name ?? 'System',
+                    'created_at' => $r->created_at?->toIso8601String(),
+                ]),
         ]);
     }
 
@@ -1454,6 +1667,42 @@ class ShopController extends Controller
         return back()->with('success', $message);
     }
 
+    public function bulkUpdateConversationPriority(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'priority' => ['required', 'string', 'in:low,normal,high,urgent'],
+        ]);
+
+        Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->update(['priority' => $validated['priority']]);
+
+        $count = count($validated['conversation_ids']);
+        return back()->with('success', "{$count} conversation(s) priority set to {$validated['priority']}.");
+    }
+
+    public function bulkTagConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'tag_id' => ['required', 'integer', 'exists:tags,id'],
+        ]);
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->get(['id']);
+
+        foreach ($conversations as $conversation) {
+            $conversation->tags()->syncWithoutDetaching([$validated['tag_id']]);
+        }
+
+        $count = $conversations->count();
+        return back()->with('success', "{$count} conversation(s) tagged.");
+    }
+
     public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
@@ -1792,6 +2041,7 @@ class ShopController extends Controller
             'conversation_id' => $conversation->id,
             'facebook_page_id' => $conversation->facebook_page_id,
             'customer_identity_id' => $conversation->customer_identity_id,
+            'sent_by' => $request->user()->id,
             'external_message_id' => 'local-' . str()->uuid(),
             'direction' => 'outbound',
             'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
@@ -1861,22 +2111,28 @@ class ShopController extends Controller
             $query->where('id', '>', $validated['after_message_id']);
         }
 
-        $messages = $query->get([
-            'id',
-            'direction',
-            'body',
-            'message_type',
-            'attachments',
-            'metadata',
-            'reactions',
-            'is_flagged',
-            'flag_reason',
-            'translated_body',
-            'translated_lang',
-            'sent_at',
-            'raw_payload',
-            'phone_candidates',
-        ]);
+        $messages = $query
+            ->with(['sender:id,name'])
+            ->get([
+                'id',
+                'sent_by',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'reactions',
+                'is_flagged',
+                'flag_reason',
+                'translated_body',
+                'translated_lang',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ])
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]));
 
         $conversation->refresh();
 
@@ -1922,10 +2178,12 @@ class ShopController extends Controller
         $messages = Message::query()
             ->where('conversation_id', $conversation->id)
             ->where('id', '<', $validated['before_id'])
+            ->with(['sender:id,name'])
             ->orderByDesc('id')
             ->limit($messageLimit + 1)
             ->get([
                 'id',
+                'sent_by',
                 'direction',
                 'body',
                 'message_type',
@@ -1940,6 +2198,9 @@ class ShopController extends Controller
                 'raw_payload',
                 'phone_candidates',
             ])
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]))
             ->reverse()
             ->values();
 
@@ -2755,6 +3016,194 @@ class ShopController extends Controller
         ]);
     }
 
+    public function recommendProducts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $productIds = $validated['product_ids'];
+
+        $orderIds = ShopOrderItem::query()
+            ->whereIn('product_id', $productIds)
+            ->pluck('order_id')
+            ->unique()
+            ->take(500);
+
+        $recommended = ShopOrderItem::query()
+            ->whereIn('order_id', $orderIds)
+            ->whereNotIn('product_id', $productIds)
+            ->select('product_id', DB::raw('COUNT(*) as frequency'))
+            ->groupBy('product_id')
+            ->orderByDesc('frequency')
+            ->limit(5)
+            ->pluck('product_id');
+
+        $products = Product::query()
+            ->whereIn('id', $recommended)
+            ->where('is_active', true)
+            ->get(['id', 'sku', 'name', 'selling_price'])
+            ->keyBy('id');
+
+        $sorted = $recommended
+            ->filter(fn ($id) => $products->has($id))
+            ->map(fn ($id) => [
+                'id' => $id,
+                'sku' => $products[$id]->sku,
+                'name' => $products[$id]->name,
+                'selling_price' => (float) $products[$id]->selling_price,
+            ])
+            ->values();
+
+        return response()->json(['recommendations' => $sorted]);
+    }
+
+    public function listCartTemplates(): JsonResponse
+    {
+        $templates = CartTemplate::query()
+            ->sharedOrOwned(auth()->id())
+            ->latest()
+            ->limit(50)
+            ->get(['id', 'name', 'items', 'courier_code', 'shipping_fee', 'discount_amount', 'tax_rate', 'remarks', 'is_shared', 'user_id', 'created_at'])
+            ->map(fn ($t) => [
+                'id'              => $t->id,
+                'name'            => $t->name,
+                'items'           => $t->items ?? [],
+                'courier_code'    => $t->courier_code,
+                'shipping_fee'    => (float) $t->shipping_fee,
+                'discount_amount' => (float) $t->discount_amount,
+                'tax_rate'        => (float) $t->tax_rate,
+                'remarks'         => $t->remarks,
+                'is_shared'       => $t->is_shared,
+                'is_owner'        => $t->user_id === auth()->id(),
+                'items_count'     => is_array($t->items) ? count($t->items) : 0,
+                'created_at'      => $t->created_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['templates' => $templates]);
+    }
+
+    public function storeCartTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name'              => ['required', 'string', 'max:100'],
+            'items'             => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id'  => ['required', 'exists:products,id'],
+            'items.*.variant_id'  => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity'    => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'courier_code'      => ['nullable', 'string', 'max:30'],
+            'shipping_fee'      => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount'   => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'remarks'           => ['nullable', 'string', 'max:2000'],
+            'is_shared'         => ['nullable', 'boolean'],
+        ]);
+
+        $template = CartTemplate::query()->create([
+            'user_id'         => auth()->id(),
+            'name'            => $validated['name'],
+            'items'           => $validated['items'],
+            'courier_code'    => $validated['courier_code'] ?? 'MANUAL',
+            'shipping_fee'    => $validated['shipping_fee'] ?? 0,
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'tax_rate'        => $validated['tax_rate'] ?? 0,
+            'remarks'         => $validated['remarks'] ?? null,
+            'is_shared'       => $validated['is_shared'] ?? false,
+        ]);
+
+        return response()->json(['success' => true, 'template_id' => $template->id]);
+    }
+
+    public function deleteCartTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $template->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function checkDuplicates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['nullable', 'string', 'max:30'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $phone = $validated['phone'] ?? '';
+        $productIds = $validated['product_ids'] ?? [];
+
+        $normalizedPhone = $this->phones->normalize($phone);
+        if (! $normalizedPhone) {
+            return response()->json(['duplicates' => []]);
+        }
+
+        $query = Order::query()
+            ->with('product:id,name,sku')
+            ->where('receiver_phone', $normalizedPhone)
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->where('created_at', '>=', now()->subDays(30))
+            ->where('status', '!=', OrderStatus::DRAFT)
+            ->latest()
+            ->limit(10);
+
+        if (! empty($productIds)) {
+            $query->where(function ($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds)
+                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
+                        $sq->whereIn('product_id', $productIds);
+                    });
+            });
+        }
+
+        $duplicates = $query->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at'])
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'status' => $o->status->value,
+                'total_amount' => (float) $o->total_amount,
+                'created_at' => $o->created_at?->toIso8601String(),
+                'product' => $o->product?->only(['id', 'name', 'sku']),
+            ]);
+
+        return response()->json(['duplicates' => $duplicates]);
+    }
+
+    public function calculateShipping(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'weight' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $result = $this->shippingRates->calculate(
+            [
+                'province' => $validated['province'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ],
+            $validated['courier_code'] ?? 'MANUAL',
+            ['weight' => (float) ($validated['weight'] ?? 0)],
+        );
+
+        return response()->json([
+            'fee' => $result['fee'],
+            'zone' => $result['zone'],
+            'has_rate' => $result['has_rate'],
+        ]);
+    }
+
     public function createOrder(Request $request): Response
     {
         $conversation = null;
@@ -2772,10 +3221,28 @@ class ShopController extends Controller
 
         return Inertia::render('Shop/CreateOrder', [
             'products' => Product::query()
-                ->with(['activeVariants:id,product_id,sku,variant_name,selling_price'])
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'sku', 'name', 'selling_price']),
+                ->get(['id', 'sku', 'name', 'selling_price'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'sku' => $p->sku,
+                    'name' => $p->name,
+                    'selling_price' => $p->selling_price,
+                    'available_stock' => $p->available_stock,
+                    'active_variants' => $p->activeVariants->map(fn ($v) => [
+                        'id' => $v->id,
+                        'sku' => $v->sku,
+                        'variant_name' => $v->variant_name,
+                        'selling_price' => $v->selling_price,
+                        'available_stock' => $v->stock?->available_stock ?? 0,
+                    ])->values(),
+                ]),
             'couriers' => [
                 ['value' => 'MANUAL', 'label' => 'Manual'],
                 ['value' => 'JNT', 'label' => 'J&T Express'],
@@ -2790,7 +3257,21 @@ class ShopController extends Controller
                     ?? $conversation->customer?->phone
                     ?? $conversation->identity?->phone_detected
                     ?? '',
-                'complete_address' => $conversation->customer?->canonical_address ?? '',
+                'complete_address' => $request->filled('complete_address')
+                    ? $request->string('complete_address')->toString()
+                    : ($conversation->customer?->canonical_address ?? ''),
+                'landmark' => $request->filled('landmark')
+                    ? $request->string('landmark')->toString()
+                    : ($conversation->customer?->landmark ?? ''),
+                'barangay' => $request->filled('barangay')
+                    ? $request->string('barangay')->toString()
+                    : ($conversation->customer?->barangay ?? ''),
+                'city_municipality' => $request->filled('city_municipality')
+                    ? $request->string('city_municipality')->toString()
+                    : ($conversation->customer?->city_municipality ?? ''),
+                'province' => $request->filled('province')
+                    ? $request->string('province')->toString()
+                    : ($conversation->customer?->province ?? ''),
                 'remarks' => trim(implode("\n", array_filter([
                     "Conversation #{$conversation->id}",
                     $conversation->facebookPage ? "Page: {$conversation->facebookPage->page_name}" : null,
@@ -2802,7 +3283,105 @@ class ShopController extends Controller
                     ?? $conversation?->customer?->phone
                     ?? $conversation?->identity?->phone_detected
             ),
+            'drafts' => Order::query()
+                ->where('status', OrderStatus::DRAFT)
+                ->where('assigned_agent_id', auth()->id())
+                ->latest()
+                ->limit(10)
+                ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'created_at', 'draft_data'])
+                ->map(fn ($o) => [
+                    'id' => $o->id,
+                    'order_number' => $o->order_number,
+                    'customer_name' => $o->receiver_name,
+                    'phone' => $o->receiver_phone,
+                    'created_at' => $o->created_at?->toDateTimeString(),
+                    'items_count' => isset($o->draft_data['items']) ? count($o->draft_data['items']) : 0,
+                ]),
         ]);
+    }
+
+    public function storeDraft(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'complete_address' => ['nullable', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'items' => ['nullable', 'array', 'max:20'],
+            'items.*.product_id' => ['nullable', 'string'],
+            'items.*.variant_id' => ['nullable', 'string'],
+            'items.*.quantity' => ['nullable', 'string'],
+            'items.*.unit_price' => ['nullable', 'string'],
+            'items.*.discount_amount' => ['nullable', 'string'],
+            'shipping_fee' => ['nullable', 'string'],
+            'discount_amount' => ['nullable', 'string'],
+            'tax_rate' => ['nullable', 'string'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'conversation_id' => ['nullable', 'string'],
+            'draft_id' => ['nullable', 'integer', 'exists:orders,id'],
+        ]);
+
+        $draftData = $validated;
+
+        if (! empty($validated['draft_id'])) {
+            $order = Order::query()->where('id', $validated['draft_id'])->where('status', OrderStatus::DRAFT)->first();
+            if ($order) {
+                $order->forceFill([
+                    'receiver_name' => $validated['customer_name'] ?? '',
+                    'receiver_phone' => $validated['phone'] ?? '',
+                    'receiver_address' => $validated['complete_address'] ?? '',
+                    'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+                    'notes' => $validated['remarks'] ?? null,
+                    'draft_data' => $draftData,
+                ])->save();
+
+                return response()->json(['success' => true, 'draft_id' => $order->id]);
+            }
+        }
+
+        $order = Order::query()->create([
+            'order_number' => Order::generateOrderNumber(),
+            'assigned_agent_id' => auth()->id(),
+            'status' => OrderStatus::DRAFT,
+            'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+            'receiver_name' => $validated['customer_name'] ?? '',
+            'receiver_phone' => $validated['phone'] ?? '',
+            'receiver_address' => $validated['complete_address'] ?? '',
+            'total_amount' => 0,
+            'cod_amount' => 0,
+            'source_channel' => 'manual_shop',
+            'notes' => $validated['remarks'] ?? null,
+            'draft_data' => $draftData,
+        ]);
+
+        return response()->json(['success' => true, 'draft_id' => $order->id]);
+    }
+
+    public function loadDraft(Request $request, Order $order): JsonResponse
+    {
+        if ($order->status !== OrderStatus::DRAFT) {
+            abort(404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'draft' => $order->draft_data ?? [],
+        ]);
+    }
+
+    public function deleteDraft(Request $request, Order $order): JsonResponse
+    {
+        if ($order->status !== OrderStatus::DRAFT) {
+            abort(404);
+        }
+
+        $order->delete();
+
+        return response()->json(['success' => true]);
     }
 
     public function storeOrder(Request $request): RedirectResponse
@@ -2820,7 +3399,11 @@ class ShopController extends Controller
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
@@ -2846,13 +3429,15 @@ class ShopController extends Controller
 
             $quantity = (int) $item['quantity'];
             $unitPrice = (float) $item['unit_price'];
-            $lineTotal = $quantity * $unitPrice;
+            $lineDiscount = (float) ($item['discount_amount'] ?? 0);
+            $lineTotal = max(0, ($quantity * $unitPrice) - $lineDiscount);
 
             return [
                 'product' => $product,
                 'variant' => $variant,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
+                'discount_amount' => $lineDiscount,
                 'line_total' => $lineTotal,
                 'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
                 'sku' => $variant?->sku ?? $product->sku,
@@ -2862,8 +3447,12 @@ class ShopController extends Controller
         $primaryItem = $preparedItems->first();
         abort_unless($primaryItem, 422, 'At least one cart item is required.');
         $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
+        $orderDiscount = (float) ($validated['discount_amount'] ?? 0);
+        $taxRate = (float) ($validated['tax_rate'] ?? 0);
+        $taxableAmount = max(0, (float) $preparedItems->sum('line_total') - $orderDiscount);
+        $taxAmount = $taxRate > 0 ? round($taxableAmount * $taxRate / 100, 2) : (float) ($validated['tax_amount'] ?? 0);
         $totalQuantity = (int) $preparedItems->sum('quantity');
-        $totalAmount = (float) $preparedItems->sum('line_total') + $shippingFee;
+        $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
         $normalizedPhone = $this->phones->normalize($validated['phone']);
         $possibleDuplicates = $this->possibleDuplicateOrders(
             $normalizedPhone ?: $validated['phone'],
@@ -2881,6 +3470,9 @@ class ShopController extends Controller
             $preparedItems,
             $primaryItem,
             $shippingFee,
+            $orderDiscount,
+            $taxRate,
+            $taxAmount,
             $totalQuantity,
             $totalAmount,
             $normalizedPhone,
@@ -2917,6 +3509,9 @@ class ShopController extends Controller
                 'total_amount' => $totalAmount,
                 'cod_amount' => $totalAmount,
                 'shipping_cost' => $shippingFee,
+                'discount_amount' => $orderDiscount,
+                'tax_rate' => $taxRate,
+                'tax_amount' => $taxAmount,
                 'receiver_name' => $validated['customer_name'],
                 'receiver_phone' => $normalizedPhone ?: $validated['phone'],
                 'receiver_address' => $validated['complete_address'],
@@ -2952,6 +3547,7 @@ class ShopController extends Controller
                     'product_name' => $item['display_name'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
+                    'discount_amount' => $item['discount_amount'],
                     'line_total' => $item['line_total'],
                 ]);
             }
@@ -3484,6 +4080,57 @@ class ShopController extends Controller
         return Conversation::STATUSES;
     }
 
+    /**
+     * @param  array<string, int>  $statusCounts
+     * @return array<int, array{status: string, count: int, percentage: float, avg_time_minutes: int|null}>
+     */
+    private function statusFunnel(array $statusCounts): array
+    {
+        $statuses = Conversation::STATUSES;
+        $total = array_sum($statusCounts) ?: 1;
+
+        // Average time spent in each status (in minutes) from status history
+        $avgTimes = [];
+        if (Schema::hasTable('conversation_status_histories')) {
+            $histories = ConversationStatusHistory::query()
+                ->select('conversation_id', 'to_status', 'created_at')
+                ->orderBy('conversation_id')
+                ->orderBy('created_at')
+                ->get();
+
+            $durationsByStatus = [];
+            $prev = null;
+            foreach ($histories as $h) {
+                if ($prev && $prev->conversation_id === $h->conversation_id && $prev->to_status) {
+                    $minutes = (int) round($h->created_at->diffInMinutes($prev->created_at));
+                    if ($minutes >= 0 && $minutes < 525600) {
+                        $durationsByStatus[$prev->to_status][] = $minutes;
+                    }
+                }
+                $prev = $h;
+            }
+
+            foreach ($statuses as $status) {
+                if (!empty($durationsByStatus[$status])) {
+                    $avgTimes[$status] = (int) round(array_sum($durationsByStatus[$status]) / count($durationsByStatus[$status]));
+                }
+            }
+        }
+
+        $funnel = [];
+        foreach ($statuses as $status) {
+            $count = $statusCounts[$status] ?? 0;
+            $funnel[] = [
+                'status' => $status,
+                'count' => $count,
+                'percentage' => round(($count / $total) * 100, 1),
+                'avg_time_minutes' => $avgTimes[$status] ?? null,
+            ];
+        }
+
+        return $funnel;
+    }
+
     private function computeSla(Conversation $conversation, array $thresholds): array
     {
         $threshold = $thresholds[$conversation->status] ?? null;
@@ -3649,6 +4296,67 @@ class ShopController extends Controller
             'recommendations' => $recommendations,
             'distribution' => $distribution,
         ];
+    }
+
+    public function toggleBlock(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'block' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $customer = $conversation->customer;
+
+        if (! $customer) {
+            return back()->with('error', 'No customer linked to this conversation.');
+        }
+
+        if ($validated['block']) {
+            $customer->update([
+                'is_blacklisted' => true,
+                'blacklist_reason' => $validated['reason'] ?? 'Blocked from conversation',
+                'blacklisted_at' => now(),
+                'risk_level' => 'BLACKLISTED',
+            ]);
+            $message = 'Customer blocked successfully.';
+        } else {
+            $customer->update([
+                'is_blacklisted' => false,
+                'blacklist_reason' => null,
+                'blacklisted_at' => null,
+            ]);
+            $message = 'Customer unblocked successfully.';
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function storeConversationRemark(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        OrderRemark::query()->create([
+            'order_id' => 0,
+            'conversation_id' => $conversation->id,
+            'user_id' => $request->user()->id,
+            'type' => 'conversation_note',
+            'body' => $validated['body'],
+        ]);
+
+        return back()->with('success', 'Remark added.');
+    }
+
+    public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->type !== 'conversation_note') {
+            return back()->with('error', 'Only conversation notes can be deleted here.');
+        }
+
+        $remark->delete();
+
+        return back()->with('success', 'Remark deleted.');
     }
 
 }

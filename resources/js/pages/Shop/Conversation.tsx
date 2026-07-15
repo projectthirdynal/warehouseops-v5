@@ -1,19 +1,27 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRightLeft,
+  Ban,
   CheckCircle2,
+  ChevronDown,
   ChevronUp,
   Clock,
   CalendarClock,
+  Copy,
+  Download,
   File as FileIcon,
   History,
   ImageIcon,
   MapPin,
+  MessageSquare,
   PackageCheck,
+  Pencil,
   Plus,
+  Printer,
   Send,
   Search,
   Flag,
@@ -24,6 +32,7 @@ import {
   User,
   UserCheck,
   Video as VideoIcon,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +59,8 @@ interface Attachment {
 
 interface Message {
   id: number;
+  sent_by?: number | null;
+  sender_name?: string | null;
   direction: 'inbound' | 'outbound';
   body: string | null;
   message_type?: string;
@@ -72,6 +83,7 @@ interface Conversation {
   id: number;
   status: string;
   priority: string;
+  channel: string;
   is_flagged: boolean;
   flag_reason: string | null;
   snoozed_until: string | null;
@@ -83,6 +95,12 @@ interface Conversation {
   tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
+  last_message_preview?: string | null;
+  created_at?: string | null;
+  first_response_at?: string | null;
+  resolved_at?: string | null;
+  thread_key?: string | null;
+  metadata?: Record<string, unknown> | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
   customer?: {
     id: number;
@@ -178,6 +196,8 @@ interface Props {
     status: string;
   };
   sla_thresholds?: Record<string, number | null>;
+  status_labels?: Record<string, { label: string; color: string | null }>;
+  remarks?: { id: number; body: string; user_name: string; created_at: string | null }[];
 }
 
 function time(value: string | null) {
@@ -230,11 +250,25 @@ function customerAddress(conversation: Conversation) {
   );
 }
 
-function label(value: string) {
+function label(
+  value: string,
+  customLabels?: Record<string, { label: string; color: string | null }>
+): string {
+  if (customLabels?.[value]) {
+    return customLabels[value].label;
+  }
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function statusBadgeClass(status: string) {
+function statusColor(
+  status: string,
+  customLabels?: Record<string, { label: string; color: string | null }>
+): string | null {
+  return customLabels?.[status]?.color ?? null;
+}
+
+function statusBadgeClass(status: string, customColor?: string | null) {
+  if (customColor) return 'border';
   switch (status) {
     case 'new':
       return 'border-blue-500/30 text-blue-600';
@@ -249,6 +283,14 @@ function statusBadgeClass(status: string) {
     default:
       return '';
   }
+}
+
+function statusBadgeStyle(customColor?: string | null): CSSProperties | undefined {
+  if (!customColor) return undefined;
+  return {
+    color: customColor,
+    borderColor: customColor + '4d',
+  };
 }
 
 function allowedTransitions(currentStatus: string, role: string): string[] {
@@ -300,6 +342,8 @@ export default function ShopConversation({
   assignment_history: assignmentHistory = [],
   status_history: statusHistory = [],
   sla: slaData,
+  status_labels: statusLabels = {},
+  remarks: initialRemarks = [],
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -313,6 +357,12 @@ export default function ShopConversation({
   const [isTyping, setIsTyping] = useState(false);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connected' | 'reconnecting' | 'offline'
+  >('connected');
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -392,29 +442,107 @@ export default function ShopConversation({
   useEffect(() => {
     if (!pollingEnabled || !conversation?.id) return;
 
+    let failCount = 0;
+
     const interval = setInterval(() => {
       axios
         .get(`/shop/inbox/${conversation.id}/poll`, {
           params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
         })
         .then(({ data }) => {
+          setConnectionStatus('connected');
+          failCount = 0;
           if (data.messages?.length > 0) {
+            const inboundCount = data.messages.filter(
+              (m: Message) => m.direction === 'inbound'
+            ).length;
             setMessages((prev) => [...prev, ...data.messages]);
             const maxId = data.messages.reduce(
               (max: number, m: Message) => (m.id > max ? m.id : max),
               lastMessageId
             );
             setLastMessageId(maxId);
+            if (inboundCount > 0) {
+              setNewMessageCount((c) => c + inboundCount);
+            }
           }
           setIsTyping(Boolean(data.is_typing));
         })
         .catch(() => {
-          // Silently ignore poll errors to avoid disrupting the agent
+          failCount++;
+          if (failCount >= 3) {
+            setConnectionStatus('offline');
+          } else {
+            setConnectionStatus('reconnecting');
+          }
         });
     }, 5000);
 
     return () => clearInterval(interval);
   }, [conversation?.id, lastMessageId, pollingEnabled]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setNewMessageCount(0);
+  };
+
+  const exportConversation = () => {
+    const payload = {
+      conversation: {
+        id: conversation.id,
+        channel: conversation.channel,
+        status: conversation.status,
+        priority: conversation.priority,
+        created_at: conversation.created_at,
+        last_message_at: conversation.last_message_at,
+        first_response_at: conversation.first_response_at,
+        resolved_at: conversation.resolved_at,
+        sentiment: conversation.sentiment,
+        facebook_page: conversation.facebook_page,
+        customer: conversation.customer,
+        identity: conversation.identity,
+        assigned_agent: conversation.assigned_agent,
+      },
+      messages: messages.map((m) => ({
+        id: m.id,
+        direction: m.direction,
+        body: m.body,
+        sent_at: m.sent_at,
+        sender_name: m.sender_name,
+        translated_body: m.translated_body,
+        is_flagged: m.is_flagged,
+      })),
+      remarks: initialRemarks,
+      exported_at: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${conversation.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  useEffect(() => {
+    if (!conversation.customer?.id) return;
+    axios
+      .get(`/shop/customers/${conversation.customer.id}/addresses`)
+      .then(({ data }) => {
+        setSavedAddresses(data.addresses ?? []);
+      })
+      .catch(() => {});
+  }, [conversation.customer?.id]);
 
   const { data, setData, post, processing, reset, errors } = useForm<{
     body: string;
@@ -439,6 +567,54 @@ export default function ShopConversation({
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [qrTitle, setQrTitle] = useState('');
   const [qrPayload, setQrPayload] = useState('');
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<{
+    id: number;
+    name: string;
+    body: string;
+    variables?: string[];
+  } | null>(null);
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAgentId, setTransferAgentId] = useState('');
+  const [newRemark, setNewRemark] = useState('');
+  const [savedAddresses, setSavedAddresses] = useState<
+    {
+      id: number;
+      label: string | null;
+      canonical_address: string | null;
+      landmark: string | null;
+      barangay: string | null;
+      city_municipality: string | null;
+      province: string | null;
+      region: string | null;
+      is_default: boolean;
+    }[]
+  >([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+
+  const selectedAddress = savedAddresses.find((a) => a.id === Number(selectedAddressId));
+  const createOrderHref = (() => {
+    const base = `/shop/orders/create?conversation_id=${conversation.id}`;
+    if (!selectedAddress) return base;
+    const params = new URLSearchParams();
+    params.set('conversation_id', String(conversation.id));
+    if (selectedAddress.canonical_address)
+      params.set('complete_address', selectedAddress.canonical_address);
+    if (selectedAddress.landmark) params.set('landmark', selectedAddress.landmark);
+    if (selectedAddress.barangay) params.set('barangay', selectedAddress.barangay);
+    if (selectedAddress.city_municipality)
+      params.set('city_municipality', selectedAddress.city_municipality);
+    if (selectedAddress.province) params.set('province', selectedAddress.province);
+    return `/shop/orders/create?${params.toString()}`;
+  })();
+
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -645,6 +821,162 @@ export default function ShopConversation({
     );
   };
 
+  const insertTemplate = (template: {
+    id: number;
+    name: string;
+    body: string;
+    variables?: string[];
+  }) => {
+    if (!template.variables || template.variables.length === 0) {
+      setData('body', template.body);
+      setSelectedTemplate(null);
+      return;
+    }
+    setSelectedTemplate(template);
+    setTemplateVars(template.variables.reduce((acc, v) => ({ ...acc, [v]: '' }), {}));
+  };
+
+  const confirmInsertTemplate = () => {
+    if (!selectedTemplate) return;
+    let body = selectedTemplate.body;
+    for (const [key, value] of Object.entries(templateVars)) {
+      body = body.split(`{${key}}`).join(value);
+    }
+    setData('body', body);
+    setSelectedTemplate(null);
+    setTemplateVars({});
+  };
+
+  const riskBadgeClass = (risk?: string | null): string => {
+    if (!risk) return '';
+    const r = risk.toLowerCase();
+    if (r === 'high' || r === 'blacklisted')
+      return 'border-destructive/40 text-destructive bg-destructive/10';
+    if (r === 'medium')
+      return 'border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    if (r === 'low') return 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30';
+    return '';
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    });
+  };
+
+  const orderStatusBadgeClass = (status: string): string => {
+    const s = status.toLowerCase();
+    if (s === 'delivered' || s === 'completed' || s === 'successful')
+      return 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30';
+    if (s === 'returned' || s === 'cancelled' || s === 'failed')
+      return 'border-destructive/40 text-destructive bg-destructive/10';
+    if (s === 'pending' || s === 'processing' || s === 'in_transit' || s === 'shipped')
+      return 'border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    return '';
+  };
+
+  const submitRemark = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newRemark.trim()) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/remarks`,
+      { body: newRemark },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setNewRemark('');
+          router.reload({ only: ['remarks'] });
+        },
+      }
+    );
+  };
+
+  const deleteRemark = (remarkId: number) => {
+    router.delete(`/shop/remarks/${remarkId}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        router.reload({ only: ['remarks'] });
+      },
+    });
+  };
+
+  type ActivityEntry = {
+    id: string;
+    type: 'assignment' | 'status' | 'remark' | 'flag' | 'snooze';
+    timestamp: string | null;
+    description: string;
+    actor: string | null;
+    badge?: { text: string; className?: string };
+  };
+
+  const activityLog: ActivityEntry[] = (() => {
+    const entries: ActivityEntry[] = [];
+
+    for (const h of assignmentHistory) {
+      entries.push({
+        id: `assign-${h.id}`,
+        type: 'assignment',
+        timestamp: h.created_at,
+        description: `${h.from_agent ?? 'Unassigned'} → ${h.to_agent ?? 'Unassigned'}`,
+        actor: h.assigned_by,
+        badge: { text: h.reason.replace(/_/g, ' ') },
+      });
+    }
+
+    for (const h of statusHistory) {
+      entries.push({
+        id: `status-${h.id}`,
+        type: 'status',
+        timestamp: h.created_at,
+        description: `${h.from_status ? label(h.from_status, statusLabels) + ' → ' : ''}${label(h.to_status, statusLabels)}`,
+        actor: h.changed_by,
+        badge: h.changed_by_role ? { text: h.changed_by_role } : undefined,
+      });
+    }
+
+    for (const r of initialRemarks) {
+      entries.push({
+        id: `remark-${r.id}`,
+        type: 'remark',
+        timestamp: r.created_at,
+        description: r.body.length > 80 ? r.body.slice(0, 80) + '…' : r.body,
+        actor: r.user_name,
+        badge: { text: 'note' },
+      });
+    }
+
+    if (conversation.is_flagged) {
+      entries.push({
+        id: 'flag-current',
+        type: 'flag',
+        timestamp: null,
+        description: conversation.flag_reason || 'Conversation flagged',
+        actor: null,
+        badge: { text: 'flag', className: 'border-destructive/40 text-destructive' },
+      });
+    }
+
+    if (conversation.snoozed_until) {
+      entries.push({
+        id: 'snooze-current',
+        type: 'snooze',
+        timestamp: conversation.snoozed_until,
+        description: `Snoozed until ${time(conversation.snoozed_until)}`,
+        actor: null,
+        badge: { text: 'snooze' },
+      });
+    }
+
+    entries.sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tb - ta;
+    });
+
+    return entries;
+  })();
+
   const updateCustomer = (event: FormEvent) => {
     event.preventDefault();
     if (!conversation.customer) return;
@@ -684,8 +1016,47 @@ export default function ShopConversation({
                   Create Order
                 </Link>
               </Button>
-              <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
-                {label(conversation.status)}
+              <Button type="button" variant="outline" onClick={() => setShowTransferModal(true)}>
+                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                Transfer
+              </Button>
+              <Button type="button" variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-1.5 h-4 w-4" />
+                Print
+              </Button>
+              <Button type="button" variant="outline" onClick={exportConversation}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
+              {conversation.customer && (
+                <Button
+                  type="button"
+                  variant={conversation.customer.is_blacklisted ? 'default' : 'destructive'}
+                  onClick={() => {
+                    if (conversation.customer?.is_blacklisted) {
+                      router.post(
+                        `/shop/inbox/${conversation.id}/block`,
+                        { block: false },
+                        { preserveScroll: true }
+                      );
+                    } else {
+                      setShowBlockModal(true);
+                    }
+                  }}
+                >
+                  <Ban className="mr-1.5 h-4 w-4" />
+                  {conversation.customer.is_blacklisted ? 'Unblock' : 'Block'}
+                </Button>
+              )}
+              <Badge
+                variant="outline"
+                className={statusBadgeClass(
+                  conversation.status,
+                  statusColor(conversation.status, statusLabels)
+                )}
+                style={statusBadgeStyle(statusColor(conversation.status, statusLabels))}
+              >
+                {label(conversation.status, statusLabels)}
               </Badge>
               {slaData && slaData.status !== 'none' && (
                 <Badge
@@ -713,12 +1084,24 @@ export default function ShopConversation({
               )}
               {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
+              {conversation.sentiment !== 'neutral' && (
+                <Badge
+                  variant="outline"
+                  className={
+                    conversation.sentiment === 'positive'
+                      ? 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30'
+                      : 'border-red-500/40 text-red-600 bg-red-50 dark:bg-red-950/30'
+                  }
+                >
+                  {conversation.sentiment === 'positive' ? '😊' : '😟'} {conversation.sentiment}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+          <Card className="print-conversation xl:col-span-2">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -732,10 +1115,40 @@ export default function ShopConversation({
                     type="button"
                     size="sm"
                     variant={pollingEnabled ? 'default' : 'outline'}
-                    onClick={() => setPollingEnabled((enabled) => !enabled)}
-                    title={pollingEnabled ? 'Polling every 5s' : 'Polling paused'}
+                    onClick={() => {
+                      setPollingEnabled((enabled) => !enabled);
+                      setConnectionStatus('connected');
+                    }}
+                    title={
+                      !pollingEnabled
+                        ? 'Polling paused'
+                        : connectionStatus === 'offline'
+                          ? 'Connection lost — retrying'
+                          : connectionStatus === 'reconnecting'
+                            ? 'Reconnecting...'
+                            : 'Polling every 5s'
+                    }
                   >
-                    {pollingEnabled ? 'Live' : 'Paused'}
+                    {!pollingEnabled ? (
+                      'Paused'
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            connectionStatus === 'connected'
+                              ? 'bg-green-400'
+                              : connectionStatus === 'reconnecting'
+                                ? 'bg-amber-400 animate-pulse'
+                                : 'bg-red-400 animate-pulse'
+                          }`}
+                        />
+                        {connectionStatus === 'offline'
+                          ? 'Offline'
+                          : connectionStatus === 'reconnecting'
+                            ? 'Reconnecting'
+                            : 'Live'}
+                      </span>
+                    )}
                   </Button>
                   <Button asChild size="sm" variant="outline">
                     <Link href="/shop/templates">Templates</Link>
@@ -770,19 +1183,120 @@ export default function ShopConversation({
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Saved Templates
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {saved_templates.map((template) => (
-                      <Button
-                        key={template.id}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 min-w-[160px]">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                        placeholder="Search templates..."
+                        className="h-8 pl-8 text-xs"
+                      />
+                    </div>
+                    {Array.from(
+                      new Set(
+                        saved_templates
+                          .map((t) => t.category)
+                          .filter((c): c is string => Boolean(c))
+                      )
+                    ).map((cat) => (
+                      <button
+                        key={cat}
                         type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setData('body', template.body)}
+                        onClick={() => setTemplateCategory(templateCategory === cat ? '' : cat)}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          templateCategory === cat
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
                       >
-                        {template.name}
-                      </Button>
+                        {cat}
+                      </button>
                     ))}
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    {saved_templates
+                      .filter(
+                        (t) =>
+                          (!templateSearch ||
+                            t.name.toLowerCase().includes(templateSearch.toLowerCase())) &&
+                          (!templateCategory || t.category === templateCategory)
+                      )
+                      .map((template) => (
+                        <Button
+                          key={template.id}
+                          type="button"
+                          size="sm"
+                          variant={selectedTemplate?.id === template.id ? 'default' : 'secondary'}
+                          onClick={() => insertTemplate(template)}
+                          className="gap-1.5"
+                        >
+                          {template.name}
+                          {template.variables && template.variables.length > 0 && (
+                            <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">
+                              {template.variables.length} var
+                            </span>
+                          )}
+                        </Button>
+                      ))}
+                  </div>
+                  {selectedTemplate && (
+                    <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">
+                          Fill in variables for: {selectedTemplate.name}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTemplate(null);
+                            setTemplateVars({});
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      {Object.keys(templateVars).map((varName) => (
+                        <div key={varName} className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            {'{' + varName + '}'}
+                          </label>
+                          <Input
+                            value={templateVars[varName]}
+                            onChange={(e) =>
+                              setTemplateVars((prev) => ({
+                                ...prev,
+                                [varName]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Enter value for ${varName}`}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      ))}
+                      <div className="rounded-md border bg-background p-2 text-xs text-muted-foreground">
+                        <p className="mb-1 font-medium text-foreground">Preview:</p>
+                        {(() => {
+                          let preview = selectedTemplate.body;
+                          for (const [key, value] of Object.entries(templateVars)) {
+                            preview = preview.split(`{${key}}`).join(value || `{${key}}`);
+                          }
+                          return <p className="whitespace-pre-wrap">{preview}</p>;
+                        })()}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={confirmInsertTemplate}
+                        disabled={Object.values(templateVars).some((v) => !v.trim())}
+                      >
+                        Insert into Reply
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -843,301 +1357,383 @@ export default function ShopConversation({
                 )}
               </div>
 
-              {hasMore && (
-                <div className="flex justify-center py-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadOlderMessages}
-                    disabled={loadingOlder}
-                  >
-                    <ChevronUp className="mr-1.5 h-4 w-4" />
-                    {loadingOlder
-                      ? 'Loading...'
-                      : `Load older messages (${totalMessages - messages.length} more)`}
-                  </Button>
-                </div>
-              )}
-
-              {messages.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
-              ) : (
-                messages.map((message) => {
-                  const status = deliveryStatus(message);
-                  const StatusIcon = status?.icon;
-
-                  return (
-                    <div
-                      key={message.id}
-                      id={`message-${message.id}`}
-                      className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+              <div
+                ref={scrollContainerRef}
+                className="relative max-h-[60vh] space-y-2 overflow-y-auto py-2"
+              >
+                {hasMore && (
+                  <div className="flex justify-center py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadOlderMessages}
+                      disabled={loadingOlder}
                     >
+                      <ChevronUp className="mr-1.5 h-4 w-4" />
+                      {loadingOlder
+                        ? 'Loading...'
+                        : `Load older messages (${totalMessages - messages.length} more)`}
+                    </Button>
+                  </div>
+                )}
+
+                {messages.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    No messages yet.
+                  </p>
+                ) : (
+                  messages.map((message) => {
+                    const status = deliveryStatus(message);
+                    const StatusIcon = status?.icon;
+                    const senderLabel =
+                      message.direction === 'outbound'
+                        ? (message.sender_name ?? 'Agent')
+                        : (conversation.customer?.name ??
+                          conversation.identity?.display_name ??
+                          'Customer');
+                    const senderInitial = senderLabel.charAt(0).toUpperCase();
+
+                    return (
                       <div
-                        className={`group max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
-                          message.direction === 'outbound'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted/40'
-                        } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
+                        key={message.id}
+                        id={`message-${message.id}`}
+                        className={`flex gap-2 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                       >
-                        {message.body && <p>{message.body}</p>}
-                        {message.translated_body && (
+                        {message.direction === 'inbound' && (
+                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                            {senderInitial}
+                          </div>
+                        )}
+                        <div className="max-w-[78%]">
                           <p
-                            className={`mt-1 border-t pt-1 text-xs italic ${
-                              message.direction === 'outbound'
-                                ? 'border-primary-foreground/20 text-primary-foreground/70'
-                                : 'border-muted text-muted-foreground'
-                            }`}
+                            className={`mb-0.5 text-xs font-medium text-muted-foreground ${message.direction === 'outbound' ? 'text-right' : 'text-left'}`}
                           >
-                            {message.translated_body}
+                            {senderLabel}
                           </p>
-                        )}
-                        {message.message_type === 'quick_reply' &&
-                          message.metadata?.quick_reply_payload && (
-                            <p
-                              className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
-                            >
-                              Quick Reply: {message.metadata.quick_reply_payload}
-                            </p>
-                          )}
-                        {message.attachments && message.attachments.length > 0 && (
-                          <div className="mt-1 space-y-2">
-                            {message.attachments.map((att, idx) => {
-                              const url = att.payload?.url;
-                              if (
-                                att.type === 'image' ||
-                                att.type === 'image/jpeg' ||
-                                att.type === 'image/png' ||
-                                att.type === 'gif'
-                              ) {
-                                return url ? (
-                                  <img
-                                    key={idx}
-                                    src={url}
-                                    alt="Attachment"
-                                    className="max-w-full rounded-md border"
-                                    style={{ maxHeight: '240px' }}
-                                  />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <ImageIcon className="h-3 w-3" /> Image
-                                  </div>
-                                );
-                              }
-                              if (att.type === 'audio' || att.type === 'voice') {
-                                return url ? (
-                                  <audio key={idx} controls src={url} className="w-full" />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <AlertCircle className="h-3 w-3" /> Voice message
-                                  </div>
-                                );
-                              }
-                              if (att.type === 'video') {
-                                return url ? (
-                                  <video
-                                    key={idx}
-                                    controls
-                                    src={url}
-                                    className="max-w-full rounded-md"
-                                    style={{ maxHeight: '240px' }}
-                                  />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <VideoIcon className="h-3 w-3" /> Video
-                                  </div>
-                                );
-                              }
-                              if (att.type === 'file') {
-                                return url ? (
-                                  <a
-                                    key={idx}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs underline"
-                                  >
-                                    <FileIcon className="h-3 w-3" /> Download file
-                                  </a>
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <FileIcon className="h-3 w-3" /> File attachment
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div key={idx} className="text-xs text-muted-foreground">
-                                  {att.type} attachment
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {!message.body &&
-                          (!message.attachments || message.attachments.length === 0) && (
-                            <p className="text-muted-foreground italic">Unsupported message</p>
-                          )}
-                        <p
-                          className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
-                        >
-                          {time(message.sent_at)}
-                        </p>
-                        {status && StatusIcon && (
                           <div
-                            className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                            className={`group rounded-lg border px-3 py-2 text-sm ${
+                              message.direction === 'outbound'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted/40'
+                            } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
                           >
-                            <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
-                            <span>
-                              {status.label}
-                              {status.detail ? `: ${status.detail}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        {message.reactions && Object.keys(message.reactions).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {Object.entries(message.reactions).map(([key, emoji]) => (
-                              <span
-                                key={key}
-                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                            {message.body && <p>{message.body}</p>}
+                            {message.translated_body && (
+                              <p
+                                className={`mt-1 border-t pt-1 text-xs italic ${
                                   message.direction === 'outbound'
-                                    ? 'bg-primary-foreground/20'
-                                    : 'bg-muted'
+                                    ? 'border-primary-foreground/20 text-primary-foreground/70'
+                                    : 'border-muted text-muted-foreground'
                                 }`}
                               >
-                                {emoji}
-                              </span>
-                            ))}
+                                {message.translated_body}
+                              </p>
+                            )}
+                            {message.message_type === 'quick_reply' &&
+                              message.metadata?.quick_reply_payload && (
+                                <p
+                                  className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                                >
+                                  Quick Reply: {message.metadata.quick_reply_payload}
+                                </p>
+                              )}
+                            {message.attachments && message.attachments.length > 0 && (
+                              <div className="mt-1 space-y-2">
+                                {message.attachments.map((att, idx) => {
+                                  const url = att.payload?.url;
+                                  const isImage =
+                                    att.type === 'image' ||
+                                    att.type === 'image/jpeg' ||
+                                    att.type === 'image/png' ||
+                                    att.type === 'gif';
+                                  const isAudio = att.type === 'audio' || att.type === 'voice';
+                                  const isVideo = att.type === 'video';
+                                  const isFile = att.type === 'file';
+
+                                  if (isImage) {
+                                    return url ? (
+                                      <div key={idx} className="group relative inline-block">
+                                        <img
+                                          src={url}
+                                          alt="Attachment"
+                                          className="max-w-full cursor-zoom-in rounded-md border transition-opacity hover:opacity-90"
+                                          style={{ maxHeight: '240px' }}
+                                          onClick={() => setLightboxUrl(url)}
+                                        />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="absolute bottom-1 right-1 rounded-md bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                                          title="Download"
+                                        >
+                                          <Download className="h-3.5 w-3.5" />
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <ImageIcon className="h-3 w-3" /> Image
+                                      </div>
+                                    );
+                                  }
+                                  if (isAudio) {
+                                    return url ? (
+                                      <div key={idx} className="space-y-1">
+                                        <audio controls src={url} className="w-full" />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs underline"
+                                        >
+                                          <Download className="h-3 w-3" /> Download audio
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <AlertCircle className="h-3 w-3" /> Voice message
+                                      </div>
+                                    );
+                                  }
+                                  if (isVideo) {
+                                    return url ? (
+                                      <div key={idx} className="space-y-1">
+                                        <video
+                                          controls
+                                          src={url}
+                                          className="max-w-full rounded-md"
+                                          style={{ maxHeight: '240px' }}
+                                        />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs underline"
+                                        >
+                                          <Download className="h-3 w-3" /> Download video
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <VideoIcon className="h-3 w-3" /> Video
+                                      </div>
+                                    );
+                                  }
+                                  if (isFile) {
+                                    return url ? (
+                                      <a
+                                        key={idx}
+                                        href={url}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-accent/30"
+                                      >
+                                        <FileIcon className="h-4 w-4 shrink-0" />
+                                        <span className="underline">Download file</span>
+                                      </a>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <FileIcon className="h-3 w-3" /> File attachment
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={idx} className="text-xs text-muted-foreground">
+                                      {att.type} attachment
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {!message.body &&
+                              (!message.attachments || message.attachments.length === 0) && (
+                                <p className="text-muted-foreground italic">Unsupported message</p>
+                              )}
+                            <p
+                              className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                            >
+                              {time(message.sent_at)}
+                            </p>
+                            {status && StatusIcon && (
+                              <div
+                                className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                              >
+                                <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                                <span>
+                                  {status.label}
+                                  {status.detail ? `: ${status.detail}` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {message.reactions && Object.keys(message.reactions).length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {Object.entries(message.reactions).map(([key, emoji]) => (
+                                  <span
+                                    key={key}
+                                    className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                                      message.direction === 'outbound'
+                                        ? 'bg-primary-foreground/20'
+                                        : 'bg-muted'
+                                    }`}
+                                  >
+                                    {emoji}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div
+                              className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                  onClick={() => {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/reaction`, { emoji })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? { ...m, reactions: data.reactions }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
+                                  message.is_flagged ? 'text-destructive opacity-100' : ''
+                                }`}
+                                title={
+                                  message.is_flagged
+                                    ? `Flagged: ${message.flag_reason}`
+                                    : 'Flag message'
+                                }
+                                onClick={() => {
+                                  if (message.is_flagged) {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/flag`, {})
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  is_flagged: data.is_flagged,
+                                                  flag_reason: data.flag_reason,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  } else {
+                                    const reason = window.prompt('Flag reason (optional):');
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/flag`, {
+                                        flag_reason: reason || undefined,
+                                      })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  is_flagged: data.is_flagged,
+                                                  flag_reason: data.flag_reason,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }
+                                }}
+                              >
+                                <Flag className="h-4 w-4" />
+                              </button>
+                              {message.body && (
+                                <button
+                                  type="button"
+                                  className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                  title="Translate to English"
+                                  onClick={() => {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/translate`, {
+                                        target_lang: 'en',
+                                      })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  translated_body: data.translated_body,
+                                                  translated_lang: data.translated_lang,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }}
+                                >
+                                  <Languages className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            {message.is_flagged && (
+                              <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                                <Flag className="h-3 w-3" />
+                                <span>{message.flag_reason || 'Flagged'}</span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div
-                          className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                              onClick={() => {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/reaction`, { emoji })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? { ...m, reactions: data.reactions }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              }}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
-                              message.is_flagged ? 'text-destructive opacity-100' : ''
-                            }`}
-                            title={
-                              message.is_flagged
-                                ? `Flagged: ${message.flag_reason}`
-                                : 'Flag message'
-                            }
-                            onClick={() => {
-                              if (message.is_flagged) {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/flag`, {})
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              is_flagged: data.is_flagged,
-                                              flag_reason: data.flag_reason,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              } else {
-                                const reason = window.prompt('Flag reason (optional):');
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/flag`, {
-                                    flag_reason: reason || undefined,
-                                  })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              is_flagged: data.is_flagged,
-                                              flag_reason: data.flag_reason,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              }
-                            }}
-                          >
-                            <Flag className="h-4 w-4" />
-                          </button>
-                          {message.body && (
-                            <button
-                              type="button"
-                              className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                              title="Translate to English"
-                              onClick={() => {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/translate`, {
-                                    target_lang: 'en',
-                                  })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              translated_body: data.translated_body,
-                                              translated_lang: data.translated_lang,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              }}
-                            >
-                              <Languages className="h-4 w-4" />
-                            </button>
-                          )}
                         </div>
-                        {message.is_flagged && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
-                            <Flag className="h-3 w-3" />
-                            <span>{message.flag_reason || 'Flagged'}</span>
+                        {message.direction === 'outbound' && (
+                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                            {senderInitial}
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
 
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-3 py-2">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-3 py-2">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                    </div>
                   </div>
-                </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {newMessageCount > 0 && (
+                <button
+                  type="button"
+                  onClick={scrollToBottom}
+                  className="sticky bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground shadow-md transition-opacity hover:opacity-90"
+                >
+                  {newMessageCount} new message{newMessageCount > 1 ? 's' : ''} ↓
+                </button>
               )}
 
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
@@ -1438,7 +2034,8 @@ export default function ShopConversation({
                 <select
                   value={conversation.status}
                   onChange={(event) => updateStatus(event.target.value)}
-                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status)}`}
+                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status, statusColor(conversation.status, statusLabels))}`}
+                  style={statusBadgeStyle(statusColor(conversation.status, statusLabels))}
                 >
                   {statuses.map((status) => {
                     const permitted =
@@ -1446,7 +2043,7 @@ export default function ShopConversation({
                       status === conversation.status;
                     return (
                       <option key={status} value={status} disabled={!permitted}>
-                        {label(status)}
+                        {label(status, statusLabels)}
                         {!permitted ? ' (not allowed)' : ''}
                       </option>
                     );
@@ -1455,7 +2052,7 @@ export default function ShopConversation({
               </CardContent>
             </Card>
 
-            {conversation.customer && (
+            {conversation.customer && showEditForm && (
               <Card>
                 <CardHeader>
                   <CardTitle>Update Customer</CardTitle>
@@ -1563,40 +2160,96 @@ export default function ShopConversation({
                     {conversation.customer?.is_blacklisted ? (
                       <Badge variant="destructive">Blacklisted</Badge>
                     ) : conversation.customer?.risk_level ? (
-                      <Badge variant="outline">{conversation.customer.risk_level}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={riskBadgeClass(conversation.customer.risk_level)}
+                      >
+                        {conversation.customer.risk_level} risk
+                      </Badge>
                     ) : null}
                   </div>
-                  <p className="text-muted-foreground">
-                    {conversation.customer?.normalized_phone ??
-                      conversation.identity?.phone_detected ??
-                      'No phone detected'}
-                  </p>
-                  <p className="text-muted-foreground">
-                    PSID: {conversation.identity?.provider_user_id ?? 'unknown'}
-                  </p>
+                  {conversation.customer ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-muted-foreground">
+                          {conversation.customer?.normalized_phone ??
+                            conversation.customer?.phone ??
+                            'No phone detected'}
+                        </p>
+                        {conversation.customer?.normalized_phone && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard(
+                                conversation.customer?.normalized_phone ?? '',
+                                'phone'
+                              )
+                            }
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Copy phone"
+                          >
+                            {copiedField === 'phone' ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground">
+                        PSID: {conversation.identity?.provider_user_id ?? 'unknown'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No customer record linked. Customer details will appear here once matched.
+                    </p>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Orders</p>
-                    <p className="font-semibold">
-                      {conversation.customer?.total_orders ?? recent_orders.length}
-                    </p>
+                {conversation.customer && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Orders</p>
+                      <p className="font-semibold">
+                        {conversation.customer?.total_orders ?? recent_orders.length}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Success</p>
+                      <p className="font-semibold">{conversation.customer?.success_rate ?? 0}%</p>
+                    </div>
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Revenue</p>
+                      <p className="font-semibold">{money(conversation.customer?.total_revenue)}</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Success</p>
-                    <p className="font-semibold">{conversation.customer?.success_rate ?? 0}%</p>
-                  </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Revenue</p>
-                    <p className="font-semibold">{money(conversation.customer?.total_revenue)}</p>
-                  </div>
-                </div>
+                )}
 
                 {conversation.customer?.blacklist_reason && (
                   <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
                     {conversation.customer.blacklist_reason}
                   </p>
+                )}
+
+                {conversation.customer && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-between"
+                    onClick={() => setShowEditForm((v) => !v)}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit Customer Details
+                    </span>
+                    {showEditForm ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
                 )}
               </CardContent>
             </Card>
@@ -1612,22 +2265,86 @@ export default function ShopConversation({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <p>{customerAddress(conversation)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p>{customerAddress(conversation)}</p>
+                  {customerAddress(conversation) && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(customerAddress(conversation), 'address')}
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      title="Copy address"
+                    >
+                      {copiedField === 'address' ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
                 {conversation.customer?.landmark && (
                   <p className="text-muted-foreground">
                     Landmark: {conversation.customer.landmark}
                   </p>
                 )}
                 <div className="grid gap-2">
+                  {savedAddresses.length > 0 && (
+                    <div className="space-y-2">
+                      <div>
+                        <Label htmlFor="address_select" className="text-xs text-muted-foreground">
+                          Saved addresses ({savedAddresses.length})
+                        </Label>
+                        <select
+                          id="address_select"
+                          value={selectedAddressId}
+                          onChange={(e) => setSelectedAddressId(e.target.value)}
+                          className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="">Use customer profile address</option>
+                          {savedAddresses.map((addr) => (
+                            <option key={addr.id} value={addr.id}>
+                              {addr.label ? `${addr.label}: ` : ''}
+                              {addr.canonical_address || 'No street'}
+                              {addr.city_municipality ? `, ${addr.city_municipality}` : ''}
+                              {addr.is_default ? ' (default)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedAddress && (
+                        <div className="rounded-md border bg-muted/30 p-2 text-xs">
+                          <p className="font-medium">
+                            {selectedAddress.label || 'Selected address'}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {selectedAddress.canonical_address || 'No street address'}
+                          </p>
+                          {(selectedAddress.barangay ||
+                            selectedAddress.city_municipality ||
+                            selectedAddress.province) && (
+                            <p className="text-muted-foreground">
+                              {[
+                                selectedAddress.barangay,
+                                selectedAddress.city_municipality,
+                                selectedAddress.province,
+                              ]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          )}
+                          {selectedAddress.landmark && (
+                            <p className="text-muted-foreground">
+                              Landmark: {selectedAddress.landmark}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <Button asChild size="sm">
-                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                    <Link href={createOrderHref}>
                       <ShoppingCart className="mr-1.5 h-4 w-4" />
-                      Use Same Address
-                    </Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
-                      Update Address in Order
+                      {selectedAddress ? 'Create Order with Selected Address' : 'Create Order'}
                     </Link>
                   </Button>
                 </div>
@@ -1636,10 +2353,30 @@ export default function ShopConversation({
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Recent Orders
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Recent Orders
+                  </CardTitle>
+                  {conversation.customer && (
+                    <Button asChild size="sm" variant="ghost">
+                      <Link href={`/shop/customers/${conversation.customer.id}`}>View All</Link>
+                    </Button>
+                  )}
+                </div>
+                {conversation.customer && (conversation.customer.total_orders ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                      Total: {conversation.customer.total_orders}
+                    </span>
+                    <span className="rounded-full border border-green-500/30 px-2 py-0.5 text-green-600">
+                      Successful: {conversation.customer.successful_orders ?? 0}
+                    </span>
+                    <span className="rounded-full border border-destructive/30 px-2 py-0.5 text-destructive">
+                      Returned: {conversation.customer.returned_orders ?? 0}
+                    </span>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
                 {recent_orders.length === 0 ? (
@@ -1652,18 +2389,28 @@ export default function ShopConversation({
                       className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-medium">{order.order_number}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="truncate text-xs text-muted-foreground">
                             {order.product?.name ?? 'No product'}
                           </p>
                         </div>
-                        <Badge variant="outline">{order.status}</Badge>
+                        <Badge variant="outline" className={orderStatusBadgeClass(order.status)}>
+                          {order.status}
+                        </Badge>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{time(order.created_at)}</span>
                         <span>{money(order.total_amount)}</span>
                       </div>
+                      {order.receiver_address && (
+                        <p
+                          className="mt-1.5 truncate text-xs text-muted-foreground"
+                          title={order.receiver_address}
+                        >
+                          {order.receiver_address}
+                        </p>
+                      )}
                     </Link>
                   ))
                 )}
@@ -1673,15 +2420,134 @@ export default function ShopConversation({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Remarks &amp; Notes
+                </CardTitle>
+                <CardDescription>Internal notes visible to your team only</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <form onSubmit={submitRemark} className="space-y-2">
+                  <Textarea
+                    value={newRemark}
+                    onChange={(e) => setNewRemark(e.target.value)}
+                    placeholder="Add an internal note..."
+                    className="min-h-[60px] text-sm"
+                  />
+                  <div className="flex justify-end">
+                    <Button type="submit" size="sm" disabled={!newRemark.trim()}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add Note
+                    </Button>
+                  </div>
+                </form>
+                {initialRemarks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No remarks yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {initialRemarks.map((remark) => (
+                      <div key={remark.id} className="group rounded-lg border p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">
+                                {remark.user_name}
+                              </span>
+                              <span>{time(remark.created_at)}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap break-words">{remark.body}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => deleteRemark(remark.id)}
+                            className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                            title="Delete remark"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <PackageCheck className="h-5 w-5" />
-                  Page
+                  Conversation Details
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>{conversation.facebook_page?.page_name ?? 'Unknown Page'}</p>
-                <p className="text-muted-foreground">
-                  Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
-                </p>
+              <CardContent className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Source</p>
+                    <p className="capitalize">{conversation.channel ?? 'messenger'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Page</p>
+                    <p>{conversation.facebook_page?.page_name ?? 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Created</p>
+                    <p>{time(conversation.created_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Last Message</p>
+                    <p>{time(conversation.last_message_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">First Response</p>
+                    <p>{time(conversation.first_response_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Resolved</p>
+                    <p>{time(conversation.resolved_at ?? null) || '—'}</p>
+                  </div>
+                </div>
+                {conversation.last_message_preview && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Last Message Preview
+                    </p>
+                    <p
+                      className="truncate text-muted-foreground"
+                      title={conversation.last_message_preview}
+                    >
+                      {conversation.last_message_preview}
+                    </p>
+                  </div>
+                )}
+                {conversation.thread_key && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Thread Key</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {conversation.thread_key}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Webhook Status</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      conversation.facebook_page?.webhook_status === 'active'
+                        ? 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30'
+                        : 'border-muted text-muted-foreground'
+                    }
+                  >
+                    {conversation.facebook_page?.webhook_status ?? 'unknown'}
+                  </Badge>
+                </div>
+                {conversation.facebook_page && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Page ID</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {conversation.facebook_page.page_id}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1778,22 +2644,43 @@ export default function ShopConversation({
               <CardHeader>
                 <CardTitle>Sentiment</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
                   {conversation.sentiment === 'positive' && (
                     <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                      Positive
+                      😊 Positive
                     </Badge>
                   )}
                   {conversation.sentiment === 'negative' && (
                     <Badge className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
-                      Negative
+                      😟 Negative
                     </Badge>
                   )}
-                  {conversation.sentiment === 'neutral' && <Badge variant="outline">Neutral</Badge>}
-                  <span className="text-sm text-muted-foreground">
-                    Score: {Number(conversation.sentiment_score).toFixed(2)}
+                  {conversation.sentiment === 'neutral' && (
+                    <Badge variant="outline">😐 Neutral</Badge>
+                  )}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {Number(conversation.sentiment_score).toFixed(2)}
                   </span>
+                </div>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      conversation.sentiment === 'positive'
+                        ? 'bg-green-500'
+                        : conversation.sentiment === 'negative'
+                          ? 'bg-red-500'
+                          : 'bg-muted-foreground/40'
+                    }`}
+                    style={{
+                      width: `${Math.min(Math.abs(Number(conversation.sentiment_score)) * 100, 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>−1.0</span>
+                  <span>0</span>
+                  <span>+1.0</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Based on keyword analysis of recent inbound messages.
@@ -1931,86 +2818,62 @@ export default function ShopConversation({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <History className="h-5 w-5" />
-                  Assignment History
+                  Activity Log
                 </CardTitle>
+                <CardDescription>Unified timeline of all conversation events</CardDescription>
               </CardHeader>
               <CardContent>
-                {assignmentHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No assignment changes recorded.</p>
+                {activityLog.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {assignmentHistory.map((h) => (
-                      <div
-                        key={h.id}
-                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium">{h.from_agent ?? 'Unassigned'}</span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="font-medium">{h.to_agent ?? 'Unassigned'}</span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px]">
-                              {h.reason.replace(/_/g, ' ')}
-                            </Badge>
-                            {h.assigned_by && <span>by {h.assigned_by}</span>}
-                            {h.created_at && <span>{time(h.created_at)}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Status History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {statusHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No status changes recorded.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {statusHistory.map((h) => (
-                      <div
-                        key={h.id}
-                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1.5">
-                            {h.from_status && (
-                              <>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] ${statusBadgeClass(h.from_status)}`}
-                                >
-                                  {label(h.from_status)}
-                                </Badge>
-                                <span className="text-muted-foreground">→</span>
-                              </>
-                            )}
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] ${statusBadgeClass(h.to_status)}`}
-                            >
-                              {label(h.to_status)}
-                            </Badge>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
-                            <span>by {h.changed_by}</span>
-                            {h.changed_by_role && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {h.changed_by_role}
+                  <div className="relative space-y-3 before:absolute before:left-3 before:top-1 before:h-full before:w-px before:bg-border">
+                    {activityLog.map((entry) => (
+                      <div key={entry.id} className="relative flex gap-3 pl-7">
+                        <span
+                          className={`absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full border ${
+                            entry.type === 'flag'
+                              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                              : entry.type === 'status'
+                                ? 'border-blue-500/40 bg-blue-50 text-blue-600 dark:bg-blue-950/30'
+                                : entry.type === 'assignment'
+                                  ? 'border-purple-500/40 bg-purple-50 text-purple-600 dark:bg-purple-950/30'
+                                  : entry.type === 'remark'
+                                    ? 'border-amber-500/40 bg-amber-50 text-amber-600 dark:bg-amber-950/30'
+                                    : 'border-muted bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {entry.type === 'assignment'
+                            ? '→'
+                            : entry.type === 'status'
+                              ? '⟳'
+                              : entry.type === 'remark'
+                                ? '✎'
+                                : entry.type === 'flag'
+                                  ? '!'
+                                  : '⏸'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            {entry.badge && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${entry.badge.className ?? ''}`}
+                              >
+                                {entry.badge.text}
                               </Badge>
                             )}
-                            {h.created_at && <span>{time(h.created_at)}</span>}
+                            {entry.actor && (
+                              <span className="text-xs font-medium text-foreground">
+                                {entry.actor}
+                              </span>
+                            )}
                           </div>
+                          <p className="mt-0.5 text-xs text-foreground">{entry.description}</p>
+                          {entry.timestamp && (
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              {time(entry.timestamp)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -2021,6 +2884,155 @@ export default function ShopConversation({
           </div>
         </div>
       </div>
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-md bg-background/80 p-2 text-foreground hover:bg-background"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <a
+            href={lightboxUrl}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-4 right-4 rounded-md bg-background/80 p-2 text-foreground hover:bg-background"
+            title="Download"
+          >
+            <Download className="h-5 w-5" />
+          </a>
+          <img
+            src={lightboxUrl}
+            alt="Attachment preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {showBlockModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowBlockModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Ban className="h-5 w-5 text-destructive" />
+                Block Customer
+              </h3>
+              <button type="button" onClick={() => setShowBlockModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Blocking this customer will mark them as blacklisted and set risk level to
+              BLACKLISTED. You can unblock them later.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="block_reason">Reason (optional)</Label>
+              <Textarea
+                id="block_reason"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="Enter reason for blocking..."
+                className="min-h-[80px]"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowBlockModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  router.post(
+                    `/shop/inbox/${conversation.id}/block`,
+                    { block: true, reason: blockReason || undefined },
+                    { preserveScroll: true }
+                  );
+                  setShowBlockModal(false);
+                  setBlockReason('');
+                }}
+              >
+                <Ban className="mr-1.5 h-4 w-4" />
+                Confirm Block
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowTransferModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <ArrowRightLeft className="h-5 w-5" />
+                Transfer Conversation
+              </h3>
+              <button type="button" onClick={() => setShowTransferModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Currently assigned to:{' '}
+              <span className="font-medium text-foreground">
+                {conversation.assigned_agent?.name ?? 'Unassigned'}
+              </span>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="transfer_agent">Assign to agent</Label>
+              <select
+                id="transfer_agent"
+                value={transferAgentId}
+                onChange={(e) => setTransferAgentId(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name} ({agent.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowTransferModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={transferAgentId === (conversation.assigned_agent?.id?.toString() ?? '')}
+                onClick={() => {
+                  updateAssignment(transferAgentId);
+                  setShowTransferModal(false);
+                  setTransferAgentId('');
+                }}
+              >
+                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                Transfer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

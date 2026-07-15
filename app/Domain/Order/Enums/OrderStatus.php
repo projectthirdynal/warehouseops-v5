@@ -16,6 +16,7 @@ enum OrderStatus: string
     case DELIVERED    = 'DELIVERED';
     case RETURNED     = 'RETURNED';
     case CANCELLED    = 'CANCELLED';
+    case DRAFT        = 'DRAFT';
 
     public function label(): string
     {
@@ -30,6 +31,7 @@ enum OrderStatus: string
             self::DELIVERED   => 'Delivered',
             self::RETURNED    => 'Returned',
             self::CANCELLED   => 'Cancelled',
+            self::DRAFT       => 'Draft',
         };
     }
 
@@ -46,6 +48,7 @@ enum OrderStatus: string
             self::DELIVERED   => 'green',
             self::RETURNED    => 'red',
             self::CANCELLED   => 'gray',
+            self::DRAFT       => 'slate',
         };
     }
 
