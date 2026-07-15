@@ -5,14 +5,17 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   ChevronUp,
   Clock,
   CalendarClock,
+  Copy,
   File as FileIcon,
   History,
   ImageIcon,
   MapPin,
   PackageCheck,
+  Pencil,
   Plus,
   Send,
   Search,
@@ -474,6 +477,8 @@ export default function ShopConversation({
     variables?: string[];
   } | null>(null);
   const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -704,6 +709,24 @@ export default function ShopConversation({
     setData('body', body);
     setSelectedTemplate(null);
     setTemplateVars({});
+  };
+
+  const riskBadgeClass = (risk?: string | null): string => {
+    if (!risk) return '';
+    const r = risk.toLowerCase();
+    if (r === 'high' || r === 'blacklisted')
+      return 'border-destructive/40 text-destructive bg-destructive/10';
+    if (r === 'medium')
+      return 'border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    if (r === 'low') return 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30';
+    return '';
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    });
   };
 
   const updateCustomer = (event: FormEvent) => {
@@ -1649,7 +1672,7 @@ export default function ShopConversation({
               </CardContent>
             </Card>
 
-            {conversation.customer && (
+            {conversation.customer && showEditForm && (
               <Card>
                 <CardHeader>
                   <CardTitle>Update Customer</CardTitle>
@@ -1757,40 +1780,96 @@ export default function ShopConversation({
                     {conversation.customer?.is_blacklisted ? (
                       <Badge variant="destructive">Blacklisted</Badge>
                     ) : conversation.customer?.risk_level ? (
-                      <Badge variant="outline">{conversation.customer.risk_level}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={riskBadgeClass(conversation.customer.risk_level)}
+                      >
+                        {conversation.customer.risk_level} risk
+                      </Badge>
                     ) : null}
                   </div>
-                  <p className="text-muted-foreground">
-                    {conversation.customer?.normalized_phone ??
-                      conversation.identity?.phone_detected ??
-                      'No phone detected'}
-                  </p>
-                  <p className="text-muted-foreground">
-                    PSID: {conversation.identity?.provider_user_id ?? 'unknown'}
-                  </p>
+                  {conversation.customer ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-muted-foreground">
+                          {conversation.customer?.normalized_phone ??
+                            conversation.customer?.phone ??
+                            'No phone detected'}
+                        </p>
+                        {conversation.customer?.normalized_phone && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard(
+                                conversation.customer?.normalized_phone ?? '',
+                                'phone'
+                              )
+                            }
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Copy phone"
+                          >
+                            {copiedField === 'phone' ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground">
+                        PSID: {conversation.identity?.provider_user_id ?? 'unknown'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No customer record linked. Customer details will appear here once matched.
+                    </p>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Orders</p>
-                    <p className="font-semibold">
-                      {conversation.customer?.total_orders ?? recent_orders.length}
-                    </p>
+                {conversation.customer && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Orders</p>
+                      <p className="font-semibold">
+                        {conversation.customer?.total_orders ?? recent_orders.length}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Success</p>
+                      <p className="font-semibold">{conversation.customer?.success_rate ?? 0}%</p>
+                    </div>
+                    <div className="rounded-lg border p-2">
+                      <p className="text-xs text-muted-foreground">Revenue</p>
+                      <p className="font-semibold">{money(conversation.customer?.total_revenue)}</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Success</p>
-                    <p className="font-semibold">{conversation.customer?.success_rate ?? 0}%</p>
-                  </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-xs text-muted-foreground">Revenue</p>
-                    <p className="font-semibold">{money(conversation.customer?.total_revenue)}</p>
-                  </div>
-                </div>
+                )}
 
                 {conversation.customer?.blacklist_reason && (
                   <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
                     {conversation.customer.blacklist_reason}
                   </p>
+                )}
+
+                {conversation.customer && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-between"
+                    onClick={() => setShowEditForm((v) => !v)}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit Customer Details
+                    </span>
+                    {showEditForm ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
                 )}
               </CardContent>
             </Card>
@@ -1806,7 +1885,23 @@ export default function ShopConversation({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <p>{customerAddress(conversation)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p>{customerAddress(conversation)}</p>
+                  {customerAddress(conversation) && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(customerAddress(conversation), 'address')}
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      title="Copy address"
+                    >
+                      {copiedField === 'address' ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
                 {conversation.customer?.landmark && (
                   <p className="text-muted-foreground">
                     Landmark: {conversation.customer.landmark}
