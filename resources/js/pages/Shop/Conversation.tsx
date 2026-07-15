@@ -505,22 +505,6 @@ export default function ShopConversation({
       .catch(() => {});
   }, [conversation.customer?.id]);
 
-  const selectedAddress = savedAddresses.find((a) => a.id === Number(selectedAddressId));
-  const createOrderHref = (() => {
-    const base = `/shop/orders/create?conversation_id=${conversation.id}`;
-    if (!selectedAddress) return base;
-    const params = new URLSearchParams();
-    params.set('conversation_id', String(conversation.id));
-    if (selectedAddress.canonical_address)
-      params.set('complete_address', selectedAddress.canonical_address);
-    if (selectedAddress.landmark) params.set('landmark', selectedAddress.landmark);
-    if (selectedAddress.barangay) params.set('barangay', selectedAddress.barangay);
-    if (selectedAddress.city_municipality)
-      params.set('city_municipality', selectedAddress.city_municipality);
-    if (selectedAddress.province) params.set('province', selectedAddress.province);
-    return `/shop/orders/create?${params.toString()}`;
-  })();
-
   const { data, setData, post, processing, reset, errors } = useForm<{
     body: string;
     quick_replies: { title: string; payload: string }[];
@@ -575,6 +559,23 @@ export default function ShopConversation({
     }[]
   >([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
+
+  const selectedAddress = savedAddresses.find((a) => a.id === Number(selectedAddressId));
+  const createOrderHref = (() => {
+    const base = `/shop/orders/create?conversation_id=${conversation.id}`;
+    if (!selectedAddress) return base;
+    const params = new URLSearchParams();
+    params.set('conversation_id', String(conversation.id));
+    if (selectedAddress.canonical_address)
+      params.set('complete_address', selectedAddress.canonical_address);
+    if (selectedAddress.landmark) params.set('landmark', selectedAddress.landmark);
+    if (selectedAddress.barangay) params.set('barangay', selectedAddress.barangay);
+    if (selectedAddress.city_municipality)
+      params.set('city_municipality', selectedAddress.city_municipality);
+    if (selectedAddress.province) params.set('province', selectedAddress.province);
+    return `/shop/orders/create?${params.toString()}`;
+  })();
+
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
