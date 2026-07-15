@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { CSSProperties, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
   BarChart3,
@@ -162,7 +162,7 @@ interface Props {
   statuses: string[];
   status_counts?: Record<string, number>;
   sla_thresholds?: Record<string, number | null>;
-  status_labels?: Record<number, Record<string, string>>;
+  status_labels?: Record<number, Record<string, { label: string; color: string | null }>>;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -211,12 +211,23 @@ function label(value: string) {
 function statusLabel(
   status: string,
   pageId: number | undefined,
-  labels: Record<number, Record<string, string>>
+  labels: Record<number, Record<string, { label: string; color: string | null }>>
 ): string {
   if (pageId && labels[pageId]?.[status]) {
-    return labels[pageId][status];
+    return labels[pageId][status].label;
   }
   return label(status);
+}
+
+function statusColor(
+  status: string,
+  pageId: number | undefined,
+  labels: Record<number, Record<string, { label: string; color: string | null }>>
+): string | null {
+  if (pageId && labels[pageId]?.[status]) {
+    return labels[pageId][status].color;
+  }
+  return null;
 }
 
 export default function ShopInbox({
@@ -253,6 +264,7 @@ export default function ShopInbox({
   const [labelPageId, setLabelPageId] = useState('');
   const [labelStatus, setLabelStatus] = useState('');
   const [labelText, setLabelText] = useState('');
+  const [labelColor, setLabelColor] = useState('');
   const [skillEditId, setSkillEditId] = useState<number | null>(null);
   const [skillProductInput, setSkillProductInput] = useState('');
   const [skillRegionInput, setSkillRegionInput] = useState('');
@@ -349,13 +361,19 @@ export default function ShopInbox({
     if (!labelPageId || !labelStatus || !labelText) return;
     router.post(
       '/shop/inbox/status-labels',
-      { page_id: Number(labelPageId), status: labelStatus, label: labelText },
+      {
+        page_id: Number(labelPageId),
+        status: labelStatus,
+        label: labelText,
+        color: labelColor || null,
+      },
       {
         preserveState: true,
         onSuccess: () => {
           setLabelPageId('');
           setLabelStatus('');
           setLabelText('');
+          setLabelColor('');
         },
       }
     );
@@ -395,7 +413,8 @@ export default function ShopInbox({
     );
   };
 
-  const statusBadgeClass = (status: string) => {
+  const statusBadgeClass = (status: string, customColor?: string | null): string => {
+    if (customColor) return 'border';
     switch (status) {
       case 'new':
         return 'border-blue-500/30 text-blue-600';
@@ -410,6 +429,14 @@ export default function ShopInbox({
       default:
         return '';
     }
+  };
+
+  const statusBadgeStyle = (customColor?: string | null): CSSProperties | undefined => {
+    if (!customColor) return undefined;
+    return {
+      color: customColor,
+      borderColor: customColor + '4d',
+    };
   };
 
   const formatSlaMinutes = (minutes: number): string => {
@@ -1562,7 +1589,7 @@ export default function ShopInbox({
                   <div className="space-y-1.5">
                     {Object.entries(statusLabels).map(([pageId, labels]) => {
                       const page = pages.find((p) => p.id === Number(pageId));
-                      return Object.entries(labels).map(([status, text]) => (
+                      return Object.entries(labels).map(([status, entry]) => (
                         <div
                           key={`${pageId}-${status}`}
                           className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs"
@@ -1570,7 +1597,13 @@ export default function ShopInbox({
                           <Badge variant="outline">{page?.page_name ?? `Page #${pageId}`}</Badge>
                           <span className="text-muted-foreground">{label(status)}</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className="font-medium">{text}</span>
+                          {entry.color && (
+                            <span
+                              className="inline-block h-3 w-3 rounded-full border"
+                              style={{ backgroundColor: entry.color }}
+                            />
+                          )}
+                          <span className="font-medium">{entry.label}</span>
                           <button
                             onClick={() => removeStatusLabel(Number(pageId), status)}
                             className="ml-auto text-muted-foreground hover:text-destructive"
@@ -1620,6 +1653,24 @@ export default function ShopInbox({
                         placeholder="e.g. Pending Payment"
                         className="h-8 w-40 text-xs"
                       />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Color</label>
+                      <input
+                        type="color"
+                        value={labelColor || '#6366f1'}
+                        onChange={(e) => setLabelColor(e.target.value)}
+                        className="h-8 w-10 cursor-pointer rounded-md border border-input bg-background"
+                        title="Pick a color (optional)"
+                      />
+                      {labelColor && (
+                        <button
+                          onClick={() => setLabelColor('')}
+                          className="text-xs text-muted-foreground hover:text-destructive"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
                     <Button size="sm" variant="outline" onClick={saveStatusLabel}>
                       <Plus className="mr-1 h-3 w-3" />
@@ -1935,7 +1986,14 @@ export default function ShopInbox({
                                 changeStatus(conversation.id, e.target.value);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status)}`}
+                              className={`h-7 rounded-md border bg-background px-2 text-xs font-medium ${statusBadgeClass(conversation.status, statusColor(conversation.status, conversation.facebook_page?.id, statusLabels))}`}
+                              style={statusBadgeStyle(
+                                statusColor(
+                                  conversation.status,
+                                  conversation.facebook_page?.id,
+                                  statusLabels
+                                )
+                              )}
                             >
                               {statuses.map((s) => {
                                 const permitted =

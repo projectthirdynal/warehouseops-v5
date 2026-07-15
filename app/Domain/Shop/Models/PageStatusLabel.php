@@ -15,6 +15,7 @@ class PageStatusLabel extends Model
         'facebook_page_id',
         'status',
         'label',
+        'color',
     ];
 
     public function facebookPage(): BelongsTo

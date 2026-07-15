@@ -610,9 +610,10 @@ class ShopController extends Controller
         });
 
         $statusLabels = PageStatusLabel::query()
-            ->get(['facebook_page_id', 'status', 'label'])
+            ->get(['facebook_page_id', 'status', 'label', 'color'])
             ->groupBy('facebook_page_id')
-            ->map(fn ($items) => $items->pluck('label', 'status')->toArray())
+            ->map(fn ($items) => $items->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
+            ->toArray())
             ->toArray();
 
         return Inertia::render('Shop/Inbox', [
@@ -793,6 +794,7 @@ class ShopController extends Controller
             'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
             'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
             'label' => ['required', 'string', 'max:50'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
 
         PageStatusLabel::updateOrCreate(
@@ -800,7 +802,10 @@ class ShopController extends Controller
                 'facebook_page_id' => $validated['page_id'],
                 'status' => $validated['status'],
             ],
-            ['label' => $validated['label']]
+            [
+                'label' => $validated['label'],
+                'color' => $validated['color'] ?? null,
+            ]
         );
 
         return back()->with('success', 'Status label saved.');
@@ -1001,7 +1006,8 @@ class ShopController extends Controller
             'sla_thresholds' => Conversation::slaThresholds(),
             'status_labels' => PageStatusLabel::query()
                 ->where('facebook_page_id', $conversation->facebook_page_id)
-                ->pluck('label', 'status')
+                ->get(['status', 'label', 'color'])
+                ->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
                 ->toArray(),
         ]);
     }

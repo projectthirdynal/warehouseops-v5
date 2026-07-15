@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import {
@@ -178,7 +178,7 @@ interface Props {
     status: string;
   };
   sla_thresholds?: Record<string, number | null>;
-  status_labels?: Record<string, string>;
+  status_labels?: Record<string, { label: string; color: string | null }>;
 }
 
 function time(value: string | null) {
@@ -231,14 +231,25 @@ function customerAddress(conversation: Conversation) {
   );
 }
 
-function label(value: string, customLabels?: Record<string, string>): string {
+function label(
+  value: string,
+  customLabels?: Record<string, { label: string; color: string | null }>
+): string {
   if (customLabels?.[value]) {
-    return customLabels[value];
+    return customLabels[value].label;
   }
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function statusBadgeClass(status: string) {
+function statusColor(
+  status: string,
+  customLabels?: Record<string, { label: string; color: string | null }>
+): string | null {
+  return customLabels?.[status]?.color ?? null;
+}
+
+function statusBadgeClass(status: string, customColor?: string | null) {
+  if (customColor) return 'border';
   switch (status) {
     case 'new':
       return 'border-blue-500/30 text-blue-600';
@@ -253,6 +264,14 @@ function statusBadgeClass(status: string) {
     default:
       return '';
   }
+}
+
+function statusBadgeStyle(customColor?: string | null): CSSProperties | undefined {
+  if (!customColor) return undefined;
+  return {
+    color: customColor,
+    borderColor: customColor + '4d',
+  };
 }
 
 function allowedTransitions(currentStatus: string, role: string): string[] {
@@ -689,7 +708,14 @@ export default function ShopConversation({
                   Create Order
                 </Link>
               </Button>
-              <Badge variant="outline" className={statusBadgeClass(conversation.status)}>
+              <Badge
+                variant="outline"
+                className={statusBadgeClass(
+                  conversation.status,
+                  statusColor(conversation.status, statusLabels)
+                )}
+                style={statusBadgeStyle(statusColor(conversation.status, statusLabels))}
+              >
                 {label(conversation.status, statusLabels)}
               </Badge>
               {slaData && slaData.status !== 'none' && (
@@ -1443,7 +1469,8 @@ export default function ShopConversation({
                 <select
                   value={conversation.status}
                   onChange={(event) => updateStatus(event.target.value)}
-                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status)}`}
+                  className={`h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium ${statusBadgeClass(conversation.status, statusColor(conversation.status, statusLabels))}`}
+                  style={statusBadgeStyle(statusColor(conversation.status, statusLabels))}
                 >
                   {statuses.map((status) => {
                     const permitted =
@@ -1993,7 +2020,8 @@ export default function ShopConversation({
                               <>
                                 <Badge
                                   variant="outline"
-                                  className={`text-[10px] ${statusBadgeClass(h.from_status)}`}
+                                  className={`text-[10px] ${statusBadgeClass(h.from_status, statusColor(h.from_status, statusLabels))}`}
+                                  style={statusBadgeStyle(statusColor(h.from_status, statusLabels))}
                                 >
                                   {label(h.from_status, statusLabels)}
                                 </Badge>
@@ -2002,7 +2030,8 @@ export default function ShopConversation({
                             )}
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${statusBadgeClass(h.to_status)}`}
+                              className={`text-[10px] ${statusBadgeClass(h.to_status, statusColor(h.to_status, statusLabels))}`}
+                              style={statusBadgeStyle(statusColor(h.to_status, statusLabels))}
                             >
                               {label(h.to_status, statusLabels)}
                             </Badge>
