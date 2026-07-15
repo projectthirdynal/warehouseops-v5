@@ -37,6 +37,7 @@ use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\CartTemplate;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
@@ -3013,6 +3014,75 @@ class ShopController extends Controller
                 'items_count' => $totalQuantity,
             ],
         ]);
+    }
+
+    public function listTemplates(): JsonResponse
+    {
+        $templates = CartTemplate::query()
+            ->sharedOrOwned(auth()->id())
+            ->latest()
+            ->limit(50)
+            ->get(['id', 'name', 'items', 'courier_code', 'shipping_fee', 'discount_amount', 'tax_rate', 'remarks', 'is_shared', 'user_id', 'created_at'])
+            ->map(fn ($t) => [
+                'id'              => $t->id,
+                'name'            => $t->name,
+                'items'           => $t->items ?? [],
+                'courier_code'    => $t->courier_code,
+                'shipping_fee'    => (float) $t->shipping_fee,
+                'discount_amount' => (float) $t->discount_amount,
+                'tax_rate'        => (float) $t->tax_rate,
+                'remarks'         => $t->remarks,
+                'is_shared'       => $t->is_shared,
+                'is_owner'        => $t->user_id === auth()->id(),
+                'items_count'     => is_array($t->items) ? count($t->items) : 0,
+                'created_at'      => $t->created_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['templates' => $templates]);
+    }
+
+    public function storeTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name'              => ['required', 'string', 'max:100'],
+            'items'             => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id'  => ['required', 'exists:products,id'],
+            'items.*.variant_id'  => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity'    => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'courier_code'      => ['nullable', 'string', 'max:30'],
+            'shipping_fee'      => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount'   => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'remarks'           => ['nullable', 'string', 'max:2000'],
+            'is_shared'         => ['nullable', 'boolean'],
+        ]);
+
+        $template = CartTemplate::query()->create([
+            'user_id'         => auth()->id(),
+            'name'            => $validated['name'],
+            'items'           => $validated['items'],
+            'courier_code'    => $validated['courier_code'] ?? 'MANUAL',
+            'shipping_fee'    => $validated['shipping_fee'] ?? 0,
+            'discount_amount' => $validated['discount_amount'] ?? 0,
+            'tax_rate'        => $validated['tax_rate'] ?? 0,
+            'remarks'         => $validated['remarks'] ?? null,
+            'is_shared'       => $validated['is_shared'] ?? false,
+        ]);
+
+        return response()->json(['success' => true, 'template_id' => $template->id]);
+    }
+
+    public function deleteTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $template->delete();
+
+        return response()->json(['success' => true]);
     }
 
     public function checkDuplicates(Request $request): JsonResponse

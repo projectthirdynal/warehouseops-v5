@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Eye,
   FileText,
+  LayoutGrid,
   MapPinned,
   PackagePlus,
   Phone,
@@ -87,6 +88,21 @@ interface DraftSummary {
   phone: string;
   created_at: string;
   items_count: number;
+}
+
+interface TemplateSummary {
+  id: number;
+  name: string;
+  items: CartItemForm[];
+  courier_code: string;
+  shipping_fee: number;
+  discount_amount: number;
+  tax_rate: number;
+  remarks: string | null;
+  is_shared: boolean;
+  is_owner: boolean;
+  items_count: number;
+  created_at: string;
 }
 
 interface Props {
@@ -333,6 +349,79 @@ export default function CreateShopOrder({
       .catch(() => undefined);
   };
 
+  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateShared, setTemplateShared] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const fetchTemplates = () => {
+    fetch('/shop/templates', { headers: { 'X-CSRF-TOKEN': csrfToken } })
+      .then((res) => res.json())
+      .then((result: { templates: TemplateSummary[] }) => {
+        setTemplates(result.templates ?? []);
+      })
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const saveTemplate = () => {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    fetch('/shop/templates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({
+        name: templateName.trim(),
+        items: data.items,
+        courier_code: data.courier_code,
+        shipping_fee: data.shipping_fee,
+        discount_amount: data.discount_amount,
+        tax_rate: data.tax_rate,
+        remarks: data.remarks,
+        is_shared: templateShared,
+      }),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        setShowTemplateModal(false);
+        setTemplateName('');
+        setTemplateShared(false);
+        fetchTemplates();
+      })
+      .catch(() => undefined)
+      .finally(() => setSavingTemplate(false));
+  };
+
+  const applyTemplate = (tpl: TemplateSummary) => {
+    setData({
+      ...data,
+      items: tpl.items.length > 0 ? tpl.items : [createEmptyItem()],
+      courier_code: tpl.courier_code || 'MANUAL',
+      shipping_fee: String(tpl.shipping_fee ?? 0),
+      discount_amount: String(tpl.discount_amount ?? 0),
+      tax_rate: String(tpl.tax_rate ?? 0),
+      remarks: tpl.remarks ?? data.remarks,
+    });
+  };
+
+  const deleteTemplate = (id: number) => {
+    fetch(`/shop/templates/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': csrfToken },
+    })
+      .then(() => {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+      })
+      .catch(() => undefined);
+  };
+
   const calculateShipping = () => {
     setCalculatingShipping(true);
     fetch('/shop/orders/calculate-shipping', {
@@ -398,6 +487,10 @@ export default function CreateShopOrder({
             <Button type="button" variant="outline" onClick={saveDraft} disabled={savingDraft}>
               <FileText className="mr-1.5 h-4 w-4" />
               {savingDraft ? 'Saving...' : 'Save Draft'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowTemplateModal(true)}>
+              <LayoutGrid className="mr-1.5 h-4 w-4" />
+              Save Template
             </Button>
             <Button type="submit" disabled={processing}>
               <Eye className="mr-1.5 h-4 w-4" />
@@ -789,6 +882,54 @@ export default function CreateShopOrder({
               </Card>
             )}
 
+            {templates.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <LayoutGrid className="h-5 w-5" />
+                    Cart Templates
+                  </CardTitle>
+                  <CardDescription>Apply a saved bundle to the cart</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {templates.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{tpl.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {tpl.items_count} item(s)
+                          {tpl.is_shared ? ' · Shared' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => applyTemplate(tpl)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        {tpl.is_owner && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteTemplate(tpl.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1118,6 +1259,69 @@ export default function CreateShopOrder({
                 <Button type="button" onClick={confirmSubmit} disabled={processing}>
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
                   Confirm & Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowTemplateModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <LayoutGrid className="h-5 w-5" />
+                Save as Template
+              </h2>
+              <button type="button" onClick={() => setShowTemplateModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="template_name">Template name</Label>
+                <Input
+                  id="template_name"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="e.g. Bestseller Bundle"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="template_shared"
+                  checked={templateShared}
+                  onChange={(e) => setTemplateShared(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="template_shared" className="text-sm font-normal">
+                  Share with other agents
+                </Label>
+              </div>
+              <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                Saves {data.items.length} item(s) with current pricing, discounts, shipping, and tax
+                settings.
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowTemplateModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={saveTemplate}
+                  disabled={savingTemplate || !templateName.trim()}
+                >
+                  {savingTemplate ? 'Saving...' : 'Save Template'}
                 </Button>
               </div>
             </div>

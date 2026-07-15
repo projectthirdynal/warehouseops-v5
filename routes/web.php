@@ -393,6 +393,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::post('/shop/orders/check-duplicates', [ShopController::class, 'checkDuplicates'])->name('shop.orders.check-duplicates');
+    Route::get('/shop/templates', [ShopController::class, 'listTemplates'])->name('shop.templates.index');
+    Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');
+    Route::delete('/shop/templates/{template}', [ShopController::class, 'deleteTemplate'])->name('shop.templates.destroy')->whereNumber('template');
     Route::post('/shop/orders/calculate-shipping', [ShopController::class, 'calculateShipping'])->name('shop.orders.shipping');
     Route::post('/shop/orders/draft', [ShopController::class, 'storeDraft'])->name('shop.orders.draft.store');
     Route::get('/shop/orders/{order}/draft', [ShopController::class, 'loadDraft'])->name('shop.orders.draft.load')->whereNumber('order');
