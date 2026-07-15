@@ -313,6 +313,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/pos/search', [ShopController::class, 'posSearch'])->name('shop.pos.search');
     Route::post('/shop/pos/checkout', [ShopController::class, 'posCheckout'])->name('shop.pos.checkout');
     Route::get('/shop/inbox', [ShopController::class, 'inbox'])->name('shop.inbox');
+    Route::get('/shop/inbox/export-statuses', [ShopController::class, 'exportConversationStatuses'])->name('shop.inbox.export-statuses');
     Route::post('/shop/inbox/page-favorite', [ShopController::class, 'togglePageFavorite'])->name('shop.page-favorite.toggle');
     Route::post('/shop/inbox/status-labels', [ShopController::class, 'storeStatusLabel'])->name('shop.status-labels.store');
     Route::delete('/shop/inbox/status-labels', [ShopController::class, 'destroyStatusLabel'])->name('shop.status-labels.destroy');

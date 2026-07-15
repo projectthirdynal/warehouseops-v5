@@ -480,6 +480,88 @@ class ShopController extends Controller
             ->with('success', 'Simulated inbound message processed. Check the Shop inbox.');
     }
 
+    public function exportConversationStatuses(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $query = Conversation::query()
+            ->whereNull('merged_into_id')
+            ->with([
+                'facebookPage:id,page_name',
+                'customerIdentity:id,display_name',
+                'assignedAgent:id,name',
+                'tags:id,name',
+            ])
+            ->latest('last_message_at');
+
+        if ($request->filled('page_id')) {
+            $query->where('facebook_page_id', $request->integer('page_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+        if ($request->filled('assigned_agent_id')) {
+            $agentFilter = $request->string('assigned_agent_id')->toString();
+            match ($agentFilter) {
+                'unassigned' => $query->whereNull('assigned_agent_id'),
+                'me' => $query->where('assigned_agent_id', $request->user()->id),
+                default => $query->where('assigned_agent_id', $request->integer('assigned_agent_id')),
+            };
+        }
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority'));
+        }
+        if ($request->boolean('flagged')) {
+            $query->where('is_flagged', true);
+        }
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="conversation-statuses-' . date('Y-m-d') . '.csv"',
+        ];
+
+        $columns = [
+            'id', 'page', 'customer', 'channel', 'status', 'priority',
+            'assigned_agent', 'is_flagged', 'flag_reason',
+            'sentiment', 'snoozed_until', 'reminder_at',
+            'first_response_at', 'first_response_time_seconds',
+            'resolved_at', 'resolution_time_seconds',
+            'last_message_at', 'created_at', 'tags',
+        ];
+
+        return response()->stream(function () use ($query, $columns) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $columns);
+
+            $query->chunk(200, function ($conversations) use ($handle, $columns) {
+                foreach ($conversations as $c) {
+                    $row = [
+                        $c->id,
+                        $c->facebookPage?->page_name ?? '',
+                        $c->customerIdentity?->display_name ?? '',
+                        $c->channel ?? '',
+                        $c->status ?? '',
+                        $c->priority ?? '',
+                        $c->assignedAgent?->name ?? 'Unassigned',
+                        $c->is_flagged ? 'yes' : 'no',
+                        $c->flag_reason ?? '',
+                        $c->sentiment ?? '',
+                        $c->snoozed_until ?? '',
+                        $c->reminder_at ?? '',
+                        $c->first_response_at ?? '',
+                        $c->first_response_time_seconds ?? '',
+                        $c->resolved_at ?? '',
+                        $c->resolution_time_seconds ?? '',
+                        $c->last_message_at ?? '',
+                        $c->created_at?->toDateTimeString() ?? '',
+                        $c->tags->pluck('name')->implode(';'),
+                    ];
+                    fputcsv($handle, $row);
+                }
+            });
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function inbox(Request $request): Response
     {
         $query = Conversation::query()

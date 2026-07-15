@@ -6,6 +6,7 @@ import {
   CheckCheck,
   Check,
   Circle,
+  Download,
   EyeOff,
   Flag,
   Inbox,
@@ -785,6 +786,23 @@ export default function ShopInbox({
                 </Badge>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (filters.page_id) params.set('page_id', filters.page_id);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.assigned_agent_id)
+                  params.set('assigned_agent_id', filters.assigned_agent_id);
+                if (filters.priority) params.set('priority', filters.priority);
+                if (filters.flagged === 'true') params.set('flagged', '1');
+                window.location.href = `/shop/inbox/export-statuses${params.toString() ? '?' + params.toString() : ''}`;
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
             <Button
               variant="outline"
               size="sm"
