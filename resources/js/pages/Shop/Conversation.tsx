@@ -349,6 +349,12 @@ export default function ShopConversation({
   const [isTyping, setIsTyping] = useState(false);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connected' | 'reconnecting' | 'offline'
+  >('connected');
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Message[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -428,29 +434,59 @@ export default function ShopConversation({
   useEffect(() => {
     if (!pollingEnabled || !conversation?.id) return;
 
+    let failCount = 0;
+
     const interval = setInterval(() => {
       axios
         .get(`/shop/inbox/${conversation.id}/poll`, {
           params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
         })
         .then(({ data }) => {
+          setConnectionStatus('connected');
+          failCount = 0;
           if (data.messages?.length > 0) {
+            const inboundCount = data.messages.filter(
+              (m: Message) => m.direction === 'inbound'
+            ).length;
             setMessages((prev) => [...prev, ...data.messages]);
             const maxId = data.messages.reduce(
               (max: number, m: Message) => (m.id > max ? m.id : max),
               lastMessageId
             );
             setLastMessageId(maxId);
+            if (inboundCount > 0) {
+              setNewMessageCount((c) => c + inboundCount);
+            }
           }
           setIsTyping(Boolean(data.is_typing));
         })
         .catch(() => {
-          // Silently ignore poll errors to avoid disrupting the agent
+          failCount++;
+          if (failCount >= 3) {
+            setConnectionStatus('offline');
+          } else {
+            setConnectionStatus('reconnecting');
+          }
         });
     }, 5000);
 
     return () => clearInterval(interval);
   }, [conversation?.id, lastMessageId, pollingEnabled]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setNewMessageCount(0);
+  };
 
   const { data, setData, post, processing, reset, errors } = useForm<{
     body: string;
@@ -896,10 +932,40 @@ export default function ShopConversation({
                     type="button"
                     size="sm"
                     variant={pollingEnabled ? 'default' : 'outline'}
-                    onClick={() => setPollingEnabled((enabled) => !enabled)}
-                    title={pollingEnabled ? 'Polling every 5s' : 'Polling paused'}
+                    onClick={() => {
+                      setPollingEnabled((enabled) => !enabled);
+                      setConnectionStatus('connected');
+                    }}
+                    title={
+                      !pollingEnabled
+                        ? 'Polling paused'
+                        : connectionStatus === 'offline'
+                          ? 'Connection lost — retrying'
+                          : connectionStatus === 'reconnecting'
+                            ? 'Reconnecting...'
+                            : 'Polling every 5s'
+                    }
                   >
-                    {pollingEnabled ? 'Live' : 'Paused'}
+                    {!pollingEnabled ? (
+                      'Paused'
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            connectionStatus === 'connected'
+                              ? 'bg-green-400'
+                              : connectionStatus === 'reconnecting'
+                                ? 'bg-amber-400 animate-pulse'
+                                : 'bg-red-400 animate-pulse'
+                          }`}
+                        />
+                        {connectionStatus === 'offline'
+                          ? 'Offline'
+                          : connectionStatus === 'reconnecting'
+                            ? 'Reconnecting'
+                            : 'Live'}
+                      </span>
+                    )}
                   </Button>
                   <Button asChild size="sm" variant="outline">
                     <Link href="/shop/templates">Templates</Link>
@@ -1108,364 +1174,383 @@ export default function ShopConversation({
                 )}
               </div>
 
-              {hasMore && (
-                <div className="flex justify-center py-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadOlderMessages}
-                    disabled={loadingOlder}
-                  >
-                    <ChevronUp className="mr-1.5 h-4 w-4" />
-                    {loadingOlder
-                      ? 'Loading...'
-                      : `Load older messages (${totalMessages - messages.length} more)`}
-                  </Button>
-                </div>
-              )}
-
-              {messages.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">No messages yet.</p>
-              ) : (
-                messages.map((message) => {
-                  const status = deliveryStatus(message);
-                  const StatusIcon = status?.icon;
-                  const senderLabel =
-                    message.direction === 'outbound'
-                      ? (message.sender_name ?? 'Agent')
-                      : (conversation.customer?.name ??
-                        conversation.identity?.display_name ??
-                        'Customer');
-                  const senderInitial = senderLabel.charAt(0).toUpperCase();
-
-                  return (
-                    <div
-                      key={message.id}
-                      id={`message-${message.id}`}
-                      className={`flex gap-2 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+              <div
+                ref={scrollContainerRef}
+                className="relative max-h-[60vh] space-y-2 overflow-y-auto py-2"
+              >
+                {hasMore && (
+                  <div className="flex justify-center py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadOlderMessages}
+                      disabled={loadingOlder}
                     >
-                      {message.direction === 'inbound' && (
-                        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                          {senderInitial}
-                        </div>
-                      )}
-                      <div className="max-w-[78%]">
-                        <p
-                          className={`mb-0.5 text-xs font-medium text-muted-foreground ${message.direction === 'outbound' ? 'text-right' : 'text-left'}`}
-                        >
-                          {senderLabel}
-                        </p>
-                        <div
-                          className={`group rounded-lg border px-3 py-2 text-sm ${
-                            message.direction === 'outbound'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted/40'
-                          } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
-                        >
-                          {message.body && <p>{message.body}</p>}
-                          {message.translated_body && (
-                            <p
-                              className={`mt-1 border-t pt-1 text-xs italic ${
-                                message.direction === 'outbound'
-                                  ? 'border-primary-foreground/20 text-primary-foreground/70'
-                                  : 'border-muted text-muted-foreground'
-                              }`}
-                            >
-                              {message.translated_body}
-                            </p>
-                          )}
-                          {message.message_type === 'quick_reply' &&
-                            message.metadata?.quick_reply_payload && (
+                      <ChevronUp className="mr-1.5 h-4 w-4" />
+                      {loadingOlder
+                        ? 'Loading...'
+                        : `Load older messages (${totalMessages - messages.length} more)`}
+                    </Button>
+                  </div>
+                )}
+
+                {messages.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    No messages yet.
+                  </p>
+                ) : (
+                  messages.map((message) => {
+                    const status = deliveryStatus(message);
+                    const StatusIcon = status?.icon;
+                    const senderLabel =
+                      message.direction === 'outbound'
+                        ? (message.sender_name ?? 'Agent')
+                        : (conversation.customer?.name ??
+                          conversation.identity?.display_name ??
+                          'Customer');
+                    const senderInitial = senderLabel.charAt(0).toUpperCase();
+
+                    return (
+                      <div
+                        key={message.id}
+                        id={`message-${message.id}`}
+                        className={`flex gap-2 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {message.direction === 'inbound' && (
+                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                            {senderInitial}
+                          </div>
+                        )}
+                        <div className="max-w-[78%]">
+                          <p
+                            className={`mb-0.5 text-xs font-medium text-muted-foreground ${message.direction === 'outbound' ? 'text-right' : 'text-left'}`}
+                          >
+                            {senderLabel}
+                          </p>
+                          <div
+                            className={`group rounded-lg border px-3 py-2 text-sm ${
+                              message.direction === 'outbound'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted/40'
+                            } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
+                          >
+                            {message.body && <p>{message.body}</p>}
+                            {message.translated_body && (
                               <p
-                                className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                                className={`mt-1 border-t pt-1 text-xs italic ${
+                                  message.direction === 'outbound'
+                                    ? 'border-primary-foreground/20 text-primary-foreground/70'
+                                    : 'border-muted text-muted-foreground'
+                                }`}
                               >
-                                Quick Reply: {message.metadata.quick_reply_payload}
+                                {message.translated_body}
                               </p>
                             )}
-                          {message.attachments && message.attachments.length > 0 && (
-                            <div className="mt-1 space-y-2">
-                              {message.attachments.map((att, idx) => {
-                                const url = att.payload?.url;
-                                const isImage =
-                                  att.type === 'image' ||
-                                  att.type === 'image/jpeg' ||
-                                  att.type === 'image/png' ||
-                                  att.type === 'gif';
-                                const isAudio = att.type === 'audio' || att.type === 'voice';
-                                const isVideo = att.type === 'video';
-                                const isFile = att.type === 'file';
+                            {message.message_type === 'quick_reply' &&
+                              message.metadata?.quick_reply_payload && (
+                                <p
+                                  className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                                >
+                                  Quick Reply: {message.metadata.quick_reply_payload}
+                                </p>
+                              )}
+                            {message.attachments && message.attachments.length > 0 && (
+                              <div className="mt-1 space-y-2">
+                                {message.attachments.map((att, idx) => {
+                                  const url = att.payload?.url;
+                                  const isImage =
+                                    att.type === 'image' ||
+                                    att.type === 'image/jpeg' ||
+                                    att.type === 'image/png' ||
+                                    att.type === 'gif';
+                                  const isAudio = att.type === 'audio' || att.type === 'voice';
+                                  const isVideo = att.type === 'video';
+                                  const isFile = att.type === 'file';
 
-                                if (isImage) {
-                                  return url ? (
-                                    <div key={idx} className="group relative inline-block">
-                                      <img
-                                        src={url}
-                                        alt="Attachment"
-                                        className="max-w-full cursor-zoom-in rounded-md border transition-opacity hover:opacity-90"
-                                        style={{ maxHeight: '240px' }}
-                                        onClick={() => setLightboxUrl(url)}
-                                      />
+                                  if (isImage) {
+                                    return url ? (
+                                      <div key={idx} className="group relative inline-block">
+                                        <img
+                                          src={url}
+                                          alt="Attachment"
+                                          className="max-w-full cursor-zoom-in rounded-md border transition-opacity hover:opacity-90"
+                                          style={{ maxHeight: '240px' }}
+                                          onClick={() => setLightboxUrl(url)}
+                                        />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="absolute bottom-1 right-1 rounded-md bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                                          title="Download"
+                                        >
+                                          <Download className="h-3.5 w-3.5" />
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <ImageIcon className="h-3 w-3" /> Image
+                                      </div>
+                                    );
+                                  }
+                                  if (isAudio) {
+                                    return url ? (
+                                      <div key={idx} className="space-y-1">
+                                        <audio controls src={url} className="w-full" />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs underline"
+                                        >
+                                          <Download className="h-3 w-3" /> Download audio
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <AlertCircle className="h-3 w-3" /> Voice message
+                                      </div>
+                                    );
+                                  }
+                                  if (isVideo) {
+                                    return url ? (
+                                      <div key={idx} className="space-y-1">
+                                        <video
+                                          controls
+                                          src={url}
+                                          className="max-w-full rounded-md"
+                                          style={{ maxHeight: '240px' }}
+                                        />
+                                        <a
+                                          href={url}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs underline"
+                                        >
+                                          <Download className="h-3 w-3" /> Download video
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <VideoIcon className="h-3 w-3" /> Video
+                                      </div>
+                                    );
+                                  }
+                                  if (isFile) {
+                                    return url ? (
                                       <a
+                                        key={idx}
                                         href={url}
                                         download
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="absolute bottom-1 right-1 rounded-md bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
-                                        title="Download"
+                                        className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-accent/30"
                                       >
-                                        <Download className="h-3.5 w-3.5" />
+                                        <FileIcon className="h-4 w-4 shrink-0" />
+                                        <span className="underline">Download file</span>
                                       </a>
-                                    </div>
-                                  ) : (
-                                    <div key={idx} className="flex items-center gap-1 text-xs">
-                                      <ImageIcon className="h-3 w-3" /> Image
-                                    </div>
-                                  );
-                                }
-                                if (isAudio) {
-                                  return url ? (
-                                    <div key={idx} className="space-y-1">
-                                      <audio controls src={url} className="w-full" />
-                                      <a
-                                        href={url}
-                                        download
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-xs underline"
-                                      >
-                                        <Download className="h-3 w-3" /> Download audio
-                                      </a>
-                                    </div>
-                                  ) : (
-                                    <div key={idx} className="flex items-center gap-1 text-xs">
-                                      <AlertCircle className="h-3 w-3" /> Voice message
+                                    ) : (
+                                      <div key={idx} className="flex items-center gap-1 text-xs">
+                                        <FileIcon className="h-3 w-3" /> File attachment
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={idx} className="text-xs text-muted-foreground">
+                                      {att.type} attachment
                                     </div>
                                   );
-                                }
-                                if (isVideo) {
-                                  return url ? (
-                                    <div key={idx} className="space-y-1">
-                                      <video
-                                        controls
-                                        src={url}
-                                        className="max-w-full rounded-md"
-                                        style={{ maxHeight: '240px' }}
-                                      />
-                                      <a
-                                        href={url}
-                                        download
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-xs underline"
-                                      >
-                                        <Download className="h-3 w-3" /> Download video
-                                      </a>
-                                    </div>
-                                  ) : (
-                                    <div key={idx} className="flex items-center gap-1 text-xs">
-                                      <VideoIcon className="h-3 w-3" /> Video
-                                    </div>
-                                  );
-                                }
-                                if (isFile) {
-                                  return url ? (
-                                    <a
-                                      key={idx}
-                                      href={url}
-                                      download
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-accent/30"
-                                    >
-                                      <FileIcon className="h-4 w-4 shrink-0" />
-                                      <span className="underline">Download file</span>
-                                    </a>
-                                  ) : (
-                                    <div key={idx} className="flex items-center gap-1 text-xs">
-                                      <FileIcon className="h-3 w-3" /> File attachment
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div key={idx} className="text-xs text-muted-foreground">
-                                    {att.type} attachment
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {!message.body &&
-                            (!message.attachments || message.attachments.length === 0) && (
-                              <p className="text-muted-foreground italic">Unsupported message</p>
+                                })}
+                              </div>
                             )}
-                          <p
-                            className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
-                          >
-                            {time(message.sent_at)}
-                          </p>
-                          {status && StatusIcon && (
-                            <div
-                              className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                            {!message.body &&
+                              (!message.attachments || message.attachments.length === 0) && (
+                                <p className="text-muted-foreground italic">Unsupported message</p>
+                              )}
+                            <p
+                              className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
                             >
-                              <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
-                              <span>
-                                {status.label}
-                                {status.detail ? `: ${status.detail}` : ''}
-                              </span>
-                            </div>
-                          )}
-                          {message.reactions && Object.keys(message.reactions).length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {Object.entries(message.reactions).map(([key, emoji]) => (
-                                <span
-                                  key={key}
-                                  className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
-                                    message.direction === 'outbound'
-                                      ? 'bg-primary-foreground/20'
-                                      : 'bg-muted'
-                                  }`}
+                              {time(message.sent_at)}
+                            </p>
+                            {status && StatusIcon && (
+                              <div
+                                className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                              >
+                                <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                                <span>
+                                  {status.label}
+                                  {status.detail ? `: ${status.detail}` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {message.reactions && Object.keys(message.reactions).length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {Object.entries(message.reactions).map(([key, emoji]) => (
+                                  <span
+                                    key={key}
+                                    className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                                      message.direction === 'outbound'
+                                        ? 'bg-primary-foreground/20'
+                                        : 'bg-muted'
+                                    }`}
+                                  >
+                                    {emoji}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div
+                              className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                  onClick={() => {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/reaction`, { emoji })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? { ...m, reactions: data.reactions }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }}
                                 >
                                   {emoji}
-                                </span>
+                                </button>
                               ))}
-                            </div>
-                          )}
-                          <div
-                            className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                          >
-                            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                               <button
-                                key={emoji}
                                 type="button"
-                                className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                                onClick={() => {
-                                  axiosWithCsrf
-                                    .post(`/shop/messages/${message.id}/reaction`, { emoji })
-                                    .then(({ data }) => {
-                                      setMessages((prev) =>
-                                        prev.map((m) =>
-                                          m.id === message.id
-                                            ? { ...m, reactions: data.reactions }
-                                            : m
-                                        )
-                                      );
-                                    })
-                                    .catch(() => {});
-                                }}
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
-                                message.is_flagged ? 'text-destructive opacity-100' : ''
-                              }`}
-                              title={
-                                message.is_flagged
-                                  ? `Flagged: ${message.flag_reason}`
-                                  : 'Flag message'
-                              }
-                              onClick={() => {
-                                if (message.is_flagged) {
-                                  axiosWithCsrf
-                                    .post(`/shop/messages/${message.id}/flag`, {})
-                                    .then(({ data }) => {
-                                      setMessages((prev) =>
-                                        prev.map((m) =>
-                                          m.id === message.id
-                                            ? {
-                                                ...m,
-                                                is_flagged: data.is_flagged,
-                                                flag_reason: data.flag_reason,
-                                              }
-                                            : m
-                                        )
-                                      );
-                                    })
-                                    .catch(() => {});
-                                } else {
-                                  const reason = window.prompt('Flag reason (optional):');
-                                  axiosWithCsrf
-                                    .post(`/shop/messages/${message.id}/flag`, {
-                                      flag_reason: reason || undefined,
-                                    })
-                                    .then(({ data }) => {
-                                      setMessages((prev) =>
-                                        prev.map((m) =>
-                                          m.id === message.id
-                                            ? {
-                                                ...m,
-                                                is_flagged: data.is_flagged,
-                                                flag_reason: data.flag_reason,
-                                              }
-                                            : m
-                                        )
-                                      );
-                                    })
-                                    .catch(() => {});
+                                className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
+                                  message.is_flagged ? 'text-destructive opacity-100' : ''
+                                }`}
+                                title={
+                                  message.is_flagged
+                                    ? `Flagged: ${message.flag_reason}`
+                                    : 'Flag message'
                                 }
-                              }}
-                            >
-                              <Flag className="h-4 w-4" />
-                            </button>
-                            {message.body && (
-                              <button
-                                type="button"
-                                className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                                title="Translate to English"
                                 onClick={() => {
-                                  axiosWithCsrf
-                                    .post(`/shop/messages/${message.id}/translate`, {
-                                      target_lang: 'en',
-                                    })
-                                    .then(({ data }) => {
-                                      setMessages((prev) =>
-                                        prev.map((m) =>
-                                          m.id === message.id
-                                            ? {
-                                                ...m,
-                                                translated_body: data.translated_body,
-                                                translated_lang: data.translated_lang,
-                                              }
-                                            : m
-                                        )
-                                      );
-                                    })
-                                    .catch(() => {});
+                                  if (message.is_flagged) {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/flag`, {})
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  is_flagged: data.is_flagged,
+                                                  flag_reason: data.flag_reason,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  } else {
+                                    const reason = window.prompt('Flag reason (optional):');
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/flag`, {
+                                        flag_reason: reason || undefined,
+                                      })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  is_flagged: data.is_flagged,
+                                                  flag_reason: data.flag_reason,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }
                                 }}
                               >
-                                <Languages className="h-4 w-4" />
+                                <Flag className="h-4 w-4" />
                               </button>
+                              {message.body && (
+                                <button
+                                  type="button"
+                                  className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                  title="Translate to English"
+                                  onClick={() => {
+                                    axiosWithCsrf
+                                      .post(`/shop/messages/${message.id}/translate`, {
+                                        target_lang: 'en',
+                                      })
+                                      .then(({ data }) => {
+                                        setMessages((prev) =>
+                                          prev.map((m) =>
+                                            m.id === message.id
+                                              ? {
+                                                  ...m,
+                                                  translated_body: data.translated_body,
+                                                  translated_lang: data.translated_lang,
+                                                }
+                                              : m
+                                          )
+                                        );
+                                      })
+                                      .catch(() => {});
+                                  }}
+                                >
+                                  <Languages className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            {message.is_flagged && (
+                              <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                                <Flag className="h-3 w-3" />
+                                <span>{message.flag_reason || 'Flagged'}</span>
+                              </div>
                             )}
                           </div>
-                          {message.is_flagged && (
-                            <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
-                              <Flag className="h-3 w-3" />
-                              <span>{message.flag_reason || 'Flagged'}</span>
-                            </div>
-                          )}
                         </div>
+                        {message.direction === 'outbound' && (
+                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                            {senderInitial}
+                          </div>
+                        )}
                       </div>
-                      {message.direction === 'outbound' && (
-                        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                          {senderInitial}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
 
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-3 py-2">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-3 py-2">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                    </div>
                   </div>
-                </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {newMessageCount > 0 && (
+                <button
+                  type="button"
+                  onClick={scrollToBottom}
+                  className="sticky bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground shadow-md transition-opacity hover:opacity-90"
+                >
+                  {newMessageCount} new message{newMessageCount > 1 ? 's' : ''} ↓
+                </button>
               )}
 
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
