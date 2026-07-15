@@ -21,6 +21,7 @@ import {
   PackageCheck,
   Pencil,
   Plus,
+  Printer,
   Send,
   Search,
   Flag,
@@ -493,6 +494,44 @@ export default function ShopConversation({
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setNewMessageCount(0);
+  };
+
+  const exportConversation = () => {
+    const payload = {
+      conversation: {
+        id: conversation.id,
+        channel: conversation.channel,
+        status: conversation.status,
+        priority: conversation.priority,
+        created_at: conversation.created_at,
+        last_message_at: conversation.last_message_at,
+        first_response_at: conversation.first_response_at,
+        resolved_at: conversation.resolved_at,
+        sentiment: conversation.sentiment,
+        facebook_page: conversation.facebook_page,
+        customer: conversation.customer,
+        identity: conversation.identity,
+        assigned_agent: conversation.assigned_agent,
+      },
+      messages: messages.map((m) => ({
+        id: m.id,
+        direction: m.direction,
+        body: m.body,
+        sent_at: m.sent_at,
+        sender_name: m.sender_name,
+        translated_body: m.translated_body,
+        is_flagged: m.is_flagged,
+      })),
+      remarks: initialRemarks,
+      exported_at: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${conversation.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -981,6 +1020,14 @@ export default function ShopConversation({
                 <ArrowRightLeft className="mr-1.5 h-4 w-4" />
                 Transfer
               </Button>
+              <Button type="button" variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-1.5 h-4 w-4" />
+                Print
+              </Button>
+              <Button type="button" variant="outline" onClick={exportConversation}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
               {conversation.customer && (
                 <Button
                   type="button"
@@ -1042,7 +1089,7 @@ export default function ShopConversation({
         </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+          <Card className="print-conversation xl:col-span-2">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>

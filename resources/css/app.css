@@ -204,3 +204,42 @@
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
+
+/* ── Print styles for conversation export ── */
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the messages card and its children */
+  .print-conversation,
+  .print-conversation * {
+    visibility: visible;
+  }
+
+  /* Position the conversation at top of page */
+  .print-conversation {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Remove scroll constraints */
+  .print-conversation .max-h-\[60vh\] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Hide interactive elements */
+  .print-conversation button,
+  .print-conversation form,
+  .print-conversation input,
+  .print-conversation textarea,
+  .print-conversation select {
+    display: none !important;
+  }
+}
