@@ -15,6 +15,7 @@ import {
   Plus,
   Star,
   Store,
+  Tag,
   UserCog,
   User,
   UserCheck,
@@ -252,6 +253,8 @@ export default function ShopInbox({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('resolved');
   const [bulkAgentId, setBulkAgentId] = useState<string>('');
+  const [bulkPriority, setBulkPriority] = useState<string>('normal');
+  const [bulkTagId, setBulkTagId] = useState<string>('');
   const [pageSearch, setPageSearch] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
@@ -497,6 +500,45 @@ export default function ShopInbox({
           setSelectedIds([]);
           setBulkAgentId('');
         },
+      }
+    );
+  };
+
+  const submitBulkPriority = () => {
+    if (selectedIds.length === 0) return;
+    router.post(
+      '/shop/inbox/bulk-priority',
+      { conversation_ids: selectedIds, priority: bulkPriority },
+      {
+        preserveScroll: true,
+        onSuccess: () => setSelectedIds([]),
+      }
+    );
+  };
+
+  const submitBulkTag = () => {
+    if (selectedIds.length === 0 || !bulkTagId) return;
+    router.post(
+      '/shop/inbox/bulk-tag',
+      { conversation_ids: selectedIds, tag_id: Number(bulkTagId) },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setSelectedIds([]);
+          setBulkTagId('');
+        },
+      }
+    );
+  };
+
+  const quickBulkStatus = (targetStatus: string) => {
+    if (selectedIds.length === 0) return;
+    router.post(
+      '/shop/inbox/bulk-status',
+      { conversation_ids: selectedIds, status: targetStatus },
+      {
+        preserveScroll: true,
+        onSuccess: () => setSelectedIds([]),
       }
     );
   };
@@ -1893,6 +1935,42 @@ export default function ShopInbox({
             {selectedIds.length > 0 && (
               <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3 shadow-md">
                 <span className="text-sm font-medium">{selectedIds.length} selected</span>
+
+                {filters.status && (
+                  <>
+                    <Button size="sm" variant="default" onClick={() => quickBulkStatus('resolved')}>
+                      <CheckCheck className="mr-1 h-4 w-4" />
+                      Resolve All
+                    </Button>
+                    {filters.status === 'resolved' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('archived')}
+                      >
+                        Archive All
+                      </Button>
+                    ) : filters.status === 'new' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('assigned')}
+                      >
+                        Mark Assigned
+                      </Button>
+                    ) : filters.status === 'assigned' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => quickBulkStatus('awaiting_customer')}
+                      >
+                        Mark Awaiting
+                      </Button>
+                    ) : null}
+                    <div className="h-5 w-px bg-border" />
+                  </>
+                )}
+
                 <select
                   value={bulkStatus}
                   onChange={(e) => setBulkStatus(e.target.value)}
@@ -1930,7 +2008,45 @@ export default function ShopInbox({
                   <UserCheck className="mr-1 h-4 w-4" />
                   Assign
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
+                <div className="h-5 w-px bg-border" />
+                <select
+                  value={bulkPriority}
+                  onChange={(e) => setBulkPriority(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  {priorities.map((p) => (
+                    <option key={p} value={p}>
+                      {label(p)}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulkPriority}>
+                  <Flag className="mr-1 h-4 w-4" />
+                  Set Priority
+                </Button>
+                <div className="h-5 w-px bg-border" />
+                <select
+                  value={bulkTagId}
+                  onChange={(e) => setBulkTagId(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  <option value="">Add tag...</option>
+                  {tags.map((t) => (
+                    <option key={t.id} value={t.id.toString()}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={submitBulkTag} disabled={!bulkTagId}>
+                  <Tag className="mr-1 h-4 w-4" />
+                  Add Tag
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedIds([])}
+                  className="ml-auto"
+                >
                   <X className="h-4 w-4" />
                   Clear
                 </Button>

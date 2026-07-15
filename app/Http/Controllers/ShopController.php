@@ -1505,6 +1505,42 @@ class ShopController extends Controller
         return back()->with('success', $message);
     }
 
+    public function bulkUpdateConversationPriority(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'priority' => ['required', 'string', 'in:low,normal,high,urgent'],
+        ]);
+
+        Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->update(['priority' => $validated['priority']]);
+
+        $count = count($validated['conversation_ids']);
+        return back()->with('success', "{$count} conversation(s) priority set to {$validated['priority']}.");
+    }
+
+    public function bulkTagConversations(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'conversation_ids' => ['required', 'array', 'min:1'],
+            'conversation_ids.*' => ['integer', 'exists:conversations,id'],
+            'tag_id' => ['required', 'integer', 'exists:tags,id'],
+        ]);
+
+        $conversations = Conversation::query()
+            ->whereIn('id', $validated['conversation_ids'])
+            ->get(['id']);
+
+        foreach ($conversations as $conversation) {
+            $conversation->tags()->syncWithoutDetaching([$validated['tag_id']]);
+        }
+
+        $count = $conversations->count();
+        return back()->with('success', "{$count} conversation(s) tagged.");
+    }
+
     public function updateConversationPriority(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
