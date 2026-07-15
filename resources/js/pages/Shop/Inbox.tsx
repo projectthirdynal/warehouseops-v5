@@ -164,6 +164,12 @@ interface Props {
   status_counts?: Record<string, number>;
   sla_thresholds?: Record<string, number | null>;
   status_labels?: Record<number, Record<string, { label: string; color: string | null }>>;
+  status_funnel?: {
+    status: string;
+    count: number;
+    percentage: number;
+    avg_time_minutes: number | null;
+  }[];
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -245,6 +251,7 @@ export default function ShopInbox({
   statuses,
   status_counts: statusCounts = {},
   status_labels: statusLabels = {},
+  status_funnel: statusFunnel = [],
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   workload_report: workloadReport = null,
@@ -259,6 +266,7 @@ export default function ShopInbox({
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
+  const [showFunnel, setShowFunnel] = useState(false);
   const [rulePageId, setRulePageId] = useState('');
   const [ruleAgentId, setRuleAgentId] = useState('');
   const [cannedPageId, setCannedPageId] = useState('');
@@ -702,6 +710,14 @@ export default function ShopInbox({
                   {page_canned_responses.length}
                 </Badge>
               )}
+            </Button>
+            <Button
+              variant={showFunnel ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowFunnel(!showFunnel)}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Funnel
             </Button>
             <Button
               variant="outline"
@@ -1869,6 +1885,99 @@ export default function ShopInbox({
                 >
                   Add Canned Response
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {showFunnel && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
+                Status Funnel Analytics
+              </CardTitle>
+              <CardDescription>
+                Distribution and average time spent in each conversation status.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {statusFunnel.map((stage, idx) => {
+                  const maxCount = Math.max(...statusFunnel.map((s) => s.count), 1);
+                  const barWidth = (stage.count / maxCount) * 100;
+                  const customColor = statusColor(
+                    stage.status,
+                    filters.page_id ? Number(filters.page_id) : undefined,
+                    statusLabels
+                  );
+                  const stageLabel = statusLabel(
+                    stage.status,
+                    filters.page_id ? Number(filters.page_id) : undefined,
+                    statusLabels
+                  );
+                  const prevCount = idx > 0 ? statusFunnel[idx - 1].count : 0;
+                  const conversionRate =
+                    prevCount > 0 ? ((stage.count / prevCount) * 100).toFixed(0) : null;
+                  return (
+                    <div key={stage.status} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{stageLabel}</span>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                          {stage.avg_time_minutes !== null && (
+                            <span className="text-xs">
+                              avg{' '}
+                              {stage.avg_time_minutes < 60
+                                ? `${stage.avg_time_minutes}m`
+                                : `${Math.floor(stage.avg_time_minutes / 60)}h ${stage.avg_time_minutes % 60}m`}
+                            </span>
+                          )}
+                          {conversionRate && <span className="text-xs">{conversionRate}%</span>}
+                          <span className="font-medium text-foreground">{stage.count}</span>
+                          <span className="text-xs">({stage.percentage}%)</span>
+                        </div>
+                      </div>
+                      <div className="h-6 w-full overflow-hidden rounded-md bg-muted">
+                        <div
+                          className="flex h-full items-center rounded-md transition-all"
+                          style={{
+                            width: `${Math.max(barWidth, 2)}%`,
+                            backgroundColor: customColor || undefined,
+                            ...statusBadgeStyle(customColor),
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-4 border-t pt-3 text-xs text-muted-foreground">
+                <span>
+                  Total:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.reduce((sum, s) => sum + s.count, 0)}
+                  </strong>
+                </span>
+                <span>
+                  Active:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel
+                      .filter((s) => ['new', 'assigned', 'awaiting_customer'].includes(s.status))
+                      .reduce((sum, s) => sum + s.count, 0)}
+                  </strong>
+                </span>
+                <span>
+                  Resolved:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.find((s) => s.status === 'resolved')?.count ?? 0}
+                  </strong>
+                </span>
+                <span>
+                  Archived:{' '}
+                  <strong className="text-foreground">
+                    {statusFunnel.find((s) => s.status === 'archived')?.count ?? 0}
+                  </strong>
+                </span>
               </div>
             </CardContent>
           </Card>

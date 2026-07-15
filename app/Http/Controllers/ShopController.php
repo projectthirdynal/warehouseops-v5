@@ -616,6 +616,8 @@ class ShopController extends Controller
             ->toArray())
             ->toArray();
 
+        $statusFunnel = $this->statusFunnel($statusCounts);
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $paginated,
             'pages' => $pages,
@@ -632,6 +634,7 @@ class ShopController extends Controller
             'status_counts' => $statusCounts,
             'sla_thresholds' => $slaThresholds,
             'status_labels' => $statusLabels,
+            'status_funnel' => $statusFunnel,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
@@ -3569,6 +3572,57 @@ class ShopController extends Controller
     private function conversationStatuses(): array
     {
         return Conversation::STATUSES;
+    }
+
+    /**
+     * @param  array<string, int>  $statusCounts
+     * @return array<int, array{status: string, count: int, percentage: float, avg_time_minutes: int|null}>
+     */
+    private function statusFunnel(array $statusCounts): array
+    {
+        $statuses = Conversation::STATUSES;
+        $total = array_sum($statusCounts) ?: 1;
+
+        // Average time spent in each status (in minutes) from status history
+        $avgTimes = [];
+        if (Schema::hasTable('conversation_status_histories')) {
+            $histories = ConversationStatusHistory::query()
+                ->select('conversation_id', 'to_status', 'created_at')
+                ->orderBy('conversation_id')
+                ->orderBy('created_at')
+                ->get();
+
+            $durationsByStatus = [];
+            $prev = null;
+            foreach ($histories as $h) {
+                if ($prev && $prev->conversation_id === $h->conversation_id && $prev->to_status) {
+                    $minutes = (int) round($h->created_at->diffInMinutes($prev->created_at));
+                    if ($minutes >= 0 && $minutes < 525600) {
+                        $durationsByStatus[$prev->to_status][] = $minutes;
+                    }
+                }
+                $prev = $h;
+            }
+
+            foreach ($statuses as $status) {
+                if (!empty($durationsByStatus[$status])) {
+                    $avgTimes[$status] = (int) round(array_sum($durationsByStatus[$status]) / count($durationsByStatus[$status]));
+                }
+            }
+        }
+
+        $funnel = [];
+        foreach ($statuses as $status) {
+            $count = $statusCounts[$status] ?? 0;
+            $funnel[] = [
+                'status' => $status,
+                'count' => $count,
+                'percentage' => round(($count / $total) * 100, 1),
+                'avg_time_minutes' => $avgTimes[$status] ?? null,
+            ];
+        }
+
+        return $funnel;
     }
 
     private function computeSla(Conversation $conversation, array $thresholds): array
