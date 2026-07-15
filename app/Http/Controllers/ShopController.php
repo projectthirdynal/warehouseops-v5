@@ -3048,7 +3048,21 @@ class ShopController extends Controller
                     ?? $conversation->customer?->phone
                     ?? $conversation->identity?->phone_detected
                     ?? '',
-                'complete_address' => $conversation->customer?->canonical_address ?? '',
+                'complete_address' => $request->filled('complete_address')
+                    ? $request->string('complete_address')->toString()
+                    : ($conversation->customer?->canonical_address ?? ''),
+                'landmark' => $request->filled('landmark')
+                    ? $request->string('landmark')->toString()
+                    : ($conversation->customer?->landmark ?? ''),
+                'barangay' => $request->filled('barangay')
+                    ? $request->string('barangay')->toString()
+                    : ($conversation->customer?->barangay ?? ''),
+                'city_municipality' => $request->filled('city_municipality')
+                    ? $request->string('city_municipality')->toString()
+                    : ($conversation->customer?->city_municipality ?? ''),
+                'province' => $request->filled('province')
+                    ? $request->string('province')->toString()
+                    : ($conversation->customer?->province ?? ''),
                 'remarks' => trim(implode("\n", array_filter([
                     "Conversation #{$conversation->id}",
                     $conversation->facebookPage ? "Page: {$conversation->facebookPage->page_name}" : null,

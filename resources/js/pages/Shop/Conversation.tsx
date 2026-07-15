@@ -495,6 +495,32 @@ export default function ShopConversation({
     setNewMessageCount(0);
   };
 
+  useEffect(() => {
+    if (!conversation.customer?.id) return;
+    axios
+      .get(`/shop/customers/${conversation.customer.id}/addresses`)
+      .then(({ data }) => {
+        setSavedAddresses(data.addresses ?? []);
+      })
+      .catch(() => {});
+  }, [conversation.customer?.id]);
+
+  const selectedAddress = savedAddresses.find((a) => a.id === Number(selectedAddressId));
+  const createOrderHref = (() => {
+    const base = `/shop/orders/create?conversation_id=${conversation.id}`;
+    if (!selectedAddress) return base;
+    const params = new URLSearchParams();
+    params.set('conversation_id', String(conversation.id));
+    if (selectedAddress.canonical_address)
+      params.set('complete_address', selectedAddress.canonical_address);
+    if (selectedAddress.landmark) params.set('landmark', selectedAddress.landmark);
+    if (selectedAddress.barangay) params.set('barangay', selectedAddress.barangay);
+    if (selectedAddress.city_municipality)
+      params.set('city_municipality', selectedAddress.city_municipality);
+    if (selectedAddress.province) params.set('province', selectedAddress.province);
+    return `/shop/orders/create?${params.toString()}`;
+  })();
+
   const { data, setData, post, processing, reset, errors } = useForm<{
     body: string;
     quick_replies: { title: string; payload: string }[];
@@ -535,6 +561,20 @@ export default function ShopConversation({
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAgentId, setTransferAgentId] = useState('');
   const [newRemark, setNewRemark] = useState('');
+  const [savedAddresses, setSavedAddresses] = useState<
+    {
+      id: number;
+      label: string | null;
+      canonical_address: string | null;
+      landmark: string | null;
+      barangay: string | null;
+      city_municipality: string | null;
+      province: string | null;
+      region: string | null;
+      is_default: boolean;
+    }[]
+  >([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -2112,15 +2152,63 @@ export default function ShopConversation({
                   </p>
                 )}
                 <div className="grid gap-2">
+                  {savedAddresses.length > 0 && (
+                    <div className="space-y-2">
+                      <div>
+                        <Label htmlFor="address_select" className="text-xs text-muted-foreground">
+                          Saved addresses ({savedAddresses.length})
+                        </Label>
+                        <select
+                          id="address_select"
+                          value={selectedAddressId}
+                          onChange={(e) => setSelectedAddressId(e.target.value)}
+                          className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="">Use customer profile address</option>
+                          {savedAddresses.map((addr) => (
+                            <option key={addr.id} value={addr.id}>
+                              {addr.label ? `${addr.label}: ` : ''}
+                              {addr.canonical_address || 'No street'}
+                              {addr.city_municipality ? `, ${addr.city_municipality}` : ''}
+                              {addr.is_default ? ' (default)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedAddress && (
+                        <div className="rounded-md border bg-muted/30 p-2 text-xs">
+                          <p className="font-medium">
+                            {selectedAddress.label || 'Selected address'}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {selectedAddress.canonical_address || 'No street address'}
+                          </p>
+                          {(selectedAddress.barangay ||
+                            selectedAddress.city_municipality ||
+                            selectedAddress.province) && (
+                            <p className="text-muted-foreground">
+                              {[
+                                selectedAddress.barangay,
+                                selectedAddress.city_municipality,
+                                selectedAddress.province,
+                              ]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          )}
+                          {selectedAddress.landmark && (
+                            <p className="text-muted-foreground">
+                              Landmark: {selectedAddress.landmark}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <Button asChild size="sm">
-                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                    <Link href={createOrderHref}>
                       <ShoppingCart className="mr-1.5 h-4 w-4" />
-                      Use Same Address
-                    </Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
-                      Update Address in Order
+                      {selectedAddress ? 'Create Order with Selected Address' : 'Create Order'}
                     </Link>
                   </Button>
                 </div>
