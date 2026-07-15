@@ -1084,6 +1084,18 @@ export default function ShopConversation({
               )}
               {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
+              {conversation.sentiment !== 'neutral' && (
+                <Badge
+                  variant="outline"
+                  className={
+                    conversation.sentiment === 'positive'
+                      ? 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30'
+                      : 'border-red-500/40 text-red-600 bg-red-50 dark:bg-red-950/30'
+                  }
+                >
+                  {conversation.sentiment === 'positive' ? '😊' : '😟'} {conversation.sentiment}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -2632,22 +2644,43 @@ export default function ShopConversation({
               <CardHeader>
                 <CardTitle>Sentiment</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 <div className="flex items-center gap-2">
                   {conversation.sentiment === 'positive' && (
                     <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                      Positive
+                      😊 Positive
                     </Badge>
                   )}
                   {conversation.sentiment === 'negative' && (
                     <Badge className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
-                      Negative
+                      😟 Negative
                     </Badge>
                   )}
-                  {conversation.sentiment === 'neutral' && <Badge variant="outline">Neutral</Badge>}
-                  <span className="text-sm text-muted-foreground">
-                    Score: {Number(conversation.sentiment_score).toFixed(2)}
+                  {conversation.sentiment === 'neutral' && (
+                    <Badge variant="outline">😐 Neutral</Badge>
+                  )}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {Number(conversation.sentiment_score).toFixed(2)}
                   </span>
+                </div>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      conversation.sentiment === 'positive'
+                        ? 'bg-green-500'
+                        : conversation.sentiment === 'negative'
+                          ? 'bg-red-500'
+                          : 'bg-muted-foreground/40'
+                    }`}
+                    style={{
+                      width: `${Math.min(Math.abs(Number(conversation.sentiment_score)) * 100, 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>−1.0</span>
+                  <span>0</span>
+                  <span>+1.0</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Based on keyword analysis of recent inbound messages.
