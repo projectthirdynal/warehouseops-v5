@@ -618,6 +618,14 @@ class ShopController extends Controller
 
         $statusFunnel = $this->statusFunnel($statusCounts);
 
+        $escalationCount = Schema::hasTable('conversations')
+            ? Conversation::query()
+                ->whereNull('merged_into_id')
+                ->where('is_flagged', true)
+                ->whereNull('resolved_at')
+                ->count()
+            : 0;
+
         return Inertia::render('Shop/Inbox', [
             'conversations' => $paginated,
             'pages' => $pages,
@@ -635,6 +643,7 @@ class ShopController extends Controller
             'sla_thresholds' => $slaThresholds,
             'status_labels' => $statusLabels,
             'status_funnel' => $statusFunnel,
+            'escalation_count' => $escalationCount,
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,

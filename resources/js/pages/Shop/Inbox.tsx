@@ -1,6 +1,7 @@
 import { CSSProperties, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
+  AlertTriangle,
   BarChart3,
   CheckCheck,
   Check,
@@ -170,6 +171,7 @@ interface Props {
     percentage: number;
     avg_time_minutes: number | null;
   }[];
+  escalation_count?: number;
   priorities: string[];
   tags: { id: number; name: string; color: string }[];
   filters: {
@@ -252,6 +254,7 @@ export default function ShopInbox({
   status_counts: statusCounts = {},
   status_labels: statusLabels = {},
   status_funnel: statusFunnel = [],
+  escalation_count: escalationCount = 0,
   priorities = ['low', 'normal', 'high', 'urgent'],
   tags = [],
   workload_report: workloadReport = null,
@@ -468,6 +471,11 @@ export default function ShopInbox({
       default:
         return '';
     }
+  };
+
+  const reminderOverdue = (reminderAt: string | null): boolean => {
+    if (!reminderAt) return false;
+    return new Date(reminderAt).getTime() < Date.now();
   };
 
   const toggleSelect = (id: number) => {
@@ -719,6 +727,22 @@ export default function ShopInbox({
               <BarChart3 className="h-4 w-4" />
               Funnel
             </Button>
+            {escalationCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  updateFilter({ flagged: filters.flagged === 'true' ? undefined : 'true' })
+                }
+                className={filters.flagged === 'true' ? 'border-red-500/40 text-red-600' : ''}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Escalated
+                <Badge className="ml-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                  {escalationCount}
+                </Badge>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -2277,8 +2301,13 @@ export default function ShopInbox({
                               </Badge>
                             )}
                             {conversation.reminder_at && (
-                              <Badge variant="outline" className="gap-1">
-                                Reminder
+                              <Badge
+                                variant="outline"
+                                className={`gap-1 ${reminderOverdue(conversation.reminder_at) ? 'border-red-500/40 text-red-600 bg-red-50' : 'border-amber-500/40 text-amber-600 bg-amber-50'}`}
+                              >
+                                {reminderOverdue(conversation.reminder_at)
+                                  ? 'Reminder Due'
+                                  : 'Reminder'}
                               </Badge>
                             )}
                             {conversation.sentiment === 'positive' && (
