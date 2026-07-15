@@ -3016,7 +3016,7 @@ class ShopController extends Controller
         ]);
     }
 
-    public function listTemplates(): JsonResponse
+    public function listCartTemplates(): JsonResponse
     {
         $templates = CartTemplate::query()
             ->sharedOrOwned(auth()->id())
@@ -3041,7 +3041,7 @@ class ShopController extends Controller
         return response()->json(['templates' => $templates]);
     }
 
-    public function storeTemplate(Request $request): JsonResponse
+    public function storeCartTemplate(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name'              => ['required', 'string', 'max:100'],
@@ -3074,7 +3074,7 @@ class ShopController extends Controller
         return response()->json(['success' => true, 'template_id' => $template->id]);
     }
 
-    public function deleteTemplate(Request $request, CartTemplate $template): JsonResponse
+    public function deleteCartTemplate(Request $request, CartTemplate $template): JsonResponse
     {
         if ($template->user_id !== auth()->id()) {
             abort(403);
