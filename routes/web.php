@@ -393,6 +393,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::post('/shop/orders/check-duplicates', [ShopController::class, 'checkDuplicates'])->name('shop.orders.check-duplicates');
+    Route::post('/shop/orders/recommendations', [ShopController::class, 'recommendProducts'])->name('shop.orders.recommendations');
     Route::get('/shop/templates', [ShopController::class, 'listCartTemplates'])->name('shop.templates.index');
     Route::post('/shop/templates', [ShopController::class, 'storeCartTemplate'])->name('shop.templates.store');
     Route::delete('/shop/templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.templates.destroy')->whereNumber('template');

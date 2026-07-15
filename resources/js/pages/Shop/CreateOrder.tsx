@@ -13,6 +13,7 @@ import {
   Phone,
   Plus,
   RotateCcw,
+  Sparkles,
   Trash2,
   Upload,
   User,
@@ -104,6 +105,13 @@ interface TemplateSummary {
   is_owner: boolean;
   items_count: number;
   created_at: string;
+}
+
+interface RecommendedProduct {
+  id: number;
+  sku: string;
+  name: string;
+  selling_price: number;
 }
 
 interface Props {
@@ -541,6 +549,45 @@ export default function CreateShopOrder({
     setData('items', importPreview.items);
     setShowImportModal(false);
     setImportPreview(null);
+  };
+
+  const [recommendations, setRecommendations] = useState<RecommendedProduct[]>([]);
+
+  useEffect(() => {
+    const productIds = data.items.map((item) => Number(item.product_id)).filter((id) => id > 0);
+    if (productIds.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch('/shop/orders/recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({ product_ids: productIds }),
+      })
+        .then((res) => res.json())
+        .then((result: { recommendations: RecommendedProduct[] }) => {
+          setRecommendations(result.recommendations ?? []);
+        })
+        .catch(() => undefined);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [data.items]);
+
+  const addRecommendation = (rec: RecommendedProduct) => {
+    setData('items', [
+      ...data.items,
+      {
+        product_id: String(rec.id),
+        variant_id: '',
+        quantity: '1',
+        unit_price: String(rec.selling_price),
+        discount_amount: '0',
+      },
+    ]);
   };
 
   const calculateShipping = () => {
@@ -1056,6 +1103,41 @@ export default function CreateShopOrder({
                           </Button>
                         )}
                       </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {recommendations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    Frequently Bought Together
+                  </CardTitle>
+                  <CardDescription>Products commonly ordered with your cart items</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {recommendations.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{rec.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {rec.sku} · {money(rec.selling_price)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => addRecommendation(rec)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   ))}
                 </CardContent>

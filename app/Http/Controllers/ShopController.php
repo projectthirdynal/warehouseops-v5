@@ -3016,6 +3016,49 @@ class ShopController extends Controller
         ]);
     }
 
+    public function recommendProducts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $productIds = $validated['product_ids'];
+
+        $orderIds = ShopOrderItem::query()
+            ->whereIn('product_id', $productIds)
+            ->pluck('order_id')
+            ->unique()
+            ->take(500);
+
+        $recommended = ShopOrderItem::query()
+            ->whereIn('order_id', $orderIds)
+            ->whereNotIn('product_id', $productIds)
+            ->select('product_id', DB::raw('COUNT(*) as frequency'))
+            ->groupBy('product_id')
+            ->orderByDesc('frequency')
+            ->limit(5)
+            ->pluck('product_id');
+
+        $products = Product::query()
+            ->whereIn('id', $recommended)
+            ->where('is_active', true)
+            ->get(['id', 'sku', 'name', 'selling_price'])
+            ->keyBy('id');
+
+        $sorted = $recommended
+            ->filter(fn ($id) => $products->has($id))
+            ->map(fn ($id) => [
+                'id' => $id,
+                'sku' => $products[$id]->sku,
+                'name' => $products[$id]->name,
+                'selling_price' => (float) $products[$id]->selling_price,
+            ])
+            ->values();
+
+        return response()->json(['recommendations' => $sorted]);
+    }
+
     public function listCartTemplates(): JsonResponse
     {
         $templates = CartTemplate::query()
