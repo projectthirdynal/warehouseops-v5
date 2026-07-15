@@ -465,6 +465,15 @@ export default function ShopConversation({
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [qrTitle, setQrTitle] = useState('');
   const [qrPayload, setQrPayload] = useState('');
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<{
+    id: number;
+    name: string;
+    body: string;
+    variables?: string[];
+  } | null>(null);
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -671,6 +680,32 @@ export default function ShopConversation({
     );
   };
 
+  const insertTemplate = (template: {
+    id: number;
+    name: string;
+    body: string;
+    variables?: string[];
+  }) => {
+    if (!template.variables || template.variables.length === 0) {
+      setData('body', template.body);
+      setSelectedTemplate(null);
+      return;
+    }
+    setSelectedTemplate(template);
+    setTemplateVars(template.variables.reduce((acc, v) => ({ ...acc, [v]: '' }), {}));
+  };
+
+  const confirmInsertTemplate = () => {
+    if (!selectedTemplate) return;
+    let body = selectedTemplate.body;
+    for (const [key, value] of Object.entries(templateVars)) {
+      body = body.split(`{${key}}`).join(value);
+    }
+    setData('body', body);
+    setSelectedTemplate(null);
+    setTemplateVars({});
+  };
+
   const updateCustomer = (event: FormEvent) => {
     event.preventDefault();
     if (!conversation.customer) return;
@@ -803,19 +838,120 @@ export default function ShopConversation({
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Saved Templates
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {saved_templates.map((template) => (
-                      <Button
-                        key={template.id}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 min-w-[160px]">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                        placeholder="Search templates..."
+                        className="h-8 pl-8 text-xs"
+                      />
+                    </div>
+                    {Array.from(
+                      new Set(
+                        saved_templates
+                          .map((t) => t.category)
+                          .filter((c): c is string => Boolean(c))
+                      )
+                    ).map((cat) => (
+                      <button
+                        key={cat}
                         type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setData('body', template.body)}
+                        onClick={() => setTemplateCategory(templateCategory === cat ? '' : cat)}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          templateCategory === cat
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
                       >
-                        {template.name}
-                      </Button>
+                        {cat}
+                      </button>
                     ))}
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    {saved_templates
+                      .filter(
+                        (t) =>
+                          (!templateSearch ||
+                            t.name.toLowerCase().includes(templateSearch.toLowerCase())) &&
+                          (!templateCategory || t.category === templateCategory)
+                      )
+                      .map((template) => (
+                        <Button
+                          key={template.id}
+                          type="button"
+                          size="sm"
+                          variant={selectedTemplate?.id === template.id ? 'default' : 'secondary'}
+                          onClick={() => insertTemplate(template)}
+                          className="gap-1.5"
+                        >
+                          {template.name}
+                          {template.variables && template.variables.length > 0 && (
+                            <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">
+                              {template.variables.length} var
+                            </span>
+                          )}
+                        </Button>
+                      ))}
+                  </div>
+                  {selectedTemplate && (
+                    <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">
+                          Fill in variables for: {selectedTemplate.name}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTemplate(null);
+                            setTemplateVars({});
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      {Object.keys(templateVars).map((varName) => (
+                        <div key={varName} className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            {'{' + varName + '}'}
+                          </label>
+                          <Input
+                            value={templateVars[varName]}
+                            onChange={(e) =>
+                              setTemplateVars((prev) => ({
+                                ...prev,
+                                [varName]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Enter value for ${varName}`}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      ))}
+                      <div className="rounded-md border bg-background p-2 text-xs text-muted-foreground">
+                        <p className="mb-1 font-medium text-foreground">Preview:</p>
+                        {(() => {
+                          let preview = selectedTemplate.body;
+                          for (const [key, value] of Object.entries(templateVars)) {
+                            preview = preview.split(`{${key}}`).join(value || `{${key}}`);
+                          }
+                          return <p className="whitespace-pre-wrap">{preview}</p>;
+                        })()}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={confirmInsertTemplate}
+                        disabled={Object.values(templateVars).some((v) => !v.trim())}
+                      >
+                        Insert into Reply
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
