@@ -14,6 +14,7 @@ import {
   Plus,
   RotateCcw,
   Trash2,
+  Upload,
   User,
   X,
 } from 'lucide-react';
@@ -422,6 +423,126 @@ export default function CreateShopOrder({
       .catch(() => undefined);
   };
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    items: CartItemForm[];
+    errors: string[];
+  } | null>(null);
+
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleCsvFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) {
+        setImportPreview({ items: [], errors: ['CSV file is empty or has no data rows.'] });
+        return;
+      }
+
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+      const colIdx = (names: string[]) => headers.findIndex((h) => names.includes(h));
+
+      const skuCol = colIdx(['sku', 'product_sku']);
+      const idCol = colIdx(['product_id', 'id']);
+      const variantSkuCol = colIdx(['variant_sku', 'variant']);
+      const variantIdCol = colIdx(['variant_id']);
+      const qtyCol = colIdx(['quantity', 'qty']);
+      const priceCol = colIdx(['unit_price', 'price']);
+      const discountCol = colIdx(['discount_amount', 'discount']);
+
+      if (skuCol === -1 && idCol === -1) {
+        setImportPreview({
+          items: [],
+          errors: ['CSV must have a "sku" or "product_id" column.'],
+        });
+        return;
+      }
+
+      const newItems: CartItemForm[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const sku = skuCol >= 0 ? cols[skuCol] : '';
+        const productId = idCol >= 0 ? cols[idCol] : '';
+
+        const product = products.find(
+          (p) =>
+            (sku && p.sku.toLowerCase() === sku.toLowerCase()) ||
+            (productId && String(p.id) === productId)
+        );
+
+        if (!product) {
+          errors.push(`Row ${i + 1}: Product "${sku || productId}" not found.`);
+          continue;
+        }
+
+        let variantId = '';
+        if (variantIdCol >= 0 && cols[variantIdCol]) {
+          variantId = cols[variantIdCol];
+        } else if (variantSkuCol >= 0 && cols[variantSkuCol]) {
+          const variant = product.active_variants.find(
+            (v) => v.sku.toLowerCase() === cols[variantSkuCol].toLowerCase()
+          );
+          if (variant) variantId = String(variant.id);
+        }
+
+        const quantity = qtyCol >= 0 ? cols[qtyCol] : '1';
+        const unitPrice = priceCol >= 0 ? cols[priceCol] : String(product.selling_price);
+        const discount = discountCol >= 0 ? cols[discountCol] : '0';
+
+        if (!quantity || Number(quantity) < 1) {
+          errors.push(`Row ${i + 1}: Invalid quantity "${quantity}".`);
+          continue;
+        }
+
+        newItems.push({
+          product_id: String(product.id),
+          variant_id: variantId,
+          quantity,
+          unit_price: unitPrice,
+          discount_amount: discount || '0',
+        });
+      }
+
+      setImportPreview({ items: newItems, errors });
+    };
+    reader.readAsText(file);
+  };
+
+  const applyImport = () => {
+    if (!importPreview || importPreview.items.length === 0) return;
+    setData('items', importPreview.items);
+    setShowImportModal(false);
+    setImportPreview(null);
+  };
+
   const calculateShipping = () => {
     setCalculatingShipping(true);
     fetch('/shop/orders/calculate-shipping', {
@@ -491,6 +612,17 @@ export default function CreateShopOrder({
             <Button type="button" variant="outline" onClick={() => setShowTemplateModal(true)}>
               <LayoutGrid className="mr-1.5 h-4 w-4" />
               Save Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setImportPreview(null);
+                setShowImportModal(true);
+              }}
+            >
+              <Upload className="mr-1.5 h-4 w-4" />
+              Import CSV
             </Button>
             <Button type="submit" disabled={processing}>
               <Eye className="mr-1.5 h-4 w-4" />
@@ -1322,6 +1454,110 @@ export default function CreateShopOrder({
                   disabled={savingTemplate || !templateName.trim()}
                 >
                   {savingTemplate ? 'Saving...' : 'Save Template'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowImportModal(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Upload className="h-5 w-5" />
+                Import Cart from CSV
+              </h2>
+              <button type="button" onClick={() => setShowImportModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-medium text-foreground">Expected columns:</p>
+                <p>
+                  sku (or product_id), variant_sku (or variant_id), quantity, unit_price,
+                  discount_amount
+                </p>
+                <p className="mt-1">
+                  Only sku/product_id and quantity are required. Others default to product settings.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="csv_file">CSV file</Label>
+                <Input
+                  id="csv_file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCsvFile(file);
+                  }}
+                />
+              </div>
+
+              {importPreview && (
+                <>
+                  {importPreview.errors.length > 0 && (
+                    <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                      <p className="mb-1 text-sm font-medium text-warning">
+                        {importPreview.errors.length} warning(s)
+                      </p>
+                      <ul className="space-y-1 text-xs text-muted-foreground">
+                        {importPreview.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {importPreview.items.length > 0 && (
+                    <div className="rounded-md border p-3">
+                      <p className="mb-2 text-sm font-medium">
+                        {importPreview.items.length} item(s) ready to import
+                      </p>
+                      <div className="max-h-40 space-y-1 overflow-y-auto text-xs">
+                        {importPreview.items.map((item, i) => {
+                          const product = products.find((p) => String(p.id) === item.product_id);
+                          return (
+                            <div key={i} className="flex justify-between">
+                              <span className="truncate">
+                                {product?.name ?? `Product #${item.product_id}`}
+                              </span>
+                              <span className="text-muted-foreground">x{item.quantity}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {importPreview.items.length === 0 && importPreview.errors.length > 0 && (
+                    <p className="text-sm text-destructive">No valid items found in CSV.</p>
+                  )}
+                </>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowImportModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={applyImport}
+                  disabled={!importPreview || importPreview.items.length === 0}
+                >
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  Add to Cart
                 </Button>
               </div>
             </div>
