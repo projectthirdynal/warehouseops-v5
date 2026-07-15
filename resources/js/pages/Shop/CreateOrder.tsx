@@ -1,16 +1,18 @@
-import { FormEvent } from 'react';
+import { FormEvent, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
   AlertTriangle,
   ArrowLeft,
   Calculator,
+  CheckCircle2,
+  Eye,
   MapPinned,
   PackagePlus,
   Phone,
   Plus,
-  Save,
   Trash2,
   User,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -208,8 +210,15 @@ export default function CreateShopOrder({
   const orderDiscount = numeric(data.discount_amount);
   const total = Math.max(0, subtotal + shippingFee - orderDiscount);
 
+  const [showPreview, setShowPreview] = useState(false);
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    setShowPreview(true);
+  };
+
+  const confirmSubmit = () => {
+    setShowPreview(false);
     post('/shop/orders');
   };
 
@@ -234,8 +243,8 @@ export default function CreateShopOrder({
             </p>
           </div>
           <Button type="submit" disabled={processing}>
-            <Save className="mr-1.5 h-4 w-4" />
-            Save Order
+            <Eye className="mr-1.5 h-4 w-4" />
+            Review Order
           </Button>
         </div>
 
@@ -698,6 +707,149 @@ export default function CreateShopOrder({
           </div>
         </div>
       </form>
+
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Eye className="h-5 w-5" />
+                Order Preview
+              </h2>
+              <button type="button" onClick={() => setShowPreview(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-md border p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Customer</p>
+                  <p className="text-sm font-medium">{data.customer_name || '—'}</p>
+                  <p className="text-sm text-muted-foreground">{data.phone || '—'}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
+                  <p className="text-sm">{data.complete_address || '—'}</p>
+                  {(data.barangay || data.city_municipality || data.province) && (
+                    <p className="text-xs text-muted-foreground">
+                      {[data.barangay, data.city_municipality, data.province]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Item</th>
+                      <th className="px-3 py-2 text-right font-medium">Qty</th>
+                      <th className="px-3 py-2 text-right font-medium">Price</th>
+                      <th className="px-3 py-2 text-right font-medium">Disc</th>
+                      <th className="px-3 py-2 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {data.items.map((item, index) => {
+                      const product = products.find((p) => String(p.id) === item.product_id);
+                      const variant = product?.active_variants.find(
+                        (v) => String(v.id) === item.variant_id
+                      );
+                      const qty = Math.max(1, Number(item.quantity || 1));
+                      const lineTotal = Math.max(
+                        0,
+                        qty * numeric(item.unit_price) - numeric(item.discount_amount)
+                      );
+                      return (
+                        <tr key={index}>
+                          <td className="px-3 py-2">
+                            {variant?.variant_name ?? product?.name ?? `Item ${index + 1}`}
+                            <p className="text-xs text-muted-foreground">
+                              {variant?.sku ?? product?.sku ?? 'No SKU'}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-right">{qty}</td>
+                          <td className="px-3 py-2 text-right">
+                            {money(numeric(item.unit_price))}
+                          </td>
+                          <td className="px-3 py-2 text-right text-destructive">
+                            {numeric(item.discount_amount) > 0
+                              ? `−${money(numeric(item.discount_amount))}`
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-medium">{money(lineTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total items</span>
+                  <span>{totalQuantity}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{money(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Shipping</span>
+                  <span>{money(shippingFee)}</span>
+                </div>
+                {orderDiscount > 0 && (
+                  <div className="flex justify-between text-destructive">
+                    <span className="text-muted-foreground">Order discount</span>
+                    <span>−{money(orderDiscount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t pt-2 text-base font-semibold">
+                  <span>Total COD</span>
+                  <span>{money(total)}</span>
+                </div>
+              </div>
+
+              {data.courier_code && (
+                <div className="rounded-md border p-3 text-sm">
+                  <span className="text-muted-foreground">Courier: </span>
+                  <span className="font-medium">
+                    {couriers.find((c) => c.value === data.courier_code)?.label ??
+                      data.courier_code}
+                  </span>
+                </div>
+              )}
+
+              {data.remarks && (
+                <div className="rounded-md border p-3 text-sm">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Remarks</p>
+                  <p className="whitespace-pre-wrap">{data.remarks}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
+                  <X className="mr-1.5 h-4 w-4" />
+                  Edit Order
+                </Button>
+                <Button type="button" onClick={confirmSubmit} disabled={processing}>
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  Confirm & Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
