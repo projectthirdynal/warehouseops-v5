@@ -862,6 +862,82 @@ export default function ShopConversation({
     });
   };
 
+  type ActivityEntry = {
+    id: string;
+    type: 'assignment' | 'status' | 'remark' | 'flag' | 'snooze';
+    timestamp: string | null;
+    description: string;
+    actor: string | null;
+    badge?: { text: string; className?: string };
+  };
+
+  const activityLog: ActivityEntry[] = (() => {
+    const entries: ActivityEntry[] = [];
+
+    for (const h of assignmentHistory) {
+      entries.push({
+        id: `assign-${h.id}`,
+        type: 'assignment',
+        timestamp: h.created_at,
+        description: `${h.from_agent ?? 'Unassigned'} → ${h.to_agent ?? 'Unassigned'}`,
+        actor: h.assigned_by,
+        badge: { text: h.reason.replace(/_/g, ' ') },
+      });
+    }
+
+    for (const h of statusHistory) {
+      entries.push({
+        id: `status-${h.id}`,
+        type: 'status',
+        timestamp: h.created_at,
+        description: `${h.from_status ? label(h.from_status, statusLabels) + ' → ' : ''}${label(h.to_status, statusLabels)}`,
+        actor: h.changed_by,
+        badge: h.changed_by_role ? { text: h.changed_by_role } : undefined,
+      });
+    }
+
+    for (const r of initialRemarks) {
+      entries.push({
+        id: `remark-${r.id}`,
+        type: 'remark',
+        timestamp: r.created_at,
+        description: r.body.length > 80 ? r.body.slice(0, 80) + '…' : r.body,
+        actor: r.user_name,
+        badge: { text: 'note' },
+      });
+    }
+
+    if (conversation.is_flagged) {
+      entries.push({
+        id: 'flag-current',
+        type: 'flag',
+        timestamp: null,
+        description: conversation.flag_reason || 'Conversation flagged',
+        actor: null,
+        badge: { text: 'flag', className: 'border-destructive/40 text-destructive' },
+      });
+    }
+
+    if (conversation.snoozed_until) {
+      entries.push({
+        id: 'snooze-current',
+        type: 'snooze',
+        timestamp: conversation.snoozed_until,
+        description: `Snoozed until ${time(conversation.snoozed_until)}`,
+        actor: null,
+        badge: { text: 'snooze' },
+      });
+    }
+
+    entries.sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tb - ta;
+    });
+
+    return entries;
+  })();
+
   const updateCustomer = (event: FormEvent) => {
     event.preventDefault();
     if (!conversation.customer) return;
@@ -2662,88 +2738,62 @@ export default function ShopConversation({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <History className="h-5 w-5" />
-                  Assignment History
+                  Activity Log
                 </CardTitle>
+                <CardDescription>Unified timeline of all conversation events</CardDescription>
               </CardHeader>
               <CardContent>
-                {assignmentHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No assignment changes recorded.</p>
+                {activityLog.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {assignmentHistory.map((h) => (
-                      <div
-                        key={h.id}
-                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium">{h.from_agent ?? 'Unassigned'}</span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="font-medium">{h.to_agent ?? 'Unassigned'}</span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px]">
-                              {h.reason.replace(/_/g, ' ')}
-                            </Badge>
-                            {h.assigned_by && <span>by {h.assigned_by}</span>}
-                            {h.created_at && <span>{time(h.created_at)}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Status History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {statusHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No status changes recorded.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {statusHistory.map((h) => (
-                      <div
-                        key={h.id}
-                        className="flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1.5">
-                            {h.from_status && (
-                              <>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] ${statusBadgeClass(h.from_status, statusColor(h.from_status, statusLabels))}`}
-                                  style={statusBadgeStyle(statusColor(h.from_status, statusLabels))}
-                                >
-                                  {label(h.from_status, statusLabels)}
-                                </Badge>
-                                <span className="text-muted-foreground">→</span>
-                              </>
-                            )}
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] ${statusBadgeClass(h.to_status, statusColor(h.to_status, statusLabels))}`}
-                              style={statusBadgeStyle(statusColor(h.to_status, statusLabels))}
-                            >
-                              {label(h.to_status, statusLabels)}
-                            </Badge>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2 text-muted-foreground">
-                            <span>by {h.changed_by}</span>
-                            {h.changed_by_role && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {h.changed_by_role}
+                  <div className="relative space-y-3 before:absolute before:left-3 before:top-1 before:h-full before:w-px before:bg-border">
+                    {activityLog.map((entry) => (
+                      <div key={entry.id} className="relative flex gap-3 pl-7">
+                        <span
+                          className={`absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full border ${
+                            entry.type === 'flag'
+                              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                              : entry.type === 'status'
+                                ? 'border-blue-500/40 bg-blue-50 text-blue-600 dark:bg-blue-950/30'
+                                : entry.type === 'assignment'
+                                  ? 'border-purple-500/40 bg-purple-50 text-purple-600 dark:bg-purple-950/30'
+                                  : entry.type === 'remark'
+                                    ? 'border-amber-500/40 bg-amber-50 text-amber-600 dark:bg-amber-950/30'
+                                    : 'border-muted bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {entry.type === 'assignment'
+                            ? '→'
+                            : entry.type === 'status'
+                              ? '⟳'
+                              : entry.type === 'remark'
+                                ? '✎'
+                                : entry.type === 'flag'
+                                  ? '!'
+                                  : '⏸'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            {entry.badge && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${entry.badge.className ?? ''}`}
+                              >
+                                {entry.badge.text}
                               </Badge>
                             )}
-                            {h.created_at && <span>{time(h.created_at)}</span>}
+                            {entry.actor && (
+                              <span className="text-xs font-medium text-foreground">
+                                {entry.actor}
+                              </span>
+                            )}
                           </div>
+                          <p className="mt-0.5 text-xs text-foreground">{entry.description}</p>
+                          {entry.timestamp && (
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              {time(entry.timestamp)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
