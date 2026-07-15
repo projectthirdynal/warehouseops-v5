@@ -318,6 +318,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/inbox/status-labels', [ShopController::class, 'destroyStatusLabel'])->name('shop.status-labels.destroy');
     Route::post('/shop/inbox/assignment-rules', [ShopController::class, 'storeAssignmentRule'])->name('shop.assignment-rules.store');
     Route::delete('/shop/inbox/assignment-rules', [ShopController::class, 'destroyAssignmentRule'])->name('shop.assignment-rules.destroy');
+    Route::post('/shop/inbox/status-rules', [ShopController::class, 'storeStatusRule'])->name('shop.status-rules.store');
+    Route::delete('/shop/inbox/status-rules', [ShopController::class, 'destroyStatusRule'])->name('shop.status-rules.destroy');
     Route::post('/shop/inbox/moderate-comment', [ShopController::class, 'moderateComment'])->name('shop.comment.moderate');
     Route::post('/shop/inbox/page-canned-responses', [ShopController::class, 'storePageCannedResponse'])->name('shop.page-canned-responses.store');
     Route::delete('/shop/inbox/page-canned-responses', [ShopController::class, 'destroyPageCannedResponse'])->name('shop.page-canned-responses.destroy');

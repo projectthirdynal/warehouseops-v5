@@ -133,6 +133,14 @@ interface Props {
   pages: Page[];
   favorite_page_ids?: number[];
   assignment_rules?: AssignmentRule[];
+  status_rules?: {
+    id: number;
+    facebook_page_id: number;
+    from_status: string;
+    to_status: string;
+    inactivity_minutes: number;
+    is_active: boolean;
+  }[];
   pending_comments?: PendingComment[];
   page_canned_responses?: PageCannedResponse[];
   agents: {
@@ -244,6 +252,7 @@ export default function ShopInbox({
   pages,
   favorite_page_ids = [],
   assignment_rules = [],
+  status_rules: statusRules = [],
   pending_comments = [],
   page_canned_responses = [],
   agents,
@@ -272,6 +281,10 @@ export default function ShopInbox({
   const [showFunnel, setShowFunnel] = useState(false);
   const [rulePageId, setRulePageId] = useState('');
   const [ruleAgentId, setRuleAgentId] = useState('');
+  const [statusRulePageId, setStatusRulePageId] = useState('');
+  const [statusRuleFrom, setStatusRuleFrom] = useState('');
+  const [statusRuleTo, setStatusRuleTo] = useState('');
+  const [statusRuleInactivity, setStatusRuleInactivity] = useState('');
   const [cannedPageId, setCannedPageId] = useState('');
   const [cannedName, setCannedName] = useState('');
   const [cannedMessage, setCannedMessage] = useState('');
@@ -331,6 +344,35 @@ export default function ShopInbox({
 
   const removeAssignmentRule = (ruleId: number) => {
     router.delete('/shop/inbox/assignment-rules', {
+      data: { rule_id: ruleId },
+      preserveState: true,
+    });
+  };
+
+  const addStatusRule = () => {
+    if (!statusRulePageId || !statusRuleFrom || !statusRuleTo) return;
+    router.post(
+      '/shop/inbox/status-rules',
+      {
+        facebook_page_id: Number(statusRulePageId),
+        from_status: statusRuleFrom,
+        to_status: statusRuleTo,
+        inactivity_minutes: statusRuleInactivity ? Number(statusRuleInactivity) : 0,
+      },
+      {
+        preserveState: true,
+        onSuccess: () => {
+          setStatusRulePageId('');
+          setStatusRuleFrom('');
+          setStatusRuleTo('');
+          setStatusRuleInactivity('');
+        },
+      }
+    );
+  };
+
+  const removeStatusRule = (ruleId: number) => {
+    router.delete('/shop/inbox/status-rules', {
       data: { rule_id: ruleId },
       preserveState: true,
     });
@@ -1055,6 +1097,107 @@ export default function ShopInbox({
                 >
                   Add Rule
                 </Button>
+              </div>
+
+              <div className="border-t pt-3">
+                <h4 className="mb-2 text-sm font-semibold">Status Automation Rules</h4>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Automatically transition conversation status after a period of inactivity.
+                </p>
+                {statusRules.length > 0 && (
+                  <div className="mb-2 space-y-1.5">
+                    {statusRules.map((rule) => {
+                      const page = pages.find((p) => p.id === rule.facebook_page_id);
+                      return (
+                        <div
+                          key={rule.id}
+                          className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm"
+                        >
+                          <span className="font-medium">{page?.page_name ?? 'Unknown'}</span>
+                          <span className="text-muted-foreground">:</span>
+                          <span>{statusLabel(rule.from_status, undefined, statusLabels)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span>{statusLabel(rule.to_status, undefined, statusLabels)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({rule.inactivity_minutes}m idle)
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeStatusRule(rule.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[120px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">Page</label>
+                    <Select value={statusRulePageId} onValueChange={setStatusRulePageId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select page" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pages.map((page) => (
+                          <SelectItem key={page.id} value={page.id.toString()}>
+                            {page.page_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">From</label>
+                    <Select value={statusRuleFrom} onValueChange={setStatusRuleFrom}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="From status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {statusLabel(s, undefined, statusLabels)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="mb-1 block text-xs text-muted-foreground">To</label>
+                    <Select value={statusRuleTo} onValueChange={setStatusRuleTo}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="To status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {statusLabel(s, undefined, statusLabels)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-24">
+                    <label className="mb-1 block text-xs text-muted-foreground">Idle (min)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={statusRuleInactivity}
+                      onChange={(e) => setStatusRuleInactivity(e.target.value)}
+                      placeholder="e.g. 60"
+                      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={addStatusRule}
+                    disabled={!statusRulePageId || !statusRuleFrom || !statusRuleTo}
+                  >
+                    Add Rule
+                  </Button>
+                </div>
               </div>
 
               {can_view_all && (

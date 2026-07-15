@@ -13,6 +13,7 @@ use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
 use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\PageStatusLabel;
+use App\Domain\Shop\Models\PageStatusRule;
 use App\Domain\Shop\Models\ScheduledMessage;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
@@ -557,6 +558,17 @@ class ShopController extends Controller
                 'is_active' => $rule->is_active,
             ]);
 
+        $statusRules = PageStatusRule::query()
+            ->get(['id', 'facebook_page_id', 'from_status', 'to_status', 'inactivity_minutes', 'is_active'])
+            ->map(fn (PageStatusRule $rule) => [
+                'id' => $rule->id,
+                'facebook_page_id' => $rule->facebook_page_id,
+                'from_status' => $rule->from_status,
+                'to_status' => $rule->to_status,
+                'inactivity_minutes' => $rule->inactivity_minutes,
+                'is_active' => $rule->is_active,
+            ]);
+
         $pendingComments = Message::query()
             ->where('direction', 'inbound')
             ->where('moderation_status', 'pending')
@@ -631,6 +643,7 @@ class ShopController extends Controller
             'pages' => $pages,
             'favorite_page_ids' => $favoritePageIds,
             'assignment_rules' => $assignmentRules,
+            'status_rules' => $statusRules,
             'pending_comments' => $pendingComments,
             'page_canned_responses' => $pageCannedResponses,
             'agents' => $this->shopAgents(),
@@ -864,6 +877,41 @@ class ShopController extends Controller
         PageAssignmentRule::where('id', $validated['rule_id'])->delete();
 
         return back()->with('success', 'Assignment rule removed.');
+    }
+
+    public function storeStatusRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
+            'from_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'to_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'inactivity_minutes' => ['nullable', 'integer', 'min:0', 'max:525600'],
+        ]);
+
+        PageStatusRule::firstOrCreate(
+            [
+                'facebook_page_id' => $validated['facebook_page_id'],
+                'from_status' => $validated['from_status'],
+                'to_status' => $validated['to_status'],
+            ],
+            [
+                'inactivity_minutes' => $validated['inactivity_minutes'] ?? 0,
+                'is_active' => true,
+            ]
+        );
+
+        return back()->with('success', 'Status automation rule created.');
+    }
+
+    public function destroyStatusRule(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'rule_id' => ['required', 'integer', 'exists:page_status_rules,id'],
+        ]);
+
+        PageStatusRule::where('id', $validated['rule_id'])->delete();
+
+        return back()->with('success', 'Status automation rule removed.');
     }
 
     public function moderateComment(Request $request): RedirectResponse
