@@ -3947,4 +3947,37 @@ class ShopController extends Controller
         ];
     }
 
+    public function toggleBlock(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'block' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $customer = $conversation->customer;
+
+        if (! $customer) {
+            return back()->with('error', 'No customer linked to this conversation.');
+        }
+
+        if ($validated['block']) {
+            $customer->update([
+                'is_blacklisted' => true,
+                'blacklist_reason' => $validated['reason'] ?? 'Blocked from conversation',
+                'blacklisted_at' => now(),
+                'risk_level' => 'BLACKLISTED',
+            ]);
+            $message = 'Customer blocked successfully.';
+        } else {
+            $customer->update([
+                'is_blacklisted' => false,
+                'blacklist_reason' => null,
+                'blacklisted_at' => null,
+            ]);
+            $message = 'Customer unblocked successfully.';
+        }
+
+        return back()->with('success', $message);
+    }
+
 }

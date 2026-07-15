@@ -4,6 +4,8 @@ import axios from 'axios';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRightLeft,
+  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -482,6 +484,10 @@ export default function ShopConversation({
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAgentId, setTransferAgentId] = useState('');
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -782,6 +788,30 @@ export default function ShopConversation({
                   Create Order
                 </Link>
               </Button>
+              <Button type="button" variant="outline" onClick={() => setShowTransferModal(true)}>
+                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                Transfer
+              </Button>
+              {conversation.customer && (
+                <Button
+                  type="button"
+                  variant={conversation.customer.is_blacklisted ? 'default' : 'destructive'}
+                  onClick={() => {
+                    if (conversation.customer?.is_blacklisted) {
+                      router.post(
+                        `/shop/inbox/${conversation.id}/block`,
+                        { block: false },
+                        { preserveScroll: true }
+                      );
+                    } else {
+                      setShowBlockModal(true);
+                    }
+                  }}
+                >
+                  <Ban className="mr-1.5 h-4 w-4" />
+                  {conversation.customer.is_blacklisted ? 'Unblock' : 'Block'}
+                </Button>
+              )}
               <Badge
                 variant="outline"
                 className={statusBadgeClass(
@@ -2424,6 +2454,124 @@ export default function ShopConversation({
             className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {showBlockModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowBlockModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Ban className="h-5 w-5 text-destructive" />
+                Block Customer
+              </h3>
+              <button type="button" onClick={() => setShowBlockModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Blocking this customer will mark them as blacklisted and set risk level to
+              BLACKLISTED. You can unblock them later.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="block_reason">Reason (optional)</Label>
+              <Textarea
+                id="block_reason"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="Enter reason for blocking..."
+                className="min-h-[80px]"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowBlockModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  router.post(
+                    `/shop/inbox/${conversation.id}/block`,
+                    { block: true, reason: blockReason || undefined },
+                    { preserveScroll: true }
+                  );
+                  setShowBlockModal(false);
+                  setBlockReason('');
+                }}
+              >
+                <Ban className="mr-1.5 h-4 w-4" />
+                Confirm Block
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowTransferModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <ArrowRightLeft className="h-5 w-5" />
+                Transfer Conversation
+              </h3>
+              <button type="button" onClick={() => setShowTransferModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Currently assigned to:{' '}
+              <span className="font-medium text-foreground">
+                {conversation.assigned_agent?.name ?? 'Unassigned'}
+              </span>
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="transfer_agent">Assign to agent</Label>
+              <select
+                id="transfer_agent"
+                value={transferAgentId}
+                onChange={(e) => setTransferAgentId(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name} ({agent.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowTransferModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={transferAgentId === (conversation.assigned_agent?.id?.toString() ?? '')}
+                onClick={() => {
+                  updateAssignment(transferAgentId);
+                  setShowTransferModal(false);
+                  setTransferAgentId('');
+                }}
+              >
+                <ArrowRightLeft className="mr-1.5 h-4 w-4" />
+                Transfer
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </AppLayout>
