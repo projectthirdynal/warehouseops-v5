@@ -82,6 +82,7 @@ interface Conversation {
   id: number;
   status: string;
   priority: string;
+  channel: string;
   is_flagged: boolean;
   flag_reason: string | null;
   snoozed_until: string | null;
@@ -93,6 +94,12 @@ interface Conversation {
   tags: { id: number; name: string; color: string }[];
   assigned_agent?: { id: number; name: string } | null;
   last_message_at: string | null;
+  last_message_preview?: string | null;
+  created_at?: string | null;
+  first_response_at?: string | null;
+  resolved_at?: string | null;
+  thread_key?: string | null;
+  metadata?: Record<string, unknown> | null;
   facebook_page?: { id: number; page_name: string; page_id: string; webhook_status: string } | null;
   customer?: {
     id: number;
@@ -2245,14 +2252,78 @@ export default function ShopConversation({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <PackageCheck className="h-5 w-5" />
-                  Page
+                  Conversation Details
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>{conversation.facebook_page?.page_name ?? 'Unknown Page'}</p>
-                <p className="text-muted-foreground">
-                  Webhook: {conversation.facebook_page?.webhook_status ?? 'unknown'}
-                </p>
+              <CardContent className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Source</p>
+                    <p className="capitalize">{conversation.channel ?? 'messenger'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Page</p>
+                    <p>{conversation.facebook_page?.page_name ?? 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Created</p>
+                    <p>{time(conversation.created_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Last Message</p>
+                    <p>{time(conversation.last_message_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">First Response</p>
+                    <p>{time(conversation.first_response_at ?? null) || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Resolved</p>
+                    <p>{time(conversation.resolved_at ?? null) || '—'}</p>
+                  </div>
+                </div>
+                {conversation.last_message_preview && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Last Message Preview
+                    </p>
+                    <p
+                      className="truncate text-muted-foreground"
+                      title={conversation.last_message_preview}
+                    >
+                      {conversation.last_message_preview}
+                    </p>
+                  </div>
+                )}
+                {conversation.thread_key && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Thread Key</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {conversation.thread_key}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Webhook Status</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      conversation.facebook_page?.webhook_status === 'active'
+                        ? 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30'
+                        : 'border-muted text-muted-foreground'
+                    }
+                  >
+                    {conversation.facebook_page?.webhook_status ?? 'unknown'}
+                  </Badge>
+                </div>
+                {conversation.facebook_page && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Page ID</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {conversation.facebook_page.page_id}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
