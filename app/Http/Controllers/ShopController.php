@@ -3144,6 +3144,8 @@ class ShopController extends Controller
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
@@ -3188,8 +3190,11 @@ class ShopController extends Controller
         abort_unless($primaryItem, 422, 'At least one cart item is required.');
         $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
         $orderDiscount = (float) ($validated['discount_amount'] ?? 0);
+        $taxRate = (float) ($validated['tax_rate'] ?? 0);
+        $taxableAmount = max(0, (float) $preparedItems->sum('line_total') - $orderDiscount);
+        $taxAmount = $taxRate > 0 ? round($taxableAmount * $taxRate / 100, 2) : (float) ($validated['tax_amount'] ?? 0);
         $totalQuantity = (int) $preparedItems->sum('quantity');
-        $totalAmount = max(0, (float) $preparedItems->sum('line_total') + $shippingFee - $orderDiscount);
+        $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
         $normalizedPhone = $this->phones->normalize($validated['phone']);
         $possibleDuplicates = $this->possibleDuplicateOrders(
             $normalizedPhone ?: $validated['phone'],
@@ -3208,6 +3213,8 @@ class ShopController extends Controller
             $primaryItem,
             $shippingFee,
             $orderDiscount,
+            $taxRate,
+            $taxAmount,
             $totalQuantity,
             $totalAmount,
             $normalizedPhone,
@@ -3245,6 +3252,8 @@ class ShopController extends Controller
                 'cod_amount' => $totalAmount,
                 'shipping_cost' => $shippingFee,
                 'discount_amount' => $orderDiscount,
+                'tax_rate' => $taxRate,
+                'tax_amount' => $taxAmount,
                 'receiver_name' => $validated['customer_name'],
                 'receiver_phone' => $normalizedPhone ?: $validated['phone'],
                 'receiver_address' => $validated['complete_address'],

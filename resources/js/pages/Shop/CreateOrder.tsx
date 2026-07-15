@@ -72,6 +72,7 @@ interface OrderForm {
   items: CartItemForm[];
   shipping_fee: string;
   discount_amount: string;
+  tax_rate: string;
   courier_code: string;
   remarks: string;
   conversation_id: string;
@@ -124,6 +125,7 @@ export default function CreateShopOrder({
     items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
     shipping_fee: '0',
     discount_amount: '0',
+    tax_rate: '0',
     courier_code: 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
@@ -208,7 +210,10 @@ export default function CreateShopOrder({
   );
   const shippingFee = numeric(data.shipping_fee);
   const orderDiscount = numeric(data.discount_amount);
-  const total = Math.max(0, subtotal + shippingFee - orderDiscount);
+  const taxRate = numeric(data.tax_rate);
+  const taxableAmount = Math.max(0, subtotal - orderDiscount);
+  const taxAmount = taxRate > 0 ? Math.round(taxableAmount * taxRate) / 100 : 0;
+  const total = Math.max(0, taxableAmount + shippingFee + taxAmount);
 
   const [showPreview, setShowPreview] = useState(false);
   const [shippingZone, setShippingZone] = useState<string | null>(null);
@@ -660,6 +665,12 @@ export default function CreateShopOrder({
                       <span>−{money(orderDiscount)}</span>
                     </div>
                   )}
+                  {taxAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax ({taxRate}%)</span>
+                      <span>{money(taxAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t pt-3 text-base font-semibold">
                     <span>Total COD</span>
                     <span>{money(total)}</span>
@@ -719,6 +730,22 @@ export default function CreateShopOrder({
                   {errors.discount_amount && (
                     <p className="text-xs text-destructive">{errors.discount_amount}</p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tax_rate">Tax rate (%)</Label>
+                  <Input
+                    id="tax_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={data.tax_rate}
+                    onChange={(event) => setData('tax_rate', event.target.value)}
+                  />
+                  {taxAmount > 0 && (
+                    <p className="text-xs text-muted-foreground">Tax amount: {money(taxAmount)}</p>
+                  )}
+                  {errors.tax_rate && <p className="text-xs text-destructive">{errors.tax_rate}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="courier_code">Courier</Label>
@@ -854,6 +881,12 @@ export default function CreateShopOrder({
                   <div className="flex justify-between text-destructive">
                     <span className="text-muted-foreground">Order discount</span>
                     <span>−{money(orderDiscount)}</span>
+                  </div>
+                )}
+                {taxAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax ({taxRate}%)</span>
+                    <span>{money(taxAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t pt-2 text-base font-semibold">
