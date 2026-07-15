@@ -56,6 +56,7 @@ interface CartItemForm {
   variant_id: string;
   quantity: string;
   unit_price: string;
+  discount_amount: string;
 }
 
 interface OrderForm {
@@ -68,6 +69,7 @@ interface OrderForm {
   province: string;
   items: CartItemForm[];
   shipping_fee: string;
+  discount_amount: string;
   courier_code: string;
   remarks: string;
   conversation_id: string;
@@ -99,6 +101,7 @@ function createEmptyItem(): CartItemForm {
     variant_id: '',
     quantity: '1',
     unit_price: '',
+    discount_amount: '0',
   };
 }
 
@@ -118,6 +121,7 @@ export default function CreateShopOrder({
     province: prefill?.province ?? '',
     items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
     shipping_fee: '0',
+    discount_amount: '0',
     courier_code: 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
@@ -190,7 +194,10 @@ export default function CreateShopOrder({
   };
 
   const subtotal = data.items.reduce(
-    (total, item) => total + Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price),
+    (total, item) =>
+      total +
+      Math.max(1, Number(item.quantity || 1)) * numeric(item.unit_price) -
+      numeric(item.discount_amount),
     0
   );
   const totalQuantity = data.items.reduce(
@@ -198,7 +205,8 @@ export default function CreateShopOrder({
     0
   );
   const shippingFee = numeric(data.shipping_fee);
-  const total = subtotal + shippingFee;
+  const orderDiscount = numeric(data.discount_amount);
+  const total = Math.max(0, subtotal + shippingFee - orderDiscount);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -358,7 +366,8 @@ export default function CreateShopOrder({
                     (variant) => String(variant.id) === item.variant_id
                   );
                   const quantity = Math.max(1, Number(item.quantity || 1));
-                  const lineTotal = quantity * numeric(item.unit_price);
+                  const lineDiscount = numeric(item.discount_amount);
+                  const lineTotal = Math.max(0, quantity * numeric(item.unit_price) - lineDiscount);
                   const availableStock = selectedVariant
                     ? (selectedVariant.available_stock ?? 0)
                     : (selectedProduct?.available_stock ?? 0);
@@ -486,6 +495,20 @@ export default function CreateShopOrder({
                           )}
                         </div>
 
+                        <div className="space-y-2">
+                          <Label htmlFor={`discount_${index}`}>Line discount</Label>
+                          <Input
+                            id={`discount_${index}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.discount_amount}
+                            onChange={(event) =>
+                              updateItem(index, 'discount_amount', event.target.value)
+                            }
+                          />
+                        </div>
+
                         <div className="flex items-end">
                           <div className="w-full rounded-lg bg-muted px-3 py-2 text-sm">
                             <div className="flex justify-between">
@@ -556,7 +579,10 @@ export default function CreateShopOrder({
                       (variant) => String(variant.id) === item.variant_id
                     );
                     const quantity = Math.max(1, Number(item.quantity || 1));
-                    const lineTotal = quantity * numeric(item.unit_price);
+                    const lineTotal = Math.max(
+                      0,
+                      quantity * numeric(item.unit_price) - numeric(item.discount_amount)
+                    );
 
                     return (
                       <div key={index} className="rounded-lg border p-3">
@@ -591,6 +617,12 @@ export default function CreateShopOrder({
                     <span className="text-muted-foreground">Shipping</span>
                     <span>{money(shippingFee)}</span>
                   </div>
+                  {orderDiscount > 0 && (
+                    <div className="flex justify-between text-destructive">
+                      <span className="text-muted-foreground">Order discount</span>
+                      <span>−{money(orderDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t pt-3 text-base font-semibold">
                     <span>Total COD</span>
                     <span>{money(total)}</span>
@@ -620,6 +652,20 @@ export default function CreateShopOrder({
                   />
                   {errors.shipping_fee && (
                     <p className="text-xs text-destructive">{errors.shipping_fee}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="discount_amount">Order discount</Label>
+                  <Input
+                    id="discount_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.discount_amount}
+                    onChange={(event) => setData('discount_amount', event.target.value)}
+                  />
+                  {errors.discount_amount && (
+                    <p className="text-xs text-destructive">{errors.discount_amount}</p>
                   )}
                 </div>
                 <div className="space-y-2">

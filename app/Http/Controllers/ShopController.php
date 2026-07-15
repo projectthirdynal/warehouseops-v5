@@ -3110,7 +3110,9 @@ class ShopController extends Controller
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
@@ -3136,13 +3138,15 @@ class ShopController extends Controller
 
             $quantity = (int) $item['quantity'];
             $unitPrice = (float) $item['unit_price'];
-            $lineTotal = $quantity * $unitPrice;
+            $lineDiscount = (float) ($item['discount_amount'] ?? 0);
+            $lineTotal = max(0, ($quantity * $unitPrice) - $lineDiscount);
 
             return [
                 'product' => $product,
                 'variant' => $variant,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
+                'discount_amount' => $lineDiscount,
                 'line_total' => $lineTotal,
                 'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
                 'sku' => $variant?->sku ?? $product->sku,
@@ -3152,8 +3156,9 @@ class ShopController extends Controller
         $primaryItem = $preparedItems->first();
         abort_unless($primaryItem, 422, 'At least one cart item is required.');
         $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
+        $orderDiscount = (float) ($validated['discount_amount'] ?? 0);
         $totalQuantity = (int) $preparedItems->sum('quantity');
-        $totalAmount = (float) $preparedItems->sum('line_total') + $shippingFee;
+        $totalAmount = max(0, (float) $preparedItems->sum('line_total') + $shippingFee - $orderDiscount);
         $normalizedPhone = $this->phones->normalize($validated['phone']);
         $possibleDuplicates = $this->possibleDuplicateOrders(
             $normalizedPhone ?: $validated['phone'],
@@ -3171,6 +3176,7 @@ class ShopController extends Controller
             $preparedItems,
             $primaryItem,
             $shippingFee,
+            $orderDiscount,
             $totalQuantity,
             $totalAmount,
             $normalizedPhone,
@@ -3207,6 +3213,7 @@ class ShopController extends Controller
                 'total_amount' => $totalAmount,
                 'cod_amount' => $totalAmount,
                 'shipping_cost' => $shippingFee,
+                'discount_amount' => $orderDiscount,
                 'receiver_name' => $validated['customer_name'],
                 'receiver_phone' => $normalizedPhone ?: $validated['phone'],
                 'receiver_address' => $validated['complete_address'],
@@ -3242,6 +3249,7 @@ class ShopController extends Controller
                     'product_name' => $item['display_name'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
+                    'discount_amount' => $item['discount_amount'],
                     'line_total' => $item['line_total'],
                 ]);
             }
