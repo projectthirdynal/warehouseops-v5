@@ -729,6 +729,17 @@ export default function ShopConversation({
     });
   };
 
+  const orderStatusBadgeClass = (status: string): string => {
+    const s = status.toLowerCase();
+    if (s === 'delivered' || s === 'completed' || s === 'successful')
+      return 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/30';
+    if (s === 'returned' || s === 'cancelled' || s === 'failed')
+      return 'border-destructive/40 text-destructive bg-destructive/10';
+    if (s === 'pending' || s === 'processing' || s === 'in_transit' || s === 'shipped')
+      return 'border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    return '';
+  };
+
   const updateCustomer = (event: FormEvent) => {
     event.preventDefault();
     if (!conversation.customer) return;
@@ -1925,10 +1936,30 @@ export default function ShopConversation({
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Recent Orders
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Recent Orders
+                  </CardTitle>
+                  {conversation.customer && (
+                    <Button asChild size="sm" variant="ghost">
+                      <Link href={`/shop/customers/${conversation.customer.id}`}>View All</Link>
+                    </Button>
+                  )}
+                </div>
+                {conversation.customer && (conversation.customer.total_orders ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                      Total: {conversation.customer.total_orders}
+                    </span>
+                    <span className="rounded-full border border-green-500/30 px-2 py-0.5 text-green-600">
+                      Successful: {conversation.customer.successful_orders ?? 0}
+                    </span>
+                    <span className="rounded-full border border-destructive/30 px-2 py-0.5 text-destructive">
+                      Returned: {conversation.customer.returned_orders ?? 0}
+                    </span>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
                 {recent_orders.length === 0 ? (
@@ -1941,18 +1972,28 @@ export default function ShopConversation({
                       className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-medium">{order.order_number}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="truncate text-xs text-muted-foreground">
                             {order.product?.name ?? 'No product'}
                           </p>
                         </div>
-                        <Badge variant="outline">{order.status}</Badge>
+                        <Badge variant="outline" className={orderStatusBadgeClass(order.status)}>
+                          {order.status}
+                        </Badge>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{time(order.created_at)}</span>
                         <span>{money(order.total_amount)}</span>
                       </div>
+                      {order.receiver_address && (
+                        <p
+                          className="mt-1.5 truncate text-xs text-muted-foreground"
+                          title={order.receiver_address}
+                        >
+                          {order.receiver_address}
+                        </p>
+                      )}
                     </Link>
                   ))
                 )}
