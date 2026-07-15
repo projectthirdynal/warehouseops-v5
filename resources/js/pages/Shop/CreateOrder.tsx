@@ -6,10 +6,12 @@ import {
   Calculator,
   CheckCircle2,
   Eye,
+  FileText,
   MapPinned,
   PackagePlus,
   Phone,
   Plus,
+  RotateCcw,
   Trash2,
   User,
   X,
@@ -78,11 +80,21 @@ interface OrderForm {
   conversation_id: string;
 }
 
+interface DraftSummary {
+  id: number;
+  order_number: string;
+  customer_name: string;
+  phone: string;
+  created_at: string;
+  items_count: number;
+}
+
 interface Props {
   products: Product[];
   couriers: Courier[];
   prefill?: Partial<OrderForm> | null;
   duplicate_warnings: DuplicateWarning[];
+  drafts: DraftSummary[];
 }
 
 function money(value: number) {
@@ -113,6 +125,7 @@ export default function CreateShopOrder({
   couriers,
   prefill,
   duplicate_warnings,
+  drafts,
 }: Props) {
   const { data, setData, post, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
@@ -218,6 +231,74 @@ export default function CreateShopOrder({
   const [showPreview, setShowPreview] = useState(false);
   const [shippingZone, setShippingZone] = useState<string | null>(null);
   const [calculatingShipping, setCalculatingShipping] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftList, setDraftList] = useState<DraftSummary[]>(drafts);
+
+  const csrfToken =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+  const saveDraft = () => {
+    setSavingDraft(true);
+    fetch('/shop/orders/draft', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({ ...data, draft_id: draftId }),
+    })
+      .then((res) => res.json())
+      .then((result: { success: boolean; draft_id: number }) => {
+        if (result.success) {
+          setDraftId(result.draft_id);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setSavingDraft(false));
+  };
+
+  const loadDraft = (id: number) => {
+    fetch(`/shop/orders/${id}/draft`, { headers: { 'X-CSRF-TOKEN': csrfToken } })
+      .then((res) => res.json())
+      .then((result: { success: boolean; draft: Partial<OrderForm> }) => {
+        if (result.success && result.draft) {
+          const d = result.draft;
+          setData({
+            customer_name: d.customer_name ?? '',
+            phone: d.phone ?? '',
+            complete_address: d.complete_address ?? '',
+            landmark: d.landmark ?? '',
+            barangay: d.barangay ?? '',
+            city_municipality: d.city_municipality ?? '',
+            province: d.province ?? '',
+            items: d.items && d.items.length > 0 ? d.items : [createEmptyItem()],
+            shipping_fee: d.shipping_fee ?? '0',
+            discount_amount: d.discount_amount ?? '0',
+            tax_rate: d.tax_rate ?? '0',
+            courier_code: d.courier_code ?? 'MANUAL',
+            remarks: d.remarks ?? '',
+            conversation_id: d.conversation_id ?? '',
+          });
+          setDraftId(id);
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  const deleteDraft = (id: number) => {
+    fetch(`/shop/orders/${id}/draft`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': csrfToken },
+    })
+      .then(() => {
+        setDraftList((prev) => prev.filter((d) => d.id !== id));
+        if (draftId === id) {
+          setDraftId(null);
+        }
+      })
+      .catch(() => undefined);
+  };
 
   const calculateShipping = () => {
     setCalculatingShipping(true);
@@ -225,8 +306,7 @@ export default function CreateShopOrder({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-TOKEN':
-          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+        'X-CSRF-TOKEN': csrfToken,
       },
       body: JSON.stringify({
         province: data.province,
@@ -275,10 +355,22 @@ export default function CreateShopOrder({
                 : 'Manual POS entry for Facebook, chat, and phone orders'}
             </p>
           </div>
-          <Button type="submit" disabled={processing}>
-            <Eye className="mr-1.5 h-4 w-4" />
-            Review Order
-          </Button>
+          <div className="flex items-center gap-2">
+            {draftId && (
+              <Badge variant="secondary" className="text-xs">
+                <FileText className="mr-1 h-3 w-3" />
+                Draft #{draftId}
+              </Badge>
+            )}
+            <Button type="button" variant="outline" onClick={saveDraft} disabled={savingDraft}>
+              <FileText className="mr-1.5 h-4 w-4" />
+              {savingDraft ? 'Saving...' : 'Save Draft'}
+            </Button>
+            <Button type="submit" disabled={processing}>
+              <Eye className="mr-1.5 h-4 w-4" />
+              Review Order
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
@@ -598,6 +690,52 @@ export default function CreateShopOrder({
                         <span>{money(Number(order.total_amount ?? 0))}</span>
                       </div>
                     </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {draftList.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Saved Drafts
+                  </CardTitle>
+                  <CardDescription>Resume or delete draft orders</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {draftList.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{draft.customer_name || 'Unnamed'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {draft.items_count} item(s) ·{' '}
+                          {draft.created_at ? new Date(draft.created_at).toLocaleDateString() : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => loadDraft(draft.id)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteDraft(draft.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
                   ))}
                 </CardContent>
               </Card>

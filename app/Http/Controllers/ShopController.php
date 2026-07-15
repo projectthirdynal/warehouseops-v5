@@ -3123,7 +3123,105 @@ class ShopController extends Controller
                     ?? $conversation?->customer?->phone
                     ?? $conversation?->identity?->phone_detected
             ),
+            'drafts' => Order::query()
+                ->where('status', OrderStatus::DRAFT)
+                ->where('assigned_agent_id', auth()->id())
+                ->latest()
+                ->limit(10)
+                ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'created_at', 'draft_data'])
+                ->map(fn ($o) => [
+                    'id' => $o->id,
+                    'order_number' => $o->order_number,
+                    'customer_name' => $o->receiver_name,
+                    'phone' => $o->receiver_phone,
+                    'created_at' => $o->created_at?->toDateTimeString(),
+                    'items_count' => isset($o->draft_data['items']) ? count($o->draft_data['items']) : 0,
+                ]),
         ]);
+    }
+
+    public function storeDraft(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'complete_address' => ['nullable', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'items' => ['nullable', 'array', 'max:20'],
+            'items.*.product_id' => ['nullable', 'string'],
+            'items.*.variant_id' => ['nullable', 'string'],
+            'items.*.quantity' => ['nullable', 'string'],
+            'items.*.unit_price' => ['nullable', 'string'],
+            'items.*.discount_amount' => ['nullable', 'string'],
+            'shipping_fee' => ['nullable', 'string'],
+            'discount_amount' => ['nullable', 'string'],
+            'tax_rate' => ['nullable', 'string'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'conversation_id' => ['nullable', 'string'],
+            'draft_id' => ['nullable', 'integer', 'exists:orders,id'],
+        ]);
+
+        $draftData = $validated;
+
+        if (! empty($validated['draft_id'])) {
+            $order = Order::query()->where('id', $validated['draft_id'])->where('status', OrderStatus::DRAFT)->first();
+            if ($order) {
+                $order->forceFill([
+                    'receiver_name' => $validated['customer_name'] ?? '',
+                    'receiver_phone' => $validated['phone'] ?? '',
+                    'receiver_address' => $validated['complete_address'] ?? '',
+                    'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+                    'notes' => $validated['remarks'] ?? null,
+                    'draft_data' => $draftData,
+                ])->save();
+
+                return response()->json(['success' => true, 'draft_id' => $order->id]);
+            }
+        }
+
+        $order = Order::query()->create([
+            'order_number' => Order::generateOrderNumber(),
+            'assigned_agent_id' => auth()->id(),
+            'status' => OrderStatus::DRAFT,
+            'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+            'receiver_name' => $validated['customer_name'] ?? '',
+            'receiver_phone' => $validated['phone'] ?? '',
+            'receiver_address' => $validated['complete_address'] ?? '',
+            'total_amount' => 0,
+            'cod_amount' => 0,
+            'source_channel' => 'manual_shop',
+            'notes' => $validated['remarks'] ?? null,
+            'draft_data' => $draftData,
+        ]);
+
+        return response()->json(['success' => true, 'draft_id' => $order->id]);
+    }
+
+    public function loadDraft(Request $request, Order $order): JsonResponse
+    {
+        if ($order->status !== OrderStatus::DRAFT) {
+            abort(404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'draft' => $order->draft_data ?? [],
+        ]);
+    }
+
+    public function deleteDraft(Request $request, Order $order): JsonResponse
+    {
+        if ($order->status !== OrderStatus::DRAFT) {
+            abort(404);
+        }
+
+        $order->delete();
+
+        return response()->json(['success' => true]);
     }
 
     public function storeOrder(Request $request): RedirectResponse
