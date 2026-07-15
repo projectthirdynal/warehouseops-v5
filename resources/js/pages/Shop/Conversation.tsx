@@ -17,6 +17,7 @@ import {
   History,
   ImageIcon,
   MapPin,
+  MessageSquare,
   PackageCheck,
   Pencil,
   Plus,
@@ -188,6 +189,7 @@ interface Props {
   };
   sla_thresholds?: Record<string, number | null>;
   status_labels?: Record<string, { label: string; color: string | null }>;
+  remarks?: { id: number; body: string; user_name: string; created_at: string | null }[];
 }
 
 function time(value: string | null) {
@@ -333,6 +335,7 @@ export default function ShopConversation({
   status_history: statusHistory = [],
   sla: slaData,
   status_labels: statusLabels = {},
+  remarks: initialRemarks = [],
   messages: initialMessages = [],
   has_more_messages: initialHasMore = false,
   total_message_count: totalMessages = 0,
@@ -488,6 +491,7 @@ export default function ShopConversation({
   const [blockReason, setBlockReason] = useState('');
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAgentId, setTransferAgentId] = useState('');
+  const [newRemark, setNewRemark] = useState('');
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -747,6 +751,31 @@ export default function ShopConversation({
     if (s === 'pending' || s === 'processing' || s === 'in_transit' || s === 'shipped')
       return 'border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/30';
     return '';
+  };
+
+  const submitRemark = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newRemark.trim()) return;
+    router.post(
+      `/shop/inbox/${conversation.id}/remarks`,
+      { body: newRemark },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setNewRemark('');
+          router.reload({ only: ['remarks'] });
+        },
+      }
+    );
+  };
+
+  const deleteRemark = (remarkId: number) => {
+    router.delete(`/shop/remarks/${remarkId}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        router.reload({ only: ['remarks'] });
+      },
+    });
   };
 
   const updateCustomer = (event: FormEvent) => {
@@ -2068,6 +2097,61 @@ export default function ShopConversation({
                       )}
                     </Link>
                   ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Remarks &amp; Notes
+                </CardTitle>
+                <CardDescription>Internal notes visible to your team only</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <form onSubmit={submitRemark} className="space-y-2">
+                  <Textarea
+                    value={newRemark}
+                    onChange={(e) => setNewRemark(e.target.value)}
+                    placeholder="Add an internal note..."
+                    className="min-h-[60px] text-sm"
+                  />
+                  <div className="flex justify-end">
+                    <Button type="submit" size="sm" disabled={!newRemark.trim()}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add Note
+                    </Button>
+                  </div>
+                </form>
+                {initialRemarks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No remarks yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {initialRemarks.map((remark) => (
+                      <div key={remark.id} className="group rounded-lg border p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">
+                                {remark.user_name}
+                              </span>
+                              <span>{time(remark.created_at)}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap break-words">{remark.body}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => deleteRemark(remark.id)}
+                            className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                            title="Delete remark"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

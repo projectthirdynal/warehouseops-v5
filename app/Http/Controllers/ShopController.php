@@ -1155,6 +1155,19 @@ class ShopController extends Controller
                 ->get(['status', 'label', 'color'])
                 ->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
                 ->toArray(),
+            'remarks' => OrderRemark::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('type', 'conversation_note')
+                ->with('user:id,name')
+                ->latest('id')
+                ->limit(50)
+                ->get()
+                ->map(fn (OrderRemark $r) => [
+                    'id' => $r->id,
+                    'body' => $r->body,
+                    'user_name' => $r->user?->name ?? 'System',
+                    'created_at' => $r->created_at?->toIso8601String(),
+                ]),
         ]);
     }
 
@@ -3978,6 +3991,34 @@ class ShopController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function storeConversationRemark(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        OrderRemark::query()->create([
+            'order_id' => 0,
+            'conversation_id' => $conversation->id,
+            'user_id' => $request->user()->id,
+            'type' => 'conversation_note',
+            'body' => $validated['body'],
+        ]);
+
+        return back()->with('success', 'Remark added.');
+    }
+
+    public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->type !== 'conversation_note') {
+            return back()->with('error', 'Only conversation notes can be deleted here.');
+        }
+
+        $remark->delete();
+
+        return back()->with('success', 'Remark deleted.');
     }
 
 }
