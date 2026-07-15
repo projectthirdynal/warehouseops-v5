@@ -50,6 +50,8 @@ interface Attachment {
 
 interface Message {
   id: number;
+  sent_by?: number | null;
+  sender_name?: string | null;
   direction: 'inbound' | 'outbound';
   body: string | null;
   message_type?: string;
@@ -897,265 +899,289 @@ export default function ShopConversation({
                 messages.map((message) => {
                   const status = deliveryStatus(message);
                   const StatusIcon = status?.icon;
+                  const senderLabel =
+                    message.direction === 'outbound'
+                      ? (message.sender_name ?? 'Agent')
+                      : (conversation.customer?.name ??
+                        conversation.identity?.display_name ??
+                        'Customer');
+                  const senderInitial = senderLabel.charAt(0).toUpperCase();
 
                   return (
                     <div
                       key={message.id}
                       id={`message-${message.id}`}
-                      className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex gap-2 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`group max-w-[78%] rounded-lg border px-3 py-2 text-sm ${
-                          message.direction === 'outbound'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted/40'
-                        } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
-                      >
-                        {message.body && <p>{message.body}</p>}
-                        {message.translated_body && (
-                          <p
-                            className={`mt-1 border-t pt-1 text-xs italic ${
-                              message.direction === 'outbound'
-                                ? 'border-primary-foreground/20 text-primary-foreground/70'
-                                : 'border-muted text-muted-foreground'
-                            }`}
-                          >
-                            {message.translated_body}
-                          </p>
-                        )}
-                        {message.message_type === 'quick_reply' &&
-                          message.metadata?.quick_reply_payload && (
+                      {message.direction === 'inbound' && (
+                        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                          {senderInitial}
+                        </div>
+                      )}
+                      <div className="max-w-[78%]">
+                        <p
+                          className={`mb-0.5 text-xs font-medium text-muted-foreground ${message.direction === 'outbound' ? 'text-right' : 'text-left'}`}
+                        >
+                          {senderLabel}
+                        </p>
+                        <div
+                          className={`group rounded-lg border px-3 py-2 text-sm ${
+                            message.direction === 'outbound'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted/40'
+                          } ${message.is_flagged ? 'border-destructive/60 ring-1 ring-destructive/30' : ''}`}
+                        >
+                          {message.body && <p>{message.body}</p>}
+                          {message.translated_body && (
                             <p
-                              className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                              className={`mt-1 border-t pt-1 text-xs italic ${
+                                message.direction === 'outbound'
+                                  ? 'border-primary-foreground/20 text-primary-foreground/70'
+                                  : 'border-muted text-muted-foreground'
+                              }`}
                             >
-                              Quick Reply: {message.metadata.quick_reply_payload}
+                              {message.translated_body}
                             </p>
                           )}
-                        {message.attachments && message.attachments.length > 0 && (
-                          <div className="mt-1 space-y-2">
-                            {message.attachments.map((att, idx) => {
-                              const url = att.payload?.url;
-                              if (
-                                att.type === 'image' ||
-                                att.type === 'image/jpeg' ||
-                                att.type === 'image/png' ||
-                                att.type === 'gif'
-                              ) {
-                                return url ? (
-                                  <img
-                                    key={idx}
-                                    src={url}
-                                    alt="Attachment"
-                                    className="max-w-full rounded-md border"
-                                    style={{ maxHeight: '240px' }}
-                                  />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <ImageIcon className="h-3 w-3" /> Image
+                          {message.message_type === 'quick_reply' &&
+                            message.metadata?.quick_reply_payload && (
+                              <p
+                                className={`mt-1 text-xs italic ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                              >
+                                Quick Reply: {message.metadata.quick_reply_payload}
+                              </p>
+                            )}
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div className="mt-1 space-y-2">
+                              {message.attachments.map((att, idx) => {
+                                const url = att.payload?.url;
+                                if (
+                                  att.type === 'image' ||
+                                  att.type === 'image/jpeg' ||
+                                  att.type === 'image/png' ||
+                                  att.type === 'gif'
+                                ) {
+                                  return url ? (
+                                    <img
+                                      key={idx}
+                                      src={url}
+                                      alt="Attachment"
+                                      className="max-w-full rounded-md border"
+                                      style={{ maxHeight: '240px' }}
+                                    />
+                                  ) : (
+                                    <div key={idx} className="flex items-center gap-1 text-xs">
+                                      <ImageIcon className="h-3 w-3" /> Image
+                                    </div>
+                                  );
+                                }
+                                if (att.type === 'audio' || att.type === 'voice') {
+                                  return url ? (
+                                    <audio key={idx} controls src={url} className="w-full" />
+                                  ) : (
+                                    <div key={idx} className="flex items-center gap-1 text-xs">
+                                      <AlertCircle className="h-3 w-3" /> Voice message
+                                    </div>
+                                  );
+                                }
+                                if (att.type === 'video') {
+                                  return url ? (
+                                    <video
+                                      key={idx}
+                                      controls
+                                      src={url}
+                                      className="max-w-full rounded-md"
+                                      style={{ maxHeight: '240px' }}
+                                    />
+                                  ) : (
+                                    <div key={idx} className="flex items-center gap-1 text-xs">
+                                      <VideoIcon className="h-3 w-3" /> Video
+                                    </div>
+                                  );
+                                }
+                                if (att.type === 'file') {
+                                  return url ? (
+                                    <a
+                                      key={idx}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-xs underline"
+                                    >
+                                      <FileIcon className="h-3 w-3" /> Download file
+                                    </a>
+                                  ) : (
+                                    <div key={idx} className="flex items-center gap-1 text-xs">
+                                      <FileIcon className="h-3 w-3" /> File attachment
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div key={idx} className="text-xs text-muted-foreground">
+                                    {att.type} attachment
                                   </div>
                                 );
-                              }
-                              if (att.type === 'audio' || att.type === 'voice') {
-                                return url ? (
-                                  <audio key={idx} controls src={url} className="w-full" />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <AlertCircle className="h-3 w-3" /> Voice message
-                                  </div>
-                                );
-                              }
-                              if (att.type === 'video') {
-                                return url ? (
-                                  <video
-                                    key={idx}
-                                    controls
-                                    src={url}
-                                    className="max-w-full rounded-md"
-                                    style={{ maxHeight: '240px' }}
-                                  />
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <VideoIcon className="h-3 w-3" /> Video
-                                  </div>
-                                );
-                              }
-                              if (att.type === 'file') {
-                                return url ? (
-                                  <a
-                                    key={idx}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs underline"
-                                  >
-                                    <FileIcon className="h-3 w-3" /> Download file
-                                  </a>
-                                ) : (
-                                  <div key={idx} className="flex items-center gap-1 text-xs">
-                                    <FileIcon className="h-3 w-3" /> File attachment
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div key={idx} className="text-xs text-muted-foreground">
-                                  {att.type} attachment
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {!message.body &&
-                          (!message.attachments || message.attachments.length === 0) && (
-                            <p className="text-muted-foreground italic">Unsupported message</p>
+                              })}
+                            </div>
                           )}
-                        <p
-                          className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
-                        >
-                          {time(message.sent_at)}
-                        </p>
-                        {status && StatusIcon && (
-                          <div
-                            className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                          {!message.body &&
+                            (!message.attachments || message.attachments.length === 0) && (
+                              <p className="text-muted-foreground italic">Unsupported message</p>
+                            )}
+                          <p
+                            className={`mt-1 text-xs ${message.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
                           >
-                            <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
-                            <span>
-                              {status.label}
-                              {status.detail ? `: ${status.detail}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        {message.reactions && Object.keys(message.reactions).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {Object.entries(message.reactions).map(([key, emoji]) => (
-                              <span
-                                key={key}
-                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
-                                  message.direction === 'outbound'
-                                    ? 'bg-primary-foreground/20'
-                                    : 'bg-muted'
-                                }`}
+                            {time(message.sent_at)}
+                          </p>
+                          {status && StatusIcon && (
+                            <div
+                              className={`mt-2 flex items-start gap-1 text-xs ${status.className}`}
+                            >
+                              <StatusIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                              <span>
+                                {status.label}
+                                {status.detail ? `: ${status.detail}` : ''}
+                              </span>
+                            </div>
+                          )}
+                          {message.reactions && Object.keys(message.reactions).length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {Object.entries(message.reactions).map(([key, emoji]) => (
+                                <span
+                                  key={key}
+                                  className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                                    message.direction === 'outbound'
+                                      ? 'bg-primary-foreground/20'
+                                      : 'bg-muted'
+                                  }`}
+                                >
+                                  {emoji}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div
+                            className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                onClick={() => {
+                                  axiosWithCsrf
+                                    .post(`/shop/messages/${message.id}/reaction`, { emoji })
+                                    .then(({ data }) => {
+                                      setMessages((prev) =>
+                                        prev.map((m) =>
+                                          m.id === message.id
+                                            ? { ...m, reactions: data.reactions }
+                                            : m
+                                        )
+                                      );
+                                    })
+                                    .catch(() => {});
+                                }}
                               >
                                 {emoji}
-                              </span>
+                              </button>
                             ))}
-                          </div>
-                        )}
-                        <div
-                          className={`mt-1 flex gap-1 ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                             <button
-                              key={emoji}
                               type="button"
-                              className="text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                              onClick={() => {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/reaction`, { emoji })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? { ...m, reactions: data.reactions }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              }}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
-                              message.is_flagged ? 'text-destructive opacity-100' : ''
-                            }`}
-                            title={
-                              message.is_flagged
-                                ? `Flagged: ${message.flag_reason}`
-                                : 'Flag message'
-                            }
-                            onClick={() => {
-                              if (message.is_flagged) {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/flag`, {})
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              is_flagged: data.is_flagged,
-                                              flag_reason: data.flag_reason,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
-                              } else {
-                                const reason = window.prompt('Flag reason (optional):');
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/flag`, {
-                                    flag_reason: reason || undefined,
-                                  })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              is_flagged: data.is_flagged,
-                                              flag_reason: data.flag_reason,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
+                              className={`ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100 ${
+                                message.is_flagged ? 'text-destructive opacity-100' : ''
+                              }`}
+                              title={
+                                message.is_flagged
+                                  ? `Flagged: ${message.flag_reason}`
+                                  : 'Flag message'
                               }
-                            }}
-                          >
-                            <Flag className="h-4 w-4" />
-                          </button>
-                          {message.body && (
-                            <button
-                              type="button"
-                              className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
-                              title="Translate to English"
                               onClick={() => {
-                                axiosWithCsrf
-                                  .post(`/shop/messages/${message.id}/translate`, {
-                                    target_lang: 'en',
-                                  })
-                                  .then(({ data }) => {
-                                    setMessages((prev) =>
-                                      prev.map((m) =>
-                                        m.id === message.id
-                                          ? {
-                                              ...m,
-                                              translated_body: data.translated_body,
-                                              translated_lang: data.translated_lang,
-                                            }
-                                          : m
-                                      )
-                                    );
-                                  })
-                                  .catch(() => {});
+                                if (message.is_flagged) {
+                                  axiosWithCsrf
+                                    .post(`/shop/messages/${message.id}/flag`, {})
+                                    .then(({ data }) => {
+                                      setMessages((prev) =>
+                                        prev.map((m) =>
+                                          m.id === message.id
+                                            ? {
+                                                ...m,
+                                                is_flagged: data.is_flagged,
+                                                flag_reason: data.flag_reason,
+                                              }
+                                            : m
+                                        )
+                                      );
+                                    })
+                                    .catch(() => {});
+                                } else {
+                                  const reason = window.prompt('Flag reason (optional):');
+                                  axiosWithCsrf
+                                    .post(`/shop/messages/${message.id}/flag`, {
+                                      flag_reason: reason || undefined,
+                                    })
+                                    .then(({ data }) => {
+                                      setMessages((prev) =>
+                                        prev.map((m) =>
+                                          m.id === message.id
+                                            ? {
+                                                ...m,
+                                                is_flagged: data.is_flagged,
+                                                flag_reason: data.flag_reason,
+                                              }
+                                            : m
+                                        )
+                                      );
+                                    })
+                                    .catch(() => {});
+                                }
                               }}
                             >
-                              <Languages className="h-4 w-4" />
+                              <Flag className="h-4 w-4" />
                             </button>
+                            {message.body && (
+                              <button
+                                type="button"
+                                className="ml-1 text-sm opacity-0 transition-opacity hover:scale-125 group-hover:opacity-100"
+                                title="Translate to English"
+                                onClick={() => {
+                                  axiosWithCsrf
+                                    .post(`/shop/messages/${message.id}/translate`, {
+                                      target_lang: 'en',
+                                    })
+                                    .then(({ data }) => {
+                                      setMessages((prev) =>
+                                        prev.map((m) =>
+                                          m.id === message.id
+                                            ? {
+                                                ...m,
+                                                translated_body: data.translated_body,
+                                                translated_lang: data.translated_lang,
+                                              }
+                                            : m
+                                        )
+                                      );
+                                    })
+                                    .catch(() => {});
+                                }}
+                              >
+                                <Languages className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                          {message.is_flagged && (
+                            <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                              <Flag className="h-3 w-3" />
+                              <span>{message.flag_reason || 'Flagged'}</span>
+                            </div>
                           )}
                         </div>
-                        {message.is_flagged && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
-                            <Flag className="h-3 w-3" />
-                            <span>{message.flag_reason || 'Flagged'}</span>
-                          </div>
-                        )}
                       </div>
+                      {message.direction === 'outbound' && (
+                        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                          {senderInitial}
+                        </div>
+                      )}
                     </div>
                   );
                 })

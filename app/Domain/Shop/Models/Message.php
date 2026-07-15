@@ -14,6 +14,7 @@ class Message extends Model
         'conversation_id',
         'facebook_page_id',
         'customer_identity_id',
+        'sent_by',
         'external_message_id',
         'direction',
         'message_type',
@@ -67,5 +68,10 @@ class Message extends Model
     public function moderator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'moderated_by');
+    }
+
+    public function sender(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sent_by');
     }
 }

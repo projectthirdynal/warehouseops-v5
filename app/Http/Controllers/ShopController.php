@@ -1069,13 +1069,17 @@ class ShopController extends Controller
         $messageLimit = 50;
         $initialMessages = Message::query()
             ->where('conversation_id', $conversation->id)
+            ->with(['sender:id,name'])
             ->orderBy('sent_at')
             ->orderBy('id')
             ->latest('id')
             ->limit($messageLimit)
             ->get()
             ->reverse()
-            ->values();
+            ->values()
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]));
 
         $conversation->forceFill(['unread_count' => 0])->save();
 
@@ -2021,6 +2025,7 @@ class ShopController extends Controller
             'conversation_id' => $conversation->id,
             'facebook_page_id' => $conversation->facebook_page_id,
             'customer_identity_id' => $conversation->customer_identity_id,
+            'sent_by' => $request->user()->id,
             'external_message_id' => 'local-' . str()->uuid(),
             'direction' => 'outbound',
             'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
@@ -2090,22 +2095,28 @@ class ShopController extends Controller
             $query->where('id', '>', $validated['after_message_id']);
         }
 
-        $messages = $query->get([
-            'id',
-            'direction',
-            'body',
-            'message_type',
-            'attachments',
-            'metadata',
-            'reactions',
-            'is_flagged',
-            'flag_reason',
-            'translated_body',
-            'translated_lang',
-            'sent_at',
-            'raw_payload',
-            'phone_candidates',
-        ]);
+        $messages = $query
+            ->with(['sender:id,name'])
+            ->get([
+                'id',
+                'sent_by',
+                'direction',
+                'body',
+                'message_type',
+                'attachments',
+                'metadata',
+                'reactions',
+                'is_flagged',
+                'flag_reason',
+                'translated_body',
+                'translated_lang',
+                'sent_at',
+                'raw_payload',
+                'phone_candidates',
+            ])
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]));
 
         $conversation->refresh();
 
@@ -2151,10 +2162,12 @@ class ShopController extends Controller
         $messages = Message::query()
             ->where('conversation_id', $conversation->id)
             ->where('id', '<', $validated['before_id'])
+            ->with(['sender:id,name'])
             ->orderByDesc('id')
             ->limit($messageLimit + 1)
             ->get([
                 'id',
+                'sent_by',
                 'direction',
                 'body',
                 'message_type',
@@ -2169,6 +2182,9 @@ class ShopController extends Controller
                 'raw_payload',
                 'phone_candidates',
             ])
+            ->map(fn (Message $m) => array_merge($m->toArray(), [
+                'sender_name' => $m->sender?->name,
+            ]))
             ->reverse()
             ->values();
 
