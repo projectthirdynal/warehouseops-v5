@@ -211,6 +211,34 @@ export default function CreateShopOrder({
   const total = Math.max(0, subtotal + shippingFee - orderDiscount);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [shippingZone, setShippingZone] = useState<string | null>(null);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
+
+  const calculateShipping = () => {
+    setCalculatingShipping(true);
+    fetch('/shop/orders/calculate-shipping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        province: data.province,
+        city_municipality: data.city_municipality,
+        barangay: data.barangay,
+        address: data.complete_address,
+        courier_code: data.courier_code,
+      }),
+    })
+      .then((res) => res.json())
+      .then((result: { fee: number; zone: string | null; has_rate: boolean }) => {
+        setData('shipping_fee', result.fee.toFixed(2));
+        setShippingZone(result.zone);
+      })
+      .catch(() => undefined)
+      .finally(() => setCalculatingShipping(false));
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -650,7 +678,19 @@ export default function CreateShopOrder({
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="shipping_fee">Shipping fee</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="shipping_fee">Shipping fee</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={calculateShipping}
+                      disabled={calculatingShipping || !data.province}
+                    >
+                      <Calculator className="mr-1 h-3.5 w-3.5" />
+                      {calculatingShipping ? 'Calculating...' : 'Auto-calc'}
+                    </Button>
+                  </div>
                   <Input
                     id="shipping_fee"
                     type="number"
@@ -659,6 +699,9 @@ export default function CreateShopOrder({
                     value={data.shipping_fee}
                     onChange={(event) => setData('shipping_fee', event.target.value)}
                   />
+                  {shippingZone && (
+                    <p className="text-xs text-muted-foreground">Zone: {shippingZone}</p>
+                  )}
                   {errors.shipping_fee && (
                     <p className="text-xs text-destructive">{errors.shipping_fee}</p>
                   )}

@@ -30,6 +30,7 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
@@ -68,6 +69,7 @@ class ShopController extends Controller
         private readonly StockService $stockService,
         private readonly ConversationExportService $conversationExports,
         private readonly MessageTranslationService $translator,
+        private readonly ShippingRateService $shippingRates,
     ) {}
 
     public function index(): Response
@@ -3010,6 +3012,35 @@ class ShopController extends Controller
                 'payment_method' => $validated['payment_method'],
                 'items_count' => $totalQuantity,
             ],
+        ]);
+    }
+
+    public function calculateShipping(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'weight' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $result = $this->shippingRates->calculate(
+            [
+                'province' => $validated['province'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ],
+            $validated['courier_code'] ?? 'MANUAL',
+            ['weight' => (float) ($validated['weight'] ?? 0)],
+        );
+
+        return response()->json([
+            'fee' => $result['fee'],
+            'zone' => $result['zone'],
+            'has_rate' => $result['has_rate'],
         ]);
     }
 
