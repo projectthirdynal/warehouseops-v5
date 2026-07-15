@@ -3030,10 +3030,28 @@ class ShopController extends Controller
 
         return Inertia::render('Shop/CreateOrder', [
             'products' => Product::query()
-                ->with(['activeVariants:id,product_id,sku,variant_name,selling_price'])
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'sku', 'name', 'selling_price']),
+                ->get(['id', 'sku', 'name', 'selling_price'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'sku' => $p->sku,
+                    'name' => $p->name,
+                    'selling_price' => $p->selling_price,
+                    'available_stock' => $p->available_stock,
+                    'active_variants' => $p->activeVariants->map(fn ($v) => [
+                        'id' => $v->id,
+                        'sku' => $v->sku,
+                        'variant_name' => $v->variant_name,
+                        'selling_price' => $v->selling_price,
+                        'available_stock' => $v->stock?->available_stock ?? 0,
+                    ])->values(),
+                ]),
             'couriers' => [
                 ['value' => 'MANUAL', 'label' => 'Manual'],
                 ['value' => 'JNT', 'label' => 'J&T Express'],

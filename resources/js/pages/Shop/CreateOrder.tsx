@@ -25,6 +25,7 @@ interface ProductVariant {
   sku: string;
   variant_name: string;
   selling_price: string | number | null;
+  available_stock?: number;
 }
 
 interface Product {
@@ -32,6 +33,7 @@ interface Product {
   sku: string;
   name: string;
   selling_price: string | number;
+  available_stock?: number;
   active_variants: ProductVariant[];
 }
 
@@ -357,6 +359,11 @@ export default function CreateShopOrder({
                   );
                   const quantity = Math.max(1, Number(item.quantity || 1));
                   const lineTotal = quantity * numeric(item.unit_price);
+                  const availableStock = selectedVariant
+                    ? (selectedVariant.available_stock ?? 0)
+                    : (selectedProduct?.available_stock ?? 0);
+                  const isOutOfStock = selectedProduct && availableStock <= 0;
+                  const isInsufficient = selectedProduct && quantity > availableStock;
 
                   return (
                     <div key={index} className="rounded-lg border p-4">
@@ -401,6 +408,15 @@ export default function CreateShopOrder({
                               {itemError(index, 'product_id')}
                             </p>
                           )}
+                          {selectedProduct && (
+                            <p
+                              className={`text-xs ${isOutOfStock ? 'text-destructive' : availableStock <= 5 ? 'text-amber-600' : 'text-muted-foreground'}`}
+                            >
+                              {isOutOfStock
+                                ? 'Out of stock'
+                                : `${availableStock} in stock${availableStock <= 5 ? ' (low)' : ''}`}
+                            </p>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -418,6 +434,8 @@ export default function CreateShopOrder({
                             {selectedProduct?.active_variants.map((variant) => (
                               <option key={variant.id} value={variant.id}>
                                 {variant.variant_name} ({variant.sku})
+                                {variant.available_stock !== undefined &&
+                                  ` — ${variant.available_stock} in stock`}
                               </option>
                             ))}
                           </select>
@@ -440,6 +458,11 @@ export default function CreateShopOrder({
                           {itemError(index, 'quantity') && (
                             <p className="text-xs text-destructive">
                               {itemError(index, 'quantity')}
+                            </p>
+                          )}
+                          {isInsufficient && (
+                            <p className="text-xs text-destructive">
+                              Only {availableStock} available — requested {quantity}
                             </p>
                           )}
                         </div>
