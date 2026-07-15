@@ -10,6 +10,7 @@ import {
   Clock,
   CalendarClock,
   Copy,
+  Download,
   File as FileIcon,
   History,
   ImageIcon,
@@ -27,6 +28,7 @@ import {
   User,
   UserCheck,
   Video as VideoIcon,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -479,6 +481,7 @@ export default function ShopConversation({
   const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const customerForm = useForm({
     name: conversation.customer?.name ?? conversation.identity?.display_name ?? '',
     phone:
@@ -1125,60 +1128,99 @@ export default function ShopConversation({
                             <div className="mt-1 space-y-2">
                               {message.attachments.map((att, idx) => {
                                 const url = att.payload?.url;
-                                if (
+                                const isImage =
                                   att.type === 'image' ||
                                   att.type === 'image/jpeg' ||
                                   att.type === 'image/png' ||
-                                  att.type === 'gif'
-                                ) {
+                                  att.type === 'gif';
+                                const isAudio = att.type === 'audio' || att.type === 'voice';
+                                const isVideo = att.type === 'video';
+                                const isFile = att.type === 'file';
+
+                                if (isImage) {
                                   return url ? (
-                                    <img
-                                      key={idx}
-                                      src={url}
-                                      alt="Attachment"
-                                      className="max-w-full rounded-md border"
-                                      style={{ maxHeight: '240px' }}
-                                    />
+                                    <div key={idx} className="group relative inline-block">
+                                      <img
+                                        src={url}
+                                        alt="Attachment"
+                                        className="max-w-full cursor-zoom-in rounded-md border transition-opacity hover:opacity-90"
+                                        style={{ maxHeight: '240px' }}
+                                        onClick={() => setLightboxUrl(url)}
+                                      />
+                                      <a
+                                        href={url}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="absolute bottom-1 right-1 rounded-md bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                                        title="Download"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                      </a>
+                                    </div>
                                   ) : (
                                     <div key={idx} className="flex items-center gap-1 text-xs">
                                       <ImageIcon className="h-3 w-3" /> Image
                                     </div>
                                   );
                                 }
-                                if (att.type === 'audio' || att.type === 'voice') {
+                                if (isAudio) {
                                   return url ? (
-                                    <audio key={idx} controls src={url} className="w-full" />
+                                    <div key={idx} className="space-y-1">
+                                      <audio controls src={url} className="w-full" />
+                                      <a
+                                        href={url}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-xs underline"
+                                      >
+                                        <Download className="h-3 w-3" /> Download audio
+                                      </a>
+                                    </div>
                                   ) : (
                                     <div key={idx} className="flex items-center gap-1 text-xs">
                                       <AlertCircle className="h-3 w-3" /> Voice message
                                     </div>
                                   );
                                 }
-                                if (att.type === 'video') {
+                                if (isVideo) {
                                   return url ? (
-                                    <video
-                                      key={idx}
-                                      controls
-                                      src={url}
-                                      className="max-w-full rounded-md"
-                                      style={{ maxHeight: '240px' }}
-                                    />
+                                    <div key={idx} className="space-y-1">
+                                      <video
+                                        controls
+                                        src={url}
+                                        className="max-w-full rounded-md"
+                                        style={{ maxHeight: '240px' }}
+                                      />
+                                      <a
+                                        href={url}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-xs underline"
+                                      >
+                                        <Download className="h-3 w-3" /> Download video
+                                      </a>
+                                    </div>
                                   ) : (
                                     <div key={idx} className="flex items-center gap-1 text-xs">
                                       <VideoIcon className="h-3 w-3" /> Video
                                     </div>
                                   );
                                 }
-                                if (att.type === 'file') {
+                                if (isFile) {
                                   return url ? (
                                     <a
                                       key={idx}
                                       href={url}
+                                      download
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="flex items-center gap-1 text-xs underline"
+                                      className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-accent/30"
                                     >
-                                      <FileIcon className="h-3 w-3" /> Download file
+                                      <FileIcon className="h-4 w-4 shrink-0" />
+                                      <span className="underline">Download file</span>
                                     </a>
                                   ) : (
                                     <div key={idx} className="flex items-center gap-1 text-xs">
@@ -2353,6 +2395,37 @@ export default function ShopConversation({
           </div>
         </div>
       </div>
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-md bg-background/80 p-2 text-foreground hover:bg-background"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <a
+            href={lightboxUrl}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-4 right-4 rounded-md bg-background/80 p-2 text-foreground hover:bg-background"
+            title="Download"
+          >
+            <Download className="h-5 w-5" />
+          </a>
+          <img
+            src={lightboxUrl}
+            alt="Attachment preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </AppLayout>
   );
 }
