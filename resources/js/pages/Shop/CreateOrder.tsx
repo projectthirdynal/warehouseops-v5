@@ -201,6 +201,9 @@ export default function CreateShopOrder({
       city_municipality?: string;
       province?: string;
       total_orders?: number;
+      successful_orders?: number;
+      returned_orders?: number;
+      success_rate?: number;
     };
   }>({ status: 'idle' });
   const [orderHistory, setOrderHistory] = useState<
@@ -875,18 +878,48 @@ export default function CreateShopOrder({
                     <p className="text-xs text-muted-foreground">Searching customers…</p>
                   )}
                   {customerLookup.status === 'found' && customerLookup.customer && (
-                    <div className="flex items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2 py-1.5 text-xs text-success">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>
-                        Existing customer:{' '}
-                        <span className="font-medium">{customerLookup.customer.name}</span>
-                        {customerLookup.customer.total_orders != null && (
-                          <span className="text-muted-foreground">
-                            {' '}
-                            ({customerLookup.customer.total_orders} orders)
-                          </span>
+                    <div className="rounded-md border border-success/30 bg-success/5 px-2 py-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-success">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>
+                          Existing customer:{' '}
+                          <span className="font-medium">{customerLookup.customer.name}</span>
+                          {customerLookup.customer.total_orders != null && (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              ({customerLookup.customer.total_orders} orders)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {customerLookup.customer.total_orders != null &&
+                        customerLookup.customer.total_orders > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+                            <span>
+                              Success:{' '}
+                              <span className="font-medium text-success">
+                                {customerLookup.customer.success_rate ?? 0}%
+                              </span>
+                            </span>
+                            <span>
+                              Returned:{' '}
+                              <span className="font-medium text-destructive">
+                                {customerLookup.customer.returned_orders ?? 0}
+                              </span>
+                            </span>
+                            <span>
+                              Return Rate:{' '}
+                              <span className="font-medium">
+                                {Math.round(
+                                  ((customerLookup.customer.returned_orders ?? 0) /
+                                    customerLookup.customer.total_orders) *
+                                    100
+                                )}
+                                %
+                              </span>
+                            </span>
+                          </div>
                         )}
-                      </span>
                     </div>
                   )}
                   {customerLookup.status === 'not_found' && data.phone.length >= 7 && (

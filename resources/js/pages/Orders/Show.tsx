@@ -543,13 +543,32 @@ export default function OrderShow({ order, duplicate_warnings, customer_orders =
                       </p>
                     )}
                   <div className="flex justify-between pt-2 border-t mt-2">
-                    <span className="text-muted-foreground">Orders</span>
+                    <span className="text-muted-foreground">Total Orders</span>
                     <span>{order.customer.total_orders}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Successful</span>
+                    <span className="text-success">{order.customer.successful_orders}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Returned</span>
+                    <span className="text-destructive">{order.customer.returned_orders}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Success Rate</span>
                     <span>{order.customer.success_rate}%</span>
                   </div>
+                  {order.customer.total_orders > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Return Rate</span>
+                      <span>
+                        {Math.round(
+                          (order.customer.returned_orders / order.customer.total_orders) * 100
+                        )}
+                        %
+                      </span>
+                    </div>
+                  )}
                   {customer_orders.length > 0 && (
                     <div className="pt-2 border-t mt-2">
                       <p className="mb-1.5 text-xs font-medium text-muted-foreground">
