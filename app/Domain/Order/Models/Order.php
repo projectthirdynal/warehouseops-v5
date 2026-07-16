@@ -8,6 +8,7 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\OrderRemark;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\User;
@@ -128,6 +129,11 @@ class Order extends Model
     public function childOrders(): HasMany
     {
         return $this->hasMany(Order::class, 'parent_order_id');
+    }
+
+    public function remarks(): HasMany
+    {
+        return $this->hasMany(OrderRemark::class);
     }
 
     // Scopes

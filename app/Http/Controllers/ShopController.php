@@ -3397,6 +3397,51 @@ class ShopController extends Controller
         ]);
     }
 
+    public function orders(Request $request): Response
+    {
+        $query = Order::query()
+            ->with([
+                'customer:id,name,phone,normalized_phone',
+                'shopItems:id,order_id,product_name,quantity',
+                'agent:id,name',
+            ])
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $search = $request->string('q')->toString();
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('order_number', 'like', "%{$search}%")
+                        ->orWhere('receiver_name', 'like', "%{$search}%")
+                        ->orWhere('receiver_phone', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('status'), function ($q) use ($request) {
+                $q->where('status', $request->string('status')->toString());
+            })
+            ->latest();
+
+        $orders = $query->paginate(25)->withQueryString();
+
+        return Inertia::render('Shop/Orders/Index', [
+            'orders' => $orders,
+            'filters' => $request->only(['q', 'status']),
+        ]);
+    }
+
+    public function order(Request $request, Order $order): Response
+    {
+        $order->load([
+            'customer:id,name,phone,normalized_phone,risk_level,is_blacklisted,canonical_address,barangay,city_municipality,province',
+            'shopItems.product:id,name,sku',
+            'shopItems.variant:id,product_id,sku,variant_name',
+            'agent:id,name',
+            'remarks.user:id,name',
+        ]);
+
+        return Inertia::render('Shop/Orders/Show', [
+            'order' => $order,
+        ]);
+    }
+
     public function createOrder(Request $request): Response
     {
         $conversation = null;
