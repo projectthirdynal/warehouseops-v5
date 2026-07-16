@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -17,6 +18,7 @@ import {
   Trash2,
   Upload,
   User,
+  UserPlus,
   X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
@@ -182,6 +184,69 @@ export default function CreateShopOrder({
     cod_amount: prefill?.cod_amount ?? '',
     send_confirmation: true,
   });
+
+  const [customerLookup, setCustomerLookup] = useState<{
+    status: 'idle' | 'searching' | 'found' | 'not_found';
+    customer?: {
+      id: number;
+      name: string;
+      phone: string;
+      normalized_phone?: string;
+      canonical_address?: string;
+      risk_level?: string;
+      is_blacklisted?: boolean;
+      landmark?: string;
+      barangay?: string;
+      city_municipality?: string;
+      province?: string;
+      total_orders?: number;
+    };
+  }>({ status: 'idle' });
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextLookup = useRef(false);
+
+  useEffect(() => {
+    if (skipNextLookup.current) {
+      skipNextLookup.current = false;
+      return;
+    }
+    if (!data.phone || data.phone.length < 7) {
+      setCustomerLookup({ status: 'idle' });
+      return;
+    }
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    setCustomerLookup({ status: 'searching' });
+    lookupTimer.current = setTimeout(() => {
+      axios
+        .get('/shop/customers/search', { params: { q: data.phone, limit: 1 } })
+        .then((res) => {
+          const found = res.data.customers?.[0];
+          if (found) {
+            setCustomerLookup({ status: 'found', customer: found });
+            skipNextLookup.current = true;
+            setData({
+              ...data,
+              customer_name: found.name,
+              normalized_phone: found.normalized_phone,
+              customer_risk_level: found.risk_level as OrderForm['customer_risk_level'],
+              customer_is_blacklisted: found.is_blacklisted,
+              complete_address: found.canonical_address ?? data.complete_address,
+              landmark: found.landmark ?? data.landmark,
+              barangay: found.barangay ?? data.barangay,
+              city_municipality: found.city_municipality ?? data.city_municipality,
+              province: found.province ?? data.province,
+            });
+          } else {
+            setCustomerLookup({ status: 'not_found' });
+          }
+        })
+        .catch(() => setCustomerLookup({ status: 'idle' }));
+    }, 500);
+    return () => {
+      if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.phone]);
 
   const itemError = (index: number, field: string) => {
     const key = `items.${index}.${field}` as keyof typeof errors;
@@ -776,6 +841,30 @@ export default function CreateShopOrder({
                         </span>
                       </div>
                     )}
+                  {customerLookup.status === 'searching' && (
+                    <p className="text-xs text-muted-foreground">Searching customers…</p>
+                  )}
+                  {customerLookup.status === 'found' && customerLookup.customer && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2 py-1.5 text-xs text-success">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>
+                        Existing customer:{' '}
+                        <span className="font-medium">{customerLookup.customer.name}</span>
+                        {customerLookup.customer.total_orders != null && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            ({customerLookup.customer.total_orders} orders)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {customerLookup.status === 'not_found' && data.phone.length >= 7 && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-2 py-1.5 text-xs text-info">
+                      <UserPlus className="h-3.5 w-3.5" />
+                      <span>No existing customer — a new one will be created on save.</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
