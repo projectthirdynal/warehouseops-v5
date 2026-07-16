@@ -15,6 +15,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Services\InventoryService;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Models\Customer;
 use App\Models\Lead;
@@ -398,6 +399,81 @@ class OrderFulfillmentService
 
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
+    }
+
+    /**
+     * Split an order: move selected items into a new child order.
+     * The parent keeps the remaining items; both orders get recalculated totals.
+     */
+    public function splitOrder(Order $parentOrder, array $splitItemIds): Order
+    {
+        $parentOrder->load('shopItems');
+
+        $splitItems = $parentOrder->shopItems->whereIn('id', $splitItemIds);
+        $keepItems = $parentOrder->shopItems->whereNotIn('id', $splitItemIds);
+
+        if ($splitItems->isEmpty() || $keepItems->isEmpty()) {
+            throw new \InvalidArgumentException('Cannot split: must have at least one item on each side.');
+        }
+
+        return DB::transaction(function () use ($parentOrder, $splitItems, $keepItems) {
+            $splitTotal = $splitItems->sum(fn ($i) => (float) $i->line_total);
+            $splitDiscount = $splitItems->sum(fn ($i) => (float) $i->discount_amount);
+            $keepTotal = $keepItems->sum(fn ($i) => (float) $i->line_total);
+            $keepDiscount = $keepItems->sum(fn ($i) => (float) $i->discount_amount);
+
+            $splitRatio = $parentOrder->total_amount > 0
+                ? $splitTotal / (float) $parentOrder->total_amount
+                : 0;
+
+            $childOrder = Order::create([
+                'order_number'       => Order::generateOrderNumber(),
+                'parent_order_id'    => $parentOrder->id,
+                'lead_id'            => $parentOrder->lead_id,
+                'conversation_id'    => $parentOrder->conversation_id,
+                'facebook_page_id'   => $parentOrder->facebook_page_id,
+                'customer_id'        => $parentOrder->customer_id,
+                'assigned_agent_id'  => $parentOrder->assigned_agent_id,
+                'encoder_id'         => $parentOrder->encoder_id,
+                'status'             => OrderStatus::PENDING,
+                'courier_code'       => $parentOrder->courier_code,
+                'quantity'           => $splitItems->sum('quantity'),
+                'unit_price'         => 0,
+                'total_amount'       => $splitTotal,
+                'cod_amount'         => round((float) $parentOrder->cod_amount * $splitRatio, 2),
+                'shipping_cost'      => round((float) $parentOrder->shipping_cost * $splitRatio, 2),
+                'discount_amount'    => $splitDiscount,
+                'tax_rate'           => $parentOrder->tax_rate,
+                'tax_amount'         => round((float) $parentOrder->tax_amount * $splitRatio, 2),
+                'receiver_name'      => $parentOrder->receiver_name,
+                'receiver_phone'     => $parentOrder->receiver_phone,
+                'receiver_address'   => $parentOrder->receiver_address,
+                'city'               => $parentOrder->city,
+                'state'              => $parentOrder->state,
+                'barangay'           => $parentOrder->barangay,
+                'postal_code'        => $parentOrder->postal_code,
+                'address_mapping_id' => $parentOrder->address_mapping_id,
+                'source_channel'     => $parentOrder->source_channel,
+                'notes'              => "Split from {$parentOrder->order_number}",
+            ]);
+
+            foreach ($splitItems as $item) {
+                $item->update(['order_id' => $childOrder->id]);
+            }
+
+            $parentOrder->update([
+                'total_amount'    => $keepTotal,
+                'cod_amount'      => round((float) $parentOrder->cod_amount - ((float) $parentOrder->cod_amount * $splitRatio), 2),
+                'shipping_cost'   => round((float) $parentOrder->shipping_cost - ((float) $parentOrder->shipping_cost * $splitRatio), 2),
+                'discount_amount' => $keepDiscount,
+                'tax_amount'      => round((float) $parentOrder->tax_amount - ((float) $parentOrder->tax_amount * $splitRatio), 2),
+                'quantity'        => $keepItems->sum('quantity'),
+            ]);
+
+            $this->syncOrderStatusToConversation($childOrder, OrderStatus::PENDING, "Split from {$parentOrder->order_number}");
+
+            return $childOrder;
+        });
     }
 
     /**

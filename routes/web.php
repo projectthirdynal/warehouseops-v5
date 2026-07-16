@@ -405,6 +405,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/orders/{order}', [ShopController::class, 'order'])->name('shop.orders.show')->whereNumber('order');
     Route::patch('/shop/orders/{order}', [ShopController::class, 'updateOrder'])->name('shop.orders.update')->whereNumber('order');
     Route::post('/shop/orders/{order}/follow-up', [ShopController::class, 'manualFollowUp'])->name('shop.orders.follow-up')->whereNumber('order');
+    Route::post('/shop/orders/{order}/split', [ShopController::class, 'splitOrder'])->name('shop.orders.split')->whereNumber('order');
     Route::get('/shop/facebook/connect', [ShopController::class, 'connectFacebook'])->name('shop.facebook.connect');
     Route::get('/shop/facebook/callback', [ShopController::class, 'facebookCallback'])->name('shop.facebook.callback');
     Route::post('/shop/facebook/pages/manual', [ShopController::class, 'storeManualFacebookPage'])->name('shop.facebook.pages.manual');

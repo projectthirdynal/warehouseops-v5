@@ -22,6 +22,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  Scissors,
   Send,
   Search,
   Flag,
@@ -147,6 +148,12 @@ interface RecentOrder {
   receiver_address: string | null;
   created_at: string;
   product?: { id: number; name: string; sku: string } | null;
+  shop_items?: {
+    id: number;
+    product_name: string;
+    quantity: number;
+    line_total: string | number;
+  }[];
 }
 
 interface Props {
@@ -593,6 +600,10 @@ export default function ShopConversation({
   const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
   const [cancelOrderNumber, setCancelOrderNumber] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitOrderId, setSplitOrderId] = useState<number | null>(null);
+  const [splitOrderNumber, setSplitOrderNumber] = useState('');
+  const [splitItemIds, setSplitItemIds] = useState<number[]>([]);
   const [newRemark, setNewRemark] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<
     {
@@ -796,6 +807,26 @@ export default function ShopConversation({
     setCancelOrderNumber(order.order_number);
     setCancelReason('');
     setShowCancelOrderModal(true);
+  };
+
+  const openSplitModal = (order: RecentOrder) => {
+    setSplitOrderId(order.id);
+    setSplitOrderNumber(order.order_number);
+    setSplitItemIds([]);
+    setShowSplitModal(true);
+  };
+
+  const confirmSplitOrder = () => {
+    if (!splitOrderId || splitItemIds.length === 0) return;
+    router.post(
+      `/shop/orders/${splitOrderId}/split`,
+      { item_ids: splitItemIds },
+      { preserveScroll: true }
+    );
+    setShowSplitModal(false);
+    setSplitOrderId(null);
+    setSplitOrderNumber('');
+    setSplitItemIds([]);
   };
 
   const confirmCancelOrder = () => {
@@ -2486,6 +2517,14 @@ export default function ShopConversation({
                                 </button>
                                 <button
                                   type="button"
+                                  onClick={() => openSplitModal(order)}
+                                  className="shrink-0 text-muted-foreground hover:text-blue-600"
+                                  title="Split order"
+                                >
+                                  <Scissors className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => openCancelOrderModal(order)}
                                   className="shrink-0 text-muted-foreground hover:text-destructive"
                                   title="Cancel order"
@@ -3178,6 +3217,74 @@ export default function ShopConversation({
               <Button type="button" variant="destructive" onClick={confirmCancelOrder}>
                 <XCircle className="mr-1.5 h-4 w-4" />
                 Confirm Cancellation
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSplitModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowSplitModal(false)}
+        >
+          <div
+            className="w-full max-w-lg space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Scissors className="h-5 w-5" />
+                Split Order
+              </h3>
+              <button type="button" onClick={() => setShowSplitModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Select items to move into a new child order. The remaining items stay on{' '}
+              <span className="font-medium text-foreground">{splitOrderNumber}</span>.
+            </p>
+            <div className="space-y-2">
+              {recent_orders
+                .find((o) => o.id === splitOrderId)
+                ?.shop_items?.map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-3 rounded-md border p-2 hover:bg-accent/30"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={splitItemIds.includes(item.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSplitItemIds([...splitItemIds, item.id]);
+                        } else {
+                          setSplitItemIds(splitItemIds.filter((id) => id !== item.id));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{item.product_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Qty: {item.quantity} — ₱{item.line_total}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowSplitModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmSplitOrder}
+                disabled={splitItemIds.length === 0}
+              >
+                <Scissors className="mr-1.5 h-4 w-4" />
+                Split Selected Items
               </Button>
             </div>
           </div>

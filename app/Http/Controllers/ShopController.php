@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
@@ -72,6 +73,7 @@ class ShopController extends Controller
         private readonly ConversationExportService $conversationExports,
         private readonly MessageTranslationService $translator,
         private readonly ShippingRateService $shippingRates,
+        private readonly OrderFulfillmentService $fulfillment,
     ) {}
 
     public function index(): Response
@@ -1094,7 +1096,7 @@ class ShopController extends Controller
             'total_message_count' => $totalMessages,
             'recent_orders' => $conversation->customer_id
                 ? Order::query()
-                    ->with('product:id,name,sku')
+                    ->with('product:id,name,sku', 'shopItems:id,order_id,product_name,quantity,line_total')
                     ->where('customer_id', $conversation->customer_id)
                     ->latest()
                     ->limit(5)
@@ -3550,6 +3552,38 @@ class ShopController extends Controller
         ]);
 
         return back()->with('success', "Follow-up posted for order {$order->order_number}.");
+    }
+
+    public function splitOrder(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot split a completed order.');
+        }
+
+        $order->load('shopItems');
+        if ($order->shopItems->count() < 2) {
+            return back()->with('error', 'Cannot split: order must have at least 2 items.');
+        }
+
+        $validated = $request->validate([
+            'item_ids'   => ['required', 'array', 'min:1'],
+            'item_ids.*' => ['integer', 'exists:shop_order_items,id'],
+        ]);
+
+        $validItemIds = $order->shopItems->pluck('id')->toArray();
+        $splitIds = array_filter($validated['item_ids'], fn ($id) => in_array($id, $validItemIds));
+
+        if (count($splitIds) === 0 || count($splitIds) >= count($validItemIds)) {
+            return back()->with('error', 'Cannot split: must select at least one item but not all items.');
+        }
+
+        try {
+            $childOrder = $this->fulfillment->splitOrder($order, $splitIds);
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Order split: {$order->order_number} → {$childOrder->order_number}.");
     }
 
     public function storeDraft(Request $request): JsonResponse

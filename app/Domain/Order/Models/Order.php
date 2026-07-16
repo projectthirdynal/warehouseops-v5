@@ -24,6 +24,7 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'lead_id',
+        'parent_order_id',
         'conversation_id',
         'facebook_page_id',
         'customer_id',
@@ -116,6 +117,16 @@ class Order extends Model
     public function shopItems(): HasMany
     {
         return $this->hasMany(ShopOrderItem::class);
+    }
+
+    public function parentOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'parent_order_id');
+    }
+
+    public function childOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'parent_order_id');
     }
 
     // Scopes
