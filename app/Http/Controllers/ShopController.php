@@ -3260,6 +3260,8 @@ class ShopController extends Controller
                     ?? $conversation->customer?->phone
                     ?? $conversation->identity?->phone_detected
                     ?? '',
+                'normalized_phone' => $conversation->customer?->normalized_phone
+                    ?? ($conversation->customer?->phone ? null : null),
                 'complete_address' => $request->filled('complete_address')
                     ? $request->string('complete_address')->toString()
                     : ($conversation->customer?->canonical_address ?? ''),
@@ -3308,12 +3310,13 @@ class ShopController extends Controller
 
     public function editOrder(Request $request, Order $order): Response
     {
-        $order->load(['shopItems.product.activeVariants', 'shopItems.variant']);
+        $order->load(['shopItems.product.activeVariants', 'shopItems.variant', 'customer:id,normalized_phone']);
 
         $prefill = [
             'conversation_id' => $order->conversation_id ? (string) $order->conversation_id : '',
             'customer_name' => $order->receiver_name ?? '',
             'phone' => $order->receiver_phone ?? '',
+            'normalized_phone' => $order->customer?->normalized_phone,
             'complete_address' => $order->receiver_address ?? '',
             'barangay' => $order->barangay ?? '',
             'city_municipality' => $order->city ?? '',

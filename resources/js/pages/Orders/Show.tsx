@@ -496,6 +496,13 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                 <CardContent className="space-y-1 text-sm">
                   <p className="font-medium">{order.customer.name}</p>
                   <p className="text-muted-foreground">{order.customer.phone}</p>
+                  {order.customer.normalized_phone &&
+                    order.customer.normalized_phone !== order.customer.phone && (
+                      <p className="text-xs text-muted-foreground">
+                        Normalized:{' '}
+                        <span className="font-mono">{order.customer.normalized_phone}</span>
+                      </p>
+                    )}
                   <div className="flex justify-between pt-2 border-t mt-2">
                     <span className="text-muted-foreground">Orders</span>
                     <span>{order.customer.total_orders}</span>

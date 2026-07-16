@@ -2,7 +2,18 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'superadmin' | 'admin' | 'supervisor' | 'warehouse' | 'accounting' | 'finance' | 'teamleader' | 'agent' | 'checker' | 'encoder' | 'claims_officer';
+  role:
+    | 'superadmin'
+    | 'admin'
+    | 'supervisor'
+    | 'warehouse'
+    | 'accounting'
+    | 'finance'
+    | 'teamleader'
+    | 'agent'
+    | 'checker'
+    | 'encoder'
+    | 'claims_officer';
   is_active: boolean;
   theme?: 'light' | 'dark' | 'system';
   avatar_url?: string;
@@ -143,6 +154,7 @@ export type SalesStatus =
 export interface Customer {
   id: number;
   phone: string;
+  normalized_phone?: string;
   name: string;
   canonical_address?: string;
   total_orders: number;

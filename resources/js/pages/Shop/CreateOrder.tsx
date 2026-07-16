@@ -69,6 +69,7 @@ interface CartItemForm {
 interface OrderForm {
   customer_name: string;
   phone: string;
+  normalized_phone?: string;
   complete_address: string;
   landmark: string;
   barangay: string;
@@ -161,6 +162,7 @@ export default function CreateShopOrder({
   const { data, setData, post, put, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
+    normalized_phone: prefill?.normalized_phone ?? undefined,
     complete_address: prefill?.complete_address ?? '',
     landmark: prefill?.landmark ?? '',
     barangay: prefill?.barangay ?? '',
@@ -742,6 +744,11 @@ export default function CreateShopOrder({
                     placeholder="09171234567"
                   />
                   {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                  {data.normalized_phone && data.normalized_phone !== data.phone && (
+                    <p className="text-xs text-muted-foreground">
+                      Normalized: <span className="font-mono">{data.normalized_phone}</span>
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1414,6 +1421,11 @@ export default function CreateShopOrder({
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Customer</p>
                   <p className="text-sm font-medium">{data.customer_name || '—'}</p>
                   <p className="text-sm text-muted-foreground">{data.phone || '—'}</p>
+                  {data.normalized_phone && data.normalized_phone !== data.phone && (
+                    <p className="text-xs text-muted-foreground">
+                      Normalized: <span className="font-mono">{data.normalized_phone}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-md border p-3">
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
