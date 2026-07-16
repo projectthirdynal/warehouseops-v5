@@ -3459,7 +3459,25 @@ class ShopController extends Controller
             $shippingFee, $orderDiscount, $taxRate, $taxAmount,
             $totalQuantity, $totalAmount, $normalizedPhone
         ) {
+            $customer = $this->customerIdentities->firstOrCreateFromPhone([
+                'name' => $validated['customer_name'],
+                'phone' => $validated['phone'],
+                'address' => $validated['complete_address'],
+                'landmark' => $validated['landmark'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'city_municipality' => $validated['city_municipality'] ?? null,
+                'province' => $validated['province'] ?? null,
+            ]);
+
+            if ($order->conversation_id) {
+                $conversation = Conversation::find($order->conversation_id);
+                if ($conversation && ! $conversation->customer_id) {
+                    $conversation->forceFill(['customer_id' => $customer->id])->save();
+                }
+            }
+
             $order->forceFill([
+                'customer_id' => $customer->id,
                 'product_id' => $primaryItem['product']->id,
                 'variant_id' => $primaryItem['variant']?->id,
                 'courier_code' => $validated['courier_code'] ?? 'MANUAL',
