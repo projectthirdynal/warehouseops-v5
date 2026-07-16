@@ -16,6 +16,7 @@ class OrderRemark extends Model
         'conversation_id',
         'user_id',
         'type',
+        'visibility',
         'body',
         'metadata',
     ];

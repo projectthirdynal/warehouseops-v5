@@ -3752,6 +3752,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'agent_note',
+                    'visibility' => 'internal',
                     'body' => $newRemarks,
                 ]);
             }
@@ -4110,6 +4111,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'agent_note',
+                    'visibility' => 'internal',
                     'body' => $validated['remarks'],
                 ]);
             }
@@ -4119,6 +4121,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'duplicate_warning',
+                    'visibility' => 'internal',
                     'body' => "Possible duplicate of {$possibleDuplicate->order_number} from {$possibleDuplicate->created_at->format('M j, Y g:i A')}.",
                     'metadata' => [
                         'duplicate_order_id' => $possibleDuplicate->id,
@@ -4132,6 +4135,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'conversation_source',
+                    'visibility' => 'internal',
                     'body' => "Created from Shop conversation #{$conversation->id}.",
                     'metadata' => [
                         'conversation_id' => $conversation->id,
@@ -5001,12 +5005,14 @@ class ShopController extends Controller
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
             'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
         ]);
 
         OrderRemark::query()->create([
             'order_id' => $order->id,
             'user_id' => $request->user()->id,
             'type' => $validated['type'] ?? 'agent_note',
+            'visibility' => $validated['visibility'] ?? 'internal',
             'body' => $validated['body'],
         ]);
 

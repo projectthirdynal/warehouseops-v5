@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface OrderRemark {
   id: number;
   type: string;
+  visibility: string;
   body: string;
   created_at: string;
   user?: { id: number; name: string } | null;
@@ -109,6 +110,7 @@ export default function OrderShow({ order }: Props) {
   const { data, setData, post, processing, reset } = useForm({
     body: '',
     type: 'agent_note',
+    visibility: 'internal',
   });
 
   const submitRemark = (e: React.FormEvent) => {
@@ -321,7 +323,7 @@ export default function OrderShow({ order }: Props) {
               <form onSubmit={submitRemark} className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center gap-2">
                   <Select value={data.type} onValueChange={(v) => setData('type', v)}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[160px]">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -329,6 +331,15 @@ export default function OrderShow({ order }: Props) {
                       <SelectItem value="follow_up">Follow-up</SelectItem>
                       <SelectItem value="escalation">Escalation</SelectItem>
                       <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={data.visibility} onValueChange={(v) => setData('visibility', v)}>
+                    <SelectTrigger className="w-[170px]">
+                      <SelectValue placeholder="Visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="internal">Internal Only</SelectItem>
+                      <SelectItem value="customer_visible">Customer Visible</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -371,6 +382,17 @@ export default function OrderShow({ order }: Props) {
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {entry.type}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        'text-xs ' +
+                        (entry.visibility === 'customer_visible'
+                          ? 'border-info/30 text-info'
+                          : 'border-muted-foreground/20 text-muted-foreground')
+                      }
+                    >
+                      {entry.visibility === 'customer_visible' ? 'Customer Visible' : 'Internal'}
                     </Badge>
                     <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
                   </div>
