@@ -3211,8 +3211,8 @@ class ShopController extends Controller
         if ($request->filled('conversation_id')) {
             $conversation = Conversation::query()
                 ->with([
-                    'facebookPage:id,page_name,page_id',
-                    'customer:id,name,phone,normalized_phone,canonical_address',
+                    'facebookPage:id,page_name,page_id,default_courier',
+                    'customer:id,name,phone,normalized_phone,canonical_address,preferred_courier',
                     'identity:id,display_name,provider_user_id,phone_detected',
                     'messages' => fn ($query) => $query->latest('sent_at')->limit(5),
                 ])
@@ -3277,6 +3277,9 @@ class ShopController extends Controller
                     $conversation->facebookPage ? "Page: {$conversation->facebookPage->page_name}" : null,
                     $conversation->last_message_preview ? "Last message: {$conversation->last_message_preview}" : null,
                 ]))),
+                'courier_code' => $conversation->facebookPage?->default_courier
+                    ?: $conversation->customer?->preferred_courier
+                    ?: 'MANUAL',
             ] : null,
             'duplicate_warnings' => $this->duplicateWarningsForPhone(
                 $conversation?->customer?->normalized_phone

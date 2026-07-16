@@ -165,7 +165,7 @@ export default function CreateShopOrder({
     shipping_fee: '0',
     discount_amount: '0',
     tax_rate: '0',
-    courier_code: 'MANUAL',
+    courier_code: prefill?.courier_code ?? 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
     cod_amount: '',

@@ -27,6 +27,7 @@ class FacebookPage extends Model
         'webhook_status',
         'last_sync_at',
         'metadata',
+        'default_courier',
     ];
 
     protected $casts = [
