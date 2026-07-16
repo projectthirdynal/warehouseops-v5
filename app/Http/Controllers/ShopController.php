@@ -42,6 +42,7 @@ use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\AgentProfile;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -3858,7 +3859,10 @@ class ShopController extends Controller
         $confirmationSent = false;
         $confirmationError = null;
 
-        if (! empty($validated['send_confirmation']) && $conversation) {
+        $autoConfirm = SiteSetting::get('shop_auto_order_confirmation', '1') === '1';
+        $shouldSendConfirmation = ($autoConfirm || ! empty($validated['send_confirmation'])) && $conversation;
+
+        if ($shouldSendConfirmation) {
             $conversation->load(['facebookPage', 'identity']);
 
             $itemList = $preparedItems->map(fn ($item) =>
