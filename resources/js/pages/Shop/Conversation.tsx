@@ -1011,7 +1011,7 @@ export default function ShopConversation({
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                <Link href={createOrderHref}>
                   <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Create Order
                 </Link>
