@@ -20,9 +20,25 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import type { Order, OrderDuplicateWarning } from '@/types';
 
+interface CustomerOrder {
+  id: number;
+  order_number: string;
+  status: string;
+  total_amount: number;
+  cod_amount: number;
+  created_at: string;
+  shop_items?: Array<{
+    id: number;
+    product_name: string;
+    quantity: number;
+    line_total: number;
+  }>;
+}
+
 interface Props {
   order: Order;
   duplicate_warnings: OrderDuplicateWarning[];
+  customer_orders?: CustomerOrder[];
 }
 
 const statusColors: Record<string, string> = {
@@ -45,7 +61,7 @@ const resolutionLabels: Record<OrderDuplicateWarning['resolution_status'], strin
   cancel_new: 'Cancelled new order',
 };
 
-export default function OrderShow({ order, duplicate_warnings }: Props) {
+export default function OrderShow({ order, duplicate_warnings, customer_orders = [] }: Props) {
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
@@ -534,6 +550,47 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                     <span className="text-muted-foreground">Success Rate</span>
                     <span>{order.customer.success_rate}%</span>
                   </div>
+                  {customer_orders.length > 0 && (
+                    <div className="pt-2 border-t mt-2">
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                        Recent Orders
+                      </p>
+                      <div className="space-y-1.5">
+                        {customer_orders.map((co) => (
+                          <div key={co.id} className="flex items-center justify-between text-xs">
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={`/orders/${co.id}`}
+                                className="font-medium text-info hover:underline"
+                              >
+                                {co.order_number}
+                              </Link>
+                              <span
+                                className={
+                                  'ml-1.5 ' +
+                                  (co.status === 'DELIVERED'
+                                    ? 'text-success'
+                                    : co.status === 'CANCELLED' || co.status === 'RETURNED'
+                                      ? 'text-destructive'
+                                      : 'text-muted-foreground')
+                                }
+                              >
+                                {co.status}
+                              </span>
+                              <p className="truncate text-muted-foreground">
+                                {co.shop_items
+                                  ?.map((si) => `${si.product_name} ×${si.quantity}`)
+                                  .join(', ') || '—'}
+                              </p>
+                            </div>
+                            <span className="ml-2 font-medium">
+                              {formatCurrency(co.total_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

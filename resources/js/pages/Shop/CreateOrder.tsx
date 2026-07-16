@@ -28,6 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatCurrency } from '@/lib/utils';
 
 interface ProductVariant {
   id: number;
@@ -202,6 +203,24 @@ export default function CreateShopOrder({
       total_orders?: number;
     };
   }>({ status: 'idle' });
+  const [orderHistory, setOrderHistory] = useState<
+    Array<{
+      id: number;
+      order_number: string;
+      status: string;
+      total_amount: number;
+      cod_amount: number;
+      receiver_address: string;
+      created_at: string;
+      delivered_at: string | null;
+      shop_items?: Array<{
+        id: number;
+        product_name: string;
+        quantity: number;
+        line_total: number;
+      }>;
+    }>
+  >([]);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextLookup = useRef(false);
 
@@ -247,6 +266,17 @@ export default function CreateShopOrder({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.phone]);
+
+  useEffect(() => {
+    if (customerLookup.status === 'found' && customerLookup.customer) {
+      axios
+        .get(`/shop/customers/${customerLookup.customer.id}/orders`)
+        .then((res) => setOrderHistory(res.data.orders ?? []))
+        .catch(() => setOrderHistory([]));
+    } else {
+      setOrderHistory([]);
+    }
+  }, [customerLookup.status, customerLookup.customer]);
 
   const itemError = (index: number, field: string) => {
     const key = `items.${index}.${field}` as keyof typeof errors;
@@ -868,6 +898,63 @@ export default function CreateShopOrder({
                 </div>
               </CardContent>
             </Card>
+
+            {orderHistory.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <PackagePlus className="h-5 w-5" />
+                    Order History ({orderHistory.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {orderHistory.map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/orders/${ord.id}`}
+                            className="font-medium text-info hover:underline"
+                          >
+                            {ord.order_number}
+                          </Link>
+                          <Badge
+                            variant="outline"
+                            className={
+                              'text-xs ' +
+                              (ord.status === 'DELIVERED'
+                                ? 'border-success/30 text-success'
+                                : ord.status === 'CANCELLED' || ord.status === 'RETURNED'
+                                  ? 'border-destructive/30 text-destructive'
+                                  : 'border-muted text-muted-foreground')
+                            }
+                          >
+                            {ord.status}
+                          </Badge>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {ord.shop_items
+                            ?.map((si) => `${si.product_name} ×${si.quantity}`)
+                            .join(', ') || '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(ord.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="ml-2 text-right">
+                        <p className="font-medium">{formatCurrency(ord.total_amount)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          COD: {formatCurrency(ord.cod_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>

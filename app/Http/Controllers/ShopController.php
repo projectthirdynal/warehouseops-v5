@@ -1202,6 +1202,27 @@ class ShopController extends Controller
         ]);
     }
 
+    public function customerOrderHistory(Request $request, Customer $customer): JsonResponse
+    {
+        $orders = Order::query()
+            ->with('shopItems:id,order_id,product_name,quantity,line_total')
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->limit(10)
+            ->get([
+                'id',
+                'order_number',
+                'status',
+                'total_amount',
+                'cod_amount',
+                'receiver_address',
+                'created_at',
+                'delivered_at',
+            ]);
+
+        return response()->json(['orders' => $orders]);
+    }
+
     public function exportCustomers(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $query = Customer::query()
