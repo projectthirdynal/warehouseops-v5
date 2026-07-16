@@ -3411,6 +3411,7 @@ class ShopController extends Controller
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
             'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
+            'send_confirmation' => ['nullable', 'boolean'],
         ]);
 
         $products = Product::query()
@@ -3606,13 +3607,86 @@ class ShopController extends Controller
             return $order;
         });
 
+        $confirmationSent = false;
+        $confirmationError = null;
+
+        if (! empty($validated['send_confirmation']) && $conversation) {
+            $conversation->load(['facebookPage', 'identity']);
+
+            $itemList = $preparedItems->map(fn ($item) =>
+                "• {$item['display_name']} ×{$item['quantity']} — ₱" . number_format($item['line_total'], 2)
+            )->implode("\n");
+
+            $courierLabel = match($validated['courier_code'] ?? 'MANUAL') {
+                'JNT' => 'J&T Express',
+                'FLASH' => 'Flash Express',
+                default => 'Manual',
+            };
+
+            $confirmationBody = "✅ Order Confirmed!\n\n"
+                . "Order #: {$order->order_number}\n"
+                . "Items:\n{$itemList}\n\n"
+                . "Total COD: ₱" . number_format((float) $order->cod_amount, 2) . "\n"
+                . "Courier: {$courierLabel}\n\n"
+                . "Thank you for your order! We'll notify you once it's shipped.";
+
+            $delivery = ['status' => 'logged'];
+
+            if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
+                try {
+                    $delivery = $this->facebookConnector->sendMessage(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $confirmationBody
+                    );
+                    $delivery['status'] = 'sent';
+                    $confirmationSent = true;
+                } catch (\Throwable $exception) {
+                    $delivery = [
+                        'status' => 'failed',
+                        'error' => $exception->getMessage(),
+                    ];
+                    $confirmationError = $exception->getMessage();
+                }
+            }
+
+            Message::query()->create([
+                'conversation_id' => $conversation->id,
+                'facebook_page_id' => $conversation->facebook_page_id,
+                'customer_identity_id' => $conversation->customer_identity_id,
+                'sent_by' => auth()->id(),
+                'external_message_id' => 'local-' . str()->uuid(),
+                'direction' => 'outbound',
+                'message_type' => 'text',
+                'body' => $confirmationBody,
+                'metadata' => ['order_confirmation' => true, 'order_id' => $order->id],
+                'raw_payload' => $delivery,
+                'sent_at' => now(),
+                'send_status' => $delivery['status'],
+                'send_error' => $delivery['error'] ?? null,
+                'retry_count' => 0,
+            ]);
+
+            $conversation->forceFill([
+                'last_message_preview' => $confirmationBody,
+                'last_message_at' => now(),
+            ])->save();
+        }
+
+        $message = "Shop order {$order->order_number} created.";
+        if ($confirmationSent) {
+            $message .= ' Confirmation sent to customer.';
+        } elseif ($confirmationError) {
+            $message .= ' Confirmation message saved but delivery failed.';
+        }
+
         return redirect()
             ->route('orders.show', $order)
             ->with(
                 $possibleDuplicates->isNotEmpty() ? 'warning' : 'success',
                 $possibleDuplicates->isNotEmpty()
-                    ? "Shop order {$order->order_number} created. Possible duplicates found: {$possibleDuplicates->pluck('order_number')->implode(', ')}."
-                    : "Shop order {$order->order_number} created."
+                    ? "{$message} Possible duplicates found: {$possibleDuplicates->pluck('order_number')->implode(', ')}."
+                    : $message
             );
     }
 

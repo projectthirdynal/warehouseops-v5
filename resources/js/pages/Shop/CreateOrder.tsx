@@ -82,6 +82,7 @@ interface OrderForm {
   remarks: string;
   conversation_id: string;
   cod_amount: string;
+  send_confirmation: boolean;
 }
 
 interface DraftSummary {
@@ -169,6 +170,7 @@ export default function CreateShopOrder({
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
     cod_amount: '',
+    send_confirmation: true,
   });
 
   const itemError = (index: number, field: string) => {
@@ -341,6 +343,7 @@ export default function CreateShopOrder({
             remarks: d.remarks ?? '',
             conversation_id: d.conversation_id ?? '',
             cod_amount: d.cod_amount ?? '',
+            send_confirmation: false,
           });
           setDraftId(id);
         }
@@ -1342,6 +1345,20 @@ export default function CreateShopOrder({
                   />
                   {errors.remarks && <p className="text-xs text-destructive">{errors.remarks}</p>}
                 </div>
+                {data.conversation_id && (
+                  <div className="flex items-center gap-2 rounded-md border p-3">
+                    <input
+                      id="send_confirmation"
+                      type="checkbox"
+                      checked={data.send_confirmation}
+                      onChange={(e) => setData('send_confirmation', e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <Label htmlFor="send_confirmation" className="text-sm font-normal">
+                      Send order confirmation message to customer
+                    </Label>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
