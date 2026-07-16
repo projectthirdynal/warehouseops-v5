@@ -93,6 +93,17 @@ interface OrderForm {
   send_confirmation: boolean;
 }
 
+interface CustomerAddressSummary {
+  id: number;
+  label: string | null;
+  canonical_address: string | null;
+  landmark: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+  is_default: boolean;
+}
+
 interface DraftSummary {
   id: number;
   order_number: string;
@@ -210,6 +221,8 @@ export default function CreateShopOrder({
       success_rate?: number;
     };
   }>({ status: 'idle' });
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddressSummary[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
   const [orderHistory, setOrderHistory] = useState<
     Array<{
       id: number;
@@ -286,6 +299,35 @@ export default function CreateShopOrder({
       setOrderHistory([]);
     }
   }, [customerLookup.status, customerLookup.customer]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setSavedAddresses([]);
+      setSelectedAddressId('');
+      return;
+    }
+
+    setSelectedAddressId('');
+    axios
+      .get(`/shop/customers/${data.customer_id}/addresses`)
+      .then((res) => setSavedAddresses(res.data.addresses ?? []))
+      .catch(() => setSavedAddresses([]));
+  }, [data.customer_id]);
+
+  const selectSavedAddress = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    const address = savedAddresses.find((item) => item.id === Number(addressId));
+    if (!address) return;
+
+    setData({
+      ...data,
+      complete_address: address.canonical_address ?? '',
+      landmark: address.landmark ?? '',
+      barangay: address.barangay ?? '',
+      city_municipality: address.city_municipality ?? '',
+      province: address.province ?? '',
+    });
+  };
 
   const itemError = (index: number, field: string) => {
     const key = `items.${index}.${field}` as keyof typeof errors;
@@ -1029,6 +1071,34 @@ export default function CreateShopOrder({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {savedAddresses.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-info/30 bg-info/5 p-3">
+                    <Label htmlFor="saved_address" className="text-sm">
+                      Saved customer address ({savedAddresses.length})
+                    </Label>
+                    <select
+                      id="saved_address"
+                      value={selectedAddressId}
+                      onChange={(event) => selectSavedAddress(event.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">Select a saved address</option>
+                      {savedAddresses.map((address) => (
+                        <option key={address.id} value={address.id}>
+                          {address.label ? `${address.label}: ` : ''}
+                          {address.canonical_address || 'No street address'}
+                          {address.city_municipality ? `, ${address.city_municipality}` : ''}
+                          {address.is_default ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedAddressId && (
+                      <p className="text-xs text-muted-foreground">
+                        Selected address has filled the delivery fields below.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="complete_address">Complete address</Label>
                   <Textarea
