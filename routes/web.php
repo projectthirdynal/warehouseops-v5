@@ -360,6 +360,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/conversation-tags', [ShopController::class, 'storeTag'])->name('shop.conversation-tags.store');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
     Route::get('/shop/customers/export', [ShopController::class, 'exportCustomers'])->name('shop.customers.export');
+    Route::get('/shop/customers/{customer}/export', [ShopController::class, 'exportCustomerProfile'])->name('shop.customers.export.profile');
     Route::get('/shop/customers/search', [ShopController::class, 'searchCustomers'])->name('shop.customers.search');
     Route::get('/shop/customers/{customer}', [ShopController::class, 'showCustomer'])->name('shop.customers.show');
     Route::patch('/shop/customers/{customer}', [ShopController::class, 'updateCustomer'])->name('shop.customers.update');

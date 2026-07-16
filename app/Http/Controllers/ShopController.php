@@ -1313,6 +1313,108 @@ class ShopController extends Controller
         }, 200, $headers);
     }
 
+    public function exportCustomerProfile(Request $request, Customer $customer): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $customer->load([
+            'addresses',
+            'notes.user:id,name',
+        ]);
+
+        $orders = Order::query()
+            ->with('shopItems:id,order_id,product_name,quantity,line_total')
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->limit(50)
+            ->get([
+                'id', 'order_number', 'status', 'total_amount', 'cod_amount',
+                'receiver_address', 'created_at', 'delivered_at',
+            ]);
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="customer-' . $customer->id . '-' . date('Y-m-d') . '.csv"',
+        ];
+
+        return response()->stream(function () use ($customer, $orders) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, ['Customer Profile Export']);
+            fputcsv($handle, []);
+
+            fputcsv($handle, ['Field', 'Value']);
+            fputcsv($handle, ['ID', $customer->id]);
+            fputcsv($handle, ['Name', $customer->name]);
+            fputcsv($handle, ['Phone', $customer->phone]);
+            fputcsv($handle, ['Normalized Phone', $customer->normalized_phone]);
+            fputcsv($handle, ['Facebook Name', $customer->facebook_name ?? '']);
+            fputcsv($handle, ['Address', $customer->canonical_address ?? '']);
+            fputcsv($handle, ['Barangay', $customer->barangay ?? '']);
+            fputcsv($handle, ['City/Municipality', $customer->city_municipality ?? '']);
+            fputcsv($handle, ['Province', $customer->province ?? '']);
+            fputcsv($handle, ['Region', $customer->region ?? '']);
+            fputcsv($handle, ['Total Orders', $customer->total_orders]);
+            fputcsv($handle, ['Successful Orders', $customer->successful_orders]);
+            fputcsv($handle, ['Returned Orders', $customer->returned_orders]);
+            fputcsv($handle, ['Success Rate', $customer->success_rate]);
+            fputcsv($handle, ['Total Revenue', $customer->total_revenue]);
+            fputcsv($handle, ['Average Order Value', $customer->average_order_value]);
+            fputcsv($handle, ['Preferred Courier', $customer->preferred_courier ?? '']);
+            fputcsv($handle, ['Payment Method', $customer->payment_method ?? '']);
+            fputcsv($handle, ['Risk Level', $customer->risk_level]);
+            fputcsv($handle, ['Blacklisted', $customer->is_blacklisted ? 'yes' : 'no']);
+            fputcsv($handle, ['Tags', is_array($customer->tags) ? implode(';', $customer->tags) : '']);
+            fputcsv($handle, ['Last Order Date', $customer->last_order_date ?? '']);
+            fputcsv($handle, ['Created At', $customer->created_at]);
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Saved Addresses']);
+            fputcsv($handle, ['Label', 'Address', 'Barangay', 'City', 'Province', 'Is Default']);
+            foreach ($customer->addresses as $address) {
+                fputcsv($handle, [
+                    $address->label ?? '',
+                    $address->canonical_address ?? '',
+                    $address->barangay ?? '',
+                    $address->city_municipality ?? '',
+                    $address->province ?? '',
+                    $address->is_default ? 'yes' : 'no',
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Notes']);
+            fputcsv($handle, ['Date', 'Author', 'Type', 'Body']);
+            foreach ($customer->notes as $note) {
+                fputcsv($handle, [
+                    $note->created_at,
+                    $note->user?->name ?? '',
+                    $note->note_type ?? '',
+                    $note->body,
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Recent Orders (last 50)']);
+            fputcsv($handle, ['Order #', 'Status', 'Total', 'COD Amount', 'Address', 'Created At', 'Delivered At', 'Items']);
+            foreach ($orders as $order) {
+                $items = $order->shopItems
+                    ->map(fn ($item) => "{$item->product_name} x{$item->quantity}")
+                    ->join('; ');
+                fputcsv($handle, [
+                    $order->order_number,
+                    $order->status,
+                    $order->total_amount,
+                    $order->cod_amount,
+                    $order->receiver_address,
+                    $order->created_at,
+                    $order->delivered_at ?? '',
+                    $items,
+                ]);
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function searchCustomers(Request $request): JsonResponse
     {
         $validated = $request->validate([

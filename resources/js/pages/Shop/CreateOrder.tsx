@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Calculator,
   CheckCircle2,
+  Download,
   Eye,
   FileText,
   LayoutGrid,
@@ -1205,6 +1206,15 @@ export default function CreateShopOrder({
                           ))}
                         </div>
                       )}
+                      <div className="mt-1.5">
+                        <a
+                          href={`/shop/customers/${customerLookup.customer.id}/export`}
+                          className="inline-flex items-center gap-1 text-xs text-info hover:underline"
+                        >
+                          <Download className="h-3 w-3" />
+                          Export Profile
+                        </a>
+                      </div>
                     </div>
                   )}
                   {customerLookup.status === 'not_found' && data.phone.length >= 7 && (
