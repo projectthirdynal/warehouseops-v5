@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   ArrowLeft,
@@ -10,6 +10,8 @@ import {
   Phone,
   MapPin,
   Send,
+  Trash2,
+  X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +32,7 @@ interface OrderRemark {
   visibility: string;
   body: string;
   created_at: string;
+  updated_at: string;
   user?: { id: number; name: string } | null;
 }
 
@@ -115,8 +118,16 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 export default function OrderShow({ order, remarkTemplates = [] }: Props) {
   const remarkEntries = order.remarks_entries ?? [];
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const authUserId = (usePage().props.auth as { user?: { id: number } }).user?.id;
 
   const { data, setData, post, processing, reset } = useForm({
+    body: '',
+    type: 'agent_note',
+    visibility: 'internal',
+  });
+
+  const editForm = useForm({
     body: '',
     type: 'agent_note',
     visibility: 'internal',
@@ -129,6 +140,40 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
       setData('type', tpl.type);
       setData('visibility', tpl.visibility);
     }
+  };
+
+  const isEditable = (entry: OrderRemark) => {
+    if (!['agent_note', 'follow_up', 'escalation', 'customer_feedback'].includes(entry.type))
+      return false;
+    if (entry.user?.id !== authUserId) return false;
+    return Date.now() - new Date(entry.created_at).getTime() < 24 * 60 * 60 * 1000;
+  };
+
+  const startEdit = (entry: OrderRemark) => {
+    setEditingId(entry.id);
+    editForm.setData('body', entry.body);
+    editForm.setData('type', entry.type);
+    editForm.setData('visibility', entry.visibility);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    editForm.reset();
+  };
+
+  const submitEdit = (e: React.FormEvent, orderId: number, remarkId: number) => {
+    e.preventDefault();
+    editForm.patch(`/shop/orders/${orderId}/remarks/${remarkId}`, {
+      onSuccess: () => {
+        setEditingId(null);
+        editForm.reset();
+      },
+    });
+  };
+
+  const deleteRemark = (orderId: number, remarkId: number) => {
+    if (!confirm('Delete this remark? This cannot be undone.')) return;
+    router.delete(`/shop/orders/${orderId}/remarks/${remarkId}`);
   };
 
   const submitRemark = (e: React.FormEvent) => {
@@ -408,33 +453,118 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
               </p>
             )}
 
-            {remarkEntries.map((entry) => (
-              <div key={entry.id} className="rounded-md border p-3 text-sm">
-                <div className="mb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {entry.type}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={
-                        'text-xs ' +
-                        (entry.visibility === 'customer_visible'
-                          ? 'border-info/30 text-info'
-                          : 'border-muted-foreground/20 text-muted-foreground')
-                      }
-                    >
-                      {entry.visibility === 'customer_visible' ? 'Customer Visible' : 'Internal'}
-                    </Badge>
-                    <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
+            {remarkEntries.map((entry) => {
+              const editable = isEditable(entry);
+              const isEditing = editingId === entry.id;
+              const isEdited = entry.updated_at !== entry.created_at;
+
+              return (
+                <div key={entry.id} className="rounded-md border p-3 text-sm">
+                  <div className="mb-1 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {entry.type}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          'text-xs ' +
+                          (entry.visibility === 'customer_visible'
+                            ? 'border-info/30 text-info'
+                            : 'border-muted-foreground/20 text-muted-foreground')
+                        }
+                      >
+                        {entry.visibility === 'customer_visible' ? 'Customer Visible' : 'Internal'}
+                      </Badge>
+                      <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
+                      {isEdited && (
+                        <span className="text-xs italic text-muted-foreground">(edited)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.created_at).toLocaleString()}
+                      </span>
+                      {editable && !isEditing && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => startEdit(entry)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => deleteRemark(order.id, entry.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </span>
+
+                  {isEditing ? (
+                    <form onSubmit={(e) => submitEdit(e, order.id, entry.id)} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={editForm.data.type}
+                          onValueChange={(v) => editForm.setData('type', v)}
+                        >
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="Type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agent_note">Agent Note</SelectItem>
+                            <SelectItem value="follow_up">Follow-up</SelectItem>
+                            <SelectItem value="escalation">Escalation</SelectItem>
+                            <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={editForm.data.visibility}
+                          onValueChange={(v) => editForm.setData('visibility', v)}
+                        >
+                          <SelectTrigger className="w-[170px]">
+                            <SelectValue placeholder="Visibility" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="internal">Internal Only</SelectItem>
+                            <SelectItem value="customer_visible">Customer Visible</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Textarea
+                        value={editForm.data.body}
+                        onChange={(e) => editForm.setData('body', e.target.value)}
+                        rows={3}
+                        required
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+                          <X className="mr-1 h-3 w-3" />
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={editForm.processing || !editForm.data.body.trim()}
+                        >
+                          <Pencil className="mr-1 h-3 w-3" />
+                          Save
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{entry.body}</p>
+                  )}
                 </div>
-                <p className="whitespace-pre-wrap">{entry.body}</p>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       </div>

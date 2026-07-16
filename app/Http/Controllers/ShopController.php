@@ -5068,6 +5068,62 @@ class ShopController extends Controller
         return back()->with('success', 'Remark added.');
     }
 
+    public function updateOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($remark->type, ['agent_note', 'follow_up', 'escalation', 'customer_feedback'])) {
+            return back()->with('error', 'System remarks cannot be edited.');
+        }
+
+        if ($remark->user_id !== $request->user()->id) {
+            return back()->with('error', 'You can only edit your own remarks.');
+        }
+
+        if ($remark->created_at->diffInHours(now()) > 24) {
+            return back()->with('error', 'Remarks can only be edited within 24 hours of creation.');
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+        ]);
+
+        $remark->forceFill([
+            'body' => $validated['body'],
+            'type' => $validated['type'] ?? $remark->type,
+            'visibility' => $validated['visibility'] ?? $remark->visibility,
+        ])->save();
+
+        return back()->with('success', 'Remark updated.');
+    }
+
+    public function destroyOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($remark->type, ['agent_note', 'follow_up', 'escalation', 'customer_feedback'])) {
+            return back()->with('error', 'System remarks cannot be deleted.');
+        }
+
+        if ($remark->user_id !== $request->user()->id) {
+            return back()->with('error', 'You can only delete your own remarks.');
+        }
+
+        if ($remark->created_at->diffInHours(now()) > 24) {
+            return back()->with('error', 'Remarks can only be deleted within 24 hours of creation.');
+        }
+
+        $remark->delete();
+
+        return back()->with('success', 'Remark deleted.');
+    }
+
     public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse
     {
         if ($remark->type !== 'conversation_note') {
