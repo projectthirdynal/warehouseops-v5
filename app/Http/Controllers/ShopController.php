@@ -3522,7 +3522,7 @@ class ShopController extends Controller
             'discount_amount' => (string) ($order->discount_amount ?? 0),
             'tax_rate' => (string) ($order->tax_rate ?? 0),
             'cod_amount' => (string) ($order->cod_amount ?? 0),
-            'remarks' => $order->notes ?? '',
+            'remarks' => $order->remarks ?? $order->notes ?? '',
             'items' => $order->shopItems->map(fn ($item) => [
                 'product_id' => (string) $item->product_id,
                 'variant_id' => $item->variant_id ? (string) $item->variant_id : '',
@@ -3680,6 +3680,7 @@ class ShopController extends Controller
                 'state' => $validated['province'] ?? null,
                 'barangay' => $validated['barangay'] ?? null,
                 'notes' => $validated['remarks'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
             ])->save();
 
             $order->shopItems()->delete();
@@ -4018,6 +4019,7 @@ class ShopController extends Controller
                 'export_status' => 'pending',
                 'confirmed_at' => now(),
                 'notes' => $validated['remarks'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
             ]);
 
             $this->customerAddresses->record($customer, [
