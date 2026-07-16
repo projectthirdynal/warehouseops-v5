@@ -3303,6 +3303,195 @@ class ShopController extends Controller
         ]);
     }
 
+    public function editOrder(Request $request, Order $order): Response
+    {
+        $order->load(['shopItems.product.activeVariants', 'shopItems.variant']);
+
+        $prefill = [
+            'conversation_id' => $order->conversation_id ? (string) $order->conversation_id : '',
+            'customer_name' => $order->receiver_name ?? '',
+            'phone' => $order->receiver_phone ?? '',
+            'complete_address' => $order->receiver_address ?? '',
+            'barangay' => $order->barangay ?? '',
+            'city_municipality' => $order->city ?? '',
+            'province' => $order->state ?? '',
+            'courier_code' => $order->courier_code ?? 'MANUAL',
+            'shipping_fee' => (string) ($order->shipping_cost ?? 0),
+            'discount_amount' => (string) ($order->discount_amount ?? 0),
+            'tax_rate' => (string) ($order->tax_rate ?? 0),
+            'cod_amount' => (string) ($order->cod_amount ?? 0),
+            'remarks' => $order->notes ?? '',
+            'items' => $order->shopItems->map(fn ($item) => [
+                'product_id' => (string) $item->product_id,
+                'variant_id' => $item->variant_id ? (string) $item->variant_id : '',
+                'quantity' => (string) $item->quantity,
+                'unit_price' => (string) $item->unit_price,
+                'discount_amount' => (string) ($item->discount_amount ?? 0),
+            ])->toArray(),
+        ];
+
+        return Inertia::render('Shop/CreateOrder', [
+            'products' => Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'sku', 'name', 'selling_price'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'sku' => $p->sku,
+                    'name' => $p->name,
+                    'selling_price' => $p->selling_price,
+                    'available_stock' => $p->available_stock,
+                    'active_variants' => $p->activeVariants->map(fn ($v) => [
+                        'id' => $v->id,
+                        'sku' => $v->sku,
+                        'variant_name' => $v->variant_name,
+                        'selling_price' => $v->selling_price,
+                        'available_stock' => $v->stock?->available_stock ?? 0,
+                    ])->values(),
+                ]),
+            'couriers' => [
+                ['value' => 'MANUAL', 'label' => 'Manual'],
+                ['value' => 'JNT', 'label' => 'J&T Express'],
+                ['value' => 'FLASH', 'label' => 'Flash Express'],
+            ],
+            'prefill' => $prefill,
+            'edit_order_id' => $order->id,
+            'edit_order_number' => $order->order_number,
+            'duplicate_warnings' => [],
+            'drafts' => [],
+        ]);
+    }
+
+    public function updateOrder(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot edit a completed order.');
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'complete_address' => ['required', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
+        ]);
+
+        $products = Product::query()
+            ->with('variants:id,product_id,sku,variant_name,selling_price')
+            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
+            ->get()
+            ->keyBy('id');
+
+        $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
+            $product = $products->get((int) $item['product_id']);
+            abort_unless($product, 422, 'Selected product was not found.');
+
+            $variant = null;
+            if (! empty($item['variant_id'])) {
+                $variant = $product->variants->firstWhere('id', (int) $item['variant_id']);
+                abort_unless($variant, 422, 'Selected variant does not belong to the product.');
+            }
+
+            $quantity = (int) $item['quantity'];
+            $unitPrice = (float) $item['unit_price'];
+            $lineDiscount = (float) ($item['discount_amount'] ?? 0);
+            $lineTotal = max(0, ($quantity * $unitPrice) - $lineDiscount);
+
+            return [
+                'product' => $product,
+                'variant' => $variant,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'discount_amount' => $lineDiscount,
+                'line_total' => $lineTotal,
+                'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
+                'sku' => $variant?->sku ?? $product->sku,
+            ];
+        })->values();
+
+        $primaryItem = $preparedItems->first();
+        abort_unless($primaryItem, 422, 'At least one cart item is required.');
+        $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
+        $orderDiscount = (float) ($validated['discount_amount'] ?? 0);
+        $taxRate = (float) ($validated['tax_rate'] ?? 0);
+        $taxableAmount = max(0, (float) $preparedItems->sum('line_total') - $orderDiscount);
+        $taxAmount = $taxRate > 0 ? round($taxableAmount * $taxRate / 100, 2) : (float) ($validated['tax_amount'] ?? 0);
+        $totalQuantity = (int) $preparedItems->sum('quantity');
+        $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
+        $normalizedPhone = $this->phones->normalize($validated['phone']);
+
+        $order = DB::transaction(function () use (
+            $validated, $order, $preparedItems, $primaryItem,
+            $shippingFee, $orderDiscount, $taxRate, $taxAmount,
+            $totalQuantity, $totalAmount, $normalizedPhone
+        ) {
+            $order->forceFill([
+                'product_id' => $primaryItem['product']->id,
+                'variant_id' => $primaryItem['variant']?->id,
+                'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+                'quantity' => $totalQuantity,
+                'unit_price' => $primaryItem['unit_price'],
+                'total_amount' => $totalAmount,
+                'cod_amount' => isset($validated['cod_amount']) && $validated['cod_amount'] !== ''
+                    ? (float) $validated['cod_amount']
+                    : $totalAmount,
+                'shipping_cost' => $shippingFee,
+                'discount_amount' => $orderDiscount,
+                'tax_rate' => $taxRate,
+                'tax_amount' => $taxAmount,
+                'receiver_name' => $validated['customer_name'],
+                'receiver_phone' => $normalizedPhone ?: $validated['phone'],
+                'receiver_address' => $validated['complete_address'],
+                'city' => $validated['city_municipality'] ?? null,
+                'state' => $validated['province'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'notes' => $validated['remarks'] ?? null,
+            ])->save();
+
+            $order->shopItems()->delete();
+
+            foreach ($preparedItems as $item) {
+                ShopOrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product']->id,
+                    'variant_id' => $item['variant']?->id,
+                    'sku' => $item['sku'],
+                    'product_name' => $item['display_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'discount_amount' => $item['discount_amount'],
+                    'line_total' => $item['line_total'],
+                ]);
+            }
+
+            return $order;
+        });
+
+        return redirect()
+            ->route('orders.show', $order)
+            ->with('success', "Order {$order->order_number} updated.");
+    }
+
     public function storeDraft(Request $request): JsonResponse
     {
         $validated = $request->validate([

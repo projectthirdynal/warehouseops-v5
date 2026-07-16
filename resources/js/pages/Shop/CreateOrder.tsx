@@ -122,6 +122,8 @@ interface Props {
   prefill?: Partial<OrderForm> | null;
   duplicate_warnings: DuplicateWarning[];
   drafts: DraftSummary[];
+  edit_order_id?: number | null;
+  edit_order_number?: string | null;
 }
 
 function money(value: number) {
@@ -153,8 +155,10 @@ export default function CreateShopOrder({
   prefill,
   duplicate_warnings,
   drafts,
+  edit_order_id = null,
+  edit_order_number = null,
 }: Props) {
-  const { data, setData, post, processing, errors } = useForm<OrderForm>({
+  const { data, setData, post, put, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
     complete_address: prefill?.complete_address ?? '',
@@ -163,13 +167,13 @@ export default function CreateShopOrder({
     city_municipality: prefill?.city_municipality ?? '',
     province: prefill?.province ?? '',
     items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
-    shipping_fee: '0',
-    discount_amount: '0',
-    tax_rate: '0',
+    shipping_fee: prefill?.shipping_fee ?? '0',
+    discount_amount: prefill?.discount_amount ?? '0',
+    tax_rate: prefill?.tax_rate ?? '0',
     courier_code: prefill?.courier_code ?? 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
-    cod_amount: '',
+    cod_amount: prefill?.cod_amount ?? '',
     send_confirmation: true,
   });
 
@@ -629,12 +633,16 @@ export default function CreateShopOrder({
 
   const confirmSubmit = () => {
     setShowPreview(false);
-    post('/shop/orders');
+    if (edit_order_id) {
+      put(`/shop/orders/${edit_order_id}`);
+    } else {
+      post('/shop/orders');
+    }
   };
 
   return (
     <AppLayout>
-      <Head title="Create Shop Order" />
+      <Head title={edit_order_id ? `Edit ${edit_order_number}` : 'Create Shop Order'} />
 
       <form onSubmit={submit} className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -645,11 +653,15 @@ export default function CreateShopOrder({
                 Shop
               </Link>
             </Button>
-            <h1 className="text-xl font-bold tracking-tight font-display">Create Shop Order</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">
+              {edit_order_id ? `Edit Order ${edit_order_number}` : 'Create Shop Order'}
+            </h1>
             <p className="text-muted-foreground">
-              {data.conversation_id
-                ? `From Shop conversation #${data.conversation_id}`
-                : 'Manual POS entry for Facebook, chat, and phone orders'}
+              {edit_order_id
+                ? 'Update order details, items, and pricing'
+                : data.conversation_id
+                  ? `From Shop conversation #${data.conversation_id}`
+                  : 'Manual POS entry for Facebook, chat, and phone orders'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1524,7 +1536,7 @@ export default function CreateShopOrder({
                 </Button>
                 <Button type="button" onClick={confirmSubmit} disabled={processing}>
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                  Confirm & Save
+                  {edit_order_id ? 'Confirm & Update' : 'Confirm & Save'}
                 </Button>
               </div>
             </div>

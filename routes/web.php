@@ -391,6 +391,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/exports/{batch}/preview', [ShopController::class, 'previewBatch'])->name('shop.exports.preview');
     Route::get('/shop/exports/analytics', [ShopController::class, 'batchAnalytics'])->name('shop.exports.analytics');
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
+    Route::get('/shop/orders/{order}/edit', [ShopController::class, 'editOrder'])->name('shop.orders.edit')->whereNumber('order');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::post('/shop/orders/check-duplicates', [ShopController::class, 'checkDuplicates'])->name('shop.orders.check-duplicates');
     Route::post('/shop/orders/recommendations', [ShopController::class, 'recommendProducts'])->name('shop.orders.recommendations');

@@ -2434,14 +2434,23 @@ export default function ShopConversation({
                               {order.status}
                             </Badge>
                             {!isTerminal && (
-                              <button
-                                type="button"
-                                onClick={() => openCancelOrderModal(order)}
-                                className="shrink-0 text-muted-foreground hover:text-destructive"
-                                title="Cancel order"
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </button>
+                              <>
+                                <Link
+                                  href={`/shop/orders/${order.id}/edit`}
+                                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                                  title="Edit order"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => openCancelOrderModal(order)}
+                                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                                  title="Cancel order"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
