@@ -81,6 +81,7 @@ interface OrderForm {
   courier_code: string;
   remarks: string;
   conversation_id: string;
+  cod_amount: string;
 }
 
 interface DraftSummary {
@@ -167,6 +168,7 @@ export default function CreateShopOrder({
     courier_code: 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
+    cod_amount: '',
   });
 
   const itemError = (index: number, field: string) => {
@@ -252,6 +254,7 @@ export default function CreateShopOrder({
   const taxableAmount = Math.max(0, subtotal - orderDiscount);
   const taxAmount = taxRate > 0 ? Math.round(taxableAmount * taxRate) / 100 : 0;
   const total = Math.max(0, taxableAmount + shippingFee + taxAmount);
+  const codAmount = data.cod_amount ? numeric(data.cod_amount) : total;
 
   const [showPreview, setShowPreview] = useState(false);
   const [shippingZone, setShippingZone] = useState<string | null>(null);
@@ -337,6 +340,7 @@ export default function CreateShopOrder({
             courier_code: d.courier_code ?? 'MANUAL',
             remarks: d.remarks ?? '',
             conversation_id: d.conversation_id ?? '',
+            cod_amount: d.cod_amount ?? '',
           });
           setDraftId(id);
         }
@@ -1213,8 +1217,33 @@ export default function CreateShopOrder({
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-3 text-base font-semibold">
-                    <span>Total COD</span>
+                    <span>Computed Total</span>
                     <span>{money(total)}</span>
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cod_amount">COD Amount</Label>
+                      {!data.cod_amount && (
+                        <span className="text-xs text-muted-foreground">Auto from total</span>
+                      )}
+                    </div>
+                    <Input
+                      id="cod_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={data.cod_amount}
+                      onChange={(e) => setData('cod_amount', e.target.value)}
+                      placeholder={total.toFixed(2)}
+                    />
+                    {data.cod_amount && Number(data.cod_amount) !== total && (
+                      <p className="text-xs text-muted-foreground">
+                        Override: {money(codAmount)} (computed: {money(total)})
+                      </p>
+                    )}
+                    {errors.cod_amount && (
+                      <p className="text-xs text-destructive">{errors.cod_amount}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1443,9 +1472,15 @@ export default function CreateShopOrder({
                   </div>
                 )}
                 <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                  <span>Total COD</span>
+                  <span>Computed Total</span>
                   <span>{money(total)}</span>
                 </div>
+                {codAmount !== total && (
+                  <div className="flex justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-base font-semibold">
+                    <span>COD Amount</span>
+                    <span>{money(codAmount)}</span>
+                  </div>
+                )}
               </div>
 
               {data.courier_code && (

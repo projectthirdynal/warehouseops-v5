@@ -3407,6 +3407,7 @@ class ShopController extends Controller
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
+            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
         ]);
 
         $products = Product::query()
@@ -3507,7 +3508,9 @@ class ShopController extends Controller
                 'quantity' => $totalQuantity,
                 'unit_price' => $primaryItem['unit_price'],
                 'total_amount' => $totalAmount,
-                'cod_amount' => $totalAmount,
+                'cod_amount' => isset($validated['cod_amount']) && $validated['cod_amount'] !== ''
+                    ? (float) $validated['cod_amount']
+                    : $totalAmount,
                 'shipping_cost' => $shippingFee,
                 'discount_amount' => $orderDiscount,
                 'tax_rate' => $taxRate,
