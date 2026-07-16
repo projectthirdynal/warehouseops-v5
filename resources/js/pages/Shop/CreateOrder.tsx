@@ -73,6 +73,8 @@ interface OrderForm {
   customer_name: string;
   phone: string;
   normalized_phone?: string;
+  customer_id?: number | null;
+  update_customer_phone?: boolean;
   customer_risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'BLACKLISTED' | null;
   customer_is_blacklisted?: boolean;
   complete_address: string;
@@ -168,6 +170,8 @@ export default function CreateShopOrder({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
     normalized_phone: prefill?.normalized_phone ?? undefined,
+    customer_id: prefill?.customer_id ?? null,
+    update_customer_phone: false,
     customer_risk_level: prefill?.customer_risk_level ?? null,
     customer_is_blacklisted: prefill?.customer_is_blacklisted ?? false,
     complete_address: prefill?.complete_address ?? '',
@@ -250,6 +254,8 @@ export default function CreateShopOrder({
               ...data,
               customer_name: found.name,
               normalized_phone: found.normalized_phone,
+              customer_id: found.id,
+              update_customer_phone: false,
               customer_risk_level: found.risk_level as OrderForm['customer_risk_level'],
               customer_is_blacklisted: found.is_blacklisted,
               complete_address: found.canonical_address ?? data.complete_address,
@@ -438,6 +444,11 @@ export default function CreateShopOrder({
           setData({
             customer_name: d.customer_name ?? '',
             phone: d.phone ?? '',
+            normalized_phone: d.normalized_phone ?? undefined,
+            customer_id: d.customer_id ?? null,
+            update_customer_phone: false,
+            customer_risk_level: d.customer_risk_level ?? null,
+            customer_is_blacklisted: d.customer_is_blacklisted ?? false,
             complete_address: d.complete_address ?? '',
             landmark: d.landmark ?? '',
             barangay: d.barangay ?? '',
@@ -846,6 +857,24 @@ export default function CreateShopOrder({
                     placeholder="09171234567"
                   />
                   {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                  {data.customer_id && (
+                    <div className="flex items-start gap-2 rounded-md border border-info/30 bg-info/5 px-2 py-1.5 text-xs">
+                      <input
+                        id="update_customer_phone"
+                        type="checkbox"
+                        checked={data.update_customer_phone ?? false}
+                        onChange={(event) => setData('update_customer_phone', event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-input"
+                      />
+                      <Label
+                        htmlFor="update_customer_phone"
+                        className="cursor-pointer text-xs font-normal"
+                      >
+                        Update the linked customer profile with this phone number when saving the
+                        order.
+                      </Label>
+                    </div>
+                  )}
                   {data.normalized_phone && data.normalized_phone !== data.phone && (
                     <p className="text-xs text-muted-foreground">
                       Normalized: <span className="font-mono">{data.normalized_phone}</span>

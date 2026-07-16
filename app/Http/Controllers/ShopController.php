@@ -3287,6 +3287,7 @@ class ShopController extends Controller
                     ?? '',
                 'normalized_phone' => $conversation->customer?->normalized_phone
                     ?? ($conversation->customer?->phone ? null : null),
+                'customer_id' => $conversation->customer?->id,
                 'customer_risk_level' => $conversation->customer?->risk_level,
                 'customer_is_blacklisted' => (bool) $conversation->customer?->is_blacklisted,
                 'complete_address' => $request->filled('complete_address')
@@ -3344,6 +3345,7 @@ class ShopController extends Controller
             'customer_name' => $order->receiver_name ?? '',
             'phone' => $order->receiver_phone ?? '',
             'normalized_phone' => $order->customer?->normalized_phone,
+            'customer_id' => $order->customer?->id,
             'customer_risk_level' => $order->customer?->risk_level,
             'customer_is_blacklisted' => (bool) $order->customer?->is_blacklisted,
             'complete_address' => $order->receiver_address ?? '',
@@ -3411,6 +3413,8 @@ class ShopController extends Controller
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'update_customer_phone' => ['nullable', 'boolean'],
             'complete_address' => ['required', 'string', 'max:2000'],
             'landmark' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
@@ -3480,15 +3484,7 @@ class ShopController extends Controller
             $shippingFee, $orderDiscount, $taxRate, $taxAmount,
             $totalQuantity, $totalAmount, $normalizedPhone
         ) {
-            $customer = $this->customerIdentities->firstOrCreateFromPhone([
-                'name' => $validated['customer_name'],
-                'phone' => $validated['phone'],
-                'address' => $validated['complete_address'],
-                'landmark' => $validated['landmark'] ?? null,
-                'barangay' => $validated['barangay'] ?? null,
-                'city_municipality' => $validated['city_municipality'] ?? null,
-                'province' => $validated['province'] ?? null,
-            ]);
+            $customer = $this->resolveCustomerForOrder($validated);
 
             if ($order->conversation_id) {
                 $conversation = Conversation::find($order->conversation_id);
@@ -3725,6 +3721,8 @@ class ShopController extends Controller
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'update_customer_phone' => ['nullable', 'boolean'],
             'complete_address' => ['required', 'string', 'max:2000'],
             'landmark' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
@@ -3821,16 +3819,7 @@ class ShopController extends Controller
                 ? Conversation::query()->find($validated['conversation_id'])
                 : null;
 
-            $customer = $this->customerIdentities->firstOrCreateFromPhone([
-                'name' => $validated['customer_name'],
-                'phone' => $validated['phone'],
-                'address' => $validated['complete_address'],
-                'landmark' => $validated['landmark'] ?? null,
-                'barangay' => $validated['barangay'] ?? null,
-                'city_municipality' => $validated['city_municipality'] ?? null,
-                'province' => $validated['province'] ?? null,
-                'region' => $addressMatch['mapping']?->region,
-            ]);
+            $customer = $this->resolveCustomerForOrder($validated, $addressMatch['mapping']?->region);
 
             $order = Order::query()->create([
                 'order_number' => Order::generateOrderNumber(),
@@ -4320,6 +4309,36 @@ class ShopController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function resolveCustomerForOrder(array $validated, ?string $region = null): Customer
+    {
+        if (($validated['update_customer_phone'] ?? false) && ! empty($validated['customer_id'])) {
+            $customer = Customer::query()->findOrFail($validated['customer_id']);
+            $matchedCustomer = $this->customerIdentities->findByPhone($validated['phone']);
+
+            abort_if(
+                $matchedCustomer && $matchedCustomer->id !== $customer->id,
+                422,
+                'This phone number is already linked to another customer.'
+            );
+
+            $customer->forceFill([
+                'phone' => $validated['phone'],
+                'normalized_phone' => $this->phones->normalize($validated['phone']),
+            ])->save();
+        }
+
+        return $this->customerIdentities->firstOrCreateFromPhone([
+            'name' => $validated['customer_name'],
+            'phone' => $validated['phone'],
+            'address' => $validated['complete_address'],
+            'landmark' => $validated['landmark'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'city_municipality' => $validated['city_municipality'] ?? null,
+            'province' => $validated['province'] ?? null,
+            'region' => $region,
+        ]);
     }
 
     private function duplicateWarningsForPhone(?string $phone): \Illuminate\Support\Collection
