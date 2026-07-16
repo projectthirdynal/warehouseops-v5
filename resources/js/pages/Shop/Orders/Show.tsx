@@ -83,8 +83,17 @@ interface Order {
   remarks_entries?: OrderRemark[];
 }
 
+interface RemarkTemplate {
+  id: number;
+  name: string;
+  body: string;
+  type: string;
+  visibility: string;
+}
+
 interface Props {
   order: Order;
+  remarkTemplates?: RemarkTemplate[];
 }
 
 function money(value: string | number) {
@@ -103,7 +112,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   return 'outline';
 }
 
-export default function OrderShow({ order }: Props) {
+export default function OrderShow({ order, remarkTemplates = [] }: Props) {
   const remarkEntries = order.remarks_entries ?? [];
   const [showForm, setShowForm] = useState(false);
 
@@ -112,6 +121,15 @@ export default function OrderShow({ order }: Props) {
     type: 'agent_note',
     visibility: 'internal',
   });
+
+  const applyTemplate = (templateId: string) => {
+    const tpl = remarkTemplates.find((t) => t.id === Number(templateId));
+    if (tpl) {
+      setData('body', tpl.body);
+      setData('type', tpl.type);
+      setData('visibility', tpl.visibility);
+    }
+  };
 
   const submitRemark = (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,6 +339,20 @@ export default function OrderShow({ order }: Props) {
           <CardContent className="space-y-3">
             {showForm && (
               <form onSubmit={submitRemark} className="space-y-2 rounded-md border p-3">
+                {remarkTemplates.length > 0 && (
+                  <Select onValueChange={applyTemplate}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Use a template (optional)..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {remarkTemplates.map((tpl) => (
+                        <SelectItem key={tpl.id} value={String(tpl.id)}>
+                          {tpl.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="flex items-center gap-2">
                   <Select value={data.type} onValueChange={(v) => setData('type', v)}>
                     <SelectTrigger className="w-[160px]">

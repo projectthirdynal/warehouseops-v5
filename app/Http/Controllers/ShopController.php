@@ -37,6 +37,7 @@ use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\RemarkTemplate;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\CartTemplate;
@@ -3439,6 +3440,10 @@ class ShopController extends Controller
 
         return Inertia::render('Shop/Orders/Show', [
             'order' => $order,
+            'remarkTemplates' => RemarkTemplate::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'body', 'type', 'visibility']),
         ]);
     }
 
@@ -4998,6 +5003,33 @@ class ShopController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function storeRemarkTemplate(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+        ]);
+
+        RemarkTemplate::query()->create([
+            'name' => $validated['name'],
+            'body' => $validated['body'],
+            'type' => $validated['type'] ?? 'agent_note',
+            'visibility' => $validated['visibility'] ?? 'internal',
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Remark template created.');
+    }
+
+    public function destroyRemarkTemplate(Request $request, RemarkTemplate $remarkTemplate): RedirectResponse
+    {
+        $remarkTemplate->delete();
+
+        return back()->with('success', 'Remark template deleted.');
     }
 
     public function storeOrderRemark(Request $request, Order $order): RedirectResponse
