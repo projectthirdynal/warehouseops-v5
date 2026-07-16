@@ -238,6 +238,8 @@ export default function CreateShopOrder({
       successful_orders?: number;
       returned_orders?: number;
       success_rate?: number;
+      total_revenue?: number;
+      average_order_value?: number;
     };
   }>({ status: 'idle' });
   const [savedAddresses, setSavedAddresses] = useState<CustomerAddressSummary[]>([]);
@@ -1121,6 +1123,24 @@ export default function CreateShopOrder({
                                 %
                               </span>
                             </span>
+                            {customerLookup.customer.total_revenue != null &&
+                              Number(customerLookup.customer.total_revenue) > 0 && (
+                                <span>
+                                  LTV:{' '}
+                                  <span className="font-medium text-success">
+                                    {money(Number(customerLookup.customer.total_revenue))}
+                                  </span>
+                                </span>
+                              )}
+                            {customerLookup.customer.average_order_value != null &&
+                              Number(customerLookup.customer.average_order_value) > 0 && (
+                                <span>
+                                  AOV:{' '}
+                                  <span className="font-medium">
+                                    {money(Number(customerLookup.customer.average_order_value))}
+                                  </span>
+                                </span>
+                              )}
                           </div>
                         )}
                     </div>
