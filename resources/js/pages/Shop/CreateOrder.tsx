@@ -177,6 +177,55 @@ function numeric(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+interface SegmentBadge {
+  label: string;
+  className: string;
+}
+
+function computeSegmentationBadges(customer: {
+  total_orders?: number;
+  total_revenue?: number;
+  success_rate?: number;
+  returned_orders?: number;
+  risk_level?: string;
+  is_blacklisted?: boolean;
+}): SegmentBadge[] {
+  const badges: SegmentBadge[] = [];
+  const orders = customer.total_orders ?? 0;
+  const revenue = Number(customer.total_revenue ?? 0);
+  const successRate = Number(customer.success_rate ?? 0);
+  const returns = customer.returned_orders ?? 0;
+  const returnRate = orders > 0 ? (returns / orders) * 100 : 0;
+
+  if (customer.is_blacklisted) {
+    badges.push({ label: 'Blacklisted', className: 'border-destructive/30 text-destructive' });
+  }
+
+  if (revenue >= 50000 && orders >= 10) {
+    badges.push({ label: 'VIP', className: 'border-primary/30 text-primary' });
+  } else if (orders >= 10) {
+    badges.push({ label: 'Loyal', className: 'border-success/30 text-success' });
+  } else if (orders === 1) {
+    badges.push({ label: 'New', className: 'border-info/30 text-info' });
+  }
+
+  if (orders >= 3 && returnRate >= 30) {
+    badges.push({ label: 'High Return Risk', className: 'border-warning/30 text-warning' });
+  }
+
+  if (orders >= 3 && successRate >= 90) {
+    badges.push({ label: 'Reliable', className: 'border-success/30 text-success' });
+  }
+
+  if (!customer.is_blacklisted && customer.risk_level === 'HIGH') {
+    badges.push({ label: 'High Risk', className: 'border-destructive/30 text-destructive' });
+  } else if (!customer.is_blacklisted && customer.risk_level === 'MEDIUM') {
+    badges.push({ label: 'Medium Risk', className: 'border-warning/30 text-warning' });
+  }
+
+  return badges;
+}
+
 function createEmptyItem(): CartItemForm {
   return {
     product_id: '',
@@ -1143,6 +1192,19 @@ export default function CreateShopOrder({
                               )}
                           </div>
                         )}
+                      {computeSegmentationBadges(customerLookup.customer).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {computeSegmentationBadges(customerLookup.customer).map((badge) => (
+                            <Badge
+                              key={badge.label}
+                              variant="outline"
+                              className={`text-xs ${badge.className}`}
+                            >
+                              {badge.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {customerLookup.status === 'not_found' && data.phone.length >= 7 && (
@@ -2124,6 +2186,17 @@ export default function CreateShopOrder({
                         {data.customer_risk_level} Risk
                       </Badge>
                     )}
+                  {customerLookup.status === 'found' &&
+                    customerLookup.customer &&
+                    computeSegmentationBadges(customerLookup.customer).map((badge) => (
+                      <Badge
+                        key={badge.label}
+                        variant="outline"
+                        className={`mt-1 text-xs ${badge.className}`}
+                      >
+                        {badge.label}
+                      </Badge>
+                    ))}
                 </div>
                 <div className="rounded-md border p-3">
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
