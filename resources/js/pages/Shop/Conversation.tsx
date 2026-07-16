@@ -62,13 +62,18 @@ interface Message {
   id: number;
   sent_by?: number | null;
   sender_name?: string | null;
-  direction: 'inbound' | 'outbound';
+  direction: 'inbound' | 'outbound' | 'system';
   body: string | null;
   message_type?: string;
   attachments?: Attachment[] | null;
   metadata?: {
     quick_reply_payload?: string;
     quick_replies?: { title: string; payload: string }[];
+    order_id?: number;
+    order_number?: string;
+    order_status?: string;
+    reason?: string | null;
+    [key: string]: unknown;
   } | null;
   reactions?: Record<string, string> | null;
   is_flagged?: boolean;
