@@ -234,6 +234,9 @@ export default function CreateShopOrder({
   const [customerNotes, setCustomerNotes] = useState<CustomerNoteSummary[]>([]);
   const [customerNoteBody, setCustomerNoteBody] = useState('');
   const [savingCustomerNote, setSavingCustomerNote] = useState(false);
+  const [customerTags, setCustomerTags] = useState<string[]>([]);
+  const [customerTagInput, setCustomerTagInput] = useState('');
+  const [savingCustomerTags, setSavingCustomerTags] = useState(false);
   const [orderHistory, setOrderHistory] = useState<
     Array<{
       id: number;
@@ -328,13 +331,20 @@ export default function CreateShopOrder({
   useEffect(() => {
     if (!data.customer_id) {
       setCustomerNotes([]);
+      setCustomerTags([]);
       return;
     }
 
     axios
       .get(`/shop/customers/${data.customer_id}/notes`)
-      .then((res) => setCustomerNotes(res.data.notes ?? []))
-      .catch(() => setCustomerNotes([]));
+      .then((res) => {
+        setCustomerNotes(res.data.notes ?? []);
+        setCustomerTags(res.data.customer_tags ?? []);
+      })
+      .catch(() => {
+        setCustomerNotes([]);
+        setCustomerTags([]);
+      });
   }, [data.customer_id]);
 
   const addCustomerNote = async () => {
@@ -348,6 +358,25 @@ export default function CreateShopOrder({
       setCustomerNoteBody('');
     } finally {
       setSavingCustomerNote(false);
+    }
+  };
+
+  const addCustomerTag = () => {
+    const tag = customerTagInput.trim().toLowerCase();
+    if (!tag || customerTags.includes(tag)) return;
+
+    setCustomerTags((tags) => [...tags, tag]);
+    setCustomerTagInput('');
+  };
+
+  const saveCustomerTags = async () => {
+    if (!data.customer_id) return;
+
+    setSavingCustomerTags(true);
+    try {
+      await axios.patch(`/shop/customers/${data.customer_id}/tags`, { tags: customerTags });
+    } finally {
+      setSavingCustomerTags(false);
     }
   };
 
@@ -1039,6 +1068,56 @@ export default function CreateShopOrder({
                 </div>
               </CardContent>
             </Card>
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Customer Tags</CardTitle>
+                  <CardDescription>Tags are shared across the customer profile.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {customerTags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="gap-1">
+                        {tag}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${tag} tag`}
+                          onClick={() =>
+                            setCustomerTags((tags) => tags.filter((item) => item !== tag))
+                          }
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {customerTags.length === 0 && (
+                      <span className="text-xs text-muted-foreground">No customer tags yet.</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={customerTagInput}
+                      onChange={(event) => setCustomerTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addCustomerTag();
+                        }
+                      }}
+                      placeholder="Add a tag"
+                      maxLength={50}
+                    />
+                    <Button type="button" variant="outline" onClick={addCustomerTag}>
+                      Add
+                    </Button>
+                    <Button type="button" onClick={saveCustomerTags} disabled={savingCustomerTags}>
+                      {savingCustomerTags ? 'Saving…' : 'Save'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {data.customer_id && (
               <Card>

@@ -1445,7 +1445,10 @@ class ShopController extends Controller
             'created_at',
         ]);
 
-        return response()->json(['notes' => $notes]);
+        return response()->json([
+            'notes' => $notes,
+            'customer_tags' => $customer->tags ?? [],
+        ]);
     }
 
     public function storeCustomerNote(Request $request, Customer $customer): JsonResponse
