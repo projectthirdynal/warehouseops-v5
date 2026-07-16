@@ -396,9 +396,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::post('/shop/orders/check-duplicates', [ShopController::class, 'checkDuplicates'])->name('shop.orders.check-duplicates');
     Route::post('/shop/orders/recommendations', [ShopController::class, 'recommendProducts'])->name('shop.orders.recommendations');
-    Route::get('/shop/templates', [ShopController::class, 'listCartTemplates'])->name('shop.templates.index');
-    Route::post('/shop/templates', [ShopController::class, 'storeCartTemplate'])->name('shop.templates.store');
-    Route::delete('/shop/templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.templates.destroy')->whereNumber('template');
+    Route::get('/shop/cart-templates', [ShopController::class, 'listCartTemplates'])->name('shop.cart-templates.index');
+    Route::post('/shop/cart-templates', [ShopController::class, 'storeCartTemplate'])->name('shop.cart-templates.store');
+    Route::delete('/shop/cart-templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.cart-templates.destroy')->whereNumber('template');
     Route::post('/shop/orders/calculate-shipping', [ShopController::class, 'calculateShipping'])->name('shop.orders.shipping');
     Route::post('/shop/orders/draft', [ShopController::class, 'storeDraft'])->name('shop.orders.draft.store');
     Route::get('/shop/orders/{order}/draft', [ShopController::class, 'loadDraft'])->name('shop.orders.draft.load')->whereNumber('order');
