@@ -1419,6 +1419,29 @@ export default function ShopConversation({
                           'Customer');
                     const senderInitial = senderLabel.charAt(0).toUpperCase();
 
+                    if (message.direction === 'system') {
+                      return (
+                        <div
+                          key={message.id}
+                          id={`message-${message.id}`}
+                          className="flex justify-center"
+                        >
+                          <div className="flex items-center gap-2 rounded-full border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+                            <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                            <span>{message.body}</span>
+                            {message.metadata?.order_id && (
+                              <Link
+                                href={`/orders/${message.metadata.order_id}`}
+                                className="font-medium text-foreground underline-offset-2 hover:underline"
+                              >
+                                View
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={message.id}

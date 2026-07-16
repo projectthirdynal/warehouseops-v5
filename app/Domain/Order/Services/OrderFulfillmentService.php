@@ -13,6 +13,8 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Services\InventoryService;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\Message;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\Waybill;
@@ -139,6 +141,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::QA_APPROVED);
+
         // Courier submission runs OUTSIDE the transaction — prevents the external
         // API call from holding a DB lock and rolling back committed data on timeout.
         if ($submitCourier) {
@@ -173,6 +177,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::QA_REJECTED, $reason);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -183,6 +189,8 @@ class OrderFulfillmentService
     public function submitToCourier(Order $order): void
     {
         $order->update(['status' => OrderStatus::PROCESSING]);
+
+        $this->syncOrderStatusToConversation($order, OrderStatus::PROCESSING);
 
         // Create a waybill record first
         $waybill = Waybill::create([
@@ -216,6 +224,8 @@ class OrderFulfillmentService
                         'status'        => OrderStatus::DISPATCHED,
                         'dispatched_at' => now(),
                     ]);
+
+                    $this->syncOrderStatusToConversation($order, OrderStatus::DISPATCHED);
 
                     if ($order->lead) {
                         $order->lead->update(['sales_status' => 'WAYBILL_CREATED']);
@@ -295,6 +305,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::DELIVERED);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -343,6 +355,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::RETURNED);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -377,6 +391,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::CANCELLED, $reason);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -406,5 +422,47 @@ class OrderFulfillmentService
                 'success_rate' => round(($customer->successful_orders / $total) * 100, 2),
             ]);
         }
+    }
+
+    private function syncOrderStatusToConversation(Order $order, OrderStatus $newStatus, ?string $reason = null): void
+    {
+        if (! $order->conversation_id) {
+            return;
+        }
+
+        $conversation = Conversation::find($order->conversation_id);
+        if (! $conversation) {
+            return;
+        }
+
+        $statusLabel = $newStatus->label();
+        $body = "📦 Order {$order->order_number} status updated: {$statusLabel}";
+        if ($reason) {
+            $body .= " — {$reason}";
+        }
+
+        Message::query()->create([
+            'conversation_id' => $order->conversation_id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'sent_by' => auth()->id(),
+            'external_message_id' => 'system-' . str()->uuid(),
+            'direction' => 'system',
+            'message_type' => 'order_status',
+            'body' => $body,
+            'metadata' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_status' => $newStatus->value,
+                'reason' => $reason,
+            ],
+            'sent_at' => now(),
+            'send_status' => 'logged',
+            'retry_count' => 0,
+        ]);
+
+        $conversation->forceFill([
+            'last_message_preview' => $body,
+            'last_message_at' => now(),
+        ])->save();
     }
 }
