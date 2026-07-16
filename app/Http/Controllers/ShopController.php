@@ -3435,6 +3435,8 @@ class ShopController extends Controller
             'shopItems.product:id,name,sku',
             'shopItems.variant:id,product_id,sku,variant_name',
             'agent:id,name',
+            'remarks' => fn ($q) => $q->whereNull('parent_id')->orderBy('created_at'),
+            'remarks.replies.user:id,name',
             'remarks.user:id,name',
         ]);
 
@@ -5038,10 +5040,23 @@ class ShopController extends Controller
             'body' => ['required', 'string', 'max:2000'],
             'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
             'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+            'parent_id' => ['nullable', 'integer', 'exists:order_remarks,id'],
         ]);
+
+        if (! empty($validated['parent_id'])) {
+            $parent = OrderRemark::query()
+                ->where('id', $validated['parent_id'])
+                ->where('order_id', $order->id)
+                ->first();
+
+            if (! $parent) {
+                return back()->with('error', 'Parent remark not found for this order.');
+            }
+        }
 
         OrderRemark::query()->create([
             'order_id' => $order->id,
+            'parent_id' => $validated['parent_id'] ?? null,
             'user_id' => $request->user()->id,
             'type' => $validated['type'] ?? 'agent_note',
             'visibility' => $validated['visibility'] ?? 'internal',

@@ -12,6 +12,7 @@ import {
   Send,
   Trash2,
   X,
+  CornerDownRight,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +34,9 @@ interface OrderRemark {
   body: string;
   created_at: string;
   updated_at: string;
+  parent_id: number | null;
   user?: { id: number; name: string } | null;
+  replies?: OrderRemark[];
 }
 
 interface OrderItem {
@@ -119,15 +122,23 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
   const remarkEntries = order.remarks_entries ?? [];
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const authUserId = (usePage().props.auth as { user?: { id: number } }).user?.id;
 
   const { data, setData, post, processing, reset } = useForm({
     body: '',
     type: 'agent_note',
     visibility: 'internal',
+    parent_id: '' as string | number,
   });
 
   const editForm = useForm({
+    body: '',
+    type: 'agent_note',
+    visibility: 'internal',
+  });
+
+  const replyForm = useForm({
     body: '',
     type: 'agent_note',
     visibility: 'internal',
@@ -182,6 +193,34 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
       onSuccess: () => {
         reset();
         setShowForm(false);
+      },
+    });
+  };
+
+  const startReply = (entry: OrderRemark) => {
+    setReplyingTo(entry.id);
+    replyForm.setData('body', '');
+    replyForm.setData('type', entry.type);
+    replyForm.setData('visibility', entry.visibility);
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+    replyForm.reset();
+  };
+
+  const submitReply = (e: React.FormEvent, parentId: number) => {
+    e.preventDefault();
+    replyForm.post(`/shop/orders/${order.id}/remarks`, {
+      data: {
+        body: replyForm.data.body,
+        type: replyForm.data.type,
+        visibility: replyForm.data.visibility,
+        parent_id: parentId,
+      },
+      onSuccess: () => {
+        setReplyingTo(null);
+        replyForm.reset();
       },
     });
   };
@@ -456,111 +495,281 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
             {remarkEntries.map((entry) => {
               const editable = isEditable(entry);
               const isEditing = editingId === entry.id;
+              const isReplying = replyingTo === entry.id;
               const isEdited = entry.updated_at !== entry.created_at;
+              const replies = entry.replies ?? [];
 
               return (
-                <div key={entry.id} className="rounded-md border p-3 text-sm">
-                  <div className="mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {entry.type}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          'text-xs ' +
-                          (entry.visibility === 'customer_visible'
-                            ? 'border-info/30 text-info'
-                            : 'border-muted-foreground/20 text-muted-foreground')
-                        }
-                      >
-                        {entry.visibility === 'customer_visible' ? 'Customer Visible' : 'Internal'}
-                      </Badge>
-                      <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
-                      {isEdited && (
-                        <span className="text-xs italic text-muted-foreground">(edited)</span>
-                      )}
+                <div key={entry.id} className="space-y-2">
+                  <div className="rounded-md border p-3 text-sm">
+                    <div className="mb-1 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {entry.type}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            'text-xs ' +
+                            (entry.visibility === 'customer_visible'
+                              ? 'border-info/30 text-info'
+                              : 'border-muted-foreground/20 text-muted-foreground')
+                          }
+                        >
+                          {entry.visibility === 'customer_visible'
+                            ? 'Customer Visible'
+                            : 'Internal'}
+                        </Badge>
+                        <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
+                        {isEdited && (
+                          <span className="text-xs italic text-muted-foreground">(edited)</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(entry.created_at).toLocaleString()}
+                        </span>
+                        {editable && !isEditing && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              onClick={() => startEdit(entry)}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={() => deleteRemark(order.id, entry.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(entry.created_at).toLocaleString()}
-                      </span>
-                      {editable && !isEditing && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6"
-                            onClick={() => startEdit(entry)}
+
+                    {isEditing ? (
+                      <form
+                        onSubmit={(e) => submitEdit(e, order.id, entry.id)}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={editForm.data.type}
+                            onValueChange={(v) => editForm.setData('type', v)}
                           >
-                            <Pencil className="h-3 w-3" />
+                            <SelectTrigger className="w-[160px]">
+                              <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="agent_note">Agent Note</SelectItem>
+                              <SelectItem value="follow_up">Follow-up</SelectItem>
+                              <SelectItem value="escalation">Escalation</SelectItem>
+                              <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={editForm.data.visibility}
+                            onValueChange={(v) => editForm.setData('visibility', v)}
+                          >
+                            <SelectTrigger className="w-[170px]">
+                              <SelectValue placeholder="Visibility" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="internal">Internal Only</SelectItem>
+                              <SelectItem value="customer_visible">Customer Visible</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Textarea
+                          value={editForm.data.body}
+                          onChange={(e) => editForm.setData('body', e.target.value)}
+                          rows={3}
+                          required
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+                            <X className="mr-1 h-3 w-3" />
+                            Cancel
                           </Button>
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
-                            onClick={() => deleteRemark(order.id, entry.id)}
+                            type="submit"
+                            size="sm"
+                            disabled={editForm.processing || !editForm.data.body.trim()}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Pencil className="mr-1 h-3 w-3" />
+                            Save
                           </Button>
                         </div>
-                      )}
-                    </div>
+                      </form>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{entry.body}</p>
+                    )}
+
+                    {!isEditing && !isReplying && (
+                      <div className="mt-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={() => startReply(entry)}
+                        >
+                          <CornerDownRight className="mr-1 h-3 w-3" />
+                          Reply
+                        </Button>
+                      </div>
+                    )}
+
+                    {isReplying && (
+                      <form
+                        onSubmit={(e) => submitReply(e, entry.id)}
+                        className="mt-2 space-y-2 rounded-md border bg-muted/30 p-2"
+                      >
+                        <Textarea
+                          value={replyForm.data.body}
+                          onChange={(e) => replyForm.setData('body', e.target.value)}
+                          placeholder="Write a reply..."
+                          rows={2}
+                          required
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={replyForm.data.visibility}
+                              onValueChange={(v) => replyForm.setData('visibility', v)}
+                            >
+                              <SelectTrigger className="h-7 w-[150px] text-xs">
+                                <SelectValue placeholder="Visibility" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="internal">Internal Only</SelectItem>
+                                <SelectItem value="customer_visible">Customer Visible</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={cancelReply}>
+                              <X className="mr-1 h-3 w-3" />
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={replyForm.processing || !replyForm.data.body.trim()}
+                            >
+                              <Send className="mr-1 h-3 w-3" />
+                              Reply
+                            </Button>
+                          </div>
+                        </div>
+                      </form>
+                    )}
                   </div>
 
-                  {isEditing ? (
-                    <form onSubmit={(e) => submitEdit(e, order.id, entry.id)} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={editForm.data.type}
-                          onValueChange={(v) => editForm.setData('type', v)}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue placeholder="Type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="agent_note">Agent Note</SelectItem>
-                            <SelectItem value="follow_up">Follow-up</SelectItem>
-                            <SelectItem value="escalation">Escalation</SelectItem>
-                            <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={editForm.data.visibility}
-                          onValueChange={(v) => editForm.setData('visibility', v)}
-                        >
-                          <SelectTrigger className="w-[170px]">
-                            <SelectValue placeholder="Visibility" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="internal">Internal Only</SelectItem>
-                            <SelectItem value="customer_visible">Customer Visible</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Textarea
-                        value={editForm.data.body}
-                        onChange={(e) => editForm.setData('body', e.target.value)}
-                        rows={3}
-                        required
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
-                          <X className="mr-1 h-3 w-3" />
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={editForm.processing || !editForm.data.body.trim()}
-                        >
-                          <Pencil className="mr-1 h-3 w-3" />
-                          Save
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{entry.body}</p>
+                  {replies.length > 0 && (
+                    <div className="ml-4 space-y-2 border-l-2 border-muted pl-3">
+                      {replies.map((reply) => {
+                        const replyEditable = isEditable(reply);
+                        const replyEditing = editingId === reply.id;
+                        const replyEdited = reply.updated_at !== reply.created_at;
+
+                        return (
+                          <div key={reply.id} className="rounded-md border p-2 text-sm">
+                            <div className="mb-1 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CornerDownRight className="h-3 w-3 text-muted-foreground" />
+                                <Badge variant="outline" className="text-xs">
+                                  {reply.type}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    'text-xs ' +
+                                    (reply.visibility === 'customer_visible'
+                                      ? 'border-info/30 text-info'
+                                      : 'border-muted-foreground/20 text-muted-foreground')
+                                  }
+                                >
+                                  {reply.visibility === 'customer_visible'
+                                    ? 'Customer Visible'
+                                    : 'Internal'}
+                                </Badge>
+                                <span className="text-xs font-medium">
+                                  {reply.user?.name ?? 'System'}
+                                </span>
+                                {replyEdited && (
+                                  <span className="text-xs italic text-muted-foreground">
+                                    (edited)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(reply.created_at).toLocaleString()}
+                                </span>
+                                {replyEditable && !replyEditing && (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5"
+                                      onClick={() => startEdit(reply)}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5 text-destructive hover:text-destructive"
+                                      onClick={() => deleteRemark(order.id, reply.id)}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {replyEditing ? (
+                              <form
+                                onSubmit={(e) => submitEdit(e, order.id, reply.id)}
+                                className="space-y-2"
+                              >
+                                <Textarea
+                                  value={editForm.data.body}
+                                  onChange={(e) => editForm.setData('body', e.target.value)}
+                                  rows={2}
+                                  required
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={cancelEdit}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={editForm.processing || !editForm.data.body.trim()}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </form>
+                            ) : (
+                              <p className="whitespace-pre-wrap">{reply.body}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );
