@@ -30,6 +30,7 @@ import {
   ShoppingCart,
   Trash2,
   User,
+  XCircle,
   UserCheck,
   Video as VideoIcon,
   X,
@@ -583,6 +584,10 @@ export default function ShopConversation({
   const [blockReason, setBlockReason] = useState('');
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAgentId, setTransferAgentId] = useState('');
+  const [showCancelOrderModal, setShowCancelOrderModal] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
+  const [cancelOrderNumber, setCancelOrderNumber] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [newRemark, setNewRemark] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<
     {
@@ -779,6 +784,26 @@ export default function ShopConversation({
         setScheduledMessages((prev) => prev.filter((sm) => sm.id !== id));
       })
       .catch(() => {});
+  };
+
+  const openCancelOrderModal = (order: RecentOrder) => {
+    setCancelOrderId(order.id);
+    setCancelOrderNumber(order.order_number);
+    setCancelReason('');
+    setShowCancelOrderModal(true);
+  };
+
+  const confirmCancelOrder = () => {
+    if (cancelOrderId === null) return;
+    router.post(
+      `/orders/${cancelOrderId}/cancel`,
+      { reason: cancelReason || undefined },
+      { preserveScroll: true }
+    );
+    setShowCancelOrderModal(false);
+    setCancelOrderId(null);
+    setCancelOrderNumber('');
+    setCancelReason('');
   };
 
   const sendBroadcast = () => {
@@ -2382,37 +2407,61 @@ export default function ShopConversation({
                 {recent_orders.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No previous orders found.</p>
                 ) : (
-                  recent_orders.map((order) => (
-                    <Link
-                      key={order.id}
-                      href={`/orders/${order.id}`}
-                      className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{order.order_number}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {order.product?.name ?? 'No product'}
-                          </p>
+                  recent_orders.map((order) => {
+                    const isTerminal = [
+                      'DELIVERED',
+                      'RETURNED',
+                      'CANCELLED',
+                      'QA_REJECTED',
+                    ].includes(order.status.toUpperCase());
+                    return (
+                      <div
+                        key={order.id}
+                        className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <Link href={`/orders/${order.id}`} className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{order.order_number}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {order.product?.name ?? 'No product'}
+                            </p>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={orderStatusBadgeClass(order.status)}
+                            >
+                              {order.status}
+                            </Badge>
+                            {!isTerminal && (
+                              <button
+                                type="button"
+                                onClick={() => openCancelOrderModal(order)}
+                                className="shrink-0 text-muted-foreground hover:text-destructive"
+                                title="Cancel order"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <Badge variant="outline" className={orderStatusBadgeClass(order.status)}>
-                          {order.status}
-                        </Badge>
+                        <Link href={`/orders/${order.id}`}>
+                          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{time(order.created_at)}</span>
+                            <span>{money(order.total_amount)}</span>
+                          </div>
+                          {order.receiver_address && (
+                            <p
+                              className="mt-1.5 truncate text-xs text-muted-foreground"
+                              title={order.receiver_address}
+                            >
+                              {order.receiver_address}
+                            </p>
+                          )}
+                        </Link>
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{time(order.created_at)}</span>
-                        <span>{money(order.total_amount)}</span>
-                      </div>
-                      {order.receiver_address && (
-                        <p
-                          className="mt-1.5 truncate text-xs text-muted-foreground"
-                          title={order.receiver_address}
-                        >
-                          {order.receiver_address}
-                        </p>
-                      )}
-                    </Link>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -3028,6 +3077,56 @@ export default function ShopConversation({
               >
                 <ArrowRightLeft className="mr-1.5 h-4 w-4" />
                 Transfer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelOrderModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowCancelOrderModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-destructive">
+                <XCircle className="h-5 w-5" />
+                Cancel Order
+              </h3>
+              <button type="button" onClick={() => setShowCancelOrderModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Cancel order <span className="font-medium text-foreground">{cancelOrderNumber}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel_reason">Reason (optional)</Label>
+              <textarea
+                id="cancel_reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Customer changed mind, out of stock, duplicate order"
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                maxLength={500}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCancelOrderModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" onClick={confirmCancelOrder}>
+                <XCircle className="mr-1.5 h-4 w-4" />
+                Confirm Cancellation
               </Button>
             </div>
           </div>
