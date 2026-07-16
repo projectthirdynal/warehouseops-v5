@@ -55,6 +55,7 @@ class Order extends Model
         'address_confidence',
         'export_status',
         'notes',
+        'remarks',
         'draft_data',
         'rejection_reason',
         'confirmed_at',
