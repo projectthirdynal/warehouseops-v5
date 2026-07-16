@@ -250,6 +250,11 @@ export default function CreateShopOrder({
   const [savingCustomerTags, setSavingCustomerTags] = useState(false);
   const [mergeSuggestions, setMergeSuggestions] = useState<CustomerMergeSuggestion[]>([]);
   const [mergingCustomerId, setMergingCustomerId] = useState<number | null>(null);
+  const [commPreferences, setCommPreferences] = useState({
+    preferred_courier: '',
+    payment_method: '',
+  });
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [orderHistory, setOrderHistory] = useState<
     Array<{
       id: number;
@@ -345,6 +350,7 @@ export default function CreateShopOrder({
     if (!data.customer_id) {
       setCustomerNotes([]);
       setCustomerTags([]);
+      setCommPreferences({ preferred_courier: '', payment_method: '' });
       return;
     }
 
@@ -353,10 +359,15 @@ export default function CreateShopOrder({
       .then((res) => {
         setCustomerNotes(res.data.notes ?? []);
         setCustomerTags(res.data.customer_tags ?? []);
+        setCommPreferences({
+          preferred_courier: res.data.preferred_courier ?? '',
+          payment_method: res.data.payment_method ?? '',
+        });
       })
       .catch(() => {
         setCustomerNotes([]);
         setCustomerTags([]);
+        setCommPreferences({ preferred_courier: '', payment_method: '' });
       });
   }, [data.customer_id]);
 
@@ -421,6 +432,17 @@ export default function CreateShopOrder({
       await axios.patch(`/shop/customers/${data.customer_id}/tags`, { tags: customerTags });
     } finally {
       setSavingCustomerTags(false);
+    }
+  };
+
+  const saveCommPreferences = async () => {
+    if (!data.customer_id) return;
+
+    setSavingPreferences(true);
+    try {
+      await axios.patch(`/shop/customers/${data.customer_id}/preferences`, commPreferences);
+    } finally {
+      setSavingPreferences(false);
     }
   };
 
@@ -1159,6 +1181,57 @@ export default function CreateShopOrder({
                       {savingCustomerTags ? 'Saving…' : 'Save'}
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Communication Preferences</CardTitle>
+                  <CardDescription>
+                    Default courier and payment method saved to the customer profile.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pref_courier">Preferred courier</Label>
+                      <select
+                        id="pref_courier"
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={commPreferences.preferred_courier}
+                        onChange={(e) =>
+                          setCommPreferences({
+                            ...commPreferences,
+                            preferred_courier: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">No preference</option>
+                        {couriers.map((c) => (
+                          <option key={c.value} value={c.value}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pref_payment">Payment method</Label>
+                      <Input
+                        id="pref_payment"
+                        value={commPreferences.payment_method}
+                        onChange={(e) =>
+                          setCommPreferences({ ...commPreferences, payment_method: e.target.value })
+                        }
+                        placeholder="e.g. COD, GCash"
+                        maxLength={50}
+                      />
+                    </div>
+                  </div>
+                  <Button type="button" onClick={saveCommPreferences} disabled={savingPreferences}>
+                    {savingPreferences ? 'Saving…' : 'Save Preferences'}
+                  </Button>
                 </CardContent>
               </Card>
             )}

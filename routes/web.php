@@ -369,6 +369,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/customers/{customer}/notes', [ShopController::class, 'customerNotes'])->name('shop.customers.notes.index');
     Route::post('/shop/customers/{customer}/notes', [ShopController::class, 'storeCustomerNote'])->name('shop.customers.notes.store');
     Route::patch('/shop/customers/{customer}/tags', [ShopController::class, 'updateCustomerTags'])->name('shop.customers.tags.update');
+    Route::patch('/shop/customers/{customer}/preferences', [ShopController::class, 'updateCustomerPreferences'])->name('shop.customers.preferences.update');
     Route::get('/shop/customers/{customer}/merge-suggestions', [ShopController::class, 'customerMergeSuggestions'])->name('shop.customers.merge-suggestions');
     Route::post('/shop/customers/{customer}/merge-suggestions/{source}', [ShopController::class, 'mergeCustomerSuggestion'])->name('shop.customers.merge-suggestions.merge');
     Route::get('/shop/customers/{customer}/timeline', [ShopController::class, 'customerTimeline'])->name('shop.customers.timeline');

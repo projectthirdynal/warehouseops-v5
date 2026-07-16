@@ -1489,6 +1489,8 @@ class ShopController extends Controller
         return response()->json([
             'notes' => $notes,
             'customer_tags' => $customer->tags ?? [],
+            'preferred_courier' => $customer->preferred_courier,
+            'payment_method' => $customer->payment_method,
         ]);
     }
 
@@ -1517,6 +1519,23 @@ class ShopController extends Controller
         $this->customerNotes->setTags($customer, $validated['tags']);
 
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
+    }
+
+    public function updateCustomerPreferences(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'preferred_courier' => ['nullable', 'string', 'max:50'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $customer->forceFill([
+            'preferred_courier' => $validated['preferred_courier'] ?? null,
+            'payment_method' => $validated['payment_method'] ?? null,
+        ])->save();
+
+        return response()->json([
+            'customer' => $customer->only(['id', 'preferred_courier', 'payment_method']),
+        ]);
     }
 
     public function customerTimeline(Request $request, Customer $customer): JsonResponse
