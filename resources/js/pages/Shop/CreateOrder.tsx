@@ -480,10 +480,17 @@ export default function CreateShopOrder({
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   const fetchTemplates = () => {
-    fetch('/shop/templates', { headers: { 'X-CSRF-TOKEN': csrfToken } })
+    fetch('/shop/templates', {
+      headers: {
+        'X-CSRF-TOKEN': csrfToken,
+        Accept: 'application/json',
+      },
+    })
       .then((res) => res.json())
-      .then((result: { templates: TemplateSummary[] }) => {
-        setTemplates(result.templates ?? []);
+      .then((result) => {
+        const raw = result.templates;
+        const list = Array.isArray(raw) ? raw : (raw?.data ?? []);
+        setTemplates(list);
       })
       .catch(() => undefined);
   };
