@@ -3703,6 +3703,8 @@ class ShopController extends Controller
                 }
             }
 
+            $previousRemarks = $order->remarks ?? $order->notes;
+
             $order->forceFill([
                 'customer_id' => $customer->id,
                 'product_id' => $primaryItem['product']->id,
@@ -3741,6 +3743,16 @@ class ShopController extends Controller
                     'unit_price' => $item['unit_price'],
                     'discount_amount' => $item['discount_amount'],
                     'line_total' => $item['line_total'],
+                ]);
+            }
+
+            $newRemarks = $validated['remarks'] ?? null;
+            if (! empty($newRemarks) && $newRemarks !== $previousRemarks) {
+                OrderRemark::query()->create([
+                    'order_id' => $order->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'agent_note',
+                    'body' => $newRemarks,
                 ]);
             }
 
