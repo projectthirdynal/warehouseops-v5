@@ -3492,6 +3492,65 @@ class ShopController extends Controller
             ->with('success', "Order {$order->order_number} updated.");
     }
 
+    public function manualFollowUp(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot follow up on a completed order.');
+        }
+
+        if (! $order->conversation_id) {
+            return back()->with('error', 'Order is not linked to a conversation.');
+        }
+
+        $conversation = Conversation::find($order->conversation_id);
+        if (! $conversation) {
+            return back()->with('error', 'Linked conversation not found.');
+        }
+
+        $elapsedDays = $order->dispatched_at
+            ? (int) now()->diffInDays($order->dispatched_at)
+            : 0;
+
+        $body = $elapsedDays > 0
+            ? "⏰ Follow-up: Order {$order->order_number} has been dispatched for {$elapsedDays} day(s) with no delivery confirmation. Please check courier tracking."
+            : "⏰ Follow-up: Order {$order->order_number} ({$order->status->label()}). Please check status with courier.";
+
+        Message::query()->create([
+            'conversation_id' => $order->conversation_id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'sent_by' => $request->user()->id,
+            'external_message_id' => 'system-' . str()->uuid(),
+            'direction' => 'system',
+            'message_type' => 'order_followup',
+            'body' => $body,
+            'metadata' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_status' => $order->status->value,
+                'days_dispatched' => $elapsedDays,
+            ],
+            'sent_at' => now(),
+            'send_status' => 'logged',
+            'retry_count' => 0,
+        ]);
+
+        $conversation->forceFill([
+            'last_message_preview' => $body,
+            'last_message_at' => now(),
+        ])->save();
+
+        OrderRemark::query()->create([
+            'order_id' => $order->id,
+            'conversation_id' => $order->conversation_id,
+            'user_id' => $request->user()->id,
+            'type' => 'follow_up',
+            'body' => $body,
+            'metadata' => ['days_dispatched' => $elapsedDays, 'manual' => true],
+        ]);
+
+        return back()->with('success', "Follow-up posted for order {$order->order_number}.");
+    }
+
     public function storeDraft(Request $request): JsonResponse
     {
         $validated = $request->validate([

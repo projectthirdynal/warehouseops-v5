@@ -2472,6 +2472,20 @@ export default function ShopConversation({
                                 </Link>
                                 <button
                                   type="button"
+                                  onClick={() => {
+                                    router.post(
+                                      `/shop/orders/${order.id}/follow-up`,
+                                      {},
+                                      { preserveScroll: true }
+                                    );
+                                  }}
+                                  className="shrink-0 text-muted-foreground hover:text-amber-600"
+                                  title="Post follow-up reminder"
+                                >
+                                  <Clock className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => openCancelOrderModal(order)}
                                   className="shrink-0 text-muted-foreground hover:text-destructive"
                                   title="Cancel order"
