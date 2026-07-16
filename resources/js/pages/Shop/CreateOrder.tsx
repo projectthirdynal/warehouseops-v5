@@ -93,6 +93,14 @@ interface OrderForm {
   send_confirmation: boolean;
 }
 
+interface CustomerNoteSummary {
+  id: number;
+  body: string;
+  tags: string[] | null;
+  created_at: string;
+  user: { id: number; name: string } | null;
+}
+
 interface CustomerAddressSummary {
   id: number;
   label: string | null;
@@ -223,6 +231,9 @@ export default function CreateShopOrder({
   }>({ status: 'idle' });
   const [savedAddresses, setSavedAddresses] = useState<CustomerAddressSummary[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [customerNotes, setCustomerNotes] = useState<CustomerNoteSummary[]>([]);
+  const [customerNoteBody, setCustomerNoteBody] = useState('');
+  const [savingCustomerNote, setSavingCustomerNote] = useState(false);
   const [orderHistory, setOrderHistory] = useState<
     Array<{
       id: number;
@@ -313,6 +324,32 @@ export default function CreateShopOrder({
       .then((res) => setSavedAddresses(res.data.addresses ?? []))
       .catch(() => setSavedAddresses([]));
   }, [data.customer_id]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setCustomerNotes([]);
+      return;
+    }
+
+    axios
+      .get(`/shop/customers/${data.customer_id}/notes`)
+      .then((res) => setCustomerNotes(res.data.notes ?? []))
+      .catch(() => setCustomerNotes([]));
+  }, [data.customer_id]);
+
+  const addCustomerNote = async () => {
+    const body = customerNoteBody.trim();
+    if (!data.customer_id || !body) return;
+
+    setSavingCustomerNote(true);
+    try {
+      const response = await axios.post(`/shop/customers/${data.customer_id}/notes`, { body });
+      setCustomerNotes((notes) => [response.data.note, ...notes]);
+      setCustomerNoteBody('');
+    } finally {
+      setSavingCustomerNote(false);
+    }
+  };
 
   const selectSavedAddress = (addressId: string) => {
     setSelectedAddressId(addressId);
@@ -1002,6 +1039,53 @@ export default function CreateShopOrder({
                 </div>
               </CardContent>
             </Card>
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-5 w-5" />
+                    Customer Notes
+                  </CardTitle>
+                  <CardDescription>Notes are saved to the linked customer profile.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Textarea
+                      value={customerNoteBody}
+                      onChange={(event) => setCustomerNoteBody(event.target.value)}
+                      placeholder="Add a customer note or order remark…"
+                      maxLength={5000}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!customerNoteBody.trim() || savingCustomerNote}
+                        onClick={addCustomerNote}
+                      >
+                        {savingCustomerNote ? 'Saving…' : 'Add Note'}
+                      </Button>
+                    </div>
+                  </div>
+                  {customerNotes.length > 0 ? (
+                    <div className="max-h-48 space-y-2 overflow-y-auto border-t pt-3">
+                      {customerNotes.slice(0, 5).map((note) => (
+                        <div key={note.id} className="rounded-md border p-2 text-sm">
+                          <p className="whitespace-pre-wrap">{note.body}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {note.user?.name ?? 'System'} ·{' '}
+                            {new Date(note.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No notes yet for this customer.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {orderHistory.length > 0 && (
               <Card>
