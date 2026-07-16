@@ -3262,6 +3262,8 @@ class ShopController extends Controller
                     ?? '',
                 'normalized_phone' => $conversation->customer?->normalized_phone
                     ?? ($conversation->customer?->phone ? null : null),
+                'customer_risk_level' => $conversation->customer?->risk_level,
+                'customer_is_blacklisted' => (bool) $conversation->customer?->is_blacklisted,
                 'complete_address' => $request->filled('complete_address')
                     ? $request->string('complete_address')->toString()
                     : ($conversation->customer?->canonical_address ?? ''),
@@ -3310,13 +3312,15 @@ class ShopController extends Controller
 
     public function editOrder(Request $request, Order $order): Response
     {
-        $order->load(['shopItems.product.activeVariants', 'shopItems.variant', 'customer:id,normalized_phone']);
+        $order->load(['shopItems.product.activeVariants', 'shopItems.variant', 'customer:id,normalized_phone,risk_level,is_blacklisted']);
 
         $prefill = [
             'conversation_id' => $order->conversation_id ? (string) $order->conversation_id : '',
             'customer_name' => $order->receiver_name ?? '',
             'phone' => $order->receiver_phone ?? '',
             'normalized_phone' => $order->customer?->normalized_phone,
+            'customer_risk_level' => $order->customer?->risk_level,
+            'customer_is_blacklisted' => (bool) $order->customer?->is_blacklisted,
             'complete_address' => $order->receiver_address ?? '',
             'barangay' => $order->barangay ?? '',
             'city_municipality' => $order->city ?? '',

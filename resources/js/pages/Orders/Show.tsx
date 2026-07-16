@@ -494,7 +494,30 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                   <CardTitle className="text-base">Customer</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
-                  <p className="font-medium">{order.customer.name}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{order.customer.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      {order.customer.is_blacklisted && (
+                        <Badge variant="destructive" className="text-xs">
+                          Blacklisted
+                        </Badge>
+                      )}
+                      {!order.customer.is_blacklisted &&
+                        order.customer.risk_level &&
+                        order.customer.risk_level !== 'LOW' && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              order.customer.risk_level === 'HIGH'
+                                ? 'border-destructive/30 text-destructive'
+                                : 'border-warning/30 text-warning'
+                            }
+                          >
+                            {order.customer.risk_level}
+                          </Badge>
+                        )}
+                    </div>
+                  </div>
                   <p className="text-muted-foreground">{order.customer.phone}</p>
                   {order.customer.normalized_phone &&
                     order.customer.normalized_phone !== order.customer.phone && (

@@ -70,6 +70,8 @@ interface OrderForm {
   customer_name: string;
   phone: string;
   normalized_phone?: string;
+  customer_risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'BLACKLISTED' | null;
+  customer_is_blacklisted?: boolean;
   complete_address: string;
   landmark: string;
   barangay: string;
@@ -163,6 +165,8 @@ export default function CreateShopOrder({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
     normalized_phone: prefill?.normalized_phone ?? undefined,
+    customer_risk_level: prefill?.customer_risk_level ?? null,
+    customer_is_blacklisted: prefill?.customer_is_blacklisted ?? false,
     complete_address: prefill?.complete_address ?? '',
     landmark: prefill?.landmark ?? '',
     barangay: prefill?.barangay ?? '',
@@ -749,6 +753,29 @@ export default function CreateShopOrder({
                       Normalized: <span className="font-mono">{data.normalized_phone}</span>
                     </p>
                   )}
+                  {data.customer_is_blacklisted && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <span className="font-medium">Blacklisted customer</span>
+                    </div>
+                  )}
+                  {!data.customer_is_blacklisted &&
+                    data.customer_risk_level &&
+                    data.customer_risk_level !== 'LOW' && (
+                      <div
+                        className={
+                          'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ' +
+                          (data.customer_risk_level === 'HIGH'
+                            ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                            : 'border-warning/30 bg-warning/5 text-warning')
+                        }
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span className="font-medium">
+                          {data.customer_risk_level} risk customer
+                        </span>
+                      </div>
+                    )}
                 </div>
               </CardContent>
             </Card>
@@ -1426,6 +1453,26 @@ export default function CreateShopOrder({
                       Normalized: <span className="font-mono">{data.normalized_phone}</span>
                     </p>
                   )}
+                  {data.customer_is_blacklisted && (
+                    <Badge variant="destructive" className="mt-1 text-xs">
+                      Blacklisted
+                    </Badge>
+                  )}
+                  {!data.customer_is_blacklisted &&
+                    data.customer_risk_level &&
+                    data.customer_risk_level !== 'LOW' && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          'mt-1 text-xs ' +
+                          (data.customer_risk_level === 'HIGH'
+                            ? 'border-destructive/30 text-destructive'
+                            : 'border-warning/30 text-warning')
+                        }
+                      >
+                        {data.customer_risk_level} Risk
+                      </Badge>
+                    )}
                 </div>
                 <div className="rounded-md border p-3">
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
