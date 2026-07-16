@@ -4010,9 +4010,15 @@ class ShopController extends Controller
 
         return Order::query()
             ->where('receiver_phone', $normalizedPhone)
-            ->whereIn('product_id', $productIds)
+            ->where(function ($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds)
+                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
+                        $sq->whereIn('product_id', $productIds);
+                    });
+            })
             ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
             ->where('created_at', '>=', now()->subDays(14))
+            ->where('status', '!=', OrderStatus::DRAFT)
             ->latest()
             ->get(['id', 'order_number', 'created_at']);
     }
