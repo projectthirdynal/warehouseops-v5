@@ -23,6 +23,7 @@ use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
@@ -61,6 +62,7 @@ class ShopController extends Controller
     public function __construct(
         private readonly PhoneDetectionService $phones,
         private readonly CustomerIdentityService $customerIdentities,
+        private readonly CustomerMergeService $customerMerge,
         private readonly AddressMappingService $addressMappings,
         private readonly FacebookConnectorService $facebookConnector,
         private readonly CourierExportService $courierExports,
@@ -1200,6 +1202,45 @@ class ShopController extends Controller
                 'notes.user:id,name',
             ]),
         ]);
+    }
+
+    public function customerMergeSuggestions(Customer $customer): JsonResponse
+    {
+        if (empty($customer->normalized_phone)) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $suggestions = Customer::query()
+            ->where('normalized_phone', $customer->normalized_phone)
+            ->whereKeyNot($customer->id)
+            ->orderByDesc('total_orders')
+            ->limit(10)
+            ->get([
+                'id',
+                'name',
+                'phone',
+                'normalized_phone',
+                'total_orders',
+                'successful_orders',
+                'returned_orders',
+                'risk_level',
+                'created_at',
+            ]);
+
+        return response()->json(['suggestions' => $suggestions]);
+    }
+
+    public function mergeCustomerSuggestion(Customer $customer, Customer $source): JsonResponse
+    {
+        abort_if(
+            empty($customer->normalized_phone) || $customer->normalized_phone !== $source->normalized_phone,
+            422,
+            'Customers must share the same normalized phone number before they can be merged.'
+        );
+
+        $mergedCustomer = $this->customerMerge->merge($customer, $source);
+
+        return response()->json(['customer' => $mergedCustomer]);
     }
 
     public function customerOrderHistory(Request $request, Customer $customer): JsonResponse

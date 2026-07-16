@@ -31,11 +31,20 @@ class CustomerMergeService
             // Reassign conversations
             DB::table('conversations')->where('customer_id', $source->id)->update(['customer_id' => $target->id]);
 
+            DB::table('customer_addresses')->where('customer_id', $source->id)->update(['customer_id' => $target->id]);
+            DB::table('customer_notes')->where('customer_id', $source->id)->update(['customer_id' => $target->id]);
+
             // Aggregate counters onto target
             $target->total_orders       = ($target->total_orders ?? 0) + ($source->total_orders ?? 0);
             $target->successful_orders  = ($target->successful_orders ?? 0) + ($source->successful_orders ?? 0);
             $target->returned_orders    = ($target->returned_orders ?? 0) + ($source->returned_orders ?? 0);
             $target->total_revenue      = (float) ($target->total_revenue ?? 0) + (float) ($source->total_revenue ?? 0);
+            $target->success_rate       = $target->total_orders > 0
+                ? round(($target->successful_orders / $target->total_orders) * 100, 2)
+                : 0;
+            $target->average_order_value = $target->total_orders > 0
+                ? round($target->total_revenue / $target->total_orders, 2)
+                : 0;
 
             // Keep the worse risk level
             $riskOrder = ['LOW' => 0, 'MEDIUM' => 1, 'HIGH' => 2, 'BLACKLISTED' => 3];

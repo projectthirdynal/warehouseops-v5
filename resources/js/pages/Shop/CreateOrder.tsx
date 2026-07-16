@@ -93,6 +93,17 @@ interface OrderForm {
   send_confirmation: boolean;
 }
 
+interface CustomerMergeSuggestion {
+  id: number;
+  name: string;
+  phone: string;
+  total_orders: number;
+  successful_orders: number;
+  returned_orders: number;
+  risk_level: string;
+  created_at: string;
+}
+
 interface CustomerNoteSummary {
   id: number;
   body: string;
@@ -237,6 +248,8 @@ export default function CreateShopOrder({
   const [customerTags, setCustomerTags] = useState<string[]>([]);
   const [customerTagInput, setCustomerTagInput] = useState('');
   const [savingCustomerTags, setSavingCustomerTags] = useState(false);
+  const [mergeSuggestions, setMergeSuggestions] = useState<CustomerMergeSuggestion[]>([]);
+  const [mergingCustomerId, setMergingCustomerId] = useState<number | null>(null);
   const [orderHistory, setOrderHistory] = useState<
     Array<{
       id: number;
@@ -346,6 +359,37 @@ export default function CreateShopOrder({
         setCustomerTags([]);
       });
   }, [data.customer_id]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setMergeSuggestions([]);
+      return;
+    }
+
+    axios
+      .get(`/shop/customers/${data.customer_id}/merge-suggestions`)
+      .then((res) => setMergeSuggestions(res.data.suggestions ?? []))
+      .catch(() => setMergeSuggestions([]));
+  }, [data.customer_id]);
+
+  const mergeCustomerSuggestion = async (source: CustomerMergeSuggestion) => {
+    if (
+      !data.customer_id ||
+      !window.confirm(
+        `Merge ${source.name} (${source.phone}) into this customer? This moves its orders and records, then archives the duplicate profile.`
+      )
+    ) {
+      return;
+    }
+
+    setMergingCustomerId(source.id);
+    try {
+      await axios.post(`/shop/customers/${data.customer_id}/merge-suggestions/${source.id}`);
+      setMergeSuggestions((suggestions) => suggestions.filter((item) => item.id !== source.id));
+    } finally {
+      setMergingCustomerId(null);
+    }
+  };
 
   const addCustomerNote = async () => {
     const body = customerNoteBody.trim();
@@ -1115,6 +1159,49 @@ export default function CreateShopOrder({
                       {savingCustomerTags ? 'Saving…' : 'Save'}
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {mergeSuggestions.length > 0 && (
+              <Card className="border-warning/30">
+                <CardHeader>
+                  <CardTitle className="text-base text-warning">
+                    Possible Duplicate Customers
+                  </CardTitle>
+                  <CardDescription>
+                    These profiles use the same normalized phone number. Review before merging.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {mergeSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/shop/customers/${suggestion.id}`}
+                          className="font-medium text-info hover:underline"
+                        >
+                          {suggestion.name}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {suggestion.phone} · {suggestion.total_orders} orders ·{' '}
+                          {suggestion.risk_level}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={mergingCustomerId === suggestion.id}
+                        onClick={() => mergeCustomerSuggestion(suggestion)}
+                      >
+                        {mergingCustomerId === suggestion.id ? 'Merging…' : 'Merge'}
+                      </Button>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}
