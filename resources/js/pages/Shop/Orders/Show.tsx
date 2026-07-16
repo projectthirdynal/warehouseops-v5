@@ -1,9 +1,28 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, FileText, Pencil, Package, User, Truck, Phone, MapPin } from 'lucide-react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import {
+  ArrowLeft,
+  FileText,
+  Pencil,
+  Package,
+  User,
+  Truck,
+  Phone,
+  MapPin,
+  Send,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 interface OrderRemark {
   id: number;
@@ -85,6 +104,22 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 
 export default function OrderShow({ order }: Props) {
   const remarkEntries = order.remarks_entries ?? [];
+  const [showForm, setShowForm] = useState(false);
+
+  const { data, setData, post, processing, reset } = useForm({
+    body: '',
+    type: 'agent_note',
+  });
+
+  const submitRemark = (e: React.FormEvent) => {
+    e.preventDefault();
+    post(`/shop/orders/${order.id}/remarks`, {
+      onSuccess: () => {
+        reset();
+        setShowForm(false);
+      },
+    });
+  };
 
   return (
     <AppLayout>
@@ -266,32 +301,88 @@ export default function OrderShow({ order }: Props) {
           </Card>
         )}
 
-        {remarkEntries.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Remark History</CardTitle>
-              <CardDescription>All remark entries with author and timestamp.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {remarkEntries.map((entry) => (
-                <div key={entry.id} className="rounded-md border p-3 text-sm">
-                  <div className="mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {entry.type}
-                      </Badge>
-                      <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(entry.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap">{entry.body}</p>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Remark History</CardTitle>
+                <CardDescription>All remark entries with author and timestamp.</CardDescription>
+              </div>
+              {!showForm && (
+                <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
+                  <Send className="mr-1 h-3.5 w-3.5" />
+                  Add Remark
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {showForm && (
+              <form onSubmit={submitRemark} className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center gap-2">
+                  <Select value={data.type} onValueChange={(v) => setData('type', v)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agent_note">Agent Note</SelectItem>
+                      <SelectItem value="follow_up">Follow-up</SelectItem>
+                      <SelectItem value="escalation">Escalation</SelectItem>
+                      <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+                <Textarea
+                  value={data.body}
+                  onChange={(e) => setData('body', e.target.value)}
+                  placeholder="Enter remark text..."
+                  rows={3}
+                  required
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowForm(false);
+                      reset();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={processing || !data.body.trim()}>
+                    <Send className="mr-1 h-3.5 w-3.5" />
+                    Submit
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {remarkEntries.length === 0 && !showForm && (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No remark entries yet. Click "Add Remark" to create one.
+              </p>
+            )}
+
+            {remarkEntries.map((entry) => (
+              <div key={entry.id} className="rounded-md border p-3 text-sm">
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {entry.type}
+                    </Badge>
+                    <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(entry.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap">{entry.body}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

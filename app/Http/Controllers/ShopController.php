@@ -4996,6 +4996,23 @@ class ShopController extends Controller
         return back()->with('success', $message);
     }
 
+    public function storeOrderRemark(Request $request, Order $order): RedirectResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+        ]);
+
+        OrderRemark::query()->create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()->id,
+            'type' => $validated['type'] ?? 'agent_note',
+            'body' => $validated['body'],
+        ]);
+
+        return back()->with('success', 'Remark added.');
+    }
+
     public function storeConversationRemark(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
