@@ -53,6 +53,8 @@ class Order extends Model
         'postal_code',
         'landmark',
         'nearest_landmark',
+        'latitude',
+        'longitude',
         'address_mapping_id',
         'source_channel',
         'address_confidence',

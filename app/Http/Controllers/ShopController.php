@@ -22,6 +22,7 @@ use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Shop\Services\CourierExportService;
+use App\Domain\Shop\Services\GeocodingService;
 use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
@@ -80,6 +81,7 @@ class ShopController extends Controller
         private readonly MessageTranslationService $translator,
         private readonly ShippingRateService $shippingRates,
         private readonly OrderFulfillmentService $fulfillment,
+        private readonly GeocodingService $geocoder,
     ) {}
 
     public function index(): Response
@@ -3281,6 +3283,49 @@ class ShopController extends Controller
             'updated' => $updated,
             'skipped' => $skipped,
             'errors' => $errors,
+        ]);
+    }
+
+    public function geocodeAddress(Request $request, Order $order): JsonResponse
+    {
+        $fullAddress = trim(($order->receiver_address ?? '') . ', ' . ($order->barangay ?? '') . ', ' . ($order->city ?? '') . ', ' . ($order->state ?? ''));
+
+        $result = $this->geocoder->geocode($fullAddress);
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not geocode this address. Please check the address fields.',
+            ]);
+        }
+
+        $order->forceFill([
+            'latitude' => $result['latitude'],
+            'longitude' => $result['longitude'],
+        ])->save();
+
+        $suggestions = [];
+        foreach ($result['components'] as $field => $value) {
+            if ($value !== null && $value !== '') {
+                $current = match ($field) {
+                    'province' => $order->state,
+                    'city_municipality' => $order->city,
+                    'barangay' => $order->barangay,
+                    'postal_code' => $order->postal_code,
+                    default => null,
+                };
+                if (!$current || strtolower(trim($current)) !== strtolower(trim($value))) {
+                    $suggestions[$field] = $value;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'latitude' => $result['latitude'],
+            'longitude' => $result['longitude'],
+            'display_name' => $result['display_name'],
+            'suggestions' => $suggestions,
         ]);
     }
 

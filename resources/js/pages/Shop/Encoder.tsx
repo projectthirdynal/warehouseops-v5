@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   History,
   Upload,
+  MapPin,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,8 @@ interface Order {
   barangay?: string | null;
   landmark?: string | null;
   nearest_landmark?: string | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
   total_amount: string | number;
   address_confidence?: string | number | null;
   address_flags?: string[];
@@ -129,6 +132,14 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
       created_at: string;
     }[]
   >([]);
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [geocodeResult, setGeocodeResult] = useState<{
+    success: boolean;
+    latitude: number;
+    longitude: number;
+    display_name: string;
+    suggestions: Record<string, string>;
+  } | null>(null);
 
   const fetchAutocomplete = (
     field: 'province' | 'city_municipality' | 'barangay',
@@ -164,6 +175,39 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
         setShowHistory(true);
       })
       .finally(() => setHistoryLoading(false));
+  };
+
+  const applyGeocodeSuggestion = (field: string, value: string) => {
+    if (field === 'province') update('state', value);
+    else if (field === 'city_municipality') update('city', value);
+    else if (field === 'barangay') update('barangay', value);
+  };
+
+  const runGeocode = () => {
+    setGeocodeLoading(true);
+    setGeocodeResult(null);
+    fetch(`/shop/encoder/orders/${order.id}/geocode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+        Accept: 'application/json',
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => setGeocodeResult(data))
+      .catch(() =>
+        setGeocodeResult({
+          success: false,
+          latitude: 0,
+          longitude: 0,
+          display_name: '',
+          suggestions: {},
+          message: 'Geocoding failed',
+        } as typeof geocodeResult & { message?: string })
+      )
+      .finally(() => setGeocodeLoading(false));
   };
 
   const update = (key: keyof typeof form, value: string) => {
@@ -431,6 +475,10 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           <History className="mr-1.5 h-3.5 w-3.5" />
           {historyLoading ? 'Loading...' : showHistory ? 'Hide History' : 'History'}
         </Button>
+        <Button size="sm" variant="ghost" onClick={runGeocode} disabled={geocodeLoading}>
+          <MapPin className="mr-1.5 h-3.5 w-3.5" />
+          {geocodeLoading ? 'Geocoding...' : 'Geocode'}
+        </Button>
         {hasFlags && (
           <span className="text-xs text-destructive">Resolve address issues before encoding</span>
         )}
@@ -531,6 +579,61 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+      {geocodeResult && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Geocoding Result</span>
+            <button onClick={() => setGeocodeResult(null)}>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {geocodeResult.success ? (
+            <>
+              <div className="flex items-center gap-2 text-xs">
+                <MapPin className="h-3.5 w-3.5 text-green-600" />
+                <span className="font-mono text-green-600">
+                  {geocodeResult.latitude.toFixed(5)}, {geocodeResult.longitude.toFixed(5)}
+                </span>
+              </div>
+              {geocodeResult.display_name && (
+                <p
+                  className="truncate text-xs text-muted-foreground"
+                  title={geocodeResult.display_name}
+                >
+                  {geocodeResult.display_name}
+                </p>
+              )}
+              {Object.keys(geocodeResult.suggestions).length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">
+                    Suggested fields from geocoding:
+                  </span>
+                  {Object.entries(geocodeResult.suggestions).map(([field, value]) => (
+                    <div key={field} className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">{field.replace(/_/g, ' ')}:</span>
+                      <span className="font-medium">{value}</span>
+                      <button
+                        className="text-blue-600 hover:underline"
+                        onClick={() => applyGeocodeSuggestion(field, value)}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {order.latitude && (
+                <p className="text-xs text-muted-foreground">Coordinates saved to order.</p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-destructive">
+              {(geocodeResult as typeof geocodeResult & { message?: string }).message ??
+                'Geocoding failed.'}
+            </p>
           )}
         </div>
       )}
