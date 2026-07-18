@@ -21,6 +21,7 @@ import {
   Clock,
   FileText,
   UserCog,
+  Printer,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -949,6 +950,21 @@ export default function ShopEncoder({
     skipped: number;
     errors: string[];
   } | null>(null);
+  const [showPrintLabels, setShowPrintLabels] = useState(false);
+  const [printLabelsLoading, setPrintLabelsLoading] = useState(false);
+  const [printLabelsData, setPrintLabelsData] = useState<{
+    labels: Array<{
+      order_number: string;
+      receiver_name: string;
+      receiver_phone: string;
+      address_line: string;
+      courier_code: string;
+      cod_amount: number;
+      quantity: number;
+      product_name: string;
+    }>;
+    count: number;
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1052,6 +1068,26 @@ export default function ShopEncoder({
       })
       .catch(() => setBulkAssignResult({ updated: 0, skipped: 0, errors: ['Request failed.'] }))
       .finally(() => setBulkAssignLoading(false));
+  };
+
+  const handlePrintLabels = () => {
+    if (selectedOrderIds.length === 0) return;
+    setPrintLabelsLoading(true);
+    fetch('/shop/encoder/bulk-print-labels', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ order_ids: selectedOrderIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPrintLabelsData(data);
+        setShowPrintLabels(true);
+      })
+      .finally(() => setPrintLabelsLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1304,6 +1340,15 @@ export default function ShopEncoder({
             >
               <UserCog className="mr-1.5 h-3.5 w-3.5" />
               Assign Encoder
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintLabels}
+              disabled={selectedOrderIds.length === 0 || printLabelsLoading}
+            >
+              <Printer className="mr-1.5 h-3.5 w-3.5" />
+              {printLabelsLoading ? 'Loading...' : 'Print Labels'}
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2218,6 +2263,52 @@ export default function ShopEncoder({
                   {bulkAssignLoading ? 'Assigning...' : 'Assign'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPrintLabels && printLabelsData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Print Labels ({printLabelsData.count})</h2>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => window.print()}>
+                  <Printer className="mr-1.5 h-3.5 w-3.5" />
+                  Print
+                </Button>
+                <button onClick={() => setShowPrintLabels(false)}>
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 print:grid-cols-2 sm:grid-cols-2">
+              {printLabelsData.labels.map((label) => (
+                <div
+                  key={label.order_number}
+                  className="rounded-md border-2 border-dashed border-muted-foreground/30 p-3 print:break-inside-avoid"
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-bold">{label.order_number}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {label.courier_code}
+                    </Badge>
+                  </div>
+                  <div className="space-y-0.5 text-xs">
+                    <p className="font-semibold">{label.receiver_name}</p>
+                    <p className="text-muted-foreground">{label.receiver_phone}</p>
+                    <p className="text-muted-foreground">{label.address_line}</p>
+                    <div className="mt-1 flex items-center justify-between border-t pt-1">
+                      <span className="text-muted-foreground">
+                        {label.quantity}x {label.product_name}
+                      </span>
+                      <span className="font-bold text-green-600">
+                        COD: {money(label.cod_amount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

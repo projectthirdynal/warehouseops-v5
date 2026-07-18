@@ -3607,6 +3607,43 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkPrintLabels(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'courier_code', 'cod_amount', 'total_amount', 'quantity', 'product_id'])
+            ->load('product:id,name,sku');
+
+        $labels = $orders->map(fn (Order $order) => [
+            'order_number'   => $order->order_number,
+            'receiver_name'  => $order->receiver_name,
+            'receiver_phone' => $order->receiver_phone,
+            'address_line'   => trim(
+                implode(', ', array_filter([
+                    $order->receiver_address,
+                    $order->barangay,
+                    $order->city,
+                    $order->state,
+                    $order->postal_code,
+                ]))
+            ),
+            'courier_code'   => $order->courier_code ?? 'MANUAL',
+            'cod_amount'     => (float) $order->cod_amount,
+            'quantity'       => $order->quantity,
+            'product_name'   => $order->product?->name ?? 'N/A',
+        ]);
+
+        return response()->json([
+            'labels' => $labels,
+            'count'  => $labels->count(),
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
