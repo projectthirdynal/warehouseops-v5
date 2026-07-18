@@ -904,6 +904,26 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
     skipped: number;
     errors: string[];
   } | null>(null);
+  const [addrAnalytics, setAddrAnalytics] = useState<{
+    total_orders: number;
+    avg_confidence: number;
+    confidence_distribution: Record<string, number>;
+    issue_summary: Record<string, number>;
+    orders_with_issues: number;
+    orders_valid: number;
+    geocoding: { geocoded: number; not_geocoded: number; coverage_pct: number };
+    encoding: { encoded: number; not_encoded: number };
+    corrections: {
+      total: number;
+      by_action: Record<string, number>;
+      avg_confidence_before: number;
+      avg_confidence_after: number;
+      avg_improvement: number;
+    };
+    top_provinces_with_issues: Record<string, number>;
+  } | null>(null);
+  const [addrAnalyticsLoading, setAddrAnalyticsLoading] = useState(false);
+  const [showAddrAnalytics, setShowAddrAnalytics] = useState(false);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -936,6 +956,17 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
         setBulkUploadLoading(false);
         event.target.value = '';
       });
+  };
+
+  const loadAddrAnalytics = () => {
+    setAddrAnalyticsLoading(true);
+    fetch('/shop/encoder/address-analytics', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setAddrAnalytics(data);
+        setShowAddrAnalytics(true);
+      })
+      .finally(() => setAddrAnalyticsLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1162,6 +1193,15 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
                 )}
               </div>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAddrAnalytics}
+              disabled={addrAnalyticsLoading}
+            >
+              <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
+              {addrAnalyticsLoading ? 'Loading...' : 'Address Analytics'}
+            </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
               {couriers.map((courier) => (
@@ -1771,6 +1811,179 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
       {validationReportLoading && !showValidationReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <p className="text-sm text-background">Checking addresses...</p>
+        </div>
+      )}
+      {showAddrAnalytics && addrAnalytics && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Address Validation Analytics</h2>
+              <button onClick={() => setShowAddrAnalytics(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Summary stats */}
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold">{addrAnalytics.total_orders}</p>
+                <p className="text-xs text-muted-foreground">Total Orders</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{addrAnalytics.avg_confidence}</p>
+                <p className="text-xs text-muted-foreground">Avg Confidence</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{addrAnalytics.orders_valid}</p>
+                <p className="text-xs text-muted-foreground">Valid Addresses</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">
+                  {addrAnalytics.orders_with_issues}
+                </p>
+                <p className="text-xs text-muted-foreground">With Issues</p>
+              </div>
+            </div>
+
+            {/* Confidence distribution */}
+            <div className="mb-6">
+              <h3 className="mb-2 text-sm font-semibold">Confidence Distribution</h3>
+              <div className="space-y-1.5">
+                {Object.entries(addrAnalytics.confidence_distribution).map(([bucket, count]) => {
+                  const pct =
+                    addrAnalytics.total_orders > 0 ? (count / addrAnalytics.total_orders) * 100 : 0;
+                  const color =
+                    bucket === '91-100'
+                      ? 'bg-green-500'
+                      : bucket === '76-90'
+                        ? 'bg-green-400'
+                        : bucket === '51-75'
+                          ? 'bg-yellow-400'
+                          : bucket === '26-50'
+                            ? 'bg-orange-400'
+                            : 'bg-red-500';
+                  return (
+                    <div key={bucket} className="flex items-center gap-2 text-xs">
+                      <span className="w-16 text-muted-foreground">{bucket}</span>
+                      <div className="relative h-5 flex-1 rounded bg-muted">
+                        <div
+                          className={`absolute left-0 top-0 h-5 rounded ${color}`}
+                          style={{ width: `${Math.max(pct, 2)}%` }}
+                        />
+                        <span className="absolute left-2 top-0 flex h-5 items-center text-xs font-medium">
+                          {count} ({pct.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Issue breakdown */}
+            <div className="mb-6">
+              <h3 className="mb-2 text-sm font-semibold">Issue Breakdown</h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Object.entries(addrAnalytics.issue_summary).map(([key, count]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between rounded border px-2 py-1.5 text-xs"
+                  >
+                    <span className="text-muted-foreground">{key.replace(/_/g, ' ')}</span>
+                    <span className={`font-bold ${count > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Geocoding & Encoding */}
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Geocoding Coverage</h3>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-green-600">
+                    {addrAnalytics.geocoding.geocoded} geocoded
+                  </span>
+                  <span className="text-muted-foreground">
+                    {addrAnalytics.geocoding.not_geocoded} not geocoded
+                  </span>
+                  <span className="font-bold">{addrAnalytics.geocoding.coverage_pct}%</span>
+                </div>
+                <div className="mt-1 h-3 rounded bg-muted">
+                  <div
+                    className="h-3 rounded bg-blue-500"
+                    style={{ width: `${addrAnalytics.geocoding.coverage_pct}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Encoding Status</h3>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-green-600">{addrAnalytics.encoding.encoded} encoded</span>
+                  <span className="text-muted-foreground">
+                    {addrAnalytics.encoding.not_encoded} pending
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Correction history stats */}
+            <div className="mb-6">
+              <h3 className="mb-2 text-sm font-semibold">Correction History</h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded border p-2 text-center text-xs">
+                  <p className="text-lg font-bold">{addrAnalytics.corrections.total}</p>
+                  <p className="text-muted-foreground">Total Corrections</p>
+                </div>
+                <div className="rounded border p-2 text-center text-xs">
+                  <p className="text-lg font-bold text-orange-600">
+                    {addrAnalytics.corrections.avg_confidence_before}
+                  </p>
+                  <p className="text-muted-foreground">Avg Before</p>
+                </div>
+                <div className="rounded border p-2 text-center text-xs">
+                  <p className="text-lg font-bold text-green-600">
+                    {addrAnalytics.corrections.avg_confidence_after}
+                  </p>
+                  <p className="text-muted-foreground">Avg After</p>
+                </div>
+                <div className="rounded border p-2 text-center text-xs">
+                  <p className="text-lg font-bold text-blue-600">
+                    +{addrAnalytics.corrections.avg_improvement}
+                  </p>
+                  <p className="text-muted-foreground">Avg Improvement</p>
+                </div>
+              </div>
+              {Object.keys(addrAnalytics.corrections.by_action).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Object.entries(addrAnalytics.corrections.by_action).map(([action, count]) => (
+                    <Badge key={action} variant="secondary" className="text-xs">
+                      {action}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Top provinces with issues */}
+            {Object.keys(addrAnalytics.top_provinces_with_issues).length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Top Provinces with Issues</h3>
+                <div className="space-y-1">
+                  {Object.entries(addrAnalytics.top_provinces_with_issues).map(
+                    ([province, count]) => (
+                      <div key={province} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{province}</span>
+                        <span className="font-bold text-red-600">{count}</span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AppLayout>

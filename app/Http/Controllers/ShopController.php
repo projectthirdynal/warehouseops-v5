@@ -3410,6 +3410,123 @@ class ShopController extends Controller
         return response()->json($result);
     }
 
+    public function addressValidationAnalytics(): JsonResponse
+    {
+        $orders = Order::query()
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::DISPATCHED, OrderStatus::DELIVERED])
+            ->limit(1000)
+            ->get(['id', 'order_number', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'address_confidence', 'address_mapping_id', 'latitude', 'longitude', 'encoded_at']);
+
+        $total = $orders->count();
+
+        // Confidence distribution
+        $confidenceBuckets = ['0-25' => 0, '26-50' => 0, '51-75' => 0, '76-90' => 0, '91-100' => 0];
+        $confidenceSum = 0;
+        $confidenceCount = 0;
+
+        // Issue counts
+        $issueCounts = [
+            'missing_address' => 0,
+            'missing_barangay' => 0,
+            'missing_city' => 0,
+            'missing_province' => 0,
+            'low_confidence' => 0,
+            'unmapped' => 0,
+        ];
+
+        // Geocoding coverage
+        $geocoded = 0;
+        $notGeocoded = 0;
+
+        // Encoding status
+        $encoded = 0;
+        $notEncoded = 0;
+
+        foreach ($orders as $order) {
+            $confidence = floatval($order->address_confidence ?? 0);
+            $confidenceSum += $confidence;
+            $confidenceCount++;
+
+            if ($confidence <= 25) $confidenceBuckets['0-25']++;
+            elseif ($confidence <= 50) $confidenceBuckets['26-50']++;
+            elseif ($confidence <= 75) $confidenceBuckets['51-75']++;
+            elseif ($confidence <= 90) $confidenceBuckets['76-90']++;
+            else $confidenceBuckets['91-100']++;
+
+            $issues = $this->getAddressIssues($order);
+            foreach ($issues as $issue) {
+                $key = match ($issue) {
+                    'missing address' => 'missing_address',
+                    'missing barangay' => 'missing_barangay',
+                    'missing city' => 'missing_city',
+                    'missing province' => 'missing_province',
+                    'low address confidence' => 'low_confidence',
+                    'unmapped address' => 'unmapped',
+                    default => null,
+                };
+                if ($key) $issueCounts[$key]++;
+            }
+
+            if ($order->latitude !== null && $order->longitude !== null) {
+                $geocoded++;
+            } else {
+                $notGeocoded++;
+            }
+
+            if ($order->encoded_at !== null) {
+                $encoded++;
+            } else {
+                $notEncoded++;
+            }
+        }
+
+        // Correction history stats
+        $totalCorrections = AddressCorrectionHistory::query()->count();
+        $correctionsByAction = AddressCorrectionHistory::query()
+            ->selectRaw('action, COUNT(*) as count')
+            ->groupBy('action')
+            ->pluck('count', 'action')
+            ->toArray();
+
+        $avgConfidenceBefore = (float) AddressCorrectionHistory::query()->avg('confidence_before');
+        $avgConfidenceAfter = (float) AddressCorrectionHistory::query()->avg('confidence_after');
+
+        // Top provinces with issues
+        $provinceStats = $orders
+            ->filter(fn ($o) => !empty($this->getAddressIssues($o)))
+            ->groupBy(fn ($o) => $o->state ?? 'Unknown')
+            ->map(fn ($group) => $group->count())
+            ->sortDesc()
+            ->take(10)
+            ->toArray();
+
+        return response()->json([
+            'total_orders' => $total,
+            'avg_confidence' => $confidenceCount > 0 ? round($confidenceSum / $confidenceCount, 2) : 0,
+            'confidence_distribution' => $confidenceBuckets,
+            'issue_summary' => $issueCounts,
+            'orders_with_issues' => $orders->filter(fn ($o) => !empty($this->getAddressIssues($o)))->count(),
+            'orders_valid' => $orders->filter(fn ($o) => empty($this->getAddressIssues($o)))->count(),
+            'geocoding' => [
+                'geocoded' => $geocoded,
+                'not_geocoded' => $notGeocoded,
+                'coverage_pct' => $total > 0 ? round(($geocoded / $total) * 100, 1) : 0,
+            ],
+            'encoding' => [
+                'encoded' => $encoded,
+                'not_encoded' => $notEncoded,
+            ],
+            'corrections' => [
+                'total' => $totalCorrections,
+                'by_action' => $correctionsByAction,
+                'avg_confidence_before' => round($avgConfidenceBefore, 2),
+                'avg_confidence_after' => round($avgConfidenceAfter, 2),
+                'avg_improvement' => round($avgConfidenceAfter - $avgConfidenceBefore, 2),
+            ],
+            'top_provinces_with_issues' => $provinceStats,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
