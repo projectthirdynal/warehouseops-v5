@@ -13,12 +13,16 @@ return new class extends Migration
             $table->json('tags')->nullable()->after('is_pinned');
         });
 
-        DB::statement('CREATE INDEX order_remarks_tags_gin_idx ON order_remarks USING GIN ((tags::jsonb))');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('CREATE INDEX order_remarks_tags_gin_idx ON order_remarks USING GIN ((tags::jsonb))');
+        }
     }
 
     public function down(): void
     {
-        DB::statement('DROP INDEX IF EXISTS order_remarks_tags_gin_idx');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('DROP INDEX IF EXISTS order_remarks_tags_gin_idx');
+        }
 
         Schema::table('order_remarks', function (Blueprint $table) {
             $table->dropColumn('tags');
