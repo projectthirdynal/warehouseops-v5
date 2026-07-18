@@ -12,6 +12,8 @@ import {
   StickyNote,
   Trash2,
   X,
+  AlertTriangle,
+  Filter,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +33,7 @@ interface Order {
   barangay?: string | null;
   total_amount: string | number;
   address_confidence?: string | number | null;
+  address_flags?: string[];
   product?: { id: number; name: string; sku: string } | null;
   shop_items?: { order_id: number; product_name: string; quantity: number }[];
 }
@@ -61,6 +64,7 @@ interface Props {
   orders: Paginated<Order>;
   recent_batches: Batch[];
   couriers: { value: string; label: string }[];
+  filters?: { needs_review?: boolean };
 }
 
 function money(value: string | number) {
@@ -274,10 +278,11 @@ function AddressEditor({ order }: { order: Order }) {
   );
 }
 
-export default function ShopEncoder({ orders, recent_batches, couriers }: Props) {
+export default function ShopEncoder({ orders, recent_batches, couriers, filters }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
   const [groupByRegion, setGroupByRegion] = useState(false);
+  const [needsReview, setNeedsReview] = useState(filters?.needs_review ?? false);
   const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [previewBatch, setPreviewBatch] = useState<{
@@ -428,6 +433,21 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                 {selectedOrderIds.length === orders.data.length ? 'Clear Selection' : 'Select All'}
               </Button>
             )}
+            <Button
+              variant={needsReview ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setNeedsReview((v) => !v);
+                router.get(
+                  '/shop/encoder',
+                  { needs_review: !needsReview ? 1 : undefined },
+                  { preserveScroll: true }
+                );
+              }}
+            >
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              Needs Review
+            </Button>
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <input
                 type="checkbox"
@@ -636,10 +656,30 @@ export default function ShopEncoder({ orders, recent_batches, couriers }: Props)
                         <Badge variant="secondary">
                           {Number(order.address_confidence ?? 0)}% address
                         </Badge>
+                        {order.address_flags && order.address_flags.length > 0 && (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertTriangle className="mr-1 h-3 w-3" />
+                            {order.address_flags.length} issue
+                            {order.address_flags.length > 1 ? 's' : ''}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
+                    {order.address_flags && order.address_flags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {order.address_flags.map((flag) => (
+                          <Badge
+                            key={flag}
+                            variant="outline"
+                            className="border-destructive/40 text-destructive text-[10px]"
+                          >
+                            {flag.replace(/_/g, ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     <p>{order.receiver_address}</p>
                     <p className="text-muted-foreground">
                       {[order.barangay, order.city, order.state].filter(Boolean).join(', ') ||

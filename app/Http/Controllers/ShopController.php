@@ -2649,15 +2649,53 @@ class ShopController extends Controller
         ]);
     }
 
-    public function encoder(): Response
+    public function encoder(Request $request): Response
     {
+        $orders = Order::query()
+            ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->when($request->boolean('needs_review'), function ($q) {
+                $q->where(function ($sub) {
+                    $sub->whereNull('receiver_address')
+                        ->orWhere('receiver_address', '')
+                        ->orWhereNull('state')
+                        ->orWhere('state', '')
+                        ->orWhereNull('city')
+                        ->orWhere('city', '')
+                        ->orWhere('address_confidence', '<', 90)
+                        ->orWhereNull('address_mapping_id');
+                });
+            })
+            ->latest()
+            ->paginate(25)
+            ->withQueryString();
+
+        $orders->getCollection()->each(function (Order $order) {
+            $flags = [];
+            if (empty($order->receiver_address)) {
+                $flags[] = 'missing_address';
+            }
+            if (empty($order->barangay)) {
+                $flags[] = 'missing_barangay';
+            }
+            if (empty($order->city)) {
+                $flags[] = 'missing_city';
+            }
+            if (empty($order->state)) {
+                $flags[] = 'missing_province';
+            }
+            if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+                $flags[] = 'low_confidence';
+            }
+            if (empty($order->address_mapping_id)) {
+                $flags[] = 'unmapped';
+            }
+            $order->setAttribute('address_flags', $flags);
+        });
+
         return Inertia::render('Shop/Encoder', [
-            'orders' => Order::query()
-                ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
-                ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
-                ->whereNull('encoded_at')
-                ->latest()
-                ->paginate(25),
+            'orders' => $orders,
             'recent_batches' => CourierExportBatch::query()
                 ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
                 ->with(['creator:id,name'])
@@ -2669,6 +2707,7 @@ class ShopController extends Controller
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
                 ['value' => 'GENERIC', 'label' => 'Generic CSV'],
             ],
+            'filters' => $request->only(['needs_review']),
         ]);
     }
 
