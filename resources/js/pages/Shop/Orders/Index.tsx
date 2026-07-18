@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
-import { Search, Plus, FileText } from 'lucide-react';
+import { Search, Plus, FileText, MessageSquare } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,14 @@ interface Paginated<T> {
 
 interface Props {
   orders: Paginated<OrderRow>;
-  filters: { q?: string; status?: string };
+  filters: {
+    q?: string;
+    status?: string;
+    remark_q?: string;
+    remark_type?: string;
+    remark_author?: string;
+  };
+  remarkAuthors?: Record<string, string>;
 }
 
 function money(value: string | number) {
@@ -57,9 +64,15 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   return 'outline';
 }
 
-export default function OrdersIndex({ orders, filters }: Props) {
+export default function OrdersIndex({ orders, filters, remarkAuthors = {} }: Props) {
   const [search, setSearch] = useState(filters.q ?? '');
   const [statusFilter, setStatusFilter] = useState(filters.status ?? '');
+  const [remarkSearch, setRemarkSearch] = useState(filters.remark_q ?? '');
+  const [remarkType, setRemarkType] = useState(filters.remark_type ?? '');
+  const [remarkAuthor, setRemarkAuthor] = useState(filters.remark_author ?? '');
+  const [showRemarkFilters, setShowRemarkFilters] = useState(
+    Boolean(filters.remark_q || filters.remark_type || filters.remark_author)
+  );
 
   const orderSummary = (order: OrderRow) => {
     if (order.shop_items && order.shop_items.length > 0) {
@@ -113,7 +126,67 @@ export default function OrdersIndex({ orders, filters }: Props) {
                 <option value="CANCELLED">Cancelled</option>
               </select>
               <Button type="submit">Filter</Button>
+              <Button
+                type="button"
+                variant={showRemarkFilters ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setShowRemarkFilters(!showRemarkFilters)}
+              >
+                <MessageSquare className="mr-1 h-4 w-4" />
+                Remark Search
+              </Button>
             </form>
+            {showRemarkFilters && (
+              <form
+                className="mt-3 flex flex-wrap gap-3 rounded-md border bg-muted/30 p-3"
+                method="GET"
+                action="/shop/orders"
+              >
+                <input type="hidden" name="q" value={search} />
+                <input type="hidden" name="status" value={statusFilter} />
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    name="remark_q"
+                    value={remarkSearch}
+                    onChange={(e) => setRemarkSearch(e.target.value)}
+                    placeholder="Search remark content..."
+                    className="pl-8"
+                  />
+                </div>
+                <select
+                  name="remark_type"
+                  value={remarkType}
+                  onChange={(e) => setRemarkType(e.target.value)}
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">All remark types</option>
+                  <option value="agent_note">Agent Note</option>
+                  <option value="follow_up">Follow-up</option>
+                  <option value="escalation">Escalation</option>
+                  <option value="customer_feedback">Customer Feedback</option>
+                  <option value="system">System</option>
+                  <option value="duplicate_warning">Duplicate Warning</option>
+                  <option value="conversation_source">Conversation Source</option>
+                </select>
+                <select
+                  name="remark_author"
+                  value={remarkAuthor}
+                  onChange={(e) => setRemarkAuthor(e.target.value)}
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">All authors</option>
+                  {Object.entries(remarkAuthors).map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <Button type="submit" size="sm">
+                  Search Remarks
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
 

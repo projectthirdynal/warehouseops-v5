@@ -3418,13 +3418,44 @@ class ShopController extends Controller
             ->when($request->filled('status'), function ($q) use ($request) {
                 $q->where('status', $request->string('status')->toString());
             })
+            ->when($request->filled('remark_q'), function ($q) use ($request) {
+                $search = $request->string('remark_q')->toString();
+                $q->whereHas('remarks', function ($sub) use ($search) {
+                    $sub->where('body', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('remark_type'), function ($q) use ($request) {
+                $type = $request->string('remark_type')->toString();
+                $q->whereHas('remarks', function ($sub) use ($type) {
+                    $sub->where('type', $type);
+                });
+            })
+            ->when($request->filled('remark_author'), function ($q) use ($request) {
+                $authorId = (int) $request->string('remark_author')->toString();
+                $q->whereHas('remarks', function ($sub) use ($authorId) {
+                    $sub->where('user_id', $authorId);
+                });
+            })
             ->latest();
 
         $orders = $query->paginate(25)->withQueryString();
 
+        $remarkAuthors = OrderRemark::query()
+            ->select('user_id')
+            ->distinct()
+            ->with('user:id,name')
+            ->whereHas('order', function ($q) {
+                $q->whereIn('source_channel', ['manual_shop', 'facebook_shop']);
+            })
+            ->get()
+            ->pluck('user.name', 'user.id')
+            ->filter()
+            ->toArray();
+
         return Inertia::render('Shop/Orders/Index', [
             'orders' => $orders,
-            'filters' => $request->only(['q', 'status']),
+            'filters' => $request->only(['q', 'status', 'remark_q', 'remark_type', 'remark_author']),
+            'remarkAuthors' => $remarkAuthors,
         ]);
     }
 
