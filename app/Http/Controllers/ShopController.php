@@ -3801,6 +3801,52 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkHoldRelease(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'action'      => ['required', 'string', 'in:hold,release'],
+            'reason'      => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::ON_HOLD])
+            ->get();
+
+        $held = 0;
+        $released = 0;
+        $skipped = 0;
+
+        foreach ($orders as $order) {
+            if ($validated['action'] === 'hold' && ! $order->status->isTerminal() && $order->status !== OrderStatus::ON_HOLD) {
+                $order->forceFill([
+                    'status'      => OrderStatus::ON_HOLD,
+                    'held_at'     => now(),
+                    'hold_reason' => $validated['reason'] ?? null,
+                ])->save();
+                $held++;
+            } elseif ($validated['action'] === 'release' && $order->status === OrderStatus::ON_HOLD) {
+                $order->forceFill([
+                    'status'      => OrderStatus::CONFIRMED,
+                    'held_at'     => null,
+                    'hold_reason' => null,
+                ])->save();
+                $released++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        return response()->json([
+            'held'    => $held,
+            'released'=> $released,
+            'skipped' => $skipped,
+            'errors'  => [],
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {

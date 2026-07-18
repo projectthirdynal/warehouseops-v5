@@ -24,6 +24,8 @@ import {
   Printer,
   DollarSign,
   Copy,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1029,6 +1031,16 @@ export default function ShopEncoder({
     total_checked: number;
     unique_orders: number;
   } | null>(null);
+  const [showHoldRelease, setShowHoldRelease] = useState(false);
+  const [holdReleaseAction, setHoldReleaseAction] = useState<'hold' | 'release'>('hold');
+  const [holdReleaseReason, setHoldReleaseReason] = useState('');
+  const [holdReleaseLoading, setHoldReleaseLoading] = useState(false);
+  const [holdReleaseResult, setHoldReleaseResult] = useState<{
+    held: number;
+    released: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1224,6 +1236,35 @@ export default function ShopEncoder({
         setShowDupDetect(true);
       })
       .finally(() => setDupDetectLoading(false));
+  };
+
+  const handleHoldRelease = () => {
+    if (selectedOrderIds.length === 0) return;
+    setHoldReleaseLoading(true);
+    setHoldReleaseResult(null);
+    fetch('/shop/encoder/bulk-hold-release', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        order_ids: selectedOrderIds,
+        action: holdReleaseAction,
+        reason: holdReleaseReason || undefined,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setHoldReleaseResult(data);
+        if (data.held > 0 || data.released > 0) {
+          setShowHoldRelease(false);
+          setHoldReleaseReason('');
+          router.reload();
+        }
+      })
+      .finally(() => setHoldReleaseLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1514,6 +1555,32 @@ export default function ShopEncoder({
             >
               <Copy className="mr-1.5 h-3.5 w-3.5" />
               {dupDetectLoading ? 'Scanning...' : 'Detect Duplicates'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setHoldReleaseAction('hold');
+                setHoldReleaseResult(null);
+                setShowHoldRelease(true);
+              }}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <PauseCircle className="mr-1.5 h-3.5 w-3.5" />
+              Hold
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setHoldReleaseAction('release');
+                setHoldReleaseResult(null);
+                setShowHoldRelease(true);
+              }}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
+              Release
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2729,6 +2796,77 @@ export default function ShopEncoder({
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowDupDetect(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showHoldRelease && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">
+                {holdReleaseAction === 'hold' ? 'Hold Orders' : 'Release Orders'}
+              </h2>
+              <button onClick={() => setShowHoldRelease(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {holdReleaseAction === 'hold' ? (
+                <>
+                  Hold <strong>{selectedOrderIds.length}</strong> selected order
+                  {selectedOrderIds.length !== 1 ? 's' : ''}. Held orders will be excluded from
+                  exports until released.
+                </>
+              ) : (
+                <>
+                  Release <strong>{selectedOrderIds.length}</strong> selected order
+                  {selectedOrderIds.length !== 1 ? 's' : ''} back to Confirmed status.
+                </>
+              )}
+            </p>
+            {holdReleaseAction === 'hold' && (
+              <div className="mb-4">
+                <label className="mb-1 block text-sm font-medium">Hold Reason (optional)</label>
+                <Textarea
+                  value={holdReleaseReason}
+                  onChange={(e) => setHoldReleaseReason(e.target.value)}
+                  placeholder="e.g., Waiting for customer confirmation, stock issue, etc."
+                  rows={3}
+                />
+              </div>
+            )}
+            {holdReleaseResult && (
+              <div className="mb-4 rounded-md border p-3 text-sm">
+                {holdReleaseResult.held > 0 && (
+                  <p className="text-orange-600">
+                    {holdReleaseResult.held} order{holdReleaseResult.held !== 1 ? 's' : ''} held
+                  </p>
+                )}
+                {holdReleaseResult.released > 0 && (
+                  <p className="text-green-600">
+                    {holdReleaseResult.released} order{holdReleaseResult.released !== 1 ? 's' : ''}{' '}
+                    released
+                  </p>
+                )}
+                {holdReleaseResult.skipped > 0 && (
+                  <p className="text-muted-foreground">
+                    {holdReleaseResult.skipped} skipped (invalid status)
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowHoldRelease(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleHoldRelease} disabled={holdReleaseLoading}>
+                {holdReleaseLoading
+                  ? 'Processing...'
+                  : holdReleaseAction === 'hold'
+                    ? 'Hold Orders'
+                    : 'Release Orders'}
               </Button>
             </div>
           </div>

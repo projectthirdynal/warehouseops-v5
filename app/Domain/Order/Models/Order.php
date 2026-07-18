@@ -68,6 +68,8 @@ class Order extends Model
         'delivered_at',
         'returned_at',
         'encoded_at',
+        'held_at',
+        'hold_reason',
     ];
 
     protected $casts = [
@@ -85,6 +87,7 @@ class Order extends Model
         'delivered_at'  => 'datetime',
         'returned_at'   => 'datetime',
         'encoded_at'    => 'datetime',
+        'held_at'        => 'datetime',
         'draft_data'    => 'array',
     ];
 

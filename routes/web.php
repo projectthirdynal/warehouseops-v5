@@ -402,6 +402,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/encoder/bulk-cod-verify', [ShopController::class, 'bulkCodVerify'])->name('shop.encoder.bulk-cod-verify');
     Route::post('/shop/encoder/bulk-cod-update', [ShopController::class, 'bulkCodUpdate'])->name('shop.encoder.bulk-cod-update');
     Route::post('/shop/encoder/bulk-duplicate-detect', [ShopController::class, 'bulkDuplicateDetect'])->name('shop.encoder.bulk-duplicate-detect');
+    Route::post('/shop/encoder/bulk-hold-release', [ShopController::class, 'bulkHoldRelease'])->name('shop.encoder.bulk-hold-release');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
