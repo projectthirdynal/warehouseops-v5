@@ -3446,6 +3446,11 @@ class ShopController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'body', 'type', 'visibility']),
+            'mentionableUsers' => User::query()
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'role']),
         ]);
     }
 
@@ -5041,6 +5046,8 @@ class ShopController extends Controller
             'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
             'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
             'parent_id' => ['nullable', 'integer', 'exists:order_remarks,id'],
+            'mentions' => ['nullable', 'array'],
+            'mentions.*' => ['integer', 'exists:users,id'],
         ]);
 
         if (! empty($validated['parent_id'])) {
@@ -5054,6 +5061,14 @@ class ShopController extends Controller
             }
         }
 
+        $mentions = ! empty($validated['mentions'])
+            ? User::query()
+                ->whereIn('id', $validated['mentions'])
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->pluck('id')
+                ->all()
+            : [];
+
         OrderRemark::query()->create([
             'order_id' => $order->id,
             'parent_id' => $validated['parent_id'] ?? null,
@@ -5061,6 +5076,7 @@ class ShopController extends Controller
             'type' => $validated['type'] ?? 'agent_note',
             'visibility' => $validated['visibility'] ?? 'internal',
             'body' => $validated['body'],
+            'mentions' => $mentions,
         ]);
 
         return back()->with('success', 'Remark added.');
@@ -5105,12 +5121,23 @@ class ShopController extends Controller
             'body' => ['required', 'string', 'max:2000'],
             'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
             'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+            'mentions' => ['nullable', 'array'],
+            'mentions.*' => ['integer', 'exists:users,id'],
         ]);
+
+        $mentions = ! empty($validated['mentions'])
+            ? User::query()
+                ->whereIn('id', $validated['mentions'])
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->pluck('id')
+                ->all()
+            : [];
 
         $remark->forceFill([
             'body' => $validated['body'],
             'type' => $validated['type'] ?? $remark->type,
             'visibility' => $validated['visibility'] ?? $remark->visibility,
+            'mentions' => $mentions,
         ])->save();
 
         return back()->with('success', 'Remark updated.');

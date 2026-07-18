@@ -21,10 +21,12 @@ class OrderRemark extends Model
         'visibility',
         'body',
         'metadata',
+        'mentions',
     ];
 
     protected $casts = [
         'metadata' => 'array',
+        'mentions' => 'array',
     ];
 
     public function order(): BelongsTo

@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AtSign } from 'lucide-react';
 
 interface OrderRemark {
   id: number;
@@ -35,6 +37,7 @@ interface OrderRemark {
   created_at: string;
   updated_at: string;
   parent_id: number | null;
+  mentions?: number[] | null;
   user?: { id: number; name: string } | null;
   replies?: OrderRemark[];
 }
@@ -97,9 +100,16 @@ interface RemarkTemplate {
   visibility: string;
 }
 
+interface MentionableUser {
+  id: number;
+  name: string;
+  role: string;
+}
+
 interface Props {
   order: Order;
   remarkTemplates?: RemarkTemplate[];
+  mentionableUsers?: MentionableUser[];
 }
 
 function money(value: string | number) {
@@ -118,11 +128,12 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   return 'outline';
 }
 
-export default function OrderShow({ order, remarkTemplates = [] }: Props) {
+export default function OrderShow({ order, remarkTemplates = [], mentionableUsers = [] }: Props) {
   const remarkEntries = order.remarks_entries ?? [];
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [showMentions, setShowMentions] = useState(false);
   const authUserId = (usePage().props.auth as { user?: { id: number } }).user?.id;
 
   const { data, setData, post, processing, reset } = useForm({
@@ -130,19 +141,29 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
     type: 'agent_note',
     visibility: 'internal',
     parent_id: '' as string | number,
+    mentions: [] as number[],
   });
 
   const editForm = useForm({
     body: '',
     type: 'agent_note',
     visibility: 'internal',
+    mentions: [] as number[],
   });
 
   const replyForm = useForm({
     body: '',
     type: 'agent_note',
     visibility: 'internal',
+    mentions: [] as number[],
   });
+
+  const getMentionNames = (ids?: number[] | null) => {
+    if (!ids || ids.length === 0) return [];
+    return ids
+      .map((id) => mentionableUsers.find((u) => u.id === id))
+      .filter(Boolean) as MentionableUser[];
+  };
 
   const applyTemplate = (templateId: string) => {
     const tpl = remarkTemplates.find((t) => t.id === Number(templateId));
@@ -165,6 +186,7 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
     editForm.setData('body', entry.body);
     editForm.setData('type', entry.type);
     editForm.setData('visibility', entry.visibility);
+    editForm.setData('mentions', entry.mentions ?? []);
   };
 
   const cancelEdit = () => {
@@ -187,6 +209,28 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
     router.delete(`/shop/orders/${orderId}/remarks/${remarkId}`);
   };
 
+  const toggleMention = (which: 'add' | 'edit' | 'reply', userId: number) => {
+    if (which === 'add') {
+      const current = data.mentions as number[];
+      setData(
+        'mentions',
+        current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+      );
+    } else if (which === 'edit') {
+      const current = editForm.data.mentions as number[];
+      editForm.setData(
+        'mentions',
+        current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+      );
+    } else {
+      const current = replyForm.data.mentions as number[];
+      replyForm.setData(
+        'mentions',
+        current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+      );
+    }
+  };
+
   const submitRemark = (e: React.FormEvent) => {
     e.preventDefault();
     post(`/shop/orders/${order.id}/remarks`, {
@@ -202,6 +246,7 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
     replyForm.setData('body', '');
     replyForm.setData('type', entry.type);
     replyForm.setData('visibility', entry.visibility);
+    replyForm.setData('mentions', []);
   };
 
   const cancelReply = () => {
@@ -217,6 +262,7 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
         type: replyForm.data.type,
         visibility: replyForm.data.visibility,
         parent_id: parentId,
+        mentions: replyForm.data.mentions,
       },
       onSuccess: () => {
         setReplyingTo(null);
@@ -459,6 +505,35 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+                {mentionableUsers.length > 0 && (
+                  <div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground"
+                      onClick={() => setShowMentions(!showMentions)}
+                    >
+                      <AtSign className="mr-1 h-3 w-3" />
+                      {showMentions ? 'Hide Mentions' : 'Mention Supervisor'}
+                      {data.mentions.length > 0 && ` (${data.mentions.length})`}
+                    </Button>
+                    {showMentions && (
+                      <div className="mt-1 flex flex-wrap gap-3 rounded-md border p-2">
+                        {mentionableUsers.map((u) => (
+                          <label key={u.id} className="flex items-center gap-1.5 text-xs">
+                            <Checkbox
+                              checked={data.mentions.includes(u.id)}
+                              onCheckedChange={() => toggleMention('add', u.id)}
+                            />
+                            <span>{u.name}</span>
+                            <span className="text-muted-foreground">({u.role})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Textarea
                   value={data.body}
                   onChange={(e) => setData('body', e.target.value)}
@@ -524,6 +599,16 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
                         {isEdited && (
                           <span className="text-xs italic text-muted-foreground">(edited)</span>
                         )}
+                        {getMentionNames(entry.mentions).map((m) => (
+                          <Badge
+                            key={m.id}
+                            variant="outline"
+                            className="border-amber-400/40 text-xs text-amber-600"
+                          >
+                            <AtSign className="mr-0.5 h-2.5 w-2.5" />
+                            {m.name}
+                          </Badge>
+                        ))}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
@@ -585,6 +670,20 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
                             </SelectContent>
                           </Select>
                         </div>
+                        {mentionableUsers.length > 0 && (
+                          <div className="flex flex-wrap gap-3 rounded-md border p-2">
+                            {mentionableUsers.map((u) => (
+                              <label key={u.id} className="flex items-center gap-1.5 text-xs">
+                                <Checkbox
+                                  checked={editForm.data.mentions.includes(u.id)}
+                                  onCheckedChange={() => toggleMention('edit', u.id)}
+                                />
+                                <span>{u.name}</span>
+                                <span className="text-muted-foreground">({u.role})</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                         <Textarea
                           value={editForm.data.body}
                           onChange={(e) => editForm.setData('body', e.target.value)}
@@ -650,6 +749,19 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
                                 <SelectItem value="customer_visible">Customer Visible</SelectItem>
                               </SelectContent>
                             </Select>
+                            {mentionableUsers.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {mentionableUsers.map((u) => (
+                                  <label key={u.id} className="flex items-center gap-1 text-xs">
+                                    <Checkbox
+                                      checked={replyForm.data.mentions.includes(u.id)}
+                                      onCheckedChange={() => toggleMention('reply', u.id)}
+                                    />
+                                    <span>{u.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <div className="flex gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={cancelReply}>
@@ -706,6 +818,16 @@ export default function OrderShow({ order, remarkTemplates = [] }: Props) {
                                     (edited)
                                   </span>
                                 )}
+                                {getMentionNames(reply.mentions).map((m) => (
+                                  <Badge
+                                    key={m.id}
+                                    variant="outline"
+                                    className="border-amber-400/40 text-xs text-amber-600"
+                                  >
+                                    <AtSign className="mr-0.5 h-2.5 w-2.5" />
+                                    {m.name}
+                                  </Badge>
+                                ))}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">
