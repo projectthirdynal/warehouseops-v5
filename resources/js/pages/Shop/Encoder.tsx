@@ -73,6 +73,13 @@ interface Batch {
 
 interface Paginated<T> {
   data: T[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  from: number | null;
+  to: number | null;
+  links: { url: string | null; label: string; active: boolean }[];
 }
 
 interface Props {
@@ -1179,9 +1186,13 @@ export default function ShopEncoder({
   };
 
   const toggleAll = () => {
-    setSelectedOrderIds((current) =>
-      current.length === orders.data.length ? [] : orders.data.map((order) => order.id)
-    );
+    const currentPageIds = orders.data.map((order) => order.id);
+    const allCurrentPageSelected = currentPageIds.every((id) => selectedOrderIds.includes(id));
+    if (allCurrentPageSelected) {
+      setSelectedOrderIds((current) => current.filter((id) => !currentPageIds.includes(id)));
+    } else {
+      setSelectedOrderIds((current) => [...new Set([...current, ...currentPageIds])]);
+    }
   };
 
   const saveNotes = (batchId: number) => {
@@ -1312,7 +1323,14 @@ export default function ShopEncoder({
           <div className="flex flex-wrap items-center gap-2">
             {orders.data.length > 0 && (
               <Button variant="outline" onClick={toggleAll}>
-                {selectedOrderIds.length === orders.data.length ? 'Clear Selection' : 'Select All'}
+                {orders.data.every((o) => selectedOrderIds.includes(o.id))
+                  ? 'Clear Page Selection'
+                  : 'Select Page'}
+              </Button>
+            )}
+            {selectedOrderIds.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedOrderIds([])}>
+                Clear All ({selectedOrderIds.length})
               </Button>
             )}
             <Button
@@ -1323,7 +1341,7 @@ export default function ShopEncoder({
                 router.get(
                   '/shop/encoder',
                   { needs_review: !needsReview ? 1 : undefined },
-                  { preserveScroll: true }
+                  { preserveState: true, preserveScroll: true }
                 );
               }}
             >
@@ -1584,8 +1602,8 @@ export default function ShopEncoder({
         {orders.data.length > 0 && (
           <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
             {selectedOrderIds.length > 0
-              ? `${selectedOrderIds.length} selected for the next export.`
-              : 'No orders selected. Export buttons will include all encoder-ready orders.'}
+              ? `${selectedOrderIds.length} of ${orders.total} orders selected across pages. Bulk actions will apply to all selected.`
+              : `Showing ${orders.from ?? 0}-${orders.to ?? 0} of ${orders.total} orders. No orders selected — export will include all encoder-ready orders.`}
           </div>
         )}
 
@@ -1665,6 +1683,28 @@ export default function ShopEncoder({
               ))
             )}
           </div>
+
+          {orders.last_page > 1 && (
+            <div className="flex items-center justify-center gap-1">
+              {orders.links.map((link, i) => (
+                <button
+                  key={i}
+                  disabled={!link.url}
+                  onClick={() => {
+                    if (link.url) {
+                      router.get(link.url!, {}, { preserveState: true, preserveScroll: true });
+                    }
+                  }}
+                  className={`min-w-[2rem] rounded-md border px-2 py-1 text-xs transition-colors ${
+                    link.active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'hover:bg-muted'
+                  } ${!link.url ? 'cursor-not-allowed opacity-50' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: link.label }}
+                />
+              ))}
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -2021,7 +2061,11 @@ export default function ShopEncoder({
                       size="sm"
                       onClick={() => {
                         setShowValidationReport(false);
-                        router.get('/shop/encoder', { needs_review: 1 }, { preserveScroll: true });
+                        router.get(
+                          '/shop/encoder',
+                          { needs_review: 1 },
+                          { preserveState: true, preserveScroll: true }
+                        );
                       }}
                     >
                       Go to Needs Review
