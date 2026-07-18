@@ -9,12 +9,14 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\User;
 use App\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -141,6 +143,11 @@ class Order extends Model
     public function remarks(): HasMany
     {
         return $this->hasMany(OrderRemark::class);
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'order_tag');
     }
 
     // Scopes

@@ -26,6 +26,7 @@ import {
   Copy,
   PauseCircle,
   PlayCircle,
+  Tag as TagIcon,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -91,6 +92,7 @@ interface Props {
   couriers: { value: string; label: string }[];
   filters?: { needs_review?: boolean };
   encoders?: { id: number; name: string }[];
+  tags?: { id: number; name: string; slug: string; color: string }[];
 }
 
 function money(value: string | number) {
@@ -834,6 +836,7 @@ export default function ShopEncoder({
   couriers,
   filters,
   encoders,
+  tags,
 }: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
@@ -1039,6 +1042,16 @@ export default function ShopEncoder({
     held: number;
     released: number;
     skipped: number;
+    errors: string[];
+  } | null>(null);
+  const [showTagUpdate, setShowTagUpdate] = useState(false);
+  const [tagMode, setTagMode] = useState<'add' | 'replace' | 'remove'>('add');
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [tagUpdateLoading, setTagUpdateLoading] = useState(false);
+  const [tagUpdateResult, setTagUpdateResult] = useState<{
+    updated: number;
+    mode: string;
+    tag_count: number;
     errors: string[];
   } | null>(null);
 
@@ -1265,6 +1278,41 @@ export default function ShopEncoder({
         }
       })
       .finally(() => setHoldReleaseLoading(false));
+  };
+
+  const handleTagUpdate = () => {
+    if (selectedOrderIds.length === 0) return;
+    setTagUpdateLoading(true);
+    setTagUpdateResult(null);
+    fetch('/shop/encoder/bulk-tag-update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        order_ids: selectedOrderIds,
+        tag_ids: selectedTagIds,
+        mode: tagMode,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTagUpdateResult(data);
+        if (data.updated > 0) {
+          setShowTagUpdate(false);
+          setSelectedTagIds([]);
+          router.reload();
+        }
+      })
+      .finally(() => setTagUpdateLoading(false));
+  };
+
+  const toggleTag = (tagId: number) => {
+    setSelectedTagIds((current) =>
+      current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]
+    );
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1581,6 +1629,20 @@ export default function ShopEncoder({
             >
               <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
               Release
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTagMode('add');
+                setSelectedTagIds([]);
+                setTagUpdateResult(null);
+                setShowTagUpdate(true);
+              }}
+              disabled={selectedOrderIds.length === 0 || !tags?.length}
+            >
+              <TagIcon className="mr-1.5 h-3.5 w-3.5" />
+              Tag Orders
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2867,6 +2929,96 @@ export default function ShopEncoder({
                   : holdReleaseAction === 'hold'
                     ? 'Hold Orders'
                     : 'Release Orders'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showTagUpdate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Tag Orders</h2>
+              <button onClick={() => setShowTagUpdate(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Update tags for <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''}.
+            </p>
+
+            {/* Mode selector */}
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Mode</label>
+              <div className="flex gap-2">
+                {(['add', 'replace', 'remove'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setTagMode(m)}
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      tagMode === m
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    {m === 'add' ? 'Add Tags' : m === 'replace' ? 'Replace All' : 'Remove Tags'}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {tagMode === 'add' && 'Add selected tags to orders (keeps existing tags)'}
+                {tagMode === 'replace' && 'Replace all tags on orders with selected tags only'}
+                {tagMode === 'remove' && 'Remove selected tags from orders'}
+              </p>
+            </div>
+
+            {/* Tag selection */}
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Tags</label>
+              <div className="flex flex-wrap gap-2">
+                {tags?.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => toggleTag(tag.id)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      selectedTagIds.includes(tag.id)
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                    {tag.name}
+                  </button>
+                ))}
+                {(!tags || tags.length === 0) && (
+                  <p className="text-xs text-muted-foreground">No tags available.</p>
+                )}
+              </div>
+            </div>
+
+            {tagUpdateResult && (
+              <div className="mb-4 rounded-md border p-3 text-sm">
+                <p className="text-green-600">
+                  {tagUpdateResult.updated} order{tagUpdateResult.updated !== 1 ? 's' : ''} updated
+                  ({tagUpdateResult.mode}, {tagUpdateResult.tag_count} tag
+                  {tagUpdateResult.tag_count !== 1 ? 's' : ''})
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowTagUpdate(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleTagUpdate}
+                disabled={
+                  tagUpdateLoading || (tagMode !== 'replace' && selectedTagIds.length === 0)
+                }
+              >
+                {tagUpdateLoading ? 'Processing...' : 'Apply Tags'}
               </Button>
             </div>
           </div>

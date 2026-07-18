@@ -2718,6 +2718,9 @@ class ShopController extends Controller
                 ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'tags' => \App\Domain\Shop\Models\Tag::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'color']),
         ]);
     }
 
@@ -3844,6 +3847,42 @@ class ShopController extends Controller
             'released'=> $released,
             'skipped' => $skipped,
             'errors'  => [],
+        ]);
+    }
+
+    public function bulkTagUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'tag_ids'     => ['nullable', 'array'],
+            'tag_ids.*'   => ['integer', 'exists:tags,id'],
+            'mode'        => ['required', 'string', 'in:add,replace,remove'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id']);
+
+        $tagIds = $validated['tag_ids'] ?? [];
+        $affected = 0;
+
+        foreach ($orders as $order) {
+            if ($validated['mode'] === 'add') {
+                $order->tags()->syncWithoutDetaching($tagIds);
+            } elseif ($validated['mode'] === 'replace') {
+                $order->tags()->sync($tagIds);
+            } elseif ($validated['mode'] === 'remove') {
+                $order->tags()->detach($tagIds);
+            }
+            $affected++;
+        }
+
+        return response()->json([
+            'updated'  => $affected,
+            'mode'     => $validated['mode'],
+            'tag_count'=> count($tagIds),
+            'errors'   => [],
         ]);
     }
 
