@@ -121,6 +121,88 @@ class AddressMappingService
     }
 
     /**
+     * Compute granular confidence score with per-component breakdown.
+     *
+     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $input
+     * @return array{
+     *     total: float,
+     *     components: array{province: float, city_municipality: float, barangay: float, address_text: float},
+     *     matched_components: string[],
+     * }
+     */
+    public function confidenceBreakdown(array $input): array
+    {
+        $province = $this->normalizeText($input['province'] ?? '');
+        $city = $this->normalizeText($input['city_municipality'] ?? '');
+        $barangay = $this->normalizeText($input['barangay'] ?? '');
+        $address = $this->normalizeText($input['address'] ?? '');
+
+        $components = [
+            'province' => 0.0,
+            'city_municipality' => 0.0,
+            'barangay' => 0.0,
+            'address_text' => 0.0,
+        ];
+        $matched = [];
+
+        if ($province !== '') {
+            $provinceExists = AddressMapping::query()
+                ->whereRaw('LOWER(province) = ?', [$province])
+                ->exists();
+            $components['province'] = $provinceExists ? 30.0 : 0.0;
+            if ($provinceExists) {
+                $matched[] = 'province';
+            }
+        }
+
+        if ($city !== '') {
+            $cityQuery = AddressMapping::query()
+                ->whereRaw('LOWER(city_municipality) = ?', [$city]);
+            if ($province !== '') {
+                $cityQuery->whereRaw('LOWER(province) = ?', [$province]);
+            }
+            $components['city_municipality'] = $cityQuery->exists() ? 30.0 : 0.0;
+            if ($components['city_municipality'] > 0) {
+                $matched[] = 'city_municipality';
+            }
+        }
+
+        if ($barangay !== '') {
+            $barangayQuery = AddressMapping::query()
+                ->whereRaw('LOWER(COALESCE(barangay, \'\')) = ?', [$barangay]);
+            if ($province !== '') {
+                $barangayQuery->whereRaw('LOWER(province) = ?', [$province]);
+            }
+            if ($city !== '') {
+                $barangayQuery->whereRaw('LOWER(city_municipality) = ?', [$city]);
+            }
+            $components['barangay'] = $barangayQuery->exists() ? 25.0 : 0.0;
+            if ($components['barangay'] > 0) {
+                $matched[] = 'barangay';
+            }
+        }
+
+        if ($address !== '' && $components['province'] === 0.0 && $components['city_municipality'] === 0.0) {
+            $hasTextMatch = AddressMapping::query()
+                ->get()
+                ->contains(fn (AddressMapping $m) => str_contains($address, $this->normalizeText($m->province))
+                    || str_contains($address, $this->normalizeText($m->city_municipality)));
+            $components['address_text'] = $hasTextMatch ? 15.0 : 0.0;
+            if ($hasTextMatch) {
+                $matched[] = 'address_text';
+            }
+        }
+
+        $total = round(array_sum($components), 1);
+
+        return [
+            'total' => $total,
+            'components' => $components,
+            'matched_components' => $matched,
+        ];
+    }
+
+    /**
      * Suggest corrections for misspelled address fields using fuzzy matching.
      *
      * @param array{field: string, q: string, province?: ?string, city_municipality?: ?string} $input
@@ -192,6 +274,7 @@ class AddressMappingService
      *     city_municipality: array{valid: bool, suggestions: string[]},
      *     barangay: array{valid: bool, suggestions: string[]},
      *     overall_valid: bool,
+     *     confidence: array{total: float, components: array<string, float>, matched_components: string[]},
      * }
      */
     public function validate(array $input): array
@@ -285,6 +368,11 @@ class AddressMappingService
             'city_municipality' => ['valid' => $cityValid, 'suggestions' => $citySuggestions],
             'barangay' => ['valid' => $barangayValid, 'suggestions' => $barangaySuggestions],
             'overall_valid' => $overallValid,
+            'confidence' => $this->confidenceBreakdown([
+                'province' => $input['province'] ?? null,
+                'city_municipality' => $input['city_municipality'] ?? null,
+                'barangay' => $input['barangay'] ?? null,
+            ]),
         ];
     }
 }

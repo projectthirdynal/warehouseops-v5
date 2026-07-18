@@ -99,6 +99,11 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
     city_municipality: { valid: boolean; suggestions: string[] };
     barangay: { valid: boolean; suggestions: string[] };
     overall_valid: boolean;
+    confidence: {
+      total: number;
+      components: Record<string, number>;
+      matched_components: string[];
+    };
   } | null>(null);
   const [validateTimer, setValidateTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [autocomplete, setAutocomplete] = useState<{
@@ -398,6 +403,43 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           </Badge>
         )}
       </div>
+      {validation?.confidence && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Confidence Score</span>
+            <span
+              className={`text-sm font-bold ${
+                validation.confidence.total >= 85
+                  ? 'text-green-600'
+                  : validation.confidence.total >= 50
+                    ? 'text-yellow-600'
+                    : 'text-destructive'
+              }`}
+            >
+              {validation.confidence.total}%
+            </span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  validation.confidence.total >= 85
+                    ? 'bg-green-500'
+                    : validation.confidence.total >= 50
+                      ? 'bg-yellow-500'
+                      : 'bg-destructive'
+                }`}
+                style={{ width: `${validation.confidence.total}%` }}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            {Object.entries(validation.confidence.components).map(([key, score]) => (
+              <span key={key} className={score > 0 ? 'text-green-600' : ''}>
+                {key.replace(/_/g, ' ')}: {score}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
