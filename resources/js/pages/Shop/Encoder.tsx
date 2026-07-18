@@ -20,6 +20,7 @@ import {
   MapPin,
   Clock,
   FileText,
+  UserCog,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +78,7 @@ interface Props {
   recent_batches: Batch[];
   couriers: { value: string; label: string }[];
   filters?: { needs_review?: boolean };
+  encoders?: { id: number; name: string }[];
 }
 
 function money(value: string | number) {
@@ -814,7 +816,13 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
   );
 }
 
-export default function ShopEncoder({ orders, recent_batches, couriers, filters }: Props) {
+export default function ShopEncoder({
+  orders,
+  recent_batches,
+  couriers,
+  filters,
+  encoders,
+}: Props) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const [selectedCouriers, setSelectedCouriers] = useState<string[]>([]);
   const [groupByRegion, setGroupByRegion] = useState(false);
@@ -933,6 +941,14 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
     skipped: number;
     errors: string[];
   } | null>(null);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [bulkAssignEncoderId, setBulkAssignEncoderId] = useState('');
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
+  const [bulkAssignResult, setBulkAssignResult] = useState<{
+    updated: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1007,6 +1023,35 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
       })
       .catch(() => setBulkStatusResult({ updated: 0, skipped: 0, errors: ['Request failed.'] }))
       .finally(() => setBulkStatusLoading(false));
+  };
+
+  const handleBulkAssignEncoder = () => {
+    if (!bulkAssignEncoderId || selectedOrderIds.length === 0) return;
+    setBulkAssignLoading(true);
+    setBulkAssignResult(null);
+    fetch('/shop/encoder/bulk-assign-encoder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        order_ids: selectedOrderIds,
+        encoder_id: parseInt(bulkAssignEncoderId, 10),
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setBulkAssignResult(data);
+        if (data.updated > 0) {
+          setShowBulkAssign(false);
+          setBulkAssignEncoderId('');
+          router.reload();
+        }
+      })
+      .catch(() => setBulkAssignResult({ updated: 0, skipped: 0, errors: ['Request failed.'] }))
+      .finally(() => setBulkAssignLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1250,6 +1295,15 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
             >
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
               Bulk Status
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkAssign(true)}
+              disabled={selectedOrderIds.length === 0 || !encoders?.length}
+            >
+              <UserCog className="mr-1.5 h-3.5 w-3.5" />
+              Assign Encoder
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2107,6 +2161,61 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
                   disabled={!bulkStatusValue || bulkStatusLoading}
                 >
                   {bulkStatusLoading ? 'Updating...' : 'Update Status'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBulkAssign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Assign Encoder</h2>
+              <button onClick={() => setShowBulkAssign(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Assign <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''} to an encoder.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Encoder</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={bulkAssignEncoderId}
+                  onChange={(e) => setBulkAssignEncoderId(e.target.value)}
+                >
+                  <option value="">Select encoder...</option>
+                  {encoders?.map((encoder) => (
+                    <option key={encoder.id} value={encoder.id}>
+                      {encoder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {bulkAssignResult && (
+                <div className="rounded-md border p-2 text-xs">
+                  <span className="text-green-600">{bulkAssignResult.updated} assigned</span>
+                  {bulkAssignResult.errors.length > 0 && (
+                    <div className="mt-1 text-destructive">
+                      {bulkAssignResult.errors.slice(0, 3).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowBulkAssign(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleBulkAssignEncoder}
+                  disabled={!bulkAssignEncoderId || bulkAssignLoading}
+                >
+                  {bulkAssignLoading ? 'Assigning...' : 'Assign'}
                 </Button>
               </div>
             </div>

@@ -2713,6 +2713,11 @@ class ShopController extends Controller
                 ['value' => 'GENERIC', 'label' => 'Generic CSV'],
             ],
             'filters' => $request->only(['needs_review']),
+            'encoders' => \App\Models\User::query()
+                ->where('is_active', true)
+                ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
     }
 
@@ -3580,6 +3585,25 @@ class ShopController extends Controller
             'updated'  => $updated,
             'skipped'  => count($skipped),
             'errors'   => $skipped,
+        ]);
+    }
+
+    public function bulkAssignEncoder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'encoder_id'  => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $updated = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->update(['encoder_id' => $validated['encoder_id']]);
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => 0,
+            'errors'   => [],
         ]);
     }
 
