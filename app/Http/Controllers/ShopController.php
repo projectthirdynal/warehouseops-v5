@@ -3930,6 +3930,38 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkRescheduleDelivery(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'             => ['required', 'array', 'min:1'],
+            'order_ids.*'           => ['required', 'integer', 'exists:orders,id'],
+            'scheduled_delivery_at' => ['required', 'date', 'after:now'],
+            'reason'                => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereNotIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED, OrderStatus::CANCELLED])
+            ->get(['id']);
+
+        $updated = 0;
+        foreach ($orders as $order) {
+            $order->forceFill([
+                'scheduled_delivery_at' => $validated['scheduled_delivery_at'],
+                'reschedule_reason'     => $validated['reason'] ?? null,
+            ])->save();
+            $updated++;
+        }
+
+        $skipped = count($validated['order_ids']) - $updated;
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'errors'   => [],
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {

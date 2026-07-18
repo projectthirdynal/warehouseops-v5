@@ -28,6 +28,7 @@ import {
   PlayCircle,
   Tag as TagIcon,
   SplitSquareHorizontal,
+  CalendarClock,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1082,6 +1083,15 @@ export default function ShopEncoder({
     region_count: number;
     total_orders: number;
   } | null>(null);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleResult, setRescheduleResult] = useState<{
+    updated: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1361,6 +1371,36 @@ export default function ShopEncoder({
         setShowSplitRegion(true);
       })
       .finally(() => setSplitRegionLoading(false));
+  };
+
+  const handleRescheduleDelivery = () => {
+    if (selectedOrderIds.length === 0 || !rescheduleDate) return;
+    setRescheduleLoading(true);
+    setRescheduleResult(null);
+    fetch('/shop/encoder/bulk-reschedule-delivery', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        order_ids: selectedOrderIds,
+        scheduled_delivery_at: new Date(rescheduleDate).toISOString(),
+        reason: rescheduleReason || undefined,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setRescheduleResult(data);
+        if (data.updated > 0) {
+          setShowReschedule(false);
+          setRescheduleDate('');
+          setRescheduleReason('');
+          router.reload();
+        }
+      })
+      .finally(() => setRescheduleLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1700,6 +1740,20 @@ export default function ShopEncoder({
             >
               <SplitSquareHorizontal className="mr-1.5 h-3.5 w-3.5" />
               {splitRegionLoading ? 'Splitting...' : 'Split by Region'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRescheduleDate('');
+                setRescheduleReason('');
+                setRescheduleResult(null);
+                setShowReschedule(true);
+              }}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+              Reschedule
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -3159,6 +3213,68 @@ export default function ShopEncoder({
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowSplitRegion(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showReschedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Reschedule Delivery</h2>
+              <button onClick={() => setShowReschedule(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Reschedule delivery for <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''}. Terminal orders (delivered, returned,
+              cancelled) will be skipped.
+            </p>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">New Delivery Date & Time</label>
+              <Input
+                type="datetime-local"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 16)}
+              />
+            </div>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Reason (optional)</label>
+              <Textarea
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                placeholder="e.g., Customer request, weather delay, stock delay, etc."
+                rows={3}
+              />
+            </div>
+            {rescheduleResult && (
+              <div className="mb-4 rounded-md border p-3 text-sm">
+                {rescheduleResult.updated > 0 && (
+                  <p className="text-green-600">
+                    {rescheduleResult.updated} order{rescheduleResult.updated !== 1 ? 's' : ''}{' '}
+                    rescheduled
+                  </p>
+                )}
+                {rescheduleResult.skipped > 0 && (
+                  <p className="text-muted-foreground">
+                    {rescheduleResult.skipped} skipped (terminal status)
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowReschedule(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleRescheduleDelivery}
+                disabled={rescheduleLoading || !rescheduleDate}
+              >
+                {rescheduleLoading ? 'Processing...' : 'Reschedule'}
               </Button>
             </div>
           </div>
