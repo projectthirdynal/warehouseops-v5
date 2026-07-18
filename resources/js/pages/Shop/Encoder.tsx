@@ -27,6 +27,7 @@ import {
   PauseCircle,
   PlayCircle,
   Tag as TagIcon,
+  SplitSquareHorizontal,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1054,6 +1055,33 @@ export default function ShopEncoder({
     tag_count: number;
     errors: string[];
   } | null>(null);
+  const [showSplitRegion, setShowSplitRegion] = useState(false);
+  const [splitRegionLoading, setSplitRegionLoading] = useState(false);
+  const [splitRegionData, setSplitRegionData] = useState<{
+    groups: {
+      region: string;
+      order_count: number;
+      total_amount: number;
+      cod_amount: number;
+      couriers: string[];
+      orders: {
+        id: number;
+        order_number: string;
+        receiver_name: string;
+        receiver_phone: string;
+        city: string;
+        barangay: string;
+        courier_code: string;
+        status: string;
+        quantity: number;
+        total_amount: number;
+        cod_amount: number;
+        created_at: string;
+      }[];
+    }[];
+    region_count: number;
+    total_orders: number;
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1313,6 +1341,26 @@ export default function ShopEncoder({
     setSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]
     );
+  };
+
+  const handleSplitByRegion = () => {
+    if (selectedOrderIds.length === 0) return;
+    setSplitRegionLoading(true);
+    fetch('/shop/encoder/bulk-split-by-region', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ order_ids: selectedOrderIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setSplitRegionData(data);
+        setShowSplitRegion(true);
+      })
+      .finally(() => setSplitRegionLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1643,6 +1691,15 @@ export default function ShopEncoder({
             >
               <TagIcon className="mr-1.5 h-3.5 w-3.5" />
               Tag Orders
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSplitByRegion}
+              disabled={selectedOrderIds.length === 0 || splitRegionLoading}
+            >
+              <SplitSquareHorizontal className="mr-1.5 h-3.5 w-3.5" />
+              {splitRegionLoading ? 'Splitting...' : 'Split by Region'}
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -3019,6 +3076,89 @@ export default function ShopEncoder({
                 }
               >
                 {tagUpdateLoading ? 'Processing...' : 'Apply Tags'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSplitRegion && splitRegionData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Split by Region</h2>
+              <button onClick={() => setShowSplitRegion(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 grid grid-cols-3 gap-3">
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold">{splitRegionData.total_orders}</p>
+                <p className="text-xs text-muted-foreground">Total Orders</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-blue-600">{splitRegionData.region_count}</p>
+                <p className="text-xs text-muted-foreground">Regions</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">
+                  {money(splitRegionData.groups.reduce((sum, g) => sum + g.total_amount, 0))}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Value</p>
+              </div>
+            </div>
+
+            {splitRegionData.groups.map((group, gi) => (
+              <div key={gi} className="mb-3 rounded-md border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="border-blue-500/50 text-blue-600">
+                      {group.region}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {group.order_count} order{group.order_count !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>Total: {money(group.total_amount)}</span>
+                    <span>COD: {money(group.cod_amount)}</span>
+                    {group.couriers.length > 0 && (
+                      <span>Couriers: {group.couriers.join(', ')}</span>
+                    )}
+                  </div>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-1 pr-2">Order #</th>
+                      <th className="pb-1 pr-2">Customer</th>
+                      <th className="pb-1 pr-2">City</th>
+                      <th className="pb-1 pr-2 text-right">Qty</th>
+                      <th className="pb-1 pr-2 text-right">Total</th>
+                      <th className="pb-1 pr-2 text-right">COD</th>
+                      <th className="pb-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.orders.map((order) => (
+                      <tr key={order.id} className="border-b last:border-0">
+                        <td className="py-1 pr-2 font-mono">{order.order_number}</td>
+                        <td className="py-1 pr-2">{order.receiver_name}</td>
+                        <td className="py-1 pr-2">{order.city || '—'}</td>
+                        <td className="py-1 pr-2 text-right">{order.quantity}</td>
+                        <td className="py-1 pr-2 text-right">{money(order.total_amount)}</td>
+                        <td className="py-1 pr-2 text-right">{money(order.cod_amount)}</td>
+                        <td className="py-1">{order.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowSplitRegion(false)}>
+                Close
               </Button>
             </div>
           </div>

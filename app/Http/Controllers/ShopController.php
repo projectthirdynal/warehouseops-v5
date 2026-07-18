@@ -3886,6 +3886,50 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkSplitByRegion(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'courier_code', 'status', 'quantity', 'total_amount', 'cod_amount', 'created_at']);
+
+        $groups = $orders->groupBy(fn (Order $order) => $order->state ?: 'Unspecified')->map(function ($orders, $region) {
+            return [
+                'region'      => $region,
+                'order_count' => $orders->count(),
+                'total_amount'=> $orders->sum('total_amount'),
+                'cod_amount'  => $orders->sum('cod_amount'),
+                'couriers'    => $orders->pluck('courier_code')->filter()->unique()->values()->toArray(),
+                'orders'      => $orders->map(fn (Order $order) => [
+                    'id'             => $order->id,
+                    'order_number'   => $order->order_number,
+                    'receiver_name'  => $order->receiver_name,
+                    'receiver_phone' => $order->receiver_phone,
+                    'city'           => $order->city,
+                    'barangay'       => $order->barangay,
+                    'courier_code'   => $order->courier_code,
+                    'status'         => $order->status->value,
+                    'quantity'       => $order->quantity,
+                    'total_amount'   => (float) $order->total_amount,
+                    'cod_amount'     => (float) $order->cod_amount,
+                    'created_at'     => $order->created_at?->toIso8601String(),
+                ])->values()->toArray(),
+            ];
+        })->values()->toArray();
+
+        usort($groups, fn ($a, $b) => $b['order_count'] <=> $a['order_count']);
+
+        return response()->json([
+            'groups'        => $groups,
+            'region_count'  => count($groups),
+            'total_orders'  => $orders->count(),
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
