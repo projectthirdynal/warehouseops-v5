@@ -51,6 +51,8 @@ class Order extends Model
         'state',
         'barangay',
         'postal_code',
+        'landmark',
+        'nearest_landmark',
         'address_mapping_id',
         'source_channel',
         'address_confidence',

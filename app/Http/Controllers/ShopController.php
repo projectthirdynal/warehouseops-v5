@@ -2941,6 +2941,8 @@ class ShopController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'postal_code' => ['nullable', 'string', 'max:30'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'nearest_landmark' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -2957,6 +2959,8 @@ class ShopController extends Controller
             'city' => $validated['city'] ?? null,
             'state' => $validated['state'] ?? null,
             'postal_code' => $validated['postal_code'] ?? null,
+            'landmark' => $validated['landmark'] ?? null,
+            'nearest_landmark' => $validated['nearest_landmark'] ?? null,
             'notes' => $validated['notes'] ?? $order->notes,
             'address_mapping_id' => $addressMatch['mapping']?->id,
             'address_confidence' => $addressMatch['confidence'],

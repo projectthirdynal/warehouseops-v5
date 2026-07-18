@@ -31,6 +31,8 @@ interface Order {
   city?: string | null;
   state?: string | null;
   barangay?: string | null;
+  landmark?: string | null;
+  nearest_landmark?: string | null;
   total_amount: string | number;
   address_confidence?: string | number | null;
   address_flags?: string[];
@@ -87,6 +89,8 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
     barangay: order.barangay ?? '',
     city: order.city ?? '',
     state: order.state ?? '',
+    landmark: order.landmark ?? '',
+    nearest_landmark: order.nearest_landmark ?? '',
     notes: '',
   });
   const [validation, setValidation] = useState<{
@@ -347,6 +351,18 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
               </div>
             )}
         </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <Input
+          value={form.landmark}
+          onChange={(event) => update('landmark', event.target.value)}
+          placeholder="Landmark"
+        />
+        <Input
+          value={form.nearest_landmark}
+          onChange={(event) => update('nearest_landmark', event.target.value)}
+          placeholder="Nearest landmark"
+        />
       </div>
       <Input
         value={form.notes}
