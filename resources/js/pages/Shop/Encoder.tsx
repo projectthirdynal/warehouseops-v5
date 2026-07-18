@@ -18,6 +18,7 @@ import {
   History,
   Upload,
   MapPin,
+  Clock,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -140,6 +141,21 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
     display_name: string;
     suggestions: Record<string, string>;
   } | null>(null);
+  const [prevAddressLoading, setPrevAddressLoading] = useState(false);
+  const [prevAddressSuggestions, setPrevAddressSuggestions] = useState<
+    {
+      order_number: string;
+      receiver_address: string;
+      barangay: string | null;
+      city: string | null;
+      state: string | null;
+      postal_code: string | null;
+      landmark: string | null;
+      nearest_landmark: string | null;
+      created_at: string;
+    }[]
+  >([]);
+  const [showPrevAddresses, setShowPrevAddresses] = useState(false);
 
   const fetchAutocomplete = (
     field: 'province' | 'city_municipality' | 'barangay',
@@ -208,6 +224,36 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
         } as typeof geocodeResult & { message?: string })
       )
       .finally(() => setGeocodeLoading(false));
+  };
+
+  const loadPrevAddresses = () => {
+    if (showPrevAddresses) {
+      setShowPrevAddresses(false);
+      return;
+    }
+    setPrevAddressLoading(true);
+    fetch(`/shop/encoder/orders/${order.id}/suggest-address`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPrevAddressSuggestions(data.suggestions ?? []);
+        setShowPrevAddresses(true);
+      })
+      .finally(() => setPrevAddressLoading(false));
+  };
+
+  const applyPrevAddress = (s: (typeof prevAddressSuggestions)[0]) => {
+    setForm({
+      receiver_address: s.receiver_address ?? '',
+      barangay: s.barangay ?? '',
+      city: s.city ?? '',
+      state: s.state ?? '',
+      landmark: s.landmark ?? '',
+      nearest_landmark: s.nearest_landmark ?? '',
+      notes: '',
+    });
+    setShowPrevAddresses(false);
   };
 
   const update = (key: keyof typeof form, value: string) => {
@@ -479,6 +525,14 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           <MapPin className="mr-1.5 h-3.5 w-3.5" />
           {geocodeLoading ? 'Geocoding...' : 'Geocode'}
         </Button>
+        <Button size="sm" variant="ghost" onClick={loadPrevAddresses} disabled={prevAddressLoading}>
+          <Clock className="mr-1.5 h-3.5 w-3.5" />
+          {prevAddressLoading
+            ? 'Loading...'
+            : showPrevAddresses
+              ? 'Hide Previous'
+              : 'Previous Orders'}
+        </Button>
         {hasFlags && (
           <span className="text-xs text-destructive">Resolve address issues before encoding</span>
         )}
@@ -634,6 +688,48 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
               {(geocodeResult as typeof geocodeResult & { message?: string }).message ??
                 'Geocoding failed.'}
             </p>
+          )}
+        </div>
+      )}
+      {showPrevAddresses && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              Previous Addresses ({prevAddressSuggestions.length})
+            </span>
+            <button onClick={() => setShowPrevAddresses(false)}>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {prevAddressSuggestions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No previous addresses found for this customer.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {prevAddressSuggestions.map((s) => (
+                <div key={s.order_number} className="rounded border p-2 text-xs">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-medium">{s.order_number}</span>
+                    <span className="text-muted-foreground">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {s.receiver_address}
+                    {s.barangay && `, ${s.barangay}`}
+                    {s.city && `, ${s.city}`}
+                    {s.state && `, ${s.state}`}
+                  </p>
+                  <button
+                    className="mt-1 text-blue-600 hover:underline"
+                    onClick={() => applyPrevAddress(s)}
+                  >
+                    Use this address
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

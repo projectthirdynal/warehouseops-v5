@@ -393,6 +393,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/encoder/orders/{order}/correction-history', [ShopController::class, 'addressCorrectionHistory'])->name('shop.encoder.correction-history');
     Route::post('/shop/encoder/bulk-address-update', [ShopController::class, 'bulkAddressUpdate'])->name('shop.encoder.bulk-address-update');
     Route::post('/shop/encoder/orders/{order}/geocode', [ShopController::class, 'geocodeAddress'])->name('shop.encoder.geocode');
+    Route::get('/shop/encoder/orders/{order}/suggest-address', [ShopController::class, 'suggestPreviousAddress'])->name('shop.encoder.suggest-address');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');

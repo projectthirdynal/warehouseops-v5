@@ -3329,6 +3329,76 @@ class ShopController extends Controller
         ]);
     }
 
+    public function suggestPreviousAddress(Order $order): JsonResponse
+    {
+        $phone = $order->receiver_phone ? $this->phones->normalize($order->receiver_phone) : null;
+
+        if (!$phone) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $previous = Order::query()
+            ->where('receiver_phone', $phone)
+            ->where('id', '!=', $order->id)
+            ->whereNotNull('receiver_address')
+            ->where('receiver_address', '!=', '')
+            ->whereIn('status', [
+                \App\Domain\Order\Enums\OrderStatus::CONFIRMED,
+                \App\Domain\Order\Enums\OrderStatus::QA_APPROVED,
+                \App\Domain\Order\Enums\OrderStatus::DISPATCHED,
+                \App\Domain\Order\Enums\OrderStatus::DELIVERED,
+            ])
+            ->latest()
+            ->limit(20)
+            ->get([
+                'id',
+                'order_number',
+                'receiver_address',
+                'barangay',
+                'city',
+                'state',
+                'postal_code',
+                'landmark',
+                'nearest_landmark',
+                'created_at',
+            ]);
+
+        $seen = [];
+        $suggestions = [];
+
+        foreach ($previous as $prev) {
+            $key = md5(
+                ($prev->receiver_address ?? '') . '|' .
+                ($prev->barangay ?? '') . '|' .
+                ($prev->city ?? '') . '|' .
+                ($prev->state ?? '')
+            );
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $suggestions[] = [
+                'order_number' => $prev->order_number,
+                'receiver_address' => $prev->receiver_address,
+                'barangay' => $prev->barangay,
+                'city' => $prev->city,
+                'state' => $prev->state,
+                'postal_code' => $prev->postal_code,
+                'landmark' => $prev->landmark,
+                'nearest_landmark' => $prev->nearest_landmark,
+                'created_at' => $prev->created_at?->toIso8601String(),
+            ];
+
+            if (count($suggestions) >= 5) {
+                break;
+            }
+        }
+
+        return response()->json(['suggestions' => $suggestions]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
