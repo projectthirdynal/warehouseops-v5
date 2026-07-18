@@ -9,6 +9,54 @@ use App\Domain\Shop\Models\AddressMapping;
 class AddressMappingService
 {
     /**
+     * Autocomplete address fields from mapped data.
+     *
+     * @param array{field: string, q: string, province?: ?string, city_municipality?: ?string} $input
+     * @return string[]
+     */
+    public function autocomplete(array $input): array
+    {
+        $field = $input['field'] ?? '';
+        $q = $this->normalizeText($input['q'] ?? '');
+        $province = $this->normalizeText($input['province'] ?? '');
+        $city = $this->normalizeText($input['city_municipality'] ?? '');
+
+        if ($q === '' || !in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
+            return [];
+        }
+
+        return match ($field) {
+            'province' => AddressMapping::query()
+                ->select('province')
+                ->distinct()
+                ->whereRaw('LOWER(province) LIKE ?', ["%{$q}%"])
+                ->orderBy('province')
+                ->limit(10)
+                ->pluck('province')
+                ->toArray(),
+            'city_municipality' => AddressMapping::query()
+                ->select('city_municipality')
+                ->distinct()
+                ->when($province !== '', fn ($query) => $query->whereRaw('LOWER(province) = ?', [$province]))
+                ->whereRaw('LOWER(city_municipality) LIKE ?', ["%{$q}%"])
+                ->orderBy('city_municipality')
+                ->limit(10)
+                ->pluck('city_municipality')
+                ->toArray(),
+            'barangay' => AddressMapping::query()
+                ->select('barangay')
+                ->whereNotNull('barangay')
+                ->when($province !== '', fn ($query) => $query->whereRaw('LOWER(province) = ?', [$province]))
+                ->when($city !== '', fn ($query) => $query->whereRaw('LOWER(city_municipality) = ?', [$city]))
+                ->whereRaw('LOWER(barangay) LIKE ?', ["%{$q}%"])
+                ->orderBy('barangay')
+                ->limit(10)
+                ->pluck('barangay')
+                ->toArray(),
+            default => [],
+        };
+    }
+    /**
      * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $input
      * @return array{mapping: ?AddressMapping, confidence: float, requires_encoder_review: bool}
      */

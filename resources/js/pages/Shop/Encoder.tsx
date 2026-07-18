@@ -96,6 +96,32 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
     overall_valid: boolean;
   } | null>(null);
   const [validateTimer, setValidateTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [autocomplete, setAutocomplete] = useState<{
+    field: 'province' | 'city_municipality' | 'barangay' | null;
+    items: string[];
+  }>({ field: null, items: [] });
+  const [autocompleteTimer, setAutocompleteTimer] = useState<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const fetchAutocomplete = (
+    field: 'province' | 'city_municipality' | 'barangay',
+    q: string,
+    currentForm: typeof form
+  ) => {
+    if (q.trim().length < 2) {
+      setAutocomplete({ field: null, items: [] });
+      return;
+    }
+    const params = new URLSearchParams({ field, q });
+    if (field !== 'province' && currentForm.state) params.append('province', currentForm.state);
+    if (field === 'barangay' && currentForm.city)
+      params.append('city_municipality', currentForm.city);
+    fetch(`/shop/encoder/autocomplete?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => setAutocomplete({ field, items: data }))
+      .catch(() => setAutocomplete({ field: null, items: [] }));
+  };
 
   const update = (key: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -126,6 +152,32 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
         .catch(() => setValidation(null));
     }, 400);
     setValidateTimer(timer);
+
+    if (autocompleteTimer) clearTimeout(autocompleteTimer);
+    const acField =
+      key === 'state'
+        ? 'province'
+        : key === 'city'
+          ? 'city_municipality'
+          : key === 'barangay'
+            ? 'barangay'
+            : null;
+    if (acField) {
+      const acTimer = setTimeout(() => {
+        fetchAutocomplete(acField, value, form);
+      }, 300);
+      setAutocompleteTimer(acTimer);
+    }
+  };
+
+  const selectSuggestion = (
+    field: 'province' | 'city_municipality' | 'barangay',
+    value: string
+  ) => {
+    setAutocomplete({ field: null, items: [] });
+    if (field === 'province') update('state', value);
+    else if (field === 'city_municipality') update('city', value);
+    else update('barangay', value);
   };
 
   const fieldIcon = (valid: boolean, hasValue: boolean) => {
@@ -161,6 +213,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
             />
             {validation && fieldIcon(validation.barangay.valid, Boolean(form.barangay))}
           </div>
+          {autocomplete.field === 'barangay' && autocomplete.items.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-40 overflow-auto rounded-md border bg-popover shadow-md">
+              {autocomplete.items.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => selectSuggestion('barangay', s)}
+                  className="block w-full px-2 py-1 text-left text-xs hover:bg-accent"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           {validation &&
             !validation.barangay.valid &&
             validation.barangay.suggestions.length > 0 && (
@@ -194,6 +260,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
             />
             {validation && fieldIcon(validation.city_municipality.valid, Boolean(form.city))}
           </div>
+          {autocomplete.field === 'city_municipality' && autocomplete.items.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-40 overflow-auto rounded-md border bg-popover shadow-md">
+              {autocomplete.items.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => selectSuggestion('city_municipality', s)}
+                  className="block w-full px-2 py-1 text-left text-xs hover:bg-accent"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           {validation &&
             !validation.city_municipality.valid &&
             validation.city_municipality.suggestions.length > 0 && (
@@ -227,6 +307,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
             />
             {validation && fieldIcon(validation.province.valid, Boolean(form.state))}
           </div>
+          {autocomplete.field === 'province' && autocomplete.items.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-40 overflow-auto rounded-md border bg-popover shadow-md">
+              {autocomplete.items.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => selectSuggestion('province', s)}
+                  className="block w-full px-2 py-1 text-left text-xs hover:bg-accent"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
           {validation &&
             !validation.province.valid &&
             validation.province.suggestions.length > 0 && (

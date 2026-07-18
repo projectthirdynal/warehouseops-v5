@@ -3021,6 +3021,20 @@ class ShopController extends Controller
         );
     }
 
+    public function autocompleteAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'field' => ['required', 'string', 'in:province,city_municipality,barangay'],
+            'q' => ['required', 'string', 'min:1', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(
+            $this->addressMappings->autocomplete($validated)
+        );
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
