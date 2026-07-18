@@ -81,7 +81,7 @@ function orderSummary(order: Order) {
   return order.product?.name ?? 'No product';
 }
 
-function AddressEditor({ order }: { order: Order }) {
+function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean }) {
   const [form, setForm] = useState({
     receiver_address: order.receiver_address ?? '',
     barangay: order.barangay ?? '',
@@ -262,12 +262,16 @@ function AddressEditor({ order }: { order: Order }) {
         </Button>
         <Button
           size="sm"
+          disabled={hasFlags}
           onClick={() =>
             router.post(`/shop/encoder/orders/${order.id}/encoded`, {}, { preserveScroll: true })
           }
         >
           Mark Encoded
         </Button>
+        {hasFlags && (
+          <span className="text-xs text-destructive">Resolve address issues before encoding</span>
+        )}
         {validation && (
           <Badge variant={validation.overall_valid ? 'default' : 'destructive'} className="text-xs">
             {validation.overall_valid ? 'Address Valid' : 'Needs Review'}
@@ -686,7 +690,10 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
                         'No structured location'}
                     </p>
                     <p className="text-muted-foreground">{orderSummary(order)}</p>
-                    <AddressEditor order={order} />
+                    <AddressEditor
+                      order={order}
+                      hasFlags={Boolean(order.address_flags && order.address_flags.length > 0)}
+                    />
                   </CardContent>
                 </Card>
               ))

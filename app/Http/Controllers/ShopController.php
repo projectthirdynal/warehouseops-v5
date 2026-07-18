@@ -2732,6 +2732,16 @@ class ShopController extends Controller
             return back()->with('error', 'No encoder-ready orders found for export.');
         }
 
+        $validOrders = $orders->filter(fn (Order $o) => empty($this->getAddressIssues($o)));
+        $skippedCount = $orders->count() - $validOrders->count();
+
+        if ($validOrders->isEmpty()) {
+            return back()->with('error', "All {$orders->count()} order(s) have unresolved address issues. Please correct addresses before exporting.");
+        }
+
+        $orders = $validOrders;
+        $skipWarning = $skippedCount > 0 ? " ({$skippedCount} skipped due to address issues)" : '';
+
         if (! empty($validated['group_by_region'])) {
             $batches = $this->courierExports->createBatchesByRegion($orders, $validated['courier_code'], auth()->id());
             $count = $batches->count();
@@ -2739,14 +2749,14 @@ class ShopController extends Controller
 
             return redirect()
                 ->route('shop.encoder')
-                ->with('success', "Created {$count} batch(es) by region: {$regions}");
+                ->with('success', "Created {$count} batch(es) by region: {$regions}{$skipWarning}");
         }
 
         $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());
 
         return redirect()
             ->route('shop.encoder')
-            ->with('success', "Export batch {$batch->batch_number} created.");
+            ->with('success', "Export batch {$batch->batch_number} created.{$skipWarning}");
     }
 
     public function exportMultipleCouriers(Request $request): RedirectResponse
@@ -2770,6 +2780,16 @@ class ShopController extends Controller
             return back()->with('error', 'No encoder-ready orders found for export.');
         }
 
+        $validOrders = $orders->filter(fn (Order $o) => empty($this->getAddressIssues($o)));
+        $skippedCount = $orders->count() - $validOrders->count();
+
+        if ($validOrders->isEmpty()) {
+            return back()->with('error', "All {$orders->count()} order(s) have unresolved address issues. Please correct addresses before exporting.");
+        }
+
+        $orders = $validOrders;
+        $skipWarning = $skippedCount > 0 ? " ({$skippedCount} skipped due to address issues)" : '';
+
         $batches = $this->courierExports->createBatchesForCouriers($orders, $validated['courier_codes'], auth()->id());
 
         $count = $batches->count();
@@ -2777,7 +2797,7 @@ class ShopController extends Controller
 
         return redirect()
             ->route('shop.encoder')
-            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}");
+            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}{$skipWarning}");
     }
 
     public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
@@ -2947,12 +2967,45 @@ class ShopController extends Controller
 
     public function markEncoded(Order $order): RedirectResponse
     {
+        $issues = $this->getAddressIssues($order);
+
+        if (!empty($issues)) {
+            return back()->with('error', "Cannot encode {$order->order_number}: " . implode(', ', $issues));
+        }
+
         $order->forceFill([
             'encoded_at' => now(),
             'export_status' => 'ready',
         ])->save();
 
         return back()->with('success', "{$order->order_number} marked encoded.");
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getAddressIssues(Order $order): array
+    {
+        $issues = [];
+        if (empty($order->receiver_address)) {
+            $issues[] = 'missing address';
+        }
+        if (empty($order->barangay)) {
+            $issues[] = 'missing barangay';
+        }
+        if (empty($order->city)) {
+            $issues[] = 'missing city';
+        }
+        if (empty($order->state)) {
+            $issues[] = 'missing province';
+        }
+        if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+            $issues[] = 'low address confidence';
+        }
+        if (empty($order->address_mapping_id)) {
+            $issues[] = 'unmapped address';
+        }
+        return $issues;
     }
 
     public function validateAddress(Request $request): JsonResponse
