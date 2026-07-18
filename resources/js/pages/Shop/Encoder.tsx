@@ -16,6 +16,7 @@ import {
   Filter,
   ClipboardCheck,
   History,
+  Upload,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -621,6 +622,45 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
     type: 'single' | 'multi';
     courierCode?: string;
   } | null>(null);
+  const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
+  const [bulkUploadResult, setBulkUploadResult] = useState<{
+    updated: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
+
+  const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBulkUploadLoading(true);
+    setBulkUploadResult(null);
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/shop/encoder/bulk-address-update', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: formData,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setBulkUploadResult({ updated: 0, skipped: 0, errors: [data.error] });
+        } else {
+          setBulkUploadResult(data);
+          if (data.updated > 0) {
+            router.reload();
+          }
+        }
+      })
+      .catch(() => setBulkUploadResult({ updated: 0, skipped: 0, errors: ['Upload failed.'] }))
+      .finally(() => {
+        setBulkUploadLoading(false);
+        event.target.value = '';
+      });
+  };
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -812,6 +852,40 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
               <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
               {validationReportLoading ? 'Checking...' : 'Validation Report'}
             </Button>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium ring-offset-background hover:bg-accent hover:text-accent-foreground">
+              <Upload className="h-3.5 w-3.5" />
+              {bulkUploadLoading ? 'Uploading...' : 'Bulk CSV'}
+              <input
+                type="file"
+                accept=".csv,.txt"
+                className="hidden"
+                disabled={bulkUploadLoading}
+                onChange={handleBulkUpload}
+              />
+            </label>
+            {bulkUploadResult && (
+              <div className="text-xs">
+                <span className="text-green-600">{bulkUploadResult.updated} updated</span>
+                {' / '}
+                <span className="text-muted-foreground">{bulkUploadResult.skipped} skipped</span>
+                {bulkUploadResult.errors.length > 0 && (
+                  <span className="text-destructive">
+                    {' '}
+                    / {bulkUploadResult.errors.length} errors
+                  </span>
+                )}
+                {bulkUploadResult.errors.length > 0 && (
+                  <div
+                    className="mt-1 max-w-md truncate text-destructive"
+                    title={bulkUploadResult.errors.join('\n')}
+                  >
+                    {bulkUploadResult.errors.slice(0, 3).join(', ')}
+                    {bulkUploadResult.errors.length > 3 &&
+                      ` +${bulkUploadResult.errors.length - 3} more`}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
               {couriers.map((courier) => (

@@ -3161,6 +3161,129 @@ class ShopController extends Controller
         return response()->json(['history' => $history]);
     }
 
+    public function bulkAddressUpdate(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ]);
+
+        $path = $request->file('file')->getRealPath();
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return response()->json(['error' => 'Cannot read file.'], 422);
+        }
+
+        $header = fgetcsv($handle);
+        if ($header === false) {
+            fclose($handle);
+            return response()->json(['error' => 'Empty CSV file.'], 422);
+        }
+
+        $header = array_map(fn ($h) => strtolower(trim($h)), $header);
+        $required = ['order_number'];
+        foreach ($required as $col) {
+            if (!in_array($col, $header, true)) {
+                fclose($handle);
+                return response()->json(['error' => "Missing required column: {$col}"], 422);
+            }
+        }
+
+        $colMap = [];
+        foreach (['order_number', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'landmark', 'nearest_landmark'] as $field) {
+            $idx = array_search($field, $header, true);
+            if ($idx !== false) {
+                $colMap[$field] = $idx;
+            }
+        }
+
+        $updated = 0;
+        $skipped = 0;
+        $errors = [];
+        $lineNum = 1;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $lineNum++;
+            $orderNumber = trim($row[$colMap['order_number']] ?? '');
+            if ($orderNumber === '') {
+                $errors[] = "Line {$lineNum}: missing order_number";
+                $skipped++;
+                continue;
+            }
+
+            $order = Order::query()->where('order_number', $orderNumber)->first();
+            if (!$order) {
+                $errors[] = "Line {$lineNum}: order {$orderNumber} not found";
+                $skipped++;
+                continue;
+            }
+
+            $before = [
+                'receiver_address' => $order->receiver_address,
+                'barangay' => $order->barangay,
+                'city' => $order->city,
+                'state' => $order->state,
+                'postal_code' => $order->postal_code,
+                'landmark' => $order->landmark,
+                'nearest_landmark' => $order->nearest_landmark,
+            ];
+            $confidenceBefore = floatval($order->address_confidence ?? 0);
+
+            $changed = false;
+            foreach ($colMap as $field => $idx) {
+                if ($field === 'order_number') continue;
+                $value = trim($row[$idx] ?? '');
+                if ($value !== '' && $value !== $order->{$field}) {
+                    $order->{$field} = $value;
+                    $changed = true;
+                }
+            }
+
+            if (!$changed) {
+                $skipped++;
+                continue;
+            }
+
+            $addressMatch = $this->addressMappings->match([
+                'province' => $order->state,
+                'city_municipality' => $order->city,
+                'barangay' => $order->barangay,
+                'address' => $order->receiver_address,
+            ]);
+
+            $order->address_mapping_id = $addressMatch['mapping']?->id;
+            $order->address_confidence = $addressMatch['confidence'];
+            $order->save();
+
+            AddressCorrectionHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $request->user()?->id,
+                'before' => $before,
+                'after' => [
+                    'receiver_address' => $order->receiver_address,
+                    'barangay' => $order->barangay,
+                    'city' => $order->city,
+                    'state' => $order->state,
+                    'postal_code' => $order->postal_code,
+                    'landmark' => $order->landmark,
+                    'nearest_landmark' => $order->nearest_landmark,
+                ],
+                'confidence_before' => $confidenceBefore,
+                'confidence_after' => floatval($addressMatch['confidence']),
+                'action' => 'bulk_csv',
+            ]);
+
+            $updated++;
+        }
+
+        fclose($handle);
+
+        return response()->json([
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
