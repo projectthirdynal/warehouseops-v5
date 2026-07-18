@@ -230,17 +230,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           {validation &&
             !validation.barangay.valid &&
             validation.barangay.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {validation.barangay.suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => update('barangay', s)}
-                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Did you mean?</span>
+                <div className="flex flex-wrap gap-1">
+                  {validation.barangay.suggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => update('barangay', s)}
+                      className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
         </div>
@@ -277,17 +280,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           {validation &&
             !validation.city_municipality.valid &&
             validation.city_municipality.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {validation.city_municipality.suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => update('city', s)}
-                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Did you mean?</span>
+                <div className="flex flex-wrap gap-1">
+                  {validation.city_municipality.suggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => update('city', s)}
+                      className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
         </div>
@@ -324,17 +330,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
           {validation &&
             !validation.province.valid &&
             validation.province.suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {validation.province.suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => update('state', s)}
-                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Did you mean?</span>
+                <div className="flex flex-wrap gap-1">
+                  {validation.province.suggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => update('state', s)}
+                      className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
         </div>

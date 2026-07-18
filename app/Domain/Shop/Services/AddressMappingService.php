@@ -121,6 +121,69 @@ class AddressMappingService
     }
 
     /**
+     * Suggest corrections for misspelled address fields using fuzzy matching.
+     *
+     * @param array{field: string, q: string, province?: ?string, city_municipality?: ?string} $input
+     * @return string[]
+     */
+    public function suggestCorrections(array $input): array
+    {
+        $field = $input['field'] ?? '';
+        $q = $this->normalizeText($input['q'] ?? '');
+        $province = $this->normalizeText($input['province'] ?? '');
+        $city = $this->normalizeText($input['city_municipality'] ?? '');
+
+        if ($q === '' || !in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
+            return [];
+        }
+
+        return match ($field) {
+            'province' => $this->fuzzyMatch(
+                AddressMapping::query()->select('province')->distinct()->pluck('province')->toArray(),
+                $q,
+            ),
+            'city_municipality' => $this->fuzzyMatch(
+                AddressMapping::query()
+                    ->select('city_municipality')
+                    ->distinct()
+                    ->when($province !== '', fn ($query) => $query->whereRaw('LOWER(province) = ?', [$province]))
+                    ->pluck('city_municipality')
+                    ->toArray(),
+                $q,
+            ),
+            'barangay' => $this->fuzzyMatch(
+                AddressMapping::query()
+                    ->select('barangay')
+                    ->whereNotNull('barangay')
+                    ->when($province !== '', fn ($query) => $query->whereRaw('LOWER(province) = ?', [$province]))
+                    ->when($city !== '', fn ($query) => $query->whereRaw('LOWER(city_municipality) = ?', [$city]))
+                    ->pluck('barangay')
+                    ->toArray(),
+                $q,
+            ),
+            default => [],
+        };
+    }
+
+    /**
+     * @param string[] $candidates
+     * @return string[]
+     */
+    private function fuzzyMatch(array $candidates, string $query, int $threshold = 3): array
+    {
+        $scored = [];
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeText($candidate);
+            $distance = levenshtein($query, $normalized);
+            if ($distance <= $threshold) {
+                $scored[$candidate] = $distance;
+            }
+        }
+        asort($scored);
+        return array_keys(array_slice($scored, 0, 5, true));
+    }
+
+    /**
      * Validate individual address fields against the mapping table.
      *
      * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string} $input
@@ -147,15 +210,12 @@ class AddressMappingService
             $provinceValid = $provinceMatch;
 
             if (! $provinceValid) {
-                $provinceSuggestions = AddressMapping::query()
+                $candidates = AddressMapping::query()
                     ->select('province')
                     ->distinct()
-                    ->get()
                     ->pluck('province')
-                    ->filter(fn ($p) => str_starts_with($this->normalizeText($p), substr($province, 0, 3)))
-                    ->take(5)
-                    ->values()
                     ->toArray();
+                $provinceSuggestions = $this->fuzzyMatch($candidates, $province);
             }
         }
 
@@ -177,13 +237,10 @@ class AddressMappingService
                 if ($province !== '') {
                     $suggestQuery->whereRaw('LOWER(province) = ?', [$province]);
                 }
-                $citySuggestions = $suggestQuery
-                    ->get()
-                    ->pluck('city_municipality')
-                    ->filter(fn ($c) => str_starts_with($this->normalizeText($c), substr($city, 0, 3)))
-                    ->take(5)
-                    ->values()
-                    ->toArray();
+                $citySuggestions = $this->fuzzyMatch(
+                    $suggestQuery->pluck('city_municipality')->toArray(),
+                    $city,
+                );
             }
         }
 
@@ -212,13 +269,10 @@ class AddressMappingService
                 if ($city !== '') {
                     $suggestQuery->whereRaw('LOWER(city_municipality) = ?', [$city]);
                 }
-                $barangaySuggestions = $suggestQuery
-                    ->get()
-                    ->pluck('barangay')
-                    ->filter(fn ($b) => str_starts_with($this->normalizeText($b), substr($barangay, 0, 3)))
-                    ->take(5)
-                    ->values()
-                    ->toArray();
+                $barangaySuggestions = $this->fuzzyMatch(
+                    $suggestQuery->pluck('barangay')->toArray(),
+                    $barangay,
+                );
             }
         }
 
