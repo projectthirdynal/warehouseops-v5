@@ -19,6 +19,7 @@ import {
   Upload,
   MapPin,
   Clock,
+  FileText,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,8 @@ interface Order {
   barangay?: string | null;
   landmark?: string | null;
   nearest_landmark?: string | null;
+  postal_code?: string | null;
+  courier_code?: string | null;
   latitude?: string | number | null;
   longitude?: string | number | null;
   total_amount: string | number;
@@ -156,6 +159,14 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
     }[]
   >([]);
   const [showPrevAddresses, setShowPrevAddresses] = useState(false);
+  const [formatLoading, setFormatLoading] = useState(false);
+  const [formatResult, setFormatResult] = useState<{
+    formatted: string;
+    fields: Record<string, string>;
+    courier: string;
+    notes: string[];
+  } | null>(null);
+  const [selectedCourier, setSelectedCourier] = useState<string>('');
 
   const fetchAutocomplete = (
     field: 'province' | 'city_municipality' | 'barangay',
@@ -254,6 +265,18 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
       notes: '',
     });
     setShowPrevAddresses(false);
+  };
+
+  const loadCourierFormat = (courier?: string) => {
+    const code = courier ?? selectedCourier ?? order.courier_code ?? 'GENERIC';
+    setSelectedCourier(code);
+    setFormatLoading(true);
+    fetch(`/shop/encoder/orders/${order.id}/format-address?courier=${encodeURIComponent(code)}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data) => setFormatResult(data))
+      .finally(() => setFormatLoading(false));
   };
 
   const update = (key: keyof typeof form, value: string) => {
@@ -533,6 +556,15 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
               ? 'Hide Previous'
               : 'Previous Orders'}
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => loadCourierFormat()}
+          disabled={formatLoading}
+        >
+          <FileText className="mr-1.5 h-3.5 w-3.5" />
+          {formatLoading ? 'Formatting...' : 'Courier Format'}
+        </Button>
         {hasFlags && (
           <span className="text-xs text-destructive">Resolve address issues before encoding</span>
         )}
@@ -728,6 +760,51 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
                     Use this address
                   </button>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {formatResult && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              {formatResult.courier} Address Format
+            </span>
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded border px-1.5 py-0.5 text-xs"
+                value={selectedCourier}
+                onChange={(e) => loadCourierFormat(e.target.value)}
+              >
+                <option value="">Auto ({order.courier_code ?? 'GENERIC'})</option>
+                <option value="FLASH">FLASH</option>
+                <option value="JNT">JNT</option>
+                <option value="GENERIC">Generic</option>
+              </select>
+              <button onClick={() => setFormatResult(null)}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="rounded bg-muted p-2">
+            <p className="font-mono text-xs">{formatResult.formatted}</p>
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Field mapping:</span>
+            {Object.entries(formatResult.fields).map(([key, value]) => (
+              <div key={key} className="flex items-center gap-2 text-xs">
+                <span className="font-mono text-muted-foreground">{key}:</span>
+                <span>{value || <em className="text-muted-foreground">empty</em>}</span>
+              </div>
+            ))}
+          </div>
+          {formatResult.notes.length > 0 && (
+            <div className="space-y-1">
+              {formatResult.notes.map((note, i) => (
+                <p key={i} className="text-xs text-blue-600">
+                  &bull; {note}
+                </p>
               ))}
             </div>
           )}

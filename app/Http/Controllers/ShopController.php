@@ -21,6 +21,7 @@ use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Services\AddressFormatService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\GeocodingService;
 use App\Domain\Shop\Services\CustomerAddressService;
@@ -82,6 +83,7 @@ class ShopController extends Controller
         private readonly ShippingRateService $shippingRates,
         private readonly OrderFulfillmentService $fulfillment,
         private readonly GeocodingService $geocoder,
+        private readonly AddressFormatService $addressFormatter,
     ) {}
 
     public function index(): Response
@@ -3397,6 +3399,15 @@ class ShopController extends Controller
         }
 
         return response()->json(['suggestions' => $suggestions]);
+    }
+
+    public function formatAddressByCourier(Request $request, Order $order): JsonResponse
+    {
+        $courierCode = $request->query('courier', $order->courier_code ?? 'GENERIC');
+
+        $result = $this->addressFormatter->formatForCourier($order, $courierCode);
+
+        return response()->json($result);
     }
 
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
