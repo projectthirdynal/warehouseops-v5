@@ -23,6 +23,7 @@ import {
   UserCog,
   Printer,
   DollarSign,
+  Copy,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1002,6 +1003,32 @@ export default function ShopEncoder({
     updated: number;
     errors: string[];
   } | null>(null);
+  const [showDupDetect, setShowDupDetect] = useState(false);
+  const [dupDetectLoading, setDupDetectLoading] = useState(false);
+  const [dupDetectData, setDupDetectData] = useState<{
+    groups: Array<{
+      match_type: string;
+      phone: string;
+      product?: { id: number; name: string; sku: string } | null;
+      address?: string;
+      order_count: number;
+      orders: Array<{
+        id: number;
+        order_number: string;
+        receiver_name: string;
+        receiver_phone: string;
+        quantity: number;
+        total_amount: number;
+        cod_amount: number;
+        status: string;
+        created_at: string;
+      }>;
+    }>;
+    group_count: number;
+    orders_in_groups: number;
+    total_checked: number;
+    unique_orders: number;
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1177,6 +1204,26 @@ export default function ShopEncoder({
         }
       })
       .finally(() => setCodUpdateLoading(false));
+  };
+
+  const handleDupDetect = () => {
+    if (selectedOrderIds.length === 0) return;
+    setDupDetectLoading(true);
+    fetch('/shop/encoder/bulk-duplicate-detect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ order_ids: selectedOrderIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setDupDetectData(data);
+        setShowDupDetect(true);
+      })
+      .finally(() => setDupDetectLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1458,6 +1505,15 @@ export default function ShopEncoder({
             >
               <DollarSign className="mr-1.5 h-3.5 w-3.5" />
               {codVerifyLoading ? 'Loading...' : 'Verify COD'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDupDetect}
+              disabled={selectedOrderIds.length === 0 || dupDetectLoading}
+            >
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              {dupDetectLoading ? 'Scanning...' : 'Detect Duplicates'}
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2564,6 +2620,115 @@ export default function ShopEncoder({
                 {codUpdateLoading
                   ? 'Updating...'
                   : `Update ${Object.keys(codEdits).length} COD Amount${Object.keys(codEdits).length !== 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDupDetect && dupDetectData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Duplicate Detection</h2>
+              <button onClick={() => setShowDupDetect(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Summary stats */}
+            <div className="mb-4 grid grid-cols-4 gap-3">
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold">{dupDetectData.total_checked}</p>
+                <p className="text-xs text-muted-foreground">Checked</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{dupDetectData.unique_orders}</p>
+                <p className="text-xs text-muted-foreground">Unique</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-orange-600">
+                  {dupDetectData.orders_in_groups}
+                </p>
+                <p className="text-xs text-muted-foreground">In Dup Groups</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{dupDetectData.group_count}</p>
+                <p className="text-xs text-muted-foreground">Dup Groups</p>
+              </div>
+            </div>
+
+            {dupDetectData.group_count === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <Copy className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                <p>No duplicates found among {dupDetectData.total_checked} orders.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {dupDetectData.groups.map((group, gi) => (
+                  <div key={gi} className="rounded-md border border-orange-500/40 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="border-orange-500/50 text-orange-600">
+                          {group.match_type === 'phone+product'
+                            ? 'Same Phone + Product'
+                            : 'Same Phone + Address'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{group.phone}</span>
+                      </div>
+                      <span className="text-xs font-medium text-orange-600">
+                        {group.order_count} orders
+                      </span>
+                    </div>
+                    {group.match_type === 'phone+product' && group.product && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Product: {group.product.name} ({group.product.sku})
+                      </p>
+                    )}
+                    {group.match_type === 'phone+address' && group.address && (
+                      <p className="mb-2 text-xs text-muted-foreground">Address: {group.address}</p>
+                    )}
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="pb-1 pr-2 font-medium">Order</th>
+                          <th className="pb-1 pr-2 font-medium">Customer</th>
+                          <th className="pb-1 pr-2 text-right font-medium">Qty</th>
+                          <th className="pb-1 pr-2 text-right font-medium">Total</th>
+                          <th className="pb-1 pr-2 text-right font-medium">COD</th>
+                          <th className="pb-1 pr-2 font-medium">Status</th>
+                          <th className="pb-1 pr-2 font-medium">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.orders.map((order) => (
+                          <tr key={order.id} className="border-b last:border-0">
+                            <td className="py-1.5 pr-2 font-medium">{order.order_number}</td>
+                            <td className="py-1.5 pr-2 text-muted-foreground">
+                              {order.receiver_name}
+                            </td>
+                            <td className="py-1.5 pr-2 text-right">{order.quantity}</td>
+                            <td className="py-1.5 pr-2 text-right">{money(order.total_amount)}</td>
+                            <td className="py-1.5 pr-2 text-right">{money(order.cod_amount)}</td>
+                            <td className="py-1.5 pr-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {order.status}
+                              </Badge>
+                            </td>
+                            <td className="py-1.5 pr-2 text-muted-foreground">
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowDupDetect(false)}>
+                Close
               </Button>
             </div>
           </div>

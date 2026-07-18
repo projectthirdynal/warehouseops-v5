@@ -3710,6 +3710,97 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkDuplicateDetect(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with('product:id,name,sku')
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'receiver_address', 'product_id', 'quantity', 'total_amount', 'cod_amount', 'status', 'created_at']);
+
+        // Group by normalized phone + product_id
+        $byPhoneProduct = $orders->groupBy(function (Order $order) {
+            $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
+            return $phone . '|' . $order->product_id;
+        })->filter(fn ($group) => $group->count() > 1);
+
+        // Group by normalized phone + address (first 50 chars)
+        $byPhoneAddress = $orders->groupBy(function (Order $order) {
+            $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
+            return $phone . '|' . substr(strtolower(trim($order->receiver_address ?? '')), 0, 50);
+        })->filter(fn ($group) => $group->count() > 1);
+
+        // Merge groups, deduplicate by order ID set
+        $seenKeys = [];
+        $groups = [];
+
+        foreach ($byPhoneProduct as $key => $group) {
+            $orderIds = $group->pluck('id')->sort()->values()->all();
+            $groupKey = implode(',', $orderIds);
+            if (isset($seenKeys[$groupKey])) {
+                continue;
+            }
+            $seenKeys[$groupKey] = true;
+            $groups[] = [
+                'match_type'  => 'phone+product',
+                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'product'     => $group->first()->product?->only(['id', 'name', 'sku']),
+                'order_count' => $group->count(),
+                'orders'      => $group->map(fn (Order $o) => [
+                    'id'            => $o->id,
+                    'order_number'  => $o->order_number,
+                    'receiver_name' => $o->receiver_name,
+                    'receiver_phone'=> $o->receiver_phone,
+                    'quantity'      => $o->quantity,
+                    'total_amount'  => (float) $o->total_amount,
+                    'cod_amount'    => (float) $o->cod_amount,
+                    'status'        => $o->status->value,
+                    'created_at'    => $o->created_at?->toIso8601String(),
+                ])->values()->all(),
+            ];
+        }
+
+        foreach ($byPhoneAddress as $key => $group) {
+            $orderIds = $group->pluck('id')->sort()->values()->all();
+            $groupKey = implode(',', $orderIds);
+            if (isset($seenKeys[$groupKey])) {
+                continue;
+            }
+            $seenKeys[$groupKey] = true;
+            $groups[] = [
+                'match_type'  => 'phone+address',
+                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'address'     => substr($group->first()->receiver_address ?? '', 0, 80),
+                'order_count' => $group->count(),
+                'orders'      => $group->map(fn (Order $o) => [
+                    'id'            => $o->id,
+                    'order_number'  => $o->order_number,
+                    'receiver_name' => $o->receiver_name,
+                    'receiver_phone'=> $o->receiver_phone,
+                    'quantity'      => $o->quantity,
+                    'total_amount'  => (float) $o->total_amount,
+                    'cod_amount'    => (float) $o->cod_amount,
+                    'status'        => $o->status->value,
+                    'created_at'    => $o->created_at?->toIso8601String(),
+                ])->values()->all(),
+            ];
+        }
+
+        $ordersInGroups = collect($groups)->flatMap(fn ($g) => array_column($g['orders'], 'id'))->unique()->count();
+
+        return response()->json([
+            'groups'           => $groups,
+            'group_count'      => count($groups),
+            'orders_in_groups' => $ordersInGroups,
+            'total_checked'    => $orders->count(),
+            'unique_orders'    => $orders->count() - $ordersInGroups,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
