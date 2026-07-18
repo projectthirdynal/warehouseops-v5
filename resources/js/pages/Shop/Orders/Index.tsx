@@ -44,8 +44,10 @@ interface Props {
     remark_q?: string;
     remark_type?: string;
     remark_author?: string;
+    remark_tag?: string;
   };
   remarkAuthors?: Record<string, string>;
+  remarkTags?: string[];
 }
 
 function money(value: string | number) {
@@ -64,14 +66,20 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   return 'outline';
 }
 
-export default function OrdersIndex({ orders, filters, remarkAuthors = {} }: Props) {
+export default function OrdersIndex({
+  orders,
+  filters,
+  remarkAuthors = {},
+  remarkTags = [],
+}: Props) {
   const [search, setSearch] = useState(filters.q ?? '');
   const [statusFilter, setStatusFilter] = useState(filters.status ?? '');
   const [remarkSearch, setRemarkSearch] = useState(filters.remark_q ?? '');
   const [remarkType, setRemarkType] = useState(filters.remark_type ?? '');
   const [remarkAuthor, setRemarkAuthor] = useState(filters.remark_author ?? '');
+  const [remarkTag, setRemarkTag] = useState(filters.remark_tag ?? '');
   const [showRemarkFilters, setShowRemarkFilters] = useState(
-    Boolean(filters.remark_q || filters.remark_type || filters.remark_author)
+    Boolean(filters.remark_q || filters.remark_type || filters.remark_author || filters.remark_tag)
   );
 
   const orderSummary = (order: OrderRow) => {
@@ -179,6 +187,19 @@ export default function OrdersIndex({ orders, filters, remarkAuthors = {} }: Pro
                   {Object.entries(remarkAuthors).map(([id, name]) => (
                     <option key={id} value={id}>
                       {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="remark_tag"
+                  value={remarkTag}
+                  onChange={(e) => setRemarkTag(e.target.value)}
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">All tags</option>
+                  {remarkTags.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
                     </option>
                   ))}
                 </select>

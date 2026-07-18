@@ -25,6 +25,7 @@ class OrderRemark extends Model
         'is_pinned',
         'pinned_at',
         'pinned_by',
+        'tags',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class OrderRemark extends Model
         'mentions' => 'array',
         'is_pinned' => 'boolean',
         'pinned_at' => 'datetime',
+        'tags' => 'array',
     ];
 
     public function order(): BelongsTo

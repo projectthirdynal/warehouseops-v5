@@ -3437,6 +3437,12 @@ class ShopController extends Controller
                     $sub->where('user_id', $authorId);
                 });
             })
+            ->when($request->filled('remark_tag'), function ($q) use ($request) {
+                $tag = $request->string('remark_tag')->toString();
+                $q->whereHas('remarks', function ($sub) use ($tag) {
+                    $sub->whereJsonContains('tags', $tag);
+                });
+            })
             ->latest();
 
         $orders = $query->paginate(25)->withQueryString();
@@ -3453,10 +3459,23 @@ class ShopController extends Controller
             ->filter()
             ->toArray();
 
+        $remarkTags = OrderRemark::query()
+            ->whereNotNull('tags')
+            ->whereHas('order', function ($q) {
+                $q->whereIn('source_channel', ['manual_shop', 'facebook_shop']);
+            })
+            ->pluck('tags')
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
         return Inertia::render('Shop/Orders/Index', [
             'orders' => $orders,
-            'filters' => $request->only(['q', 'status', 'remark_q', 'remark_type', 'remark_author']),
+            'filters' => $request->only(['q', 'status', 'remark_q', 'remark_type', 'remark_author', 'remark_tag']),
             'remarkAuthors' => $remarkAuthors,
+            'remarkTags' => $remarkTags,
         ]);
     }
 
@@ -5081,6 +5100,8 @@ class ShopController extends Controller
             'parent_id' => ['nullable', 'integer', 'exists:order_remarks,id'],
             'mentions' => ['nullable', 'array'],
             'mentions.*' => ['integer', 'exists:users,id'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
         ]);
 
         if (! empty($validated['parent_id'])) {
@@ -5110,6 +5131,7 @@ class ShopController extends Controller
             'visibility' => $validated['visibility'] ?? 'internal',
             'body' => $validated['body'],
             'mentions' => $mentions,
+            'tags' => ! empty($validated['tags']) ? array_values(array_unique(array_filter($validated['tags']))) : null,
         ]);
 
         if (! empty($mentions)) {
@@ -5165,8 +5187,9 @@ class ShopController extends Controller
             'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
             'mentions' => ['nullable', 'array'],
             'mentions.*' => ['integer', 'exists:users,id'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
         ]);
-
         $mentions = ! empty($validated['mentions'])
             ? User::query()
                 ->whereIn('id', $validated['mentions'])
@@ -5183,6 +5206,7 @@ class ShopController extends Controller
             'type' => $validated['type'] ?? $remark->type,
             'visibility' => $validated['visibility'] ?? $remark->visibility,
             'mentions' => $mentions,
+            'tags' => ! empty($validated['tags']) ? array_values(array_unique(array_filter($validated['tags']))) : null,
         ])->save();
 
         if (! empty($newMentions)) {

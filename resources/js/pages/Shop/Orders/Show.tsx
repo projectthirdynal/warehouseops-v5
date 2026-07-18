@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AtSign } from 'lucide-react';
 
@@ -39,6 +40,7 @@ interface OrderRemark {
   updated_at: string;
   parent_id: number | null;
   mentions?: number[] | null;
+  tags?: string[] | null;
   is_pinned?: boolean;
   pinned_at?: string | null;
   pinned_by?: { id: number; name: string } | null;
@@ -148,6 +150,7 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
     visibility: 'internal',
     parent_id: '' as string | number,
     mentions: [] as number[],
+    tags: '' as string,
   });
 
   const editForm = useForm({
@@ -155,6 +158,7 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
     type: 'agent_note',
     visibility: 'internal',
     mentions: [] as number[],
+    tags: '' as string,
   });
 
   const replyForm = useForm({
@@ -162,6 +166,7 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
     type: 'agent_note',
     visibility: 'internal',
     mentions: [] as number[],
+    tags: '' as string,
   });
 
   const getMentionNames = (ids?: number[] | null) => {
@@ -187,12 +192,19 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
     return Date.now() - new Date(entry.created_at).getTime() < 24 * 60 * 60 * 1000;
   };
 
+  const parseTags = (raw: string): string[] =>
+    raw
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
   const startEdit = (entry: OrderRemark) => {
     setEditingId(entry.id);
     editForm.setData('body', entry.body);
     editForm.setData('type', entry.type);
     editForm.setData('visibility', entry.visibility);
     editForm.setData('mentions', entry.mentions ?? []);
+    editForm.setData('tags', (entry.tags ?? []).join(', '));
   };
 
   const cancelEdit = () => {
@@ -203,6 +215,13 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
   const submitEdit = (e: React.FormEvent, orderId: number, remarkId: number) => {
     e.preventDefault();
     editForm.patch(`/shop/orders/${orderId}/remarks/${remarkId}`, {
+      data: {
+        body: editForm.data.body,
+        type: editForm.data.type,
+        visibility: editForm.data.visibility,
+        mentions: editForm.data.mentions,
+        tags: parseTags(editForm.data.tags as string),
+      },
       onSuccess: () => {
         setEditingId(null);
         editForm.reset();
@@ -244,6 +263,10 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
   const submitRemark = (e: React.FormEvent) => {
     e.preventDefault();
     post(`/shop/orders/${order.id}/remarks`, {
+      data: {
+        ...data,
+        tags: parseTags(data.tags as string),
+      },
       onSuccess: () => {
         reset();
         setShowForm(false);
@@ -257,6 +280,7 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
     replyForm.setData('type', entry.type);
     replyForm.setData('visibility', entry.visibility);
     replyForm.setData('mentions', []);
+    replyForm.setData('tags', '');
   };
 
   const cancelReply = () => {
@@ -273,6 +297,7 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
         visibility: replyForm.data.visibility,
         parent_id: parentId,
         mentions: replyForm.data.mentions,
+        tags: parseTags(replyForm.data.tags as string),
       },
       onSuccess: () => {
         setReplyingTo(null);
@@ -544,6 +569,12 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                     )}
                   </div>
                 )}
+                <Input
+                  value={data.tags as string}
+                  onChange={(e) => setData('tags', e.target.value)}
+                  placeholder="Tags (comma-separated, e.g. urgent, vip, refund)"
+                  className="text-sm"
+                />
                 <Textarea
                   value={data.body}
                   onChange={(e) => setData('body', e.target.value)}
@@ -628,6 +659,11 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                           >
                             <AtSign className="mr-0.5 h-2.5 w-2.5" />
                             {m.name}
+                          </Badge>
+                        ))}
+                        {(entry.tags ?? []).map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
                           </Badge>
                         ))}
                       </div>
@@ -718,6 +754,12 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                             ))}
                           </div>
                         )}
+                        <Input
+                          value={editForm.data.tags as string}
+                          onChange={(e) => editForm.setData('tags', e.target.value)}
+                          placeholder="Tags (comma-separated)"
+                          className="text-sm"
+                        />
                         <Textarea
                           value={editForm.data.body}
                           onChange={(e) => editForm.setData('body', e.target.value)}
@@ -768,6 +810,12 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                           placeholder="Write a reply..."
                           rows={2}
                           required
+                        />
+                        <Input
+                          value={replyForm.data.tags as string}
+                          onChange={(e) => replyForm.setData('tags', e.target.value)}
+                          placeholder="Tags (comma-separated)"
+                          className="text-sm"
                         />
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -860,6 +908,11 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                                   >
                                     <AtSign className="mr-0.5 h-2.5 w-2.5" />
                                     {m.name}
+                                  </Badge>
+                                ))}
+                                {(reply.tags ?? []).map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-xs">
+                                    {tag}
                                   </Badge>
                                 ))}
                               </div>
