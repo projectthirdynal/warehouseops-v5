@@ -47,6 +47,7 @@ use App\Models\CustomerAddress;
 use App\Models\AgentProfile;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Notifications\RemarkMentionedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -5100,7 +5101,7 @@ class ShopController extends Controller
                 ->all()
             : [];
 
-        OrderRemark::query()->create([
+        $remark = OrderRemark::query()->create([
             'order_id' => $order->id,
             'parent_id' => $validated['parent_id'] ?? null,
             'user_id' => $request->user()->id,
@@ -5109,6 +5110,15 @@ class ShopController extends Controller
             'body' => $validated['body'],
             'mentions' => $mentions,
         ]);
+
+        if (! empty($mentions)) {
+            $mentioner = $request->user()->name;
+            $mentionUsers = User::query()->whereIn('id', $mentions)->get();
+            \Illuminate\Support\Facades\Notification::send(
+                $mentionUsers,
+                new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
+            );
+        }
 
         return back()->with('success', 'Remark added.');
     }
@@ -5164,12 +5174,24 @@ class ShopController extends Controller
                 ->all()
             : [];
 
+        $previousMentions = $remark->mentions ?? [];
+        $newMentions = array_values(array_diff($mentions, $previousMentions));
+
         $remark->forceFill([
             'body' => $validated['body'],
             'type' => $validated['type'] ?? $remark->type,
             'visibility' => $validated['visibility'] ?? $remark->visibility,
             'mentions' => $mentions,
         ])->save();
+
+        if (! empty($newMentions)) {
+            $mentioner = $request->user()->name;
+            $mentionUsers = User::query()->whereIn('id', $newMentions)->get();
+            \Illuminate\Support\Facades\Notification::send(
+                $mentionUsers,
+                new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
+            );
+        }
 
         return back()->with('success', 'Remark updated.');
     }
