@@ -85,9 +85,53 @@ function AddressEditor({ order }: { order: Order }) {
     state: order.state ?? '',
     notes: '',
   });
+  const [validation, setValidation] = useState<{
+    province: { valid: boolean; suggestions: string[] };
+    city_municipality: { valid: boolean; suggestions: string[] };
+    barangay: { valid: boolean; suggestions: string[] };
+    overall_valid: boolean;
+  } | null>(null);
+  const [validateTimer, setValidateTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  const update = (key: keyof typeof form, value: string) =>
+  const update = (key: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (validateTimer) clearTimeout(validateTimer);
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (form.state) params.append('province', form.state);
+      if (form.city) params.append('city_municipality', form.city);
+      if (form.barangay) params.append('barangay', form.barangay);
+      if (key === 'state') params.set('province', value);
+      if (key === 'city') params.set('city_municipality', value);
+      if (key === 'barangay') params.set('barangay', value);
+      fetch('/shop/encoder/validate-address', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN':
+            (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+        },
+        body: JSON.stringify({
+          province: key === 'state' ? value : form.state,
+          city_municipality: key === 'city' ? value : form.city,
+          barangay: key === 'barangay' ? value : form.barangay,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => setValidation(data))
+        .catch(() => setValidation(null));
+    }, 400);
+    setValidateTimer(timer);
+  };
+
+  const fieldIcon = (valid: boolean, hasValue: boolean) => {
+    if (!hasValue) return null;
+    return valid ? (
+      <span className="text-green-600 text-xs">✓</span>
+    ) : (
+      <span className="text-destructive text-xs">✗</span>
+    );
+  };
 
   return (
     <div className="space-y-3 border-t pt-3">
@@ -97,21 +141,105 @@ function AddressEditor({ order }: { order: Order }) {
         placeholder="Complete address"
       />
       <div className="grid gap-2 md:grid-cols-3">
-        <Input
-          value={form.barangay}
-          onChange={(event) => update('barangay', event.target.value)}
-          placeholder="Barangay"
-        />
-        <Input
-          value={form.city}
-          onChange={(event) => update('city', event.target.value)}
-          placeholder="City / Municipality"
-        />
-        <Input
-          value={form.state}
-          onChange={(event) => update('state', event.target.value)}
-          placeholder="Province"
-        />
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={form.barangay}
+              onChange={(event) => update('barangay', event.target.value)}
+              placeholder="Barangay"
+              className={
+                validation && form.barangay
+                  ? validation.barangay.valid
+                    ? 'border-green-500'
+                    : 'border-destructive'
+                  : ''
+              }
+            />
+            {validation && fieldIcon(validation.barangay.valid, Boolean(form.barangay))}
+          </div>
+          {validation &&
+            !validation.barangay.valid &&
+            validation.barangay.suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {validation.barangay.suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update('barangay', s)}
+                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={form.city}
+              onChange={(event) => update('city', event.target.value)}
+              placeholder="City / Municipality"
+              className={
+                validation && form.city
+                  ? validation.city_municipality.valid
+                    ? 'border-green-500'
+                    : 'border-destructive'
+                  : ''
+              }
+            />
+            {validation && fieldIcon(validation.city_municipality.valid, Boolean(form.city))}
+          </div>
+          {validation &&
+            !validation.city_municipality.valid &&
+            validation.city_municipality.suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {validation.city_municipality.suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update('city', s)}
+                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={form.state}
+              onChange={(event) => update('state', event.target.value)}
+              placeholder="Province"
+              className={
+                validation && form.state
+                  ? validation.province.valid
+                    ? 'border-green-500'
+                    : 'border-destructive'
+                  : ''
+              }
+            />
+            {validation && fieldIcon(validation.province.valid, Boolean(form.state))}
+          </div>
+          {validation &&
+            !validation.province.valid &&
+            validation.province.suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {validation.province.suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update('state', s)}
+                    className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+        </div>
       </div>
       <Input
         value={form.notes}
@@ -136,6 +264,11 @@ function AddressEditor({ order }: { order: Order }) {
         >
           Mark Encoded
         </Button>
+        {validation && (
+          <Badge variant={validation.overall_valid ? 'default' : 'destructive'} className="text-xs">
+            {validation.overall_valid ? 'Address Valid' : 'Needs Review'}
+          </Badge>
+        )}
       </div>
     </div>
   );

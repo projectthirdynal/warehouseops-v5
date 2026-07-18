@@ -71,4 +71,118 @@ class AddressMappingService
     {
         return mb_strtolower(trim((string) $value));
     }
+
+    /**
+     * Validate individual address fields against the mapping table.
+     *
+     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string} $input
+     * @return array{
+     *     province: array{valid: bool, suggestions: string[]},
+     *     city_municipality: array{valid: bool, suggestions: string[]},
+     *     barangay: array{valid: bool, suggestions: string[]},
+     *     overall_valid: bool,
+     * }
+     */
+    public function validate(array $input): array
+    {
+        $province = $this->normalizeText($input['province'] ?? '');
+        $city = $this->normalizeText($input['city_municipality'] ?? '');
+        $barangay = $this->normalizeText($input['barangay'] ?? '');
+
+        $provinceValid = false;
+        $provinceSuggestions = [];
+
+        if ($province !== '') {
+            $provinceMatch = AddressMapping::query()
+                ->whereRaw('LOWER(province) = ?', [$province])
+                ->exists();
+            $provinceValid = $provinceMatch;
+
+            if (! $provinceValid) {
+                $provinceSuggestions = AddressMapping::query()
+                    ->select('province')
+                    ->distinct()
+                    ->get()
+                    ->pluck('province')
+                    ->filter(fn ($p) => str_starts_with($this->normalizeText($p), substr($province, 0, 3)))
+                    ->take(5)
+                    ->values()
+                    ->toArray();
+            }
+        }
+
+        $cityValid = false;
+        $citySuggestions = [];
+
+        if ($city !== '') {
+            $cityQuery = AddressMapping::query()
+                ->whereRaw('LOWER(city_municipality) = ?', [$city]);
+            if ($province !== '') {
+                $cityQuery->whereRaw('LOWER(province) = ?', [$province]);
+            }
+            $cityValid = $cityQuery->exists();
+
+            if (! $cityValid) {
+                $suggestQuery = AddressMapping::query()
+                    ->select('city_municipality')
+                    ->distinct();
+                if ($province !== '') {
+                    $suggestQuery->whereRaw('LOWER(province) = ?', [$province]);
+                }
+                $citySuggestions = $suggestQuery
+                    ->get()
+                    ->pluck('city_municipality')
+                    ->filter(fn ($c) => str_starts_with($this->normalizeText($c), substr($city, 0, 3)))
+                    ->take(5)
+                    ->values()
+                    ->toArray();
+            }
+        }
+
+        $barangayValid = false;
+        $barangaySuggestions = [];
+
+        if ($barangay !== '') {
+            $barangayQuery = AddressMapping::query()
+                ->whereRaw('LOWER(COALESCE(barangay, \'\')) = ?', [$barangay]);
+            if ($province !== '') {
+                $barangayQuery->whereRaw('LOWER(province) = ?', [$province]);
+            }
+            if ($city !== '') {
+                $barangayQuery->whereRaw('LOWER(city_municipality) = ?', [$city]);
+            }
+            $barangayValid = $barangayQuery->exists();
+
+            if (! $barangayValid) {
+                $suggestQuery = AddressMapping::query()
+                    ->select('barangay')
+                    ->distinct()
+                    ->whereNotNull('barangay');
+                if ($province !== '') {
+                    $suggestQuery->whereRaw('LOWER(province) = ?', [$province]);
+                }
+                if ($city !== '') {
+                    $suggestQuery->whereRaw('LOWER(city_municipality) = ?', [$city]);
+                }
+                $barangaySuggestions = $suggestQuery
+                    ->get()
+                    ->pluck('barangay')
+                    ->filter(fn ($b) => str_starts_with($this->normalizeText($b), substr($barangay, 0, 3)))
+                    ->take(5)
+                    ->values()
+                    ->toArray();
+            }
+        }
+
+        $overallValid = ($province === '' || $provinceValid)
+            && ($city === '' || $cityValid)
+            && ($barangay === '' || $barangayValid);
+
+        return [
+            'province' => ['valid' => $provinceValid, 'suggestions' => $provinceSuggestions],
+            'city_municipality' => ['valid' => $cityValid, 'suggestions' => $citySuggestions],
+            'barangay' => ['valid' => $barangayValid, 'suggestions' => $barangaySuggestions],
+            'overall_valid' => $overallValid,
+        ];
+    }
 }

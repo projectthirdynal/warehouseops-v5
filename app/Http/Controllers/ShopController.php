@@ -2916,6 +2916,19 @@ class ShopController extends Controller
         return back()->with('success', "{$order->order_number} marked encoded.");
     }
 
+    public function validateAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(
+            $this->addressMappings->validate($validated)
+        );
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
