@@ -924,6 +924,15 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
   } | null>(null);
   const [addrAnalyticsLoading, setAddrAnalyticsLoading] = useState(false);
   const [showAddrAnalytics, setShowAddrAnalytics] = useState(false);
+  const [showBulkStatus, setShowBulkStatus] = useState(false);
+  const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState('');
+  const [bulkStatusReason, setBulkStatusReason] = useState('');
+  const [bulkStatusResult, setBulkStatusResult] = useState<{
+    updated: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -967,6 +976,37 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
         setShowAddrAnalytics(true);
       })
       .finally(() => setAddrAnalyticsLoading(false));
+  };
+
+  const handleBulkStatusUpdate = () => {
+    if (!bulkStatusValue || selectedOrderIds.length === 0) return;
+    setBulkStatusLoading(true);
+    setBulkStatusResult(null);
+    fetch('/shop/encoder/bulk-status-update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        order_ids: selectedOrderIds,
+        status: bulkStatusValue,
+        reason: bulkStatusReason || undefined,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setBulkStatusResult(data);
+        if (data.updated > 0) {
+          setShowBulkStatus(false);
+          setBulkStatusValue('');
+          setBulkStatusReason('');
+          router.reload();
+        }
+      })
+      .catch(() => setBulkStatusResult({ updated: 0, skipped: 0, errors: ['Request failed.'] }))
+      .finally(() => setBulkStatusLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1201,6 +1241,15 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
             >
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
               {addrAnalyticsLoading ? 'Loading...' : 'Address Analytics'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkStatus(true)}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              Bulk Status
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -1983,6 +2032,84 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {showBulkStatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Bulk Status Update</h2>
+              <button onClick={() => setShowBulkStatus(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Update status for <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''}.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">New Status</label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={bulkStatusValue}
+                  onChange={(e) => setBulkStatusValue(e.target.value)}
+                >
+                  <option value="">Select status...</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="QA_PENDING">QA Pending</option>
+                  <option value="QA_APPROVED">QA Approved</option>
+                  <option value="QA_REJECTED">QA Rejected</option>
+                  <option value="DISPATCHED">Dispatched</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="RETURNED">Returned</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+              {bulkStatusValue === 'QA_REJECTED' && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Rejection Reason</label>
+                  <Textarea
+                    className="w-full"
+                    rows={2}
+                    value={bulkStatusReason}
+                    onChange={(e) => setBulkStatusReason(e.target.value)}
+                    placeholder="Reason for rejection..."
+                  />
+                </div>
+              )}
+              {bulkStatusResult && (
+                <div className="rounded-md border p-2 text-xs">
+                  <span className="text-green-600">{bulkStatusResult.updated} updated</span>
+                  {bulkStatusResult.skipped > 0 && (
+                    <>
+                      {' / '}
+                      <span className="text-orange-600">{bulkStatusResult.skipped} skipped</span>
+                    </>
+                  )}
+                  {bulkStatusResult.errors.length > 0 && (
+                    <div className="mt-1 text-destructive">
+                      {bulkStatusResult.errors.slice(0, 3).join(', ')}
+                      {bulkStatusResult.errors.length > 3 &&
+                        ` +${bulkStatusResult.errors.length - 3} more`}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowBulkStatus(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleBulkStatusUpdate}
+                  disabled={!bulkStatusValue || bulkStatusLoading}
+                >
+                  {bulkStatusLoading ? 'Updating...' : 'Update Status'}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

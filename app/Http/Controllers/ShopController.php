@@ -3527,6 +3527,62 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkStatusUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'status'      => ['required', 'string', 'in:CONFIRMED,QA_APPROVED,QA_PENDING,QA_REJECTED,CANCELLED,DISPATCHED,DELIVERED,RETURNED'],
+            'reason'      => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $status = OrderStatus::from($validated['status']);
+        $reason = $validated['reason'] ?? null;
+        $updated = 0;
+        $skipped = [];
+        $now = now();
+
+        foreach ($validated['order_ids'] as $orderId) {
+            $order = Order::query()->find($orderId);
+            if (! $order) {
+                $skipped[] = "Order #{$orderId} not found";
+                continue;
+            }
+
+            if ($order->status->isTerminal()) {
+                $skipped[] = "{$order->order_number} is terminal ({$order->status->label()})";
+                continue;
+            }
+
+            $updateData = ['status' => $status];
+
+            if ($status === OrderStatus::CONFIRMED && ! $order->confirmed_at) {
+                $updateData['confirmed_at'] = $now;
+            }
+            if ($status === OrderStatus::DISPATCHED && ! $order->dispatched_at) {
+                $updateData['dispatched_at'] = $now;
+            }
+            if ($status === OrderStatus::DELIVERED && ! $order->delivered_at) {
+                $updateData['delivered_at'] = $now;
+            }
+            if ($status === OrderStatus::RETURNED && ! $order->returned_at) {
+                $updateData['returned_at'] = $now;
+            }
+            if ($status === OrderStatus::QA_REJECTED && $reason) {
+                $updateData['rejection_reason'] = $reason;
+            }
+
+            $order->forceFill($updateData)->save();
+            $updated++;
+        }
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => count($skipped),
+            'errors'   => $skipped,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
