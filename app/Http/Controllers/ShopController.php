@@ -7,6 +7,7 @@ use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
+use App\Domain\Shop\Models\AddressCorrectionHistory;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\FacebookPage;
@@ -2946,6 +2947,17 @@ class ShopController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $before = [
+            'receiver_address' => $order->receiver_address,
+            'barangay' => $order->barangay,
+            'city' => $order->city,
+            'state' => $order->state,
+            'postal_code' => $order->postal_code,
+            'landmark' => $order->landmark,
+            'nearest_landmark' => $order->nearest_landmark,
+        ];
+        $confidenceBefore = floatval($order->address_confidence ?? 0);
+
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['state'] ?? null,
             'city_municipality' => $validated['city'] ?? null,
@@ -2965,6 +2977,24 @@ class ShopController extends Controller
             'address_mapping_id' => $addressMatch['mapping']?->id,
             'address_confidence' => $addressMatch['confidence'],
         ])->save();
+
+        AddressCorrectionHistory::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()?->id,
+            'before' => $before,
+            'after' => [
+                'receiver_address' => $order->receiver_address,
+                'barangay' => $order->barangay,
+                'city' => $order->city,
+                'state' => $order->state,
+                'postal_code' => $order->postal_code,
+                'landmark' => $order->landmark,
+                'nearest_landmark' => $order->nearest_landmark,
+            ],
+            'confidence_before' => $confidenceBefore,
+            'confidence_after' => floatval($addressMatch['confidence']),
+            'action' => 'manual_edit',
+        ]);
 
         return back()->with('success', "Address updated for {$order->order_number}.");
     }
@@ -3107,6 +3137,28 @@ class ShopController extends Controller
             'issue_summary' => $issueCounts,
             'orders' => $ordersWithIssues,
         ]);
+    }
+
+    public function addressCorrectionHistory(Order $order): JsonResponse
+    {
+        $history = AddressCorrectionHistory::query()
+            ->where('order_id', $order->id)
+            ->with('user:id,name')
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(fn (AddressCorrectionHistory $entry) => [
+                'id' => $entry->id,
+                'user' => $entry->user?->name ?? 'System',
+                'before' => $entry->before,
+                'after' => $entry->after,
+                'confidence_before' => $entry->confidence_before,
+                'confidence_after' => $entry->confidence_after,
+                'action' => $entry->action,
+                'created_at' => $entry->created_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['history' => $history]);
     }
 
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse

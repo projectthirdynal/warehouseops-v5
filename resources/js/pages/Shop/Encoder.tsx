@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Filter,
   ClipboardCheck,
+  History,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -113,6 +114,20 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
   const [autocompleteTimer, setAutocompleteTimer] = useState<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<
+    {
+      id: number;
+      user: string;
+      before: Record<string, string | null>;
+      after: Record<string, string | null>;
+      confidence_before: number;
+      confidence_after: number;
+      action: string;
+      created_at: string;
+    }[]
+  >([]);
 
   const fetchAutocomplete = (
     field: 'province' | 'city_municipality' | 'barangay',
@@ -131,6 +146,23 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
       .then((res) => res.json())
       .then((data) => setAutocomplete({ field, items: data }))
       .catch(() => setAutocomplete({ field: null, items: [] }));
+  };
+
+  const loadHistory = () => {
+    if (showHistory) {
+      setShowHistory(false);
+      return;
+    }
+    setHistoryLoading(true);
+    fetch(`/shop/encoder/orders/${order.id}/correction-history`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setHistoryEntries(data.history ?? []);
+        setShowHistory(true);
+      })
+      .finally(() => setHistoryLoading(false));
   };
 
   const update = (key: keyof typeof form, value: string) => {
@@ -394,6 +426,10 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
         >
           Mark Encoded
         </Button>
+        <Button size="sm" variant="ghost" onClick={loadHistory} disabled={historyLoading}>
+          <History className="mr-1.5 h-3.5 w-3.5" />
+          {historyLoading ? 'Loading...' : showHistory ? 'Hide History' : 'History'}
+        </Button>
         {hasFlags && (
           <span className="text-xs text-destructive">Resolve address issues before encoding</span>
         )}
@@ -438,6 +474,63 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
               </span>
             ))}
           </div>
+        </div>
+      )}
+      {showHistory && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Correction History</span>
+            <button onClick={() => setShowHistory(false)}>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {historyEntries.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No corrections recorded.</p>
+          ) : (
+            <div className="max-h-48 space-y-2 overflow-auto">
+              {historyEntries.map((entry) => (
+                <div key={entry.id} className="rounded border p-2 text-xs">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-medium">{entry.user}</span>
+                    <span className="text-muted-foreground">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-muted-foreground">
+                        Before ({entry.confidence_before}%):
+                      </span>
+                      <p className="truncate text-destructive">
+                        {entry.before.receiver_address ?? '—'}
+                      </p>
+                      <p className="truncate text-destructive">
+                        {entry.before.barangay ?? '—'}, {entry.before.city ?? '—'},{' '}
+                        {entry.before.state ?? '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        After ({entry.confidence_after}%):
+                      </span>
+                      <p className="truncate text-green-600">
+                        {entry.after.receiver_address ?? '—'}
+                      </p>
+                      <p className="truncate text-green-600">
+                        {entry.after.barangay ?? '—'}, {entry.after.city ?? '—'},{' '}
+                        {entry.after.state ?? '—'}
+                      </p>
+                    </div>
+                  </div>
+                  {entry.confidence_after > entry.confidence_before && (
+                    <span className="mt-1 inline-block text-green-600">
+                      +{(entry.confidence_after - entry.confidence_before).toFixed(1)}% confidence
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
