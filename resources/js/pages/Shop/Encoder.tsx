@@ -14,6 +14,7 @@ import {
   X,
   AlertTriangle,
   Filter,
+  ClipboardCheck,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -466,6 +467,25 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
     }[];
   } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [validationReport, setValidationReport] = useState<{
+    total_orders: number;
+    valid_orders: number;
+    orders_with_issues: number;
+    issue_summary: Record<string, number>;
+    orders: {
+      id: number;
+      order_number: string;
+      receiver_name: string;
+      issues: string[];
+      address_confidence: number;
+    }[];
+  } | null>(null);
+  const [showValidationReport, setShowValidationReport] = useState(false);
+  const [validationReportLoading, setValidationReportLoading] = useState(false);
+  const [pendingExport, setPendingExport] = useState<{
+    type: 'single' | 'multi';
+    courierCode?: string;
+  } | null>(null);
 
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
@@ -514,12 +534,53 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
       .finally(() => setPreviewLoading(false));
   };
 
+  const loadValidationReport = () => {
+    setValidationReportLoading(true);
+    fetch('/shop/encoder/validation-report', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setValidationReport(data);
+        setShowValidationReport(true);
+      })
+      .finally(() => setValidationReportLoading(false));
+  };
+
   const exportCourier = (courierCode: string) => {
-    router.post('/shop/exports', {
-      courier_code: courierCode,
-      order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
-      group_by_region: groupByRegion || undefined,
-    });
+    setPendingExport({ type: 'single', courierCode });
+    setValidationReportLoading(true);
+    fetch('/shop/encoder/validation-report', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setValidationReport(data);
+        if (data.orders_with_issues > 0) {
+          setShowValidationReport(true);
+          setValidationReportLoading(false);
+        } else {
+          proceedExport();
+        }
+      })
+      .catch(() => {
+        proceedExport();
+      })
+      .finally(() => setValidationReportLoading(false));
+  };
+
+  const proceedExport = () => {
+    setShowValidationReport(false);
+    if (!pendingExport) return;
+    if (pendingExport.type === 'single' && pendingExport.courierCode) {
+      router.post('/shop/exports', {
+        courier_code: pendingExport.courierCode,
+        order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+        group_by_region: groupByRegion || undefined,
+      });
+    } else if (pendingExport.type === 'multi') {
+      router.post('/shop/exports/multi', {
+        courier_codes: selectedCouriers,
+        order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+      });
+    }
+    setPendingExport(null);
   };
 
   const toggleCourier = (courierCode: string) => {
@@ -532,10 +593,23 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
 
   const exportSelectedCouriers = () => {
     if (selectedCouriers.length === 0) return;
-    router.post('/shop/exports/multi', {
-      courier_codes: selectedCouriers,
-      order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
-    });
+    setPendingExport({ type: 'multi' });
+    setValidationReportLoading(true);
+    fetch('/shop/encoder/validation-report', { headers: { Accept: 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        setValidationReport(data);
+        if (data.orders_with_issues > 0) {
+          setShowValidationReport(true);
+          setValidationReportLoading(false);
+        } else {
+          proceedExport();
+        }
+      })
+      .catch(() => {
+        proceedExport();
+      })
+      .finally(() => setValidationReportLoading(false));
   };
 
   return (
@@ -594,6 +668,15 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
                 Export {courier.label}
               </Button>
             ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadValidationReport}
+              disabled={validationReportLoading}
+            >
+              <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
+              {validationReportLoading ? 'Checking...' : 'Validation Report'}
+            </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
               {couriers.map((courier) => (
@@ -1077,6 +1160,132 @@ export default function ShopEncoder({ orders, recent_batches, couriers, filters 
       {previewLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <p className="text-sm text-background">Loading preview...</p>
+        </div>
+      )}
+
+      {showValidationReport && validationReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Address Validation Report</h2>
+              <button onClick={() => setShowValidationReport(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-4 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-md border p-3">
+                <div className="text-2xl font-bold">{validationReport.total_orders}</div>
+                <div className="text-xs text-muted-foreground">Total Orders</div>
+              </div>
+              <div className="rounded-md border border-green-500/40 p-3">
+                <div className="text-2xl font-bold text-green-600">
+                  {validationReport.valid_orders}
+                </div>
+                <div className="text-xs text-muted-foreground">Valid</div>
+              </div>
+              <div className="rounded-md border border-destructive/40 p-3">
+                <div className="text-2xl font-bold text-destructive">
+                  {validationReport.orders_with_issues}
+                </div>
+                <div className="text-xs text-muted-foreground">With Issues</div>
+              </div>
+            </div>
+            {validationReport.orders_with_issues > 0 && (
+              <>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {Object.entries(validationReport.issue_summary).map(([key, count]) =>
+                    count > 0 ? (
+                      <Badge
+                        key={key}
+                        variant="outline"
+                        className="border-destructive/40 text-destructive text-xs"
+                      >
+                        {key.replace(/_/g, ' ')}: {count}
+                      </Badge>
+                    ) : null
+                  )}
+                </div>
+                <div className="mb-4 max-h-48 overflow-auto rounded-md border">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left">Order</th>
+                        <th className="px-2 py-1.5 text-left">Customer</th>
+                        <th className="px-2 py-1.5 text-left">Issues</th>
+                        <th className="px-2 py-1.5 text-right">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {validationReport.orders.map((o) => (
+                        <tr key={o.id} className="border-t">
+                          <td className="px-2 py-1.5 font-mono">{o.order_number}</td>
+                          <td className="px-2 py-1.5">{o.receiver_name}</td>
+                          <td className="px-2 py-1.5 text-destructive">{o.issues.join(', ')}</td>
+                          <td className="px-2 py-1.5 text-right">{o.address_confidence}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {pendingExport ? (
+                  <div className="flex items-center justify-end gap-2 border-t pt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPendingExport(null);
+                        setShowValidationReport(false);
+                      }}
+                    >
+                      Cancel Export
+                    </Button>
+                    <Button size="sm" onClick={proceedExport}>
+                      Export Anyway (Skip {validationReport.orders_with_issues} Order
+                      {validationReport.orders_with_issues > 1 ? 's' : ''})
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-end gap-2 border-t pt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowValidationReport(false)}
+                    >
+                      Close
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setShowValidationReport(false);
+                        router.get('/shop/encoder', { needs_review: 1 }, { preserveScroll: true });
+                      }}
+                    >
+                      Go to Needs Review
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+            {validationReport.orders_with_issues === 0 && (
+              <div className="flex items-center justify-end gap-2 border-t pt-4">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setShowValidationReport(false);
+                    if (pendingExport) proceedExport();
+                  }}
+                >
+                  All Clear — Continue
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {validationReportLoading && !showValidationReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <p className="text-sm text-background">Checking addresses...</p>
         </div>
       )}
     </AppLayout>

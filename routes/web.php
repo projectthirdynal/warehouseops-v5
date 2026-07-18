@@ -389,6 +389,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/encoder/validate-address', [ShopController::class, 'validateAddress'])->name('shop.encoder.validate-address');
     Route::get('/shop/encoder/autocomplete', [ShopController::class, 'autocompleteAddress'])->name('shop.encoder.autocomplete');
     Route::get('/shop/encoder/suggest-correction', [ShopController::class, 'suggestCorrection'])->name('shop.encoder.suggest-correction');
+    Route::get('/shop/encoder/validation-report', [ShopController::class, 'addressValidationReport'])->name('shop.encoder.validation-report');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');

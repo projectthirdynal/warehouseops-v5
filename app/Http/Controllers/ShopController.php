@@ -3053,6 +3053,62 @@ class ShopController extends Controller
         );
     }
 
+    public function addressValidationReport(): JsonResponse
+    {
+        $orders = Order::query()
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->limit(500)
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_address', 'barangay', 'city', 'state', 'address_confidence', 'address_mapping_id']);
+
+        $issueCounts = [
+            'missing_address' => 0,
+            'missing_barangay' => 0,
+            'missing_city' => 0,
+            'missing_province' => 0,
+            'low_confidence' => 0,
+            'unmapped' => 0,
+        ];
+
+        $ordersWithIssues = [];
+
+        foreach ($orders as $order) {
+            $issues = $this->getAddressIssues($order);
+            if (empty($issues)) {
+                continue;
+            }
+            foreach ($issues as $issue) {
+                $key = match ($issue) {
+                    'missing address' => 'missing_address',
+                    'missing barangay' => 'missing_barangay',
+                    'missing city' => 'missing_city',
+                    'missing province' => 'missing_province',
+                    'low address confidence' => 'low_confidence',
+                    'unmapped address' => 'unmapped',
+                    default => null,
+                };
+                if ($key) {
+                    $issueCounts[$key]++;
+                }
+            }
+            $ordersWithIssues[] = [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'receiver_name' => $order->receiver_name,
+                'issues' => $issues,
+                'address_confidence' => floatval($order->address_confidence),
+            ];
+        }
+
+        return response()->json([
+            'total_orders' => $orders->count(),
+            'valid_orders' => $orders->count() - count($ordersWithIssues),
+            'orders_with_issues' => count($ordersWithIssues),
+            'issue_summary' => $issueCounts,
+            'orders' => $ordersWithIssues,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
