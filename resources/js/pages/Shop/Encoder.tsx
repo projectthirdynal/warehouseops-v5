@@ -1092,6 +1092,13 @@ export default function ShopEncoder({
     skipped: number;
     errors: string[];
   } | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveResult, setArchiveResult] = useState<{
+    archived: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1401,6 +1408,31 @@ export default function ShopEncoder({
         }
       })
       .finally(() => setRescheduleLoading(false));
+  };
+
+  const handleArchive = () => {
+    if (selectedOrderIds.length === 0) return;
+    setArchiveLoading(true);
+    setArchiveResult(null);
+    fetch('/shop/encoder/bulk-archive', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ order_ids: selectedOrderIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setArchiveResult(data);
+        if (data.archived > 0) {
+          setShowArchive(false);
+          setSelectedOrderIds([]);
+          router.reload();
+        }
+      })
+      .finally(() => setArchiveLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1754,6 +1786,18 @@ export default function ShopEncoder({
             >
               <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
               Reschedule
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setArchiveResult(null);
+                setShowArchive(true);
+              }}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <Archive className="mr-1.5 h-3.5 w-3.5" />
+              Archive
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -3275,6 +3319,55 @@ export default function ShopEncoder({
                 disabled={rescheduleLoading || !rescheduleDate}
               >
                 {rescheduleLoading ? 'Processing...' : 'Reschedule'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showArchive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Archive Orders</h2>
+              <button onClick={() => setShowArchive(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              You are about to archive <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''}. Only orders with terminal status
+              (delivered, returned, cancelled) will be archived. Non-terminal orders will be
+              skipped.
+            </p>
+            <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200">
+              <strong>Warning:</strong> Archived orders are soft-deleted and will no longer appear
+              in the encoder list. They can be restored from the database if needed.
+            </div>
+            {archiveResult && (
+              <div className="mb-4 rounded-md border p-3 text-sm">
+                {archiveResult.archived > 0 && (
+                  <p className="text-green-600">
+                    {archiveResult.archived} order{archiveResult.archived !== 1 ? 's' : ''} archived
+                  </p>
+                )}
+                {archiveResult.skipped > 0 && (
+                  <p className="text-muted-foreground">
+                    {archiveResult.skipped} skipped (non-terminal status)
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowArchive(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleArchive}
+                disabled={archiveLoading}
+              >
+                {archiveLoading ? 'Processing...' : 'Confirm Archive'}
               </Button>
             </div>
           </div>

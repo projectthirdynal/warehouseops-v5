@@ -3962,6 +3962,33 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkArchive(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED, OrderStatus::CANCELLED])
+            ->get(['id']);
+
+        $archived = 0;
+        foreach ($orders as $order) {
+            $order->delete();
+            $archived++;
+        }
+
+        $skipped = count($validated['order_ids']) - $archived;
+
+        return response()->json([
+            'archived' => $archived,
+            'skipped'  => $skipped,
+            'errors'   => [],
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {

@@ -406,6 +406,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/encoder/bulk-tag-update', [ShopController::class, 'bulkTagUpdate'])->name('shop.encoder.bulk-tag-update');
     Route::post('/shop/encoder/bulk-split-by-region', [ShopController::class, 'bulkSplitByRegion'])->name('shop.encoder.bulk-split-by-region');
     Route::post('/shop/encoder/bulk-reschedule-delivery', [ShopController::class, 'bulkRescheduleDelivery'])->name('shop.encoder.bulk-reschedule-delivery');
+    Route::post('/shop/encoder/bulk-archive', [ShopController::class, 'bulkArchive'])->name('shop.encoder.bulk-archive');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
