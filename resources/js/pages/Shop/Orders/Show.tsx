@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
   CornerDownRight,
+  Pin,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,9 @@ interface OrderRemark {
   updated_at: string;
   parent_id: number | null;
   mentions?: number[] | null;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
+  pinned_by?: { id: number; name: string } | null;
   user?: { id: number; name: string } | null;
   replies?: OrderRemark[];
 }
@@ -135,6 +139,8 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [showMentions, setShowMentions] = useState(false);
   const authUserId = (usePage().props.auth as { user?: { id: number } }).user?.id;
+  const authRole = (usePage().props.auth as { user?: { role: string } }).user?.role ?? 'agent';
+  const canPin = ['supervisor', 'admin', 'superadmin'].includes(authRole);
 
   const { data, setData, post, processing, reset } = useForm({
     body: '',
@@ -207,6 +213,10 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
   const deleteRemark = (orderId: number, remarkId: number) => {
     if (!confirm('Delete this remark? This cannot be undone.')) return;
     router.delete(`/shop/orders/${orderId}/remarks/${remarkId}`);
+  };
+
+  const togglePin = (orderId: number, remarkId: number) => {
+    router.post(`/shop/orders/${orderId}/remarks/${remarkId}/pin`, {}, { preserveScroll: true });
   };
 
   const toggleMention = (which: 'add' | 'edit' | 'reply', userId: number) => {
@@ -576,7 +586,9 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
 
               return (
                 <div key={entry.id} className="space-y-2">
-                  <div className="rounded-md border p-3 text-sm">
+                  <div
+                    className={`rounded-md border p-3 text-sm ${entry.is_pinned ? 'border-primary/40 bg-primary/5' : ''}`}
+                  >
                     <div className="mb-1 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">
@@ -598,6 +610,15 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                         <span className="text-xs font-medium">{entry.user?.name ?? 'System'}</span>
                         {isEdited && (
                           <span className="text-xs italic text-muted-foreground">(edited)</span>
+                        )}
+                        {entry.is_pinned && (
+                          <Badge
+                            variant="outline"
+                            className="border-primary/40 text-xs text-primary"
+                          >
+                            <Pin className="mr-0.5 h-2.5 w-2.5 fill-current" />
+                            Pinned{entry.pinned_by ? ` by ${entry.pinned_by.name}` : ''}
+                          </Badge>
                         )}
                         {getMentionNames(entry.mentions).map((m) => (
                           <Badge
@@ -633,6 +654,19 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
+                        )}
+                        {canPin && !isEditing && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => togglePin(order.id, entry.id)}
+                            title={entry.is_pinned ? 'Unpin remark' : 'Pin remark to top'}
+                          >
+                            <Pin
+                              className={`h-3 w-3 ${entry.is_pinned ? 'fill-current text-primary' : ''}`}
+                            />
+                          </Button>
                         )}
                       </div>
                     </div>

@@ -3467,9 +3467,10 @@ class ShopController extends Controller
             'shopItems.product:id,name,sku',
             'shopItems.variant:id,product_id,sku,variant_name',
             'agent:id,name',
-            'remarks' => fn ($q) => $q->whereNull('parent_id')->orderBy('created_at'),
+            'remarks' => fn ($q) => $q->whereNull('parent_id')->orderByDesc('is_pinned')->orderBy('created_at'),
             'remarks.replies.user:id,name',
             'remarks.user:id,name',
+            'remarks.pinnedBy:id,name',
         ]);
 
         return Inertia::render('Shop/Orders/Show', [
@@ -5217,6 +5218,35 @@ class ShopController extends Controller
         $remark->delete();
 
         return back()->with('success', 'Remark deleted.');
+    }
+
+    public function togglePinOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($request->user()->role, ['supervisor', 'admin', 'superadmin'])) {
+            return back()->with('error', 'Only supervisors can pin remarks.');
+        }
+
+        if ($remark->is_pinned) {
+            $remark->forceFill([
+                'is_pinned' => false,
+                'pinned_at' => null,
+                'pinned_by' => null,
+            ])->save();
+
+            return back()->with('success', 'Remark unpinned.');
+        }
+
+        $remark->forceFill([
+            'is_pinned' => true,
+            'pinned_at' => now(),
+            'pinned_by' => $request->user()->id,
+        ])->save();
+
+        return back()->with('success', 'Remark pinned.');
     }
 
     public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse

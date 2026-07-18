@@ -22,11 +22,16 @@ class OrderRemark extends Model
         'body',
         'metadata',
         'mentions',
+        'is_pinned',
+        'pinned_at',
+        'pinned_by',
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'mentions' => 'array',
+        'is_pinned' => 'boolean',
+        'pinned_at' => 'datetime',
     ];
 
     public function order(): BelongsTo
@@ -52,5 +57,10 @@ class OrderRemark extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(OrderRemark::class, 'parent_id')->orderBy('created_at');
+    }
+
+    public function pinnedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pinned_by');
     }
 }

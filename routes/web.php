@@ -414,6 +414,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/orders/{order}/remarks', [ShopController::class, 'storeOrderRemark'])->name('shop.orders.remarks.store')->whereNumber('order');
     Route::patch('/shop/orders/{order}/remarks/{remark}', [ShopController::class, 'updateOrderRemark'])->name('shop.orders.remarks.update')->whereNumber(['order', 'remark']);
     Route::delete('/shop/orders/{order}/remarks/{remark}', [ShopController::class, 'destroyOrderRemark'])->name('shop.orders.remarks.destroy')->whereNumber(['order', 'remark']);
+    Route::post('/shop/orders/{order}/remarks/{remark}/pin', [ShopController::class, 'togglePinOrderRemark'])->name('shop.orders.remarks.pin')->whereNumber(['order', 'remark']);
     Route::post('/shop/remark-templates', [ShopController::class, 'storeRemarkTemplate'])->name('shop.remark-templates.store');
     Route::delete('/shop/remark-templates/{remarkTemplate}', [ShopController::class, 'destroyRemarkTemplate'])->name('shop.remark-templates.destroy')->whereNumber('remarkTemplate');
     Route::get('/shop/facebook/connect', [ShopController::class, 'connectFacebook'])->name('shop.facebook.connect');
