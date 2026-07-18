@@ -14,6 +14,7 @@ import {
   X,
   CornerDownRight,
   Pin,
+  Download,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -493,12 +494,21 @@ export default function OrderShow({ order, remarkTemplates = [], mentionableUser
                 <CardTitle className="text-base">Remark History</CardTitle>
                 <CardDescription>All remark entries with author and timestamp.</CardDescription>
               </div>
-              {!showForm && (
-                <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
-                  <Send className="mr-1 h-3.5 w-3.5" />
-                  Add Remark
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/shop/remarks/export?order_id=${order.id}&format=xlsx`}
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-transparent px-3 text-xs shadow-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                </a>
+                {!showForm && (
+                  <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
+                    <Send className="mr-1 h-3.5 w-3.5" />
+                    Add Remark
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">

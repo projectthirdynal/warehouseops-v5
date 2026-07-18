@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
-import { Search, Plus, FileText, MessageSquare } from 'lucide-react';
+import { Search, Plus, FileText, MessageSquare, Download } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -206,6 +206,32 @@ export default function OrdersIndex({
                 <Button type="submit" size="sm">
                   Search Remarks
                 </Button>
+                <a
+                  href={`/shop/remarks/export?${new URLSearchParams({
+                    ...(remarkSearch && { remark_q: remarkSearch }),
+                    ...(remarkType && { remark_type: remarkType }),
+                    ...(remarkAuthor && { remark_author: remarkAuthor }),
+                    ...(remarkTag && { remark_tag: remarkTag }),
+                    format: 'xlsx',
+                  }).toString()}`}
+                  className="inline-flex h-9 items-center gap-1 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </a>
+                <a
+                  href={`/shop/remarks/export?${new URLSearchParams({
+                    ...(remarkSearch && { remark_q: remarkSearch }),
+                    ...(remarkType && { remark_type: remarkType }),
+                    ...(remarkAuthor && { remark_author: remarkAuthor }),
+                    ...(remarkTag && { remark_tag: remarkTag }),
+                    format: 'csv',
+                  }).toString()}`}
+                  className="inline-flex h-9 items-center gap-1 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Download className="h-4 w-4" />
+                  CSV
+                </a>
               </form>
             )}
           </CardContent>

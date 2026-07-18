@@ -57,6 +57,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Exports\OrderRemarksExport;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShopController extends Controller
@@ -5271,6 +5272,33 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', 'Remark pinned.');
+    }
+
+    public function exportOrderRemarks(Request $request): BinaryFileResponse
+    {
+        $filters = $request->only([
+            'order_id',
+            'remark_q',
+            'remark_type',
+            'remark_author',
+            'remark_tag',
+        ]);
+
+        $format = $request->query('format', 'xlsx');
+        $filename = 'order_remarks_' . now()->format('Ymd_His');
+
+        $export = new OrderRemarksExport($filters);
+
+        if ($format === 'csv') {
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                $export,
+                "{$filename}.csv",
+                \Maatwebsite\Excel\Excel::CSV,
+                ['Content-Type' => 'text/csv; charset=UTF-8'],
+            );
+        }
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, "{$filename}.xlsx");
     }
 
     public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse
