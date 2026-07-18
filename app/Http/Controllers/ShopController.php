@@ -3644,6 +3644,72 @@ class ShopController extends Controller
         ]);
     }
 
+    public function bulkCodVerify(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'total_amount', 'cod_amount', 'shipping_cost', 'discount_amount', 'tax_amount', 'quantity', 'unit_price']);
+
+        $items = $orders->map(fn (Order $order) => [
+            'id'              => $order->id,
+            'order_number'    => $order->order_number,
+            'receiver_name'   => $order->receiver_name,
+            'quantity'        => $order->quantity,
+            'unit_price'      => (float) $order->unit_price,
+            'subtotal'        => (float) $order->unit_price * $order->quantity,
+            'shipping_cost'   => (float) ($order->shipping_cost ?? 0),
+            'discount_amount' => (float) ($order->discount_amount ?? 0),
+            'tax_amount'      => (float) ($order->tax_amount ?? 0),
+            'expected_cod'    => round((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0), 2),
+            'actual_cod'      => (float) $order->cod_amount,
+            'discrepancy'     => round((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0)), 2),
+            'is_correct'      => abs((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0))) < 0.01,
+        ]);
+
+        $correct = $items->filter(fn ($item) => $item['is_correct'])->count();
+        $discrepant = $items->count() - $correct;
+
+        return response()->json([
+            'items'       => $items,
+            'total'        => $items->count(),
+            'correct'      => $correct,
+            'discrepant'   => $discrepant,
+            'total_discrepancy' => round($items->sum(fn ($item) => $item['discrepancy']), 2),
+        ]);
+    }
+
+    public function bulkCodUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'updates'             => ['required', 'array', 'min:1'],
+            'updates.*.order_id'  => ['required', 'integer', 'exists:orders,id'],
+            'updates.*.cod_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $updated = 0;
+        $errors = [];
+
+        foreach ($validated['updates'] as $update) {
+            $order = Order::query()->find($update['order_id']);
+            if (! $order) {
+                $errors[] = "Order #{$update['order_id']} not found";
+                continue;
+            }
+            $order->forceFill(['cod_amount' => $update['cod_amount']])->save();
+            $updated++;
+        }
+
+        return response()->json([
+            'updated' => $updated,
+            'errors'  => $errors,
+        ]);
+    }
+
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {

@@ -22,6 +22,7 @@ import {
   FileText,
   UserCog,
   Printer,
+  DollarSign,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -965,6 +966,35 @@ export default function ShopEncoder({
     }>;
     count: number;
   } | null>(null);
+  const [showCodVerify, setShowCodVerify] = useState(false);
+  const [codVerifyLoading, setCodVerifyLoading] = useState(false);
+  const [codVerifyData, setCodVerifyData] = useState<{
+    items: Array<{
+      id: number;
+      order_number: string;
+      receiver_name: string;
+      quantity: number;
+      unit_price: number;
+      subtotal: number;
+      shipping_cost: number;
+      discount_amount: number;
+      tax_amount: number;
+      expected_cod: number;
+      actual_cod: number;
+      discrepancy: number;
+      is_correct: boolean;
+    }>;
+    total: number;
+    correct: number;
+    discrepant: number;
+    total_discrepancy: number;
+  } | null>(null);
+  const [codEdits, setCodEdits] = useState<Record<number, string>>({});
+  const [codUpdateLoading, setCodUpdateLoading] = useState(false);
+  const [codUpdateResult, setCodUpdateResult] = useState<{
+    updated: number;
+    errors: string[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1088,6 +1118,58 @@ export default function ShopEncoder({
         setShowPrintLabels(true);
       })
       .finally(() => setPrintLabelsLoading(false));
+  };
+
+  const handleCodVerify = () => {
+    if (selectedOrderIds.length === 0) return;
+    setCodVerifyLoading(true);
+    setCodEdits({});
+    setCodUpdateResult(null);
+    fetch('/shop/encoder/bulk-cod-verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ order_ids: selectedOrderIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setCodVerifyData(data);
+        setShowCodVerify(true);
+      })
+      .finally(() => setCodVerifyLoading(false));
+  };
+
+  const handleCodUpdate = () => {
+    const updates = Object.entries(codEdits)
+      .filter(([, value]) => value !== '')
+      .map(([orderId, amount]) => ({
+        order_id: parseInt(orderId, 10),
+        cod_amount: parseFloat(amount),
+      }));
+    if (updates.length === 0) return;
+    setCodUpdateLoading(true);
+    setCodUpdateResult(null);
+    fetch('/shop/encoder/bulk-cod-update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ updates }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setCodUpdateResult(data);
+        if (data.updated > 0) {
+          setCodEdits({});
+          router.reload();
+        }
+      })
+      .finally(() => setCodUpdateLoading(false));
   };
 
   const toggleOrder = (orderId: number) => {
@@ -1349,6 +1431,15 @@ export default function ShopEncoder({
             >
               <Printer className="mr-1.5 h-3.5 w-3.5" />
               {printLabelsLoading ? 'Loading...' : 'Print Labels'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCodVerify}
+              disabled={selectedOrderIds.length === 0 || codVerifyLoading}
+            >
+              <DollarSign className="mr-1.5 h-3.5 w-3.5" />
+              {codVerifyLoading ? 'Loading...' : 'Verify COD'}
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -2309,6 +2400,127 @@ export default function ShopEncoder({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {showCodVerify && codVerifyData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">COD Amount Verification</h2>
+              <button onClick={() => setShowCodVerify(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Summary stats */}
+            <div className="mb-4 grid grid-cols-4 gap-3">
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold">{codVerifyData.total}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{codVerifyData.correct}</p>
+                <p className="text-xs text-muted-foreground">Correct</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{codVerifyData.discrepant}</p>
+                <p className="text-xs text-muted-foreground">Discrepant</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p
+                  className={`text-2xl font-bold ${codVerifyData.total_discrepancy >= 0 ? 'text-orange-600' : 'text-red-600'}`}
+                >
+                  {money(codVerifyData.total_discrepancy)}
+                </p>
+                <p className="text-xs text-muted-foreground">Net Discrepancy</p>
+              </div>
+            </div>
+
+            {/* Items table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-1 pr-2 font-medium">Order</th>
+                    <th className="pb-1 pr-2 font-medium">Customer</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Subtotal</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Shipping</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Discount</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Tax</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Expected</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Actual</th>
+                    <th className="pb-1 pr-2 text-right font-medium">Disc.</th>
+                    <th className="pb-1 pr-2 font-medium">New COD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codVerifyData.items.map((item) => (
+                    <tr
+                      key={item.id}
+                      className={`border-b ${item.is_correct ? '' : 'bg-red-50 dark:bg-red-950/20'}`}
+                    >
+                      <td className="py-1.5 pr-2 font-medium">{item.order_number}</td>
+                      <td className="py-1.5 pr-2 text-muted-foreground">{item.receiver_name}</td>
+                      <td className="py-1.5 pr-2 text-right">{money(item.subtotal)}</td>
+                      <td className="py-1.5 pr-2 text-right">{money(item.shipping_cost)}</td>
+                      <td className="py-1.5 pr-2 text-right text-red-600">
+                        -{money(item.discount_amount)}
+                      </td>
+                      <td className="py-1.5 pr-2 text-right">{money(item.tax_amount)}</td>
+                      <td className="py-1.5 pr-2 text-right font-medium">
+                        {money(item.expected_cod)}
+                      </td>
+                      <td className="py-1.5 pr-2 text-right font-medium">
+                        {money(item.actual_cod)}
+                      </td>
+                      <td
+                        className={`py-1.5 pr-2 text-right font-bold ${item.discrepancy === 0 ? 'text-green-600' : item.discrepancy > 0 ? 'text-orange-600' : 'text-red-600'}`}
+                      >
+                        {item.discrepancy > 0 ? '+' : ''}
+                        {money(item.discrepancy)}
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-7 w-24 text-xs"
+                          placeholder={item.actual_cod.toFixed(2)}
+                          value={codEdits[item.id] ?? ''}
+                          onChange={(e) =>
+                            setCodEdits((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Update result + action */}
+            {codUpdateResult && (
+              <div className="mt-3 rounded-md border p-2 text-xs">
+                <span className="text-green-600">{codUpdateResult.updated} updated</span>
+                {codUpdateResult.errors.length > 0 && (
+                  <span className="ml-2 text-destructive">{codUpdateResult.errors.join(', ')}</span>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCodVerify(false)}>
+                Close
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCodUpdate}
+                disabled={Object.keys(codEdits).length === 0 || codUpdateLoading}
+              >
+                {codUpdateLoading
+                  ? 'Updating...'
+                  : `Update ${Object.keys(codEdits).length} COD Amount${Object.keys(codEdits).length !== 1 ? 's' : ''}`}
+              </Button>
             </div>
           </div>
         </div>
