@@ -33,7 +33,7 @@ class CourierExportService
                 'created_by' => $userId,
                 'row_count' => $orders->count(),
                 'exported_at' => now(),
-                'metadata' => ['format' => 'generic_csv'],
+                'metadata' => ['format' => strtoupper($courierCode) === 'JNT' ? 'JNT' : (strtoupper($courierCode) === 'FLASH' ? 'FLASH' : 'Generic CSV')],
             ]);
 
             $rows = $orders->values()->map(function (Order $order, int $index) use ($batch) {
@@ -108,6 +108,93 @@ class CourierExportService
     }
 
     /**
+     * @return array{format: string, headers: array<int, string>, field_count: int}
+     */
+    public function csvFormatInfo(string $courierCode): array
+    {
+        $headers = $this->headers($courierCode);
+
+        return [
+            'format'      => strtoupper($courierCode) === 'JNT' ? 'JNT' : (strtoupper($courierCode) === 'FLASH' ? 'FLASH' : 'Generic CSV'),
+            'headers'     => $headers,
+            'field_count' => count($headers),
+        ];
+    }
+
+    /**
+     * Generate a CSV preview from orders without creating a batch.
+     *
+     * @param Collection<int, Order> $orders
+     * @return array{headers: array<int, string>, rows: array<int, array<int, mixed>>, row_count: int}
+     */
+    public function previewCsv(Collection $orders, string $courierCode, int $limit = 10): array
+    {
+        $headers = $this->headers($courierCode);
+        $rows = [];
+
+        foreach ($orders->take($limit) as $order) {
+            [$productName, $quantity] = $this->orderLineSummary($order);
+            $phone = $this->cleanPhone($order->receiver_phone);
+            $sender = $this->senderInfo();
+            $orderNumber = $order->order_number;
+
+            $rows[] = match (strtoupper($courierCode)) {
+                'JNT' => [
+                    $orderNumber,
+                    $order->receiver_name,
+                    $phone,
+                    $order->receiver_address,
+                    $order->state,
+                    $order->city,
+                    $order->barangay,
+                    $productName,
+                    $quantity,
+                    $order->cod_amount,
+                    $order->cod_amount,
+                    $order->notes,
+                ],
+                'FLASH' => [
+                    $orderNumber,
+                    $sender['name'],
+                    $sender['phone'],
+                    $sender['address'],
+                    $sender['province'],
+                    $sender['city'],
+                    $order->receiver_name,
+                    $phone,
+                    $order->receiver_address,
+                    $order->state,
+                    $order->city,
+                    $order->barangay,
+                    $productName,
+                    $quantity,
+                    $order->cod_amount,
+                    $order->notes,
+                ],
+                default => [
+                    $orderNumber,
+                    $order->receiver_name,
+                    $phone,
+                    $order->receiver_address,
+                    $order->state,
+                    $order->city,
+                    $order->barangay,
+                    $productName,
+                    $quantity,
+                    $order->cod_amount,
+                    $order->notes,
+                ],
+            };
+        }
+
+        return [
+            'headers'   => $headers,
+            'rows'      => $rows,
+            'row_count' => count($rows),
+        ];
+    }
+
+    /**
      * @param Collection<int, Order> $orders
      * @return array{valid: bool, total: int, valid_count: int, invalid_count: int, orders: array<int, array{order_id: int, order_number: string, receiver_name: string, valid: bool, missing_fields: array<int, string>}>}
      */
@@ -166,7 +253,7 @@ class CourierExportService
     /**
      * @param Collection<int, CourierExportRow> $rows
      */
-    private function csv(Collection $rows, string $courierCode): string
+    public function csv(Collection $rows, string $courierCode): string
     {
         $handle = fopen('php://temp', 'r+');
         fputcsv($handle, $this->headers($courierCode));
@@ -183,7 +270,7 @@ class CourierExportService
     /**
      * Map a CourierExportRow to courier-specific CSV values.
      */
-    private function rowValues(CourierExportRow $row, string $courierCode): array
+    public function rowValues(CourierExportRow $row, string $courierCode): array
     {
         $orderNumber = $row->order?->order_number ?? $row->order_id;
         $phone = $this->cleanPhone($row->phone_number);
@@ -426,7 +513,7 @@ class CourierExportService
     /**
      * @return array<int, string>
      */
-    private function headers(string $courierCode): array
+    public function headers(string $courierCode): array
     {
         return match (strtoupper($courierCode)) {
             'JNT' => [

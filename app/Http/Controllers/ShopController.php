@@ -2742,6 +2742,34 @@ class ShopController extends Controller
         return response()->json($result);
     }
 
+    public function previewCsvFormat(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['nullable', 'array'],
+            'order_ids.*'  => ['integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(10)
+            ->get();
+
+        $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
+        $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
+
+        return response()->json([
+            'format'      => $formatInfo['format'],
+            'headers'     => $formatInfo['headers'],
+            'field_count' => $formatInfo['field_count'],
+            'rows'        => $preview['rows'],
+            'row_count'   => $preview['row_count'],
+            'total_available' => $orders->count(),
+        ]);
+    }
+
     public function exportCourier(Request $request): RedirectResponse
     {
         $validated = $request->validate([

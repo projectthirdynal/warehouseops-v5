@@ -1141,6 +1141,17 @@ export default function ShopEncoder({
       missing_fields: string[];
     }[];
   } | null>(null);
+  const [showCsvPreview, setShowCsvPreview] = useState(false);
+  const [csvPreviewCourier, setCsvPreviewCourier] = useState('');
+  const [csvPreviewLoading, setCsvPreviewLoading] = useState(false);
+  const [csvPreviewResult, setCsvPreviewResult] = useState<{
+    format: string;
+    headers: string[];
+    field_count: number;
+    rows: (string | number)[][];
+    row_count: number;
+    total_available: number;
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1528,6 +1539,27 @@ export default function ShopEncoder({
       .finally(() => setBatchValidateLoading(false));
   };
 
+  const handleCsvPreview = () => {
+    if (!csvPreviewCourier) return;
+    setCsvPreviewLoading(true);
+    setCsvPreviewResult(null);
+    fetch('/shop/exports/preview-csv-format', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        courier_code: csvPreviewCourier,
+        order_ids: selectedOrderIds.length > 0 ? selectedOrderIds : undefined,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => setCsvPreviewResult(data))
+      .finally(() => setCsvPreviewLoading(false));
+  };
+
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
       current.includes(orderId) ? current.filter((id) => id !== orderId) : [...current, orderId]
@@ -1904,6 +1936,18 @@ export default function ShopEncoder({
             >
               <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
               Validate
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCsvPreviewCourier('');
+                setCsvPreviewResult(null);
+                setShowCsvPreview(true);
+              }}
+            >
+              <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" />
+              Preview CSV
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -3710,6 +3754,101 @@ export default function ShopEncoder({
             )}
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowBatchValidate(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCsvPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-4xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5" />
+                <h2 className="text-lg font-bold">CSV Format Preview</h2>
+              </div>
+              <button onClick={() => setShowCsvPreview(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Preview the courier-specific CSV format
+              {selectedOrderIds.length > 0
+                ? ` for ${selectedOrderIds.length} selected order${selectedOrderIds.length !== 1 ? 's' : ''}`
+                : ' (up to 10 orders will be sampled)'}
+              .
+            </p>
+            <div className="mb-4 flex items-end gap-3">
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium">Courier</label>
+                <select
+                  value={csvPreviewCourier}
+                  onChange={(e) => setCsvPreviewCourier(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select a courier...</option>
+                  {couriers.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleCsvPreview}
+                disabled={csvPreviewLoading || !csvPreviewCourier}
+              >
+                {csvPreviewLoading ? 'Generating...' : 'Generate Preview'}
+              </Button>
+            </div>
+            {csvPreviewResult && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant="default">{csvPreviewResult.format}</Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {csvPreviewResult.field_count} columns · {csvPreviewResult.row_count} sample
+                    rows
+                  </span>
+                </div>
+                <div className="overflow-auto rounded-md border" style={{ maxHeight: '400px' }}>
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/50">
+                      <tr>
+                        {csvPreviewResult.headers.map((header, idx) => (
+                          <th
+                            key={idx}
+                            className="whitespace-nowrap px-3 py-2 text-left font-medium"
+                          >
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvPreviewResult.rows.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="border-t">
+                          {row.map((cell, cellIdx) => (
+                            <td key={cellIdx} className="whitespace-nowrap px-3 py-1.5">
+                              {String(cell ?? '')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {csvPreviewResult.row_count === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No orders available for preview. Select orders or ensure there are encoder-ready
+                    orders in the system.
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowCsvPreview(false)}>
                 Close
               </Button>
             </div>
