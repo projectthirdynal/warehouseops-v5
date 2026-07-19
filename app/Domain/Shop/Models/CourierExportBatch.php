@@ -58,6 +58,9 @@ class CourierExportBatch extends Model
         'created_by',
         'row_count',
         'file_path',
+        'file_size',
+        'file_hash',
+        'file_generated_at',
         'exported_at',
         'downloaded_at',
         'archived_at',
@@ -69,6 +72,7 @@ class CourierExportBatch extends Model
         'exported_at' => 'datetime',
         'downloaded_at' => 'datetime',
         'archived_at' => 'datetime',
+        'file_generated_at' => 'datetime',
         'metadata' => 'array',
     ];
 

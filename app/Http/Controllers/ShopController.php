@@ -2770,6 +2770,36 @@ class ShopController extends Controller
         ]);
     }
 
+    public function batchFileInfo(CourierExportBatch $batch): JsonResponse
+    {
+        $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);
+
+        return response()->json([
+            'batch_number'      => $batch->batch_number,
+            'file_path'         => $batch->file_path,
+            'file_exists'       => $exists,
+            'file_size'         => $batch->file_size,
+            'file_size_human'   => $batch->file_size ? $this->formatBytes($batch->file_size) : null,
+            'file_hash'         => $batch->file_hash,
+            'file_generated_at' => $batch->file_generated_at?->toIso8601String(),
+            'courier_code'      => $batch->courier_code,
+            'format'            => $batch->metadata['format'] ?? null,
+            'row_count'         => $batch->row_count,
+            'status'            => $batch->status,
+        ]);
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $i = 0;
+        while ($bytes >= 1024 && $i < count($units) - 1) {
+            $bytes /= 1024;
+            $i++;
+        }
+        return round($bytes, 2) . ' ' . $units[$i];
+    }
+
     public function exportCourier(Request $request): RedirectResponse
     {
         $validated = $request->validate([

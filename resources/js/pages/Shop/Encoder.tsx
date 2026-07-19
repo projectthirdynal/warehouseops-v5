@@ -1152,6 +1152,20 @@ export default function ShopEncoder({
     row_count: number;
     total_available: number;
   } | null>(null);
+  const [showFileInfo, setShowFileInfo] = useState(false);
+  const [fileInfoData, setFileInfoData] = useState<{
+    batch_number: string;
+    file_path: string | null;
+    file_exists: boolean;
+    file_size: number | null;
+    file_size_human: string | null;
+    file_hash: string | null;
+    file_generated_at: string | null;
+    courier_code: string;
+    format: string | null;
+    row_count: number;
+    status: string;
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1558,6 +1572,15 @@ export default function ShopEncoder({
       .then((res) => res.json())
       .then((data) => setCsvPreviewResult(data))
       .finally(() => setCsvPreviewLoading(false));
+  };
+
+  const loadFileInfo = (batchId: number) => {
+    fetch(`/shop/exports/${batchId}/file-info`)
+      .then((res) => res.json())
+      .then((data) => {
+        setFileInfoData(data);
+        setShowFileInfo(true);
+      });
   };
 
   const toggleOrder = (orderId: number) => {
@@ -2309,6 +2332,14 @@ export default function ShopEncoder({
                           disabled={statusTimelineLoading}
                         >
                           <GitBranch className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => loadFileInfo(batch.id)}
+                        >
+                          <FileText className="h-4 w-4" />
                         </Button>
                         {batch.failed_row_count &&
                           batch.failed_row_count > 0 &&
@@ -3849,6 +3880,99 @@ export default function ShopEncoder({
             )}
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowCsvPreview(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showFileInfo && fileInfoData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Batch File Info</h2>
+              </div>
+              <button onClick={() => setShowFileInfo(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <span className="text-sm font-medium">Batch Number</span>
+                <span className="text-sm">{fileInfoData.batch_number}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <span className="text-sm font-medium">Courier</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{fileInfoData.courier_code}</span>
+                  {fileInfoData.format && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {fileInfoData.format}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <span className="text-sm font-medium">Row Count</span>
+                <span className="text-sm">{fileInfoData.row_count}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <span className="text-sm font-medium">File Status</span>
+                {fileInfoData.file_exists ? (
+                  <Badge variant="default" className="text-[10px]">
+                    Exists
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-[10px]">
+                    Missing
+                  </Badge>
+                )}
+              </div>
+              {fileInfoData.file_path && (
+                <div className="rounded-md border p-3">
+                  <span className="text-sm font-medium">File Path</span>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                    {fileInfoData.file_path}
+                  </p>
+                </div>
+              )}
+              {fileInfoData.file_size_human && (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <span className="text-sm font-medium">File Size</span>
+                  <span className="text-sm">{fileInfoData.file_size_human}</span>
+                </div>
+              )}
+              {fileInfoData.file_hash && (
+                <div className="rounded-md border p-3">
+                  <span className="text-sm font-medium">SHA-256 Hash</span>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                    {fileInfoData.file_hash}
+                  </p>
+                </div>
+              )}
+              {fileInfoData.file_generated_at && (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <span className="text-sm font-medium">Generated At</span>
+                  <span className="text-sm">
+                    {new Date(fileInfoData.file_generated_at).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+            {fileInfoData.file_exists && fileInfoData.status !== 'archived' && (
+              <div className="mt-4 flex justify-end">
+                <Button asChild size="sm">
+                  <Link href={`/shop/exports/${fileInfoData.batch_number}/download`}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Download
+                  </Link>
+                </Button>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowFileInfo(false)}>
                 Close
               </Button>
             </div>

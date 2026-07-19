@@ -66,8 +66,14 @@ class CourierExportService
             });
 
             $path = "exports/shop/{$batch->batch_number}.csv";
-            Storage::put($path, $this->csv($rows, $courierCode));
-            $batch->forceFill(['file_path' => $path])->save();
+            $csvContent = $this->csv($rows, $courierCode);
+            Storage::put($path, $csvContent);
+            $batch->forceFill([
+                'file_path'         => $path,
+                'file_size'         => strlen($csvContent),
+                'file_hash'         => hash('sha256', $csvContent),
+                'file_generated_at' => now(),
+            ])->save();
 
             if ($userId !== null) {
                 $user = User::query()->find($userId);
@@ -422,12 +428,16 @@ class CourierExportService
 
             if ($stillFailed === 0) {
                 $path = "exports/shop/{$batch->batch_number}.csv";
-                Storage::put($path, $this->csv($allRows, $batch->courier_code));
+                $csvContent = $this->csv($allRows, $batch->courier_code);
+                Storage::put($path, $csvContent);
 
                 $batch->forceFill([
-                    'status' => CourierExportBatch::STATUS_READY,
-                    'file_path' => $path,
-                    'row_count' => $allRows->count(),
+                    'status'            => CourierExportBatch::STATUS_READY,
+                    'file_path'         => $path,
+                    'file_size'         => strlen($csvContent),
+                    'file_hash'         => hash('sha256', $csvContent),
+                    'file_generated_at' => now(),
+                    'row_count'         => $allRows->count(),
                 ])->save();
             } else {
                 $batch->forceFill([
