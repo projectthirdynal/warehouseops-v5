@@ -2775,6 +2775,7 @@ class ShopController extends Controller
         $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);
 
         return response()->json([
+            'id'                => $batch->id,
             'batch_number'      => $batch->batch_number,
             'file_path'         => $batch->file_path,
             'file_exists'       => $exists,
@@ -2891,14 +2892,15 @@ class ShopController extends Controller
 
     public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
     {
-        if (! in_array($batch->status, [CourierExportBatch::STATUS_DOWNLOADED, CourierExportBatch::STATUS_READY])) {
-            return back()->with('error', 'Only ready or downloaded batches can be archived.');
+        if (! $batch->canTransitionTo(CourierExportBatch::STATUS_ARCHIVED)) {
+            return back()->with('error', 'Batch in current status cannot be archived.');
         }
 
-        $batch->forceFill([
-            'status' => CourierExportBatch::STATUS_ARCHIVED,
-            'archived_at' => now(),
-        ])->save();
+        $batch->transitionTo(
+            CourierExportBatch::STATUS_ARCHIVED,
+            'Archived via encoder export',
+            auth()->id(),
+        );
 
         return back()->with('success', "Batch {$batch->batch_number} archived.");
     }
@@ -4128,13 +4130,16 @@ class ShopController extends Controller
         }
 
         if ($batch->status === CourierExportBatch::STATUS_READY) {
-            $batch->forceFill([
-                'status' => CourierExportBatch::STATUS_DOWNLOADED,
-                'downloaded_at' => now(),
-            ])->save();
+            $batch->transitionTo(
+                CourierExportBatch::STATUS_DOWNLOADED,
+                'Downloaded via encoder export',
+                auth()->id(),
+            );
         }
 
-        $filename = $batch->batch_number . '.csv';
+        $timestamp = now()->format('Y-m-d_His');
+        $courier = strtoupper($batch->courier_code);
+        $filename = "{$batch->batch_number}_{$courier}_{$timestamp}.csv";
 
         return Storage::disk('local')->download($batch->file_path, $filename, [
             'Content-Type' => 'text/csv',

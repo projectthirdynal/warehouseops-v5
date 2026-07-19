@@ -1154,6 +1154,7 @@ export default function ShopEncoder({
   } | null>(null);
   const [showFileInfo, setShowFileInfo] = useState(false);
   const [fileInfoData, setFileInfoData] = useState<{
+    id: number;
     batch_number: string;
     file_path: string | null;
     file_exists: boolean;
@@ -3962,11 +3963,11 @@ export default function ShopEncoder({
               )}
             </div>
             {fileInfoData.file_exists && fileInfoData.status !== 'archived' && (
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-end gap-2">
                 <Button asChild size="sm">
-                  <Link href={`/shop/exports/${fileInfoData.batch_number}/download`}>
+                  <Link href={`/shop/exports/${fileInfoData.id}/download`}>
                     <Download className="mr-1.5 h-4 w-4" />
-                    Download
+                    Download CSV
                   </Link>
                 </Button>
               </div>

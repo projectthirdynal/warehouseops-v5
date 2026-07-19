@@ -378,9 +378,10 @@ class CourierExportService
         }
 
         return DB::transaction(function () use ($batch, $failedRows) {
-            $batch->forceFill([
-                'status' => CourierExportBatch::STATUS_PROCESSING,
-            ])->save();
+            $batch->transitionTo(
+                CourierExportBatch::STATUS_PROCESSING,
+                'Rebuild started',
+            );
 
             $rebuilt = 0;
             $stillFailed = 0;
@@ -432,18 +433,24 @@ class CourierExportService
                 Storage::put($path, $csvContent);
 
                 $batch->forceFill([
-                    'status'            => CourierExportBatch::STATUS_READY,
                     'file_path'         => $path,
                     'file_size'         => strlen($csvContent),
                     'file_hash'         => hash('sha256', $csvContent),
                     'file_generated_at' => now(),
                     'row_count'         => $allRows->count(),
                 ])->save();
+                $batch->transitionTo(
+                    CourierExportBatch::STATUS_READY,
+                    'Rebuild completed — all rows fixed',
+                );
             } else {
                 $batch->forceFill([
-                    'status' => CourierExportBatch::STATUS_READY,
                     'row_count' => $allRows->where('status', 'exported')->count(),
                 ])->save();
+                $batch->transitionTo(
+                    CourierExportBatch::STATUS_READY,
+                    "Rebuild completed — {$stillFailed} rows still failing",
+                );
             }
 
             return $batch->refresh();
