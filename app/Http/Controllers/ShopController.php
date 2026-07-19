@@ -3097,8 +3097,29 @@ class ShopController extends Controller
         ]);
     }
 
-    public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
+    public function retryCourierBatch(Request $request, CourierExportBatch $batch): RedirectResponse
     {
+        $mode = $request->input('mode', 'failed');
+
+        if ($mode === 'full') {
+            $totalRows = $batch->rows()->count();
+
+            if ($totalRows === 0) {
+                return back()->with('error', 'No rows to rebuild in this batch.');
+            }
+
+            $this->courierExports->rebuildBatchFull($batch);
+
+            $stillFailed = $batch->fresh()->rows()->where('status', 'failed')->count();
+
+            return back()->with(
+                $stillFailed > 0 ? 'warning' : 'success',
+                $stillFailed > 0
+                    ? 'Full rebuild of ' . $batch->batch_number . ': ' . ($totalRows - $stillFailed) . ' rows OK, ' . $stillFailed . ' still failing.'
+                    : 'Full rebuild of ' . $batch->batch_number . ': all ' . $totalRows . ' rows refreshed successfully.'
+            );
+        }
+
         $failedCount = $batch->rows()->where('status', 'failed')->count();
 
         if ($failedCount === 0) {

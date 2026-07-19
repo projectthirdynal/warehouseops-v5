@@ -1185,6 +1185,14 @@ export default function ShopEncoder({
       created_at: string;
     }[];
   } | null>(null);
+  const [showRebuild, setShowRebuild] = useState(false);
+  const [rebuildBatch, setRebuildBatch] = useState<{
+    id: number;
+    batch_number: string;
+    failed_row_count: number;
+  } | null>(null);
+  const [rebuildMode, setRebuildMode] = useState<'failed' | 'full'>('failed');
+  const [rebuildLoading, setRebuildLoading] = useState(false);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1609,6 +1617,22 @@ export default function ShopEncoder({
         setErrorLogData(data);
         setShowErrorLog(true);
       });
+  };
+
+  const handleRebuild = () => {
+    if (!rebuildBatch) return;
+    setRebuildLoading(true);
+    router.post(
+      `/shop/exports/${rebuildBatch.id}/retry`,
+      { mode: rebuildMode },
+      {
+        preserveScroll: true,
+        onFinish: () => {
+          setRebuildLoading(false);
+          setShowRebuild(false);
+        },
+      }
+    );
   };
 
   const toggleOrder = (orderId: number) => {
@@ -2377,24 +2401,28 @@ export default function ShopEncoder({
                         >
                           <AlertTriangle className="h-4 w-4" />
                         </Button>
-                        {batch.failed_row_count &&
-                          batch.failed_row_count > 0 &&
-                          batch.status !== 'archived' && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() =>
-                                router.post(
-                                  `/shop/exports/${batch.id}/retry`,
-                                  {},
-                                  { preserveScroll: true }
-                                )
-                              }
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          )}
+                        {batch.status !== 'archived' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setRebuildBatch({
+                                id: batch.id,
+                                batch_number: batch.batch_number,
+                                failed_row_count: batch.failed_row_count ?? 0,
+                              });
+                              setRebuildMode(
+                                batch.failed_row_count && batch.failed_row_count > 0
+                                  ? 'failed'
+                                  : 'full'
+                              );
+                              setShowRebuild(true);
+                            }}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
                         {(batch.status === 'ready' || batch.status === 'downloaded') && (
                           <Button
                             type="button"
@@ -4114,6 +4142,70 @@ export default function ShopEncoder({
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowErrorLog(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRebuild && rebuildBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Rebuild Batch</h2>
+              </div>
+              <button onClick={() => setShowRebuild(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Batch <span className="font-medium">{rebuildBatch.batch_number}</span> — choose a
+              rebuild mode below.
+            </p>
+            <div className="mb-4 space-y-3">
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-[:checked]:border-primary">
+                <input
+                  type="radio"
+                  name="rebuildMode"
+                  value="failed"
+                  checked={rebuildMode === 'failed'}
+                  onChange={() => setRebuildMode('failed')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="text-sm font-medium">Failed rows only</p>
+                  <p className="text-xs text-muted-foreground">
+                    Re-attempt only the {rebuildBatch.failed_row_count} failed row(s). Use this
+                    after correcting specific order issues.
+                  </p>
+                </div>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-[:checked]:border-primary">
+                <input
+                  type="radio"
+                  name="rebuildMode"
+                  value="full"
+                  checked={rebuildMode === 'full'}
+                  onChange={() => setRebuildMode('full')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="text-sm font-medium">Full rebuild (all rows)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Re-fetch all rows from current order data. Use this after bulk address
+                    corrections or data updates.
+                  </p>
+                </div>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowRebuild(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleRebuild} disabled={rebuildLoading}>
+                <RotateCcw className="mr-1.5 h-4 w-4" />
+                {rebuildLoading ? 'Rebuilding...' : 'Rebuild'}
               </Button>
             </div>
           </div>

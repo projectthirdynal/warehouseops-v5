@@ -481,6 +481,102 @@ class CourierExportService
         });
     }
 
+    public function rebuildBatchFull(CourierExportBatch $batch): CourierExportBatch
+    {
+        return DB::transaction(function () use ($batch) {
+            $batch->transitionTo(
+                CourierExportBatch::STATUS_PROCESSING,
+                'Full rebuild started — refreshing all rows from order data',
+            );
+
+            $rows = $batch->rows()->orderBy('row_number')->get();
+            $rebuilt = 0;
+            $stillFailed = 0;
+
+            foreach ($rows as $row) {
+                $order = $row->order;
+
+                if (! $order) {
+                    $row->forceFill([
+                        'status' => 'failed',
+                        'error_message' => 'Linked order no longer exists',
+                    ])->save();
+                    $this->logRowError($batch, $row, 'Linked order no longer exists', 'rebuild-full', 'error');
+                    $stillFailed++;
+                    continue;
+                }
+
+                try {
+                    [$productName, $quantity] = $this->orderLineSummary($order);
+
+                    $row->forceFill([
+                        'status' => 'exported',
+                        'receiver_name' => $order->receiver_name,
+                        'phone_number' => $order->receiver_phone,
+                        'complete_address' => $order->receiver_address,
+                        'province' => $order->state,
+                        'city' => $order->city,
+                        'barangay' => $order->barangay,
+                        'product_name' => $productName,
+                        'cod_amount' => $order->cod_amount,
+                        'quantity' => $quantity,
+                        'remarks' => $order->notes,
+                        'error_message' => null,
+                        'exported_at' => now(),
+                    ])->save();
+
+                    BatchItemErrorLog::query()
+                        ->where('courier_export_row_id', $row->id)
+                        ->whereNull('resolved_at')
+                        ->update([
+                            'resolution' => 'Fixed during full rebuild',
+                            'resolved_at' => now(),
+                            'resolved_by' => auth()->id(),
+                        ]);
+
+                    $rebuilt++;
+                } catch (\Throwable $e) {
+                    $row->forceFill([
+                        'status' => 'failed',
+                        'error_message' => $e->getMessage(),
+                    ])->save();
+                    $this->logRowError($batch, $row, $e->getMessage(), 'rebuild-full', 'error');
+                    $stillFailed++;
+                }
+            }
+
+            $allRows = $batch->rows()->orderBy('row_number')->get();
+
+            if ($stillFailed === 0) {
+                $path = "exports/shop/{$batch->batch_number}.csv";
+                $csvContent = $this->csv($allRows, $batch->courier_code);
+                Storage::put($path, $csvContent);
+
+                $batch->forceFill([
+                    'file_path'         => $path,
+                    'file_size'         => strlen($csvContent),
+                    'file_hash'         => hash('sha256', $csvContent),
+                    'file_generated_at' => now(),
+                    'row_count'         => $allRows->count(),
+                ])->save();
+                $batch->transitionTo(
+                    CourierExportBatch::STATUS_READY,
+                    "Full rebuild completed — {$rebuilt} rows refreshed, all fixed",
+                );
+            } else {
+                $batch->forceFill([
+                    'row_count' => $allRows->where('status', 'exported')->count(),
+                ])->save();
+                $batch->transitionTo(
+                    CourierExportBatch::STATUS_READY,
+                    "Full rebuild completed — {$rebuilt} rows refreshed, {$stillFailed} still failing",
+                );
+            }
+
+            return $batch->refresh();
+        });
+    }
+
     /**
      * @param Collection<int, Order> $orders
      */
