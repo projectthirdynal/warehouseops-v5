@@ -91,6 +91,11 @@ class CourierExportBatch extends Model
         return $this->hasMany(BatchStatusHistory::class, 'courier_export_batch_id')->orderByDesc('id');
     }
 
+    public function errorLogs(): HasMany
+    {
+        return $this->hasMany(BatchItemErrorLog::class, 'courier_export_batch_id')->orderByDesc('id');
+    }
+
     public function canTransitionTo(string $targetStatus): bool
     {
         return in_array($targetStatus, self::STATUS_TRANSITIONS[$this->status] ?? [], true);

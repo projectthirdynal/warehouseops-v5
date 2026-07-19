@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Order\Models\Order;
+use App\Domain\Shop\Models\BatchItemErrorLog;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportRow;
 use App\Models\User;
@@ -369,6 +370,18 @@ class CourierExportService
         return sprintf('SHOP-%s-%s-%04d', strtoupper($courierCode), now()->format('Ymd'), CourierExportBatch::whereDate('created_at', today())->count() + 1);
     }
 
+    private function logRowError(CourierExportBatch $batch, CourierExportRow $row, string $message, string $errorType = 'export', string $severity = 'error'): void
+    {
+        BatchItemErrorLog::query()->create([
+            'courier_export_batch_id' => $batch->id,
+            'courier_export_row_id'   => $row->id,
+            'order_id'                => $row->order_id,
+            'error_type'              => $errorType,
+            'error_message'           => $message,
+            'severity'                => $severity,
+        ]);
+    }
+
     public function rebuildBatch(CourierExportBatch $batch): CourierExportBatch
     {
         $failedRows = $batch->rows()->where('status', 'failed')->get();
@@ -393,6 +406,7 @@ class CourierExportService
                     $row->forceFill([
                         'error_message' => 'Linked order no longer exists',
                     ])->save();
+                    $this->logRowError($batch, $row, 'Linked order no longer exists', 'rebuild', 'error');
                     $stillFailed++;
                     continue;
                 }
@@ -416,11 +430,21 @@ class CourierExportService
                         'exported_at' => now(),
                     ])->save();
 
+                    BatchItemErrorLog::query()
+                        ->where('courier_export_row_id', $row->id)
+                        ->whereNull('resolved_at')
+                        ->update([
+                            'resolution' => 'Fixed during rebuild',
+                            'resolved_at' => now(),
+                            'resolved_by' => auth()->id(),
+                        ]);
+
                     $rebuilt++;
                 } catch (\Throwable $e) {
                     $row->forceFill([
                         'error_message' => $e->getMessage(),
                     ])->save();
+                    $this->logRowError($batch, $row, $e->getMessage(), 'rebuild', 'error');
                     $stillFailed++;
                 }
             }

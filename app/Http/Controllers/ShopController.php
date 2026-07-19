@@ -2790,6 +2790,43 @@ class ShopController extends Controller
         ]);
     }
 
+    public function batchErrorLogs(CourierExportBatch $batch): JsonResponse
+    {
+        $logs = $batch->errorLogs()
+            ->with(['row:id,row_number,receiver_name,order_id', 'resolver:id,name'])
+            ->get()
+            ->map(fn ($log) => [
+                'id'             => $log->id,
+                'row_number'     => $log->row?->row_number,
+                'receiver_name'  => $log->row?->receiver_name,
+                'order_id'       => $log->order_id,
+                'error_type'     => $log->error_type,
+                'error_message'  => $log->error_message,
+                'severity'       => $log->severity,
+                'resolution'     => $log->resolution,
+                'resolved_at'    => $log->resolved_at?->toIso8601String(),
+                'resolved_by'    => $log->resolver?->name,
+                'created_at'     => $log->created_at?->toIso8601String(),
+            ]);
+
+        $summary = [
+            'total'     => $logs->count(),
+            'unresolved' => $logs->whereNull('resolved_at')->count(),
+            'errors'    => $logs->where('severity', 'error')->count(),
+            'warnings'  => $logs->where('severity', 'warning')->count(),
+        ];
+
+        return response()->json([
+            'batch' => [
+                'id'           => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'status'       => $batch->status,
+            ],
+            'summary' => $summary,
+            'logs'    => $logs,
+        ]);
+    }
+
     private function formatBytes(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];

@@ -1167,6 +1167,24 @@ export default function ShopEncoder({
     row_count: number;
     status: string;
   } | null>(null);
+  const [showErrorLog, setShowErrorLog] = useState(false);
+  const [errorLogData, setErrorLogData] = useState<{
+    batch: { id: number; batch_number: string; status: string };
+    summary: { total: number; unresolved: number; errors: number; warnings: number };
+    logs: {
+      id: number;
+      row_number: number | null;
+      receiver_name: string | null;
+      order_id: number | null;
+      error_type: string;
+      error_message: string;
+      severity: string;
+      resolution: string | null;
+      resolved_at: string | null;
+      resolved_by: string | null;
+      created_at: string;
+    }[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1581,6 +1599,15 @@ export default function ShopEncoder({
       .then((data) => {
         setFileInfoData(data);
         setShowFileInfo(true);
+      });
+  };
+
+  const loadErrorLogs = (batchId: number) => {
+    fetch(`/shop/exports/${batchId}/error-logs`)
+      .then((res) => res.json())
+      .then((data) => {
+        setErrorLogData(data);
+        setShowErrorLog(true);
       });
   };
 
@@ -2341,6 +2368,14 @@ export default function ShopEncoder({
                           onClick={() => loadFileInfo(batch.id)}
                         >
                           <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => loadErrorLogs(batch.id)}
+                        >
+                          <AlertTriangle className="h-4 w-4" />
                         </Button>
                         {batch.failed_row_count &&
                           batch.failed_row_count > 0 &&
@@ -3974,6 +4009,110 @@ export default function ShopEncoder({
             )}
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowFileInfo(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showErrorLog && errorLogData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Item Error Log</h2>
+                <Badge variant="outline" className="text-[10px]">
+                  {errorLogData.batch.batch_number}
+                </Badge>
+              </div>
+              <button onClick={() => setShowErrorLog(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-4 grid grid-cols-4 gap-3">
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold">{errorLogData.summary.total}</p>
+                <p className="text-xs text-muted-foreground">Total Logs</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{errorLogData.summary.unresolved}</p>
+                <p className="text-xs text-muted-foreground">Unresolved</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{errorLogData.summary.errors}</p>
+                <p className="text-xs text-muted-foreground">Errors</p>
+              </div>
+              <div className="rounded-md border p-3 text-center">
+                <p className="text-2xl font-bold text-yellow-600">
+                  {errorLogData.summary.warnings}
+                </p>
+                <p className="text-xs text-muted-foreground">Warnings</p>
+              </div>
+            </div>
+            {errorLogData.logs.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No errors logged for this batch.
+              </p>
+            ) : (
+              <div className="overflow-auto rounded-md border" style={{ maxHeight: '400px' }}>
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Row</th>
+                      <th className="px-3 py-2 text-left font-medium">Receiver</th>
+                      <th className="px-3 py-2 text-left font-medium">Type</th>
+                      <th className="px-3 py-2 text-left font-medium">Message</th>
+                      <th className="px-3 py-2 text-left font-medium">Status</th>
+                      <th className="px-3 py-2 text-left font-medium">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errorLogData.logs.map((log) => (
+                      <tr key={log.id} className="border-t">
+                        <td className="px-3 py-2 font-medium">{log.row_number ?? '—'}</td>
+                        <td className="px-3 py-2">{log.receiver_name ?? '—'}</td>
+                        <td className="px-3 py-2">
+                          <Badge variant="outline" className="text-[10px]">
+                            {log.error_type}
+                          </Badge>
+                        </td>
+                        <td className="max-w-xs px-3 py-2">
+                          <p className="truncate text-xs" title={log.error_message}>
+                            {log.error_message}
+                          </p>
+                          {log.resolution && (
+                            <p className="mt-0.5 text-xs text-green-600">
+                              ✓ {log.resolution} ({log.resolved_by})
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {log.resolved_at ? (
+                            <Badge variant="default" className="text-[10px]">
+                              Resolved
+                            </Badge>
+                          ) : log.severity === 'error' ? (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Error
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">
+                              Warning
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowErrorLog(false)}>
                 Close
               </Button>
             </div>

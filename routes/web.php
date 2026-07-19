@@ -410,6 +410,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/validate-batch-items', [ShopController::class, 'validateBatchItems'])->name('shop.exports.validate-batch-items');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/exports/{batch}/file-info', [ShopController::class, 'batchFileInfo'])->name('shop.exports.file-info');
+    Route::get('/shop/exports/{batch}/error-logs', [ShopController::class, 'batchErrorLogs'])->name('shop.exports.error-logs');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
