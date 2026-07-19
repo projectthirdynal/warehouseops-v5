@@ -2707,6 +2707,25 @@ class ShopController extends Controller
                 ->latest()
                 ->limit(10)
                 ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']),
+            'grouped_batches' => (function () {
+                $courierLabels = ['JNT' => 'J&T Express', 'FLASH' => 'Flash Express', 'GENERIC' => 'Generic CSV'];
+                $batches = CourierExportBatch::query()
+                    ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
+                    ->with(['creator:id,name'])
+                    ->latest()
+                    ->limit(50)
+                    ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']);
+
+                return $batches->groupBy('courier_code')->map(function ($group, $courierCode) use ($courierLabels) {
+                    return [
+                        'courier_code'  => $courierCode,
+                        'courier_label' => $courierLabels[strtoupper($courierCode)] ?? ucfirst($courierCode),
+                        'batch_count'   => $group->count(),
+                        'total_rows'    => $group->sum('row_count'),
+                        'batches'       => $group->values(),
+                    ];
+                })->sortBy('courier_code')->values();
+            })(),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],

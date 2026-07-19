@@ -31,6 +31,8 @@ import {
   CalendarClock,
   GitBranch,
   ShieldCheck,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +95,13 @@ interface Paginated<T> {
 interface Props {
   orders: Paginated<Order>;
   recent_batches: Batch[];
+  grouped_batches: {
+    courier_code: string;
+    courier_label: string;
+    batch_count: number;
+    total_rows: number;
+    batches: Batch[];
+  }[];
   couriers: { value: string; label: string }[];
   filters?: { needs_review?: boolean };
   encoders?: { id: number; name: string }[];
@@ -837,6 +846,7 @@ function AddressEditor({ order, hasFlags }: { order: Order; hasFlags: boolean })
 export default function ShopEncoder({
   orders,
   recent_batches,
+  grouped_batches,
   couriers,
   filters,
   encoders,
@@ -1193,6 +1203,8 @@ export default function ShopEncoder({
   } | null>(null);
   const [rebuildMode, setRebuildMode] = useState<'failed' | 'full'>('failed');
   const [rebuildLoading, setRebuildLoading] = useState(false);
+  const [batchViewMode, setBatchViewMode] = useState<'flat' | 'grouped'>('flat');
+  const [collapsedCouriers, setCollapsedCouriers] = useState<Set<string>>(new Set());
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -2273,194 +2285,396 @@ export default function ShopEncoder({
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Export Batches</CardTitle>
-              <CardDescription>Generated courier CSV files</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Recent Export Batches</CardTitle>
+                  <CardDescription>Generated courier CSV files</CardDescription>
+                </div>
+                <div className="flex items-center gap-1 rounded-md border p-0.5">
+                  <button
+                    className={`rounded px-2 py-1 text-xs font-medium ${
+                      batchViewMode === 'flat'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setBatchViewMode('flat')}
+                  >
+                    Flat
+                  </button>
+                  <button
+                    className={`rounded px-2 py-1 text-xs font-medium ${
+                      batchViewMode === 'grouped'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setBatchViewMode('grouped')}
+                  >
+                    By Courier
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recent_batches.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No export batches yet.</p>
-              ) : (
-                recent_batches.map((batch) => (
-                  <div key={batch.id} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{batch.batch_number}</p>
-                          <Badge
-                            variant={
-                              batch.status === 'ready'
-                                ? 'default'
-                                : batch.status === 'downloaded'
-                                  ? 'secondary'
-                                  : batch.status === 'archived'
-                                    ? 'outline'
-                                    : 'destructive'
-                            }
-                            className="text-[10px]"
-                          >
-                            {batch.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {batch.courier_code}
-                          {batch.region && <span className="font-medium"> - {batch.region}</span>}
-                          {' - '}
-                          {batch.row_count} rows
-                          {batch.failed_row_count && batch.failed_row_count > 0 && (
-                            <span className="ml-1 text-destructive">
-                              ({batch.failed_row_count} failed)
-                            </span>
-                          )}
-                          {batch.creator && (
-                            <span className="ml-1 text-muted-foreground/70">
-                              by {batch.creator.name}
-                            </span>
-                          )}
-                        </p>
-                        {editingNotesId === batch.id ? (
-                          <div className="mt-2 flex items-start gap-2">
-                            <Textarea
-                              value={notesDraft}
-                              onChange={(e) => setNotesDraft(e.target.value)}
-                              placeholder="Add notes for this batch..."
-                              className="min-h-[60px] text-xs"
-                              rows={2}
-                            />
-                            <div className="flex flex-col gap-1">
-                              <Button type="button" size="sm" onClick={() => saveNotes(batch.id)}>
-                                Save
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setEditingNotesId(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-1 flex items-center gap-2">
-                            {batch.notes && (
-                              <p className="line-clamp-2 text-xs italic text-muted-foreground">
-                                {batch.notes}
-                              </p>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingNotesId(batch.id);
-                                setNotesDraft(batch.notes ?? '');
-                              }}
-                              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
-                            >
-                              <StickyNote className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {batch.file_path && batch.status !== 'archived' && (
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/shop/exports/${batch.id}/download`}>
-                              <Download className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openPreview(batch.id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => loadStatusTimeline(batch.id)}
-                          disabled={statusTimelineLoading}
-                        >
-                          <GitBranch className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => loadFileInfo(batch.id)}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => loadErrorLogs(batch.id)}
-                        >
-                          <AlertTriangle className="h-4 w-4" />
-                        </Button>
-                        {batch.status !== 'archived' && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setRebuildBatch({
-                                id: batch.id,
-                                batch_number: batch.batch_number,
-                                failed_row_count: batch.failed_row_count ?? 0,
-                              });
-                              setRebuildMode(
-                                batch.failed_row_count && batch.failed_row_count > 0
-                                  ? 'failed'
-                                  : 'full'
-                              );
-                              setShowRebuild(true);
-                            }}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {(batch.status === 'ready' || batch.status === 'downloaded') && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              router.post(
-                                `/shop/exports/${batch.id}/archive`,
-                                {},
-                                { preserveScroll: true }
-                              )
-                            }
-                          >
-                            <Archive className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {batch.status === 'archived' && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `Delete batch ${batch.batch_number}? This cannot be undone.`
-                                )
-                              ) {
-                                router.delete(`/shop/exports/${batch.id}`, {
-                                  preserveScroll: true,
-                                });
+              {batchViewMode === 'flat' ? (
+                recent_batches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No export batches yet.</p>
+                ) : (
+                  recent_batches.map((batch) => (
+                    <div key={batch.id} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{batch.batch_number}</p>
+                            <Badge
+                              variant={
+                                batch.status === 'ready'
+                                  ? 'default'
+                                  : batch.status === 'downloaded'
+                                    ? 'secondary'
+                                    : batch.status === 'archived'
+                                      ? 'outline'
+                                      : 'destructive'
                               }
-                            }}
+                              className="text-[10px]"
+                            >
+                              {batch.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {batch.courier_code}
+                            {batch.region && <span className="font-medium"> - {batch.region}</span>}
+                            {' - '}
+                            {batch.row_count} rows
+                            {batch.failed_row_count && batch.failed_row_count > 0 && (
+                              <span className="ml-1 text-destructive">
+                                ({batch.failed_row_count} failed)
+                              </span>
+                            )}
+                            {batch.creator && (
+                              <span className="ml-1 text-muted-foreground/70">
+                                by {batch.creator.name}
+                              </span>
+                            )}
+                          </p>
+                          {editingNotesId === batch.id ? (
+                            <div className="mt-2 flex items-start gap-2">
+                              <Textarea
+                                value={notesDraft}
+                                onChange={(e) => setNotesDraft(e.target.value)}
+                                placeholder="Add notes for this batch..."
+                                className="min-h-[60px] text-xs"
+                                rows={2}
+                              />
+                              <div className="flex flex-col gap-1">
+                                <Button type="button" size="sm" onClick={() => saveNotes(batch.id)}>
+                                  Save
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setEditingNotesId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-1 flex items-center gap-2">
+                              {batch.notes && (
+                                <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                                  {batch.notes}
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingNotesId(batch.id);
+                                  setNotesDraft(batch.notes ?? '');
+                                }}
+                                className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+                              >
+                                <StickyNote className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {batch.file_path && batch.status !== 'archived' && (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/shop/exports/${batch.id}/download`}>
+                                <Download className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openPreview(batch.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => loadStatusTimeline(batch.id)}
+                            disabled={statusTimelineLoading}
+                          >
+                            <GitBranch className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => loadFileInfo(batch.id)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => loadErrorLogs(batch.id)}
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </Button>
+                          {batch.status !== 'archived' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setRebuildBatch({
+                                  id: batch.id,
+                                  batch_number: batch.batch_number,
+                                  failed_row_count: batch.failed_row_count ?? 0,
+                                });
+                                setRebuildMode(
+                                  batch.failed_row_count && batch.failed_row_count > 0
+                                    ? 'failed'
+                                    : 'full'
+                                );
+                                setShowRebuild(true);
+                              }}
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {(batch.status === 'ready' || batch.status === 'downloaded') && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                router.post(
+                                  `/shop/exports/${batch.id}/archive`,
+                                  {},
+                                  { preserveScroll: true }
+                                )
+                              }
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {batch.status === 'archived' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `Delete batch ${batch.batch_number}? This cannot be undone.`
+                                  )
+                                ) {
+                                  router.delete(`/shop/exports/${batch.id}`, {
+                                    preserveScroll: true,
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))
+                )
+              ) : grouped_batches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No export batches yet.</p>
+              ) : (
+                grouped_batches.map((group) => (
+                  <div key={group.courier_code} className="rounded-lg border">
+                    <button
+                      className="flex w-full items-center justify-between p-3 hover:bg-muted/50"
+                      onClick={() => {
+                        setCollapsedCouriers((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(group.courier_code)) {
+                            next.delete(group.courier_code);
+                          } else {
+                            next.add(group.courier_code);
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        {collapsedCouriers.has(group.courier_code) ? (
+                          <ChevronRight className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        <span className="text-sm font-bold">{group.courier_label}</span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {group.batch_count} batch{group.batch_count !== 1 ? 'es' : ''}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {group.total_rows} rows total
+                        </span>
+                      </div>
+                    </button>
+                    {!collapsedCouriers.has(group.courier_code) && (
+                      <div className="space-y-2 border-t p-3">
+                        {group.batches.map((batch) => (
+                          <div key={batch.id} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">{batch.batch_number}</p>
+                                  <Badge
+                                    variant={
+                                      batch.status === 'ready'
+                                        ? 'default'
+                                        : batch.status === 'downloaded'
+                                          ? 'secondary'
+                                          : batch.status === 'archived'
+                                            ? 'outline'
+                                            : 'destructive'
+                                    }
+                                    className="text-[10px]"
+                                  >
+                                    {batch.status}
+                                  </Badge>
+                                  {(batch.failed_row_count ?? 0) > 0 && (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      {batch.failed_row_count} failed
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {batch.row_count} rows · {batch.courier_code}
+                                  {batch.region ? ` · ${batch.region}` : ''} ·{' '}
+                                  {new Date(batch.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {batch.file_path && batch.status !== 'archived' && (
+                                  <a href={`/shop/exports/${batch.id}/download`}>
+                                    <Button type="button" size="sm" variant="ghost">
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </a>
+                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openPreview(batch.id)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => loadStatusTimeline(batch.id)}
+                                >
+                                  <GitBranch className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => loadFileInfo(batch.id)}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => loadErrorLogs(batch.id)}
+                                >
+                                  <AlertTriangle className="h-4 w-4" />
+                                </Button>
+                                {batch.status !== 'archived' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setRebuildBatch({
+                                        id: batch.id,
+                                        batch_number: batch.batch_number,
+                                        failed_row_count: batch.failed_row_count ?? 0,
+                                      });
+                                      setRebuildMode(
+                                        batch.failed_row_count && batch.failed_row_count > 0
+                                          ? 'failed'
+                                          : 'full'
+                                      );
+                                      setShowRebuild(true);
+                                    }}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {(batch.status === 'ready' || batch.status === 'downloaded') && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      router.post(
+                                        `/shop/exports/${batch.id}/archive`,
+                                        {},
+                                        { preserveScroll: true }
+                                      )
+                                    }
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {batch.status === 'archived' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          `Delete batch ${batch.batch_number}? This cannot be undone.`
+                                        )
+                                      ) {
+                                        router.delete(`/shop/exports/${batch.id}`, {
+                                          preserveScroll: true,
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
