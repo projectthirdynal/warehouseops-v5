@@ -108,6 +108,62 @@ class CourierExportService
     }
 
     /**
+     * @param Collection<int, Order> $orders
+     * @return array{valid: bool, total: int, valid_count: int, invalid_count: int, orders: array<int, array{order_id: int, order_number: string, receiver_name: string, valid: bool, missing_fields: array<int, string>}>}
+     */
+    public function validateBatchItems(Collection $orders, string $courierCode): array
+    {
+        $required = $this->requiredFields($courierCode);
+        $results = [];
+        $validCount = 0;
+
+        foreach ($orders as $order) {
+            $missing = [];
+
+            foreach ($required as $field => $label) {
+                $value = match ($field) {
+                    'receiver_name' => $order->receiver_name,
+                    'phone_number' => $order->receiver_phone,
+                    'complete_address' => $order->receiver_address,
+                    'province' => $order->state,
+                    'city' => $order->city,
+                    'barangay' => $order->barangay,
+                    'product_name' => $this->orderLineSummary($order)[0],
+                    'quantity' => $this->orderLineSummary($order)[1],
+                    'cod_amount' => $order->cod_amount,
+                    default => null,
+                };
+
+                if (blank($value) || (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount')) {
+                    $missing[] = $label;
+                }
+            }
+
+            $isValid = $missing === [];
+            if ($isValid) {
+                $validCount++;
+            }
+
+            $results[] = [
+                'order_id'       => $order->id,
+                'order_number'   => $order->order_number,
+                'receiver_name'  => $order->receiver_name,
+                'valid'          => $isValid,
+                'missing_fields' => $missing,
+            ];
+        }
+
+        return [
+            'valid'         => $validCount === $orders->count(),
+            'total'         => $orders->count(),
+            'valid_count'   => $validCount,
+            'invalid_count' => $orders->count() - $validCount,
+            'required_fields' => array_values($required),
+            'orders'         => $results,
+        ];
+    }
+
+    /**
      * @param Collection<int, CourierExportRow> $rows
      */
     private function csv(Collection $rows, string $courierCode): string

@@ -30,6 +30,7 @@ import {
   SplitSquareHorizontal,
   CalendarClock,
   GitBranch,
+  ShieldCheck,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1123,6 +1124,23 @@ export default function ShopEncoder({
   } | null>(null);
   const [statusTimelineLoading, setStatusTimelineLoading] = useState(false);
   const [transitionNotes, setTransitionNotes] = useState('');
+  const [showBatchValidate, setShowBatchValidate] = useState(false);
+  const [batchValidateCourier, setBatchValidateCourier] = useState('');
+  const [batchValidateLoading, setBatchValidateLoading] = useState(false);
+  const [batchValidateResult, setBatchValidateResult] = useState<{
+    valid: boolean;
+    total: number;
+    valid_count: number;
+    invalid_count: number;
+    required_fields: string[];
+    orders: {
+      order_id: number;
+      order_number: string;
+      receiver_name: string;
+      valid: boolean;
+      missing_fields: string[];
+    }[];
+  } | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1489,6 +1507,27 @@ export default function ShopEncoder({
       });
   };
 
+  const handleBatchValidate = () => {
+    if (selectedOrderIds.length === 0 || !batchValidateCourier) return;
+    setBatchValidateLoading(true);
+    setBatchValidateResult(null);
+    fetch('/shop/exports/validate-batch-items', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        courier_code: batchValidateCourier,
+        order_ids: selectedOrderIds,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => setBatchValidateResult(data))
+      .finally(() => setBatchValidateLoading(false));
+  };
+
   const toggleOrder = (orderId: number) => {
     setSelectedOrderIds((current) =>
       current.includes(orderId) ? current.filter((id) => id !== orderId) : [...current, orderId]
@@ -1852,6 +1891,19 @@ export default function ShopEncoder({
             >
               <Archive className="mr-1.5 h-3.5 w-3.5" />
               Archive
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setBatchValidateCourier('');
+                setBatchValidateResult(null);
+                setShowBatchValidate(true);
+              }}
+              disabled={selectedOrderIds.length === 0}
+            >
+              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              Validate
             </Button>
             <div className="flex flex-wrap items-center gap-2 border-l pl-2 ml-1">
               <span className="text-xs text-muted-foreground">Multi-courier:</span>
@@ -3532,6 +3584,132 @@ export default function ShopEncoder({
 
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowStatusTimeline(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBatchValidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Validate Batch Items</h2>
+              </div>
+              <button onClick={() => setShowBatchValidate(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Validate <strong>{selectedOrderIds.length}</strong> selected order
+              {selectedOrderIds.length !== 1 ? 's' : ''} against courier-specific required fields
+              before creating a batch.
+            </p>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">Courier</label>
+              <select
+                value={batchValidateCourier}
+                onChange={(e) => setBatchValidateCourier(e.target.value)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select a courier...</option>
+                {couriers.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-4 flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleBatchValidate}
+                disabled={batchValidateLoading || !batchValidateCourier}
+              >
+                {batchValidateLoading ? 'Validating...' : 'Run Validation'}
+              </Button>
+            </div>
+            {batchValidateResult && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-2xl font-bold">{batchValidateResult.total}</p>
+                    <p className="text-xs text-muted-foreground">Total Orders</p>
+                  </div>
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-2xl font-bold text-green-600">
+                      {batchValidateResult.valid_count}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Valid</p>
+                  </div>
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-2xl font-bold text-red-600">
+                      {batchValidateResult.invalid_count}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Invalid</p>
+                  </div>
+                </div>
+                {batchValidateResult.required_fields.length > 0 && (
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Required fields for {batchValidateCourier.toUpperCase()}:
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {batchValidateResult.required_fields.map((field) => (
+                        <Badge key={field} variant="outline" className="text-[10px]">
+                          {field}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {batchValidateResult.invalid_count > 0 && (
+                  <div className="overflow-auto rounded-md border" style={{ maxHeight: '300px' }}>
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted/50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Order #</th>
+                          <th className="px-3 py-2 text-left font-medium">Receiver</th>
+                          <th className="px-3 py-2 text-left font-medium">Missing Fields</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batchValidateResult.orders
+                          .filter((o) => !o.valid)
+                          .map((o) => (
+                            <tr key={o.order_id} className="border-t">
+                              <td className="px-3 py-2 font-medium">{o.order_number}</td>
+                              <td className="px-3 py-2">{o.receiver_name}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {o.missing_fields.map((f) => (
+                                    <span
+                                      key={f}
+                                      className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300"
+                                    >
+                                      {f}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {batchValidateResult.valid && (
+                  <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+                    All {batchValidateResult.valid_count} orders pass validation for{' '}
+                    {batchValidateCourier.toUpperCase()}. Ready to create batch.
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowBatchValidate(false)}>
                 Close
               </Button>
             </div>

@@ -2724,6 +2724,24 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validateBatchItems(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['required', 'array', 'min:1'],
+            'order_ids.*'  => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->whereIn('id', $validated['order_ids'])
+            ->get();
+
+        $result = $this->courierExports->validateBatchItems($orders, $validated['courier_code']);
+
+        return response()->json($result);
+    }
+
     public function exportCourier(Request $request): RedirectResponse
     {
         $validated = $request->validate([
