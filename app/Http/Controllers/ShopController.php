@@ -2874,6 +2874,62 @@ class ShopController extends Controller
         ]);
     }
 
+    public function batchStatusHistory(CourierExportBatch $batch): JsonResponse
+    {
+        $history = $batch->statusHistory()
+            ->with('changer:id,name')
+            ->get(['id', 'from_status', 'to_status', 'changed_by', 'notes', 'created_at'])
+            ->map(fn ($h) => [
+                'id'          => $h->id,
+                'from_status' => $h->from_status,
+                'to_status'   => $h->to_status,
+                'from_label'  => CourierExportBatch::STATUS_LABELS[$h->from_status] ?? $h->from_status,
+                'to_label'    => CourierExportBatch::STATUS_LABELS[$h->to_status] ?? $h->to_status,
+                'changed_by'  => $h->changer?->name,
+                'notes'       => $h->notes,
+                'created_at'  => $h->created_at?->toIso8601String(),
+            ]);
+
+        $availableTransitions = CourierExportBatch::STATUS_TRANSITIONS[$batch->status] ?? [];
+
+        return response()->json([
+            'batch' => [
+                'id'           => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'status'       => $batch->status,
+                'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
+            ],
+            'history'               => $history,
+            'available_transitions' => $availableTransitions,
+            'transition_labels'     => collect($availableTransitions)
+                ->mapWithKeys(fn ($s) => [$s => CourierExportBatch::STATUS_LABELS[$s] ?? $s])
+                ->toArray(),
+        ]);
+    }
+
+    public function transitionBatchStatus(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'to_status' => ['required', 'string', 'in:' . implode(',', CourierExportBatch::STATUSES)],
+            'notes'     => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if (! $batch->canTransitionTo($validated['to_status'])) {
+            return response()->json([
+                'message' => "Cannot transition from {$batch->status} to {$validated['to_status']}.",
+                'allowed' => CourierExportBatch::STATUS_TRANSITIONS[$batch->status] ?? [],
+            ], 422);
+        }
+
+        $batch->transitionTo($validated['to_status'], $validated['notes'] ?? null);
+
+        return response()->json([
+            'batch_number' => $batch->batch_number,
+            'status'       => $batch->status,
+            'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
+        ]);
+    }
+
     public function batchAnalytics(): JsonResponse
     {
         $batches = CourierExportBatch::query()

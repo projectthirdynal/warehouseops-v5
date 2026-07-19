@@ -29,6 +29,7 @@ import {
   Tag as TagIcon,
   SplitSquareHorizontal,
   CalendarClock,
+  GitBranch,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1099,6 +1100,29 @@ export default function ShopEncoder({
     skipped: number;
     errors: string[];
   } | null>(null);
+  const [showStatusTimeline, setShowStatusTimeline] = useState(false);
+  const [statusTimelineData, setStatusTimelineData] = useState<{
+    batch: {
+      id: number;
+      batch_number: string;
+      status: string;
+      status_label: string;
+    };
+    history: {
+      id: number;
+      from_status: string | null;
+      to_status: string;
+      from_label: string;
+      to_label: string;
+      changed_by: string | null;
+      notes: string | null;
+      created_at: string;
+    }[];
+    available_transitions: string[];
+    transition_labels: Record<string, string>;
+  } | null>(null);
+  const [statusTimelineLoading, setStatusTimelineLoading] = useState(false);
+  const [transitionNotes, setTransitionNotes] = useState('');
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1433,6 +1457,36 @@ export default function ShopEncoder({
         }
       })
       .finally(() => setArchiveLoading(false));
+  };
+
+  const loadStatusTimeline = (batchId: number) => {
+    setStatusTimelineLoading(true);
+    fetch(`/shop/exports/${batchId}/status-history`)
+      .then((res) => res.json())
+      .then((data) => {
+        setStatusTimelineData(data);
+        setTransitionNotes('');
+        setShowStatusTimeline(true);
+      })
+      .finally(() => setStatusTimelineLoading(false));
+  };
+
+  const handleBatchTransition = (toStatus: string) => {
+    if (!statusTimelineData) return;
+    fetch(`/shop/exports/${statusTimelineData.batch.id}/transition`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ to_status: toStatus, notes: transitionNotes || undefined }),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        loadStatusTimeline(statusTimelineData.batch.id);
+        router.reload();
+      });
   };
 
   const toggleOrder = (orderId: number) => {
@@ -2150,6 +2204,15 @@ export default function ShopEncoder({
                           onClick={() => openPreview(batch.id)}
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => loadStatusTimeline(batch.id)}
+                          disabled={statusTimelineLoading}
+                        >
+                          <GitBranch className="h-4 w-4" />
                         </Button>
                         {batch.failed_row_count &&
                           batch.failed_row_count > 0 &&
@@ -3368,6 +3431,108 @@ export default function ShopEncoder({
                 disabled={archiveLoading}
               >
                 {archiveLoading ? 'Processing...' : 'Confirm Archive'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showStatusTimeline && statusTimelineData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Status Timeline</h2>
+                <Badge variant="outline" className="ml-2">
+                  {statusTimelineData.batch.batch_number}
+                </Badge>
+                <Badge
+                  variant={
+                    statusTimelineData.batch.status === 'ready'
+                      ? 'default'
+                      : statusTimelineData.batch.status === 'downloaded'
+                        ? 'secondary'
+                        : statusTimelineData.batch.status === 'archived'
+                          ? 'outline'
+                          : 'destructive'
+                  }
+                  className="text-[10px]"
+                >
+                  {statusTimelineData.batch.status_label}
+                </Badge>
+              </div>
+              <button onClick={() => setShowStatusTimeline(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Timeline */}
+            <div className="mb-6 space-y-3">
+              {statusTimelineData.history.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No status transitions recorded yet.</p>
+              ) : (
+                statusTimelineData.history.map((entry, idx) => (
+                  <div key={entry.id} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`h-3 w-3 rounded-full ${
+                          idx === 0 ? 'bg-blue-500' : 'bg-muted-foreground/40'
+                        }`}
+                      />
+                      {idx < statusTimelineData.history.length - 1 && (
+                        <div className="h-full w-px flex-1 bg-muted-foreground/20" />
+                      )}
+                    </div>
+                    <div className="flex-1 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {entry.from_label} → {entry.to_label}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(entry.created_at).toLocaleString()}
+                        {entry.changed_by && ` · by ${entry.changed_by}`}
+                      </div>
+                      {entry.notes && (
+                        <p className="mt-1 text-xs text-muted-foreground italic">"{entry.notes}"</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Available transitions */}
+            {statusTimelineData.available_transitions.length > 0 && (
+              <div className="border-t pt-4">
+                <h3 className="mb-2 text-sm font-medium">Available Actions</h3>
+                <div className="mb-3">
+                  <Textarea
+                    value={transitionNotes}
+                    onChange={(e) => setTransitionNotes(e.target.value)}
+                    placeholder="Optional notes for this transition..."
+                    rows={2}
+                    className="mb-2"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {statusTimelineData.available_transitions.map((status) => (
+                    <Button
+                      key={status}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleBatchTransition(status)}
+                    >
+                      → {statusTimelineData.transition_labels[status] || status}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowStatusTimeline(false)}>
+                Close
               </Button>
             </div>
           </div>
