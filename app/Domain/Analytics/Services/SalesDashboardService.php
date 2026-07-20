@@ -396,4 +396,48 @@ class SalesDashboardService
             'active_count' => $activeCount,
         ];
     }
+
+    /**
+     * Get top products by quantity sold.
+     *
+     * @param int $limit Number of products to return
+     * @return array{
+     *     total_quantity: int,
+     *     total_revenue: float,
+     *     products: array<int, array{product_id: int|null, product_name: string, quantity: int, revenue: float, percentage: float}>,
+     * }
+     */
+    public function topProducts(int $limit = 10): array
+    {
+        $rows = \App\Domain\Shop\Models\ShopOrderItem::query()
+            ->join('orders', 'shop_order_items.order_id', '=', 'orders.id')
+            ->where('orders.status', OrderStatus::DELIVERED)
+            ->selectRaw('
+                shop_order_items.product_id,
+                shop_order_items.product_name,
+                SUM(shop_order_items.quantity) as total_qty,
+                SUM(shop_order_items.line_total) as total_revenue
+            ')
+            ->groupBy('shop_order_items.product_id', 'shop_order_items.product_name')
+            ->orderByDesc('total_qty')
+            ->limit($limit)
+            ->get();
+
+        $grandQuantity = (int) $rows->sum('total_qty');
+        $grandRevenue = (float) $rows->sum('total_revenue');
+
+        $products = $rows->map(fn ($r) => [
+            'product_id' => $r->product_id,
+            'product_name' => $r->product_name ?? 'Unknown',
+            'quantity' => (int) $r->total_qty,
+            'revenue' => (float) $r->total_revenue,
+            'percentage' => $grandQuantity > 0 ? round((int) $r->total_qty / $grandQuantity * 100, 1) : 0.0,
+        ])->toArray();
+
+        return [
+            'total_quantity' => $grandQuantity,
+            'total_revenue' => $grandRevenue,
+            'products' => $products,
+        ];
+    }
 }

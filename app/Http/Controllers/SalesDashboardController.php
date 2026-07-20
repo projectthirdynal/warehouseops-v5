@@ -21,6 +21,7 @@ class SalesDashboardController extends Controller
             'orderCounts' => $this->service->orderCounts(),
             'revenueTotals' => $this->service->revenueTotals(),
             'statusBreakdown' => $this->service->statusBreakdown(),
+            'topProducts' => $this->service->topProducts(),
         ]);
     }
 
@@ -42,6 +43,14 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'status_breakdown' => $this->service->statusBreakdown(),
+        ]);
+    }
+
+    public function apiTopProducts(): JsonResponse
+    {
+        $limit = (int) request()->query('limit', 10);
+        return response()->json([
+            'top_products' => $this->service->topProducts($limit),
         ]);
     }
 }
