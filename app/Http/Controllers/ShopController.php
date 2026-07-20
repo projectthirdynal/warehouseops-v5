@@ -2802,6 +2802,23 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validatePhoneNumber(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone_number' => ['required', 'string', 'max:50'],
+        ]);
+
+        $phoneValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator::class);
+        $result = $phoneValidator->validate($validated['phone_number']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'normalized' => $result['normalized'],
+            'error' => $result['error'],
+            'original' => $validated['phone_number'],
+        ]);
+    }
+
     public function previewCsvFormat(Request $request): JsonResponse
     {
         $validated = $request->validate([

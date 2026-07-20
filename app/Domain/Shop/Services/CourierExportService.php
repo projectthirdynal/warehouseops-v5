@@ -214,21 +214,7 @@ class CourierExportService
 
     private function cleanPhone(?string $phone): string
     {
-        if ($phone === null) {
-            return '';
-        }
-
-        $digits = preg_replace('/[^0-9]/', '', $phone) ?? '';
-
-        if (str_starts_with($digits, '63') && strlen($digits) === 12) {
-            return '0' . substr($digits, 2);
-        }
-
-        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
-            return $digits;
-        }
-
-        return $digits;
+        return $this->validator->normalizePhone($phone) ?? '';
     }
 
     private function batchNumber(string $courierCode): string

@@ -15,6 +15,7 @@ final class CourierCsvValidator
 {
     public function __construct(
         private readonly CourierCsvSchemaRegistry $schemas,
+        private readonly CourierCsvPhoneValidator $phoneValidator,
     ) {}
 
     /**
@@ -53,13 +54,15 @@ final class CourierCsvValidator
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveOrderFieldValue($order, $field);
+                $error = $this->getFieldError($value, $field);
 
-                if ($this->isInvalidValue($value, $field)) {
+                if ($error !== null) {
                     $missingColumns[] = $label;
                     $missingFields[] = [
                         'column' => $label,
                         'field' => $field,
                         'value' => $value,
+                        'error' => $error,
                     ];
                 }
             }
@@ -120,12 +123,20 @@ final class CourierCsvValidator
 
         foreach ($rows as $row) {
             $missingColumns = [];
+            $missingFields = [];
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveRowFieldValue($row, $field);
+                $error = $this->getFieldError($value, $field);
 
-                if ($this->isInvalidValue($value, $field)) {
+                if ($error !== null) {
                     $missingColumns[] = $label;
+                    $missingFields[] = [
+                        'column' => $label,
+                        'field' => $field,
+                        'value' => $value,
+                        'error' => $error,
+                    ];
                 }
             }
 
@@ -141,6 +152,7 @@ final class CourierCsvValidator
                 'receiver_name' => $row->receiver_name,
                 'valid' => $isValid,
                 'missing_columns' => $missingColumns,
+                'missing_fields' => $missingFields,
             ];
         }
 
@@ -201,9 +213,10 @@ final class CourierCsvValidator
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveOrderFieldValue($order, $field);
+                $error = $this->getFieldError($value, $field);
 
-                if ($this->isInvalidValue($value, $field)) {
-                    $missing[] = $label;
+                if ($error !== null) {
+                    $missing[] = "{$label} ({$error})";
                 }
             }
 
@@ -215,17 +228,28 @@ final class CourierCsvValidator
         return $errors;
     }
 
-    private function isInvalidValue(mixed $value, string $field): bool
+    private function getFieldError(mixed $value, string $field): ?string
     {
+        if ($field === 'phone_number' || $field === 'sender_phone') {
+            $validation = $this->phoneValidator->validate($value);
+
+            return $validation['valid'] ? null : $validation['error'];
+        }
+
         if (blank($value)) {
-            return true;
+            return 'This field is required.';
         }
 
         if (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount') {
-            return true;
+            return 'Value must be greater than 0.';
         }
 
-        return false;
+        return null;
+    }
+
+    private function isInvalidValue(mixed $value, string $field): bool
+    {
+        return $this->getFieldError($value, $field) !== null;
     }
 
     private function resolveOrderFieldValue(Order $order, string $field): mixed
@@ -253,6 +277,14 @@ final class CourierCsvValidator
             'sender_city' => (string) config('services.shop.sender_city'),
             default => null,
         };
+    }
+
+    /**
+     * Normalize a phone number to the courier-preferred 09-prefixed 11-digit format.
+     */
+    public function normalizePhone(?string $phone): ?string
+    {
+        return $this->phoneValidator->normalize($phone);
     }
 
     private function resolveRowFieldValue(CourierExportRow $row, string $field): mixed
