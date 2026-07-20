@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Order\Models\Order;
+use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
 use App\Domain\Shop\Models\BatchItemErrorLog;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportRow;
@@ -18,6 +19,10 @@ use Illuminate\Validation\ValidationException;
 
 class CourierExportService
 {
+    public function __construct(
+        private readonly CourierCsvSchemaRegistry $schemas,
+    ) {}
+
     /**
      * @param Collection<int, Order> $orders
      */
@@ -26,6 +31,8 @@ class CourierExportService
         $this->validateOrders($orders, $courierCode);
 
         return DB::transaction(function () use ($orders, $courierCode, $userId, $region) {
+            $schema = $this->schemas->resolve($courierCode);
+
             $batch = CourierExportBatch::query()->create([
                 'batch_number' => $this->batchNumber($courierCode),
                 'courier_code' => $courierCode,
@@ -34,7 +41,7 @@ class CourierExportService
                 'created_by' => $userId,
                 'row_count' => $orders->count(),
                 'exported_at' => now(),
-                'metadata' => ['format' => strtoupper($courierCode) === 'JNT' ? 'JNT' : (strtoupper($courierCode) === 'FLASH' ? 'FLASH' : 'Generic CSV')],
+                'metadata' => ['format' => $schema->name],
             ]);
 
             $rows = $orders->values()->map(function (Order $order, int $index) use ($batch) {
@@ -119,12 +126,12 @@ class CourierExportService
      */
     public function csvFormatInfo(string $courierCode): array
     {
-        $headers = $this->headers($courierCode);
+        $schema = $this->schemas->resolve($courierCode);
 
         return [
-            'format'      => strtoupper($courierCode) === 'JNT' ? 'JNT' : (strtoupper($courierCode) === 'FLASH' ? 'FLASH' : 'Generic CSV'),
-            'headers'     => $headers,
-            'field_count' => count($headers),
+            'format'      => $schema->name,
+            'headers'     => $schema->headers(),
+            'field_count' => $schema->columnCount(),
         ];
     }
 
@@ -136,66 +143,15 @@ class CourierExportService
      */
     public function previewCsv(Collection $orders, string $courierCode, int $limit = 10): array
     {
-        $headers = $this->headers($courierCode);
+        $schema = $this->schemas->resolve($courierCode);
         $rows = [];
 
         foreach ($orders->take($limit) as $order) {
-            [$productName, $quantity] = $this->orderLineSummary($order);
-            $phone = $this->cleanPhone($order->receiver_phone);
-            $sender = $this->senderInfo();
-            $orderNumber = $order->order_number;
-
-            $rows[] = match (strtoupper($courierCode)) {
-                'JNT' => [
-                    $orderNumber,
-                    $order->receiver_name,
-                    $phone,
-                    $order->receiver_address,
-                    $order->state,
-                    $order->city,
-                    $order->barangay,
-                    $productName,
-                    $quantity,
-                    $order->cod_amount,
-                    $order->cod_amount,
-                    $order->notes,
-                ],
-                'FLASH' => [
-                    $orderNumber,
-                    $sender['name'],
-                    $sender['phone'],
-                    $sender['address'],
-                    $sender['province'],
-                    $sender['city'],
-                    $order->receiver_name,
-                    $phone,
-                    $order->receiver_address,
-                    $order->state,
-                    $order->city,
-                    $order->barangay,
-                    $productName,
-                    $quantity,
-                    $order->cod_amount,
-                    $order->notes,
-                ],
-                default => [
-                    $orderNumber,
-                    $order->receiver_name,
-                    $phone,
-                    $order->receiver_address,
-                    $order->state,
-                    $order->city,
-                    $order->barangay,
-                    $productName,
-                    $quantity,
-                    $order->cod_amount,
-                    $order->notes,
-                ],
-            };
+            $rows[] = $this->orderToCsvRow($order, $schema);
         }
 
         return [
-            'headers'   => $headers,
+            'headers'   => $schema->headers(),
             'rows'      => $rows,
             'row_count' => count($rows),
         ];
@@ -279,57 +235,12 @@ class CourierExportService
      */
     public function rowValues(CourierExportRow $row, string $courierCode): array
     {
-        $orderNumber = $row->order?->order_number ?? $row->order_id;
-        $phone = $this->cleanPhone($row->phone_number);
-        $sender = $this->senderInfo();
+        $schema = $this->schemas->resolve($courierCode);
 
-        return match (strtoupper($courierCode)) {
-            'JNT' => [
-                $orderNumber,
-                $row->receiver_name,
-                $phone,
-                $row->complete_address,
-                $row->province,
-                $row->city,
-                $row->barangay,
-                $row->product_name,
-                $row->quantity,
-                $row->cod_amount,
-                $row->cod_amount,
-                $row->remarks,
-            ],
-            'FLASH' => [
-                $orderNumber,
-                $sender['name'],
-                $sender['phone'],
-                $sender['address'],
-                $sender['province'],
-                $sender['city'],
-                $row->receiver_name,
-                $phone,
-                $row->complete_address,
-                $row->province,
-                $row->city,
-                $row->barangay,
-                $row->product_name,
-                $row->quantity,
-                $row->cod_amount,
-                $row->remarks,
-            ],
-            default => [
-                $orderNumber,
-                $row->receiver_name,
-                $phone,
-                $row->complete_address,
-                $row->province,
-                $row->city,
-                $row->barangay,
-                $row->product_name,
-                $row->quantity,
-                $row->cod_amount,
-                $row->remarks,
-            ],
-        };
+        return array_map(
+            fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => $this->resolveRowField($row, $col->field),
+            $schema->columns,
+        );
     }
 
     /**
@@ -624,27 +535,7 @@ class CourierExportService
      */
     private function requiredFields(string $courierCode): array
     {
-        return match (strtoupper($courierCode)) {
-            'JNT', 'FLASH' => [
-                'receiver_name' => 'receiver name',
-                'phone_number' => 'phone number',
-                'complete_address' => 'complete address',
-                'province' => 'province',
-                'city' => 'city',
-                'barangay' => 'barangay',
-                'product_name' => 'product',
-                'quantity' => 'quantity',
-                'cod_amount' => 'COD amount',
-            ],
-            default => [
-                'receiver_name' => 'receiver name',
-                'phone_number' => 'phone number',
-                'complete_address' => 'complete address',
-                'product_name' => 'product',
-                'quantity' => 'quantity',
-                'cod_amount' => 'COD amount',
-            ],
-        };
+        return $this->schemas->resolve($courierCode)->requiredFields();
     }
 
     /**
@@ -652,53 +543,7 @@ class CourierExportService
      */
     public function headers(string $courierCode): array
     {
-        return match (strtoupper($courierCode)) {
-            'JNT' => [
-                'Order Number',
-                'Receiver Name',
-                'Receiver Mobile',
-                'Receiver Address',
-                'Province',
-                'City',
-                'Barangay',
-                'Item Name',
-                'Quantity',
-                'COD Amount',
-                'Item Value',
-                'Remark',
-            ],
-            'FLASH' => [
-                'Order Number',
-                'Sender Name',
-                'Sender Mobile',
-                'Sender Address',
-                'Sender Province',
-                'Sender City',
-                'Consignee Name',
-                'Consignee Mobile',
-                'Consignee Address',
-                'Province',
-                'City',
-                'Barangay',
-                'Goods Name',
-                'Quantity',
-                'COD Amount',
-                'Remark',
-            ],
-            default => [
-                'Order Number',
-                'Receiver Name',
-                'Phone Number',
-                'Complete Address',
-                'Province',
-                'City',
-                'Barangay',
-                'Product Name',
-                'Quantity',
-                'COD Amount',
-                'Remarks',
-            ],
-        };
+        return $this->schemas->resolve($courierCode)->headers();
     }
 
     /**
@@ -716,5 +561,78 @@ class CourierExportService
         }
 
         return [$order->product?->name, (int) $order->quantity];
+    }
+
+    /**
+     * Resolve a field value from an Order for CSV preview.
+     *
+     * @return mixed
+     */
+    private function resolveOrderField(Order $order, string $field)
+    {
+        $sender = $this->senderInfo();
+
+        return match ($field) {
+            'order_number'      => $order->order_number,
+            'receiver_name'     => $order->receiver_name,
+            'phone_number'      => $this->cleanPhone($order->receiver_phone),
+            'complete_address'  => $order->receiver_address,
+            'province'          => $order->state,
+            'city'              => $order->city,
+            'barangay'          => $order->barangay,
+            'product_name'      => $this->orderLineSummary($order)[0],
+            'quantity'          => $this->orderLineSummary($order)[1],
+            'cod_amount'        => $order->cod_amount,
+            'remarks'           => $order->notes,
+            'sender_name'       => $sender['name'],
+            'sender_phone'      => $sender['phone'],
+            'sender_address'    => $sender['address'],
+            'sender_province'   => $sender['province'],
+            'sender_city'       => $sender['city'],
+            default             => '',
+        };
+    }
+
+    /**
+     * Resolve a field value from a CourierExportRow for CSV generation.
+     *
+     * @return mixed
+     */
+    private function resolveRowField(CourierExportRow $row, string $field)
+    {
+        $sender = $this->senderInfo();
+
+        return match ($field) {
+            'order_number'      => $row->order?->order_number ?? $row->order_id,
+            'receiver_name'     => $row->receiver_name,
+            'phone_number'      => $this->cleanPhone($row->phone_number),
+            'complete_address'  => $row->complete_address,
+            'province'          => $row->province,
+            'city'              => $row->city,
+            'barangay'          => $row->barangay,
+            'product_name'      => $row->product_name,
+            'quantity'          => $row->quantity,
+            'cod_amount'        => $row->cod_amount,
+            'remarks'           => $row->remarks,
+            'sender_name'       => $sender['name'],
+            'sender_phone'      => $sender['phone'],
+            'sender_address'    => $sender['address'],
+            'sender_province'   => $sender['province'],
+            'sender_city'       => $sender['city'],
+            default             => '',
+        };
+    }
+
+    /**
+     * Convert an Order to a CSV row using the schema.
+     *
+     * @return array<int, mixed>
+     */
+    private function orderToCsvRow(Order $order, \App\Domain\Shop\CourierCsv\CourierCsvSchema $schema): array
+    {
+        return array_map(
+            fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => $this->resolveOrderField($order, $col->field),
+            $schema->columns,
+        );
     }
 }

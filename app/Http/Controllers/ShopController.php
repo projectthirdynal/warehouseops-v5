@@ -2792,6 +2792,20 @@ class ShopController extends Controller
         ]);
     }
 
+    public function listCourierSchemas(): JsonResponse
+    {
+        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+
+        $schemas = array_map(
+            fn (\App\Domain\Shop\CourierCsv\CourierCsvSchema $schema) => $schema->toArray(),
+            $registry->all(),
+        );
+
+        return response()->json([
+            'schemas' => array_values($schemas),
+        ]);
+    }
+
     public function batchFileInfo(CourierExportBatch $batch): JsonResponse
     {
         $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);
