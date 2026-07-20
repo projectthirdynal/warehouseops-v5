@@ -2842,6 +2842,42 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validateExportRows(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $rows = $batch->rows()
+            ->with(['order' => fn ($q) => $q->with(['shopItems:id,order_id,quantity,unit_price,line_total'])])
+            ->get();
+
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+
+        return response()->json($validator->validateRows($rows, $validated['courier_code']));
+    }
+
+    public function validateCourierAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $order = Order::query()->findOrFail($validated['order_id']);
+
+        $addressValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvAddressValidator::class);
+        $result = $addressValidator->validateOrder($order, $validated['courier_code']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'errors' => $result['errors'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
+        ]);
+    }
+
     public function previewCsvFormat(Request $request): JsonResponse
     {
         $validated = $request->validate([

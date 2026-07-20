@@ -17,6 +17,7 @@ final class CourierCsvValidator
         private readonly CourierCsvSchemaRegistry $schemas,
         private readonly CourierCsvPhoneValidator $phoneValidator,
         private readonly CourierCsvCodValidator $codValidator,
+        private readonly CourierCsvAddressValidator $addressValidator,
     ) {}
 
     /**
@@ -68,7 +69,9 @@ final class CourierCsvValidator
                 }
             }
 
-            $isValid = $missingColumns === [];
+            $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
+
+            $isValid = $missingColumns === [] && $addressValidation['valid'];
             if ($isValid) {
                 $validCount++;
             }
@@ -80,6 +83,7 @@ final class CourierCsvValidator
                 'valid' => $isValid,
                 'missing_columns' => $missingColumns,
                 'missing_fields' => $missingFields,
+                'address_errors' => $addressValidation['errors'],
             ];
         }
 
@@ -141,7 +145,9 @@ final class CourierCsvValidator
                 }
             }
 
-            $isValid = $missingColumns === [];
+            $addressValidation = $this->addressValidator->validateRow($row, $courierCode);
+
+            $isValid = $missingColumns === [] && $addressValidation['valid'];
             if ($isValid) {
                 $validCount++;
             }
@@ -154,6 +160,7 @@ final class CourierCsvValidator
                 'valid' => $isValid,
                 'missing_columns' => $missingColumns,
                 'missing_fields' => $missingFields,
+                'address_errors' => $addressValidation['errors'],
             ];
         }
 
@@ -162,6 +169,7 @@ final class CourierCsvValidator
             'total' => $rows->count(),
             'valid_count' => $validCount,
             'invalid_count' => $rows->count() - $validCount,
+            'row_errors' => array_values(array_filter($results, fn ($row) => ! $row['valid'])),
             'rows' => $results,
         ];
     }
@@ -219,6 +227,11 @@ final class CourierCsvValidator
                 if ($error !== null) {
                     $missing[] = "{$label} ({$error})";
                 }
+            }
+
+            $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
+            foreach ($addressValidation['errors'] as $addressError) {
+                $missing[] = "Address: {$addressError}";
             }
 
             if ($missing !== []) {
