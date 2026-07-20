@@ -3085,6 +3085,56 @@ class ShopController extends Controller
         ]);
     }
 
+    public function suggestCorrections(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
+        ]);
+
+        $suggester = app(\App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester::class);
+        $courierCode = $validated['courier_code'];
+
+        if (! empty($validated['batch_id'])) {
+            $batch = CourierExportBatch::query()->findOrFail($validated['batch_id']);
+            $rows = $batch->rows()
+                ->with([
+                    'order' => fn ($q) => $q->with([
+                        'shopItems' => fn ($q2) => $q2->with([
+                            'product:id,weight_grams',
+                            'variant:id,weight_grams',
+                        ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+                    ]),
+                ])
+                ->get();
+
+            return response()->json([
+                'courier_code' => strtoupper($courierCode),
+                'batch_id' => $batch->id,
+                'suggestions' => $suggester->suggestBatch($rows, $courierCode),
+            ]);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->limit(100)
+            ->get();
+
+        return response()->json([
+            'courier_code' => strtoupper($courierCode),
+            'suggestions' => $suggester->suggestBatch($orders, $courierCode),
+        ]);
+    }
+
     public function batchFileInfo(CourierExportBatch $batch): JsonResponse
     {
         $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);

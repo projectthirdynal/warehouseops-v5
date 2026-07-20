@@ -19,6 +19,7 @@ final class CourierCsvValidator
         private readonly CourierCsvCodValidator $codValidator,
         private readonly CourierCsvAddressValidator $addressValidator,
         private readonly CourierCsvWeightDimensionValidator $weightDimensionValidator,
+        private readonly CourierCsvCorrectionSuggester $suggester,
     ) {}
 
     /**
@@ -88,6 +89,7 @@ final class CourierCsvValidator
                 'address_errors' => $addressValidation['errors'],
                 'weight_errors' => $weightValidation['errors'],
                 'weight_kg' => $weightValidation['weight_kg'],
+                'suggestions' => $isValid ? [] : $this->suggester->suggestForOrder($order, $courierCode),
             ];
         }
 
@@ -168,6 +170,7 @@ final class CourierCsvValidator
                 'address_errors' => $addressValidation['errors'],
                 'weight_errors' => $weightValidation['errors'],
                 'weight_kg' => $weightValidation['weight_kg'],
+                'suggestions' => $isValid ? [] : $this->suggester->suggestForRow($row, $courierCode),
             ];
         }
 
