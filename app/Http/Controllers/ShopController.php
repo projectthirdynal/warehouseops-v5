@@ -2971,6 +2971,10 @@ class ShopController extends Controller
         app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
             ->record($validation, $validated['courier_code'], null, 'preview-csv-format');
 
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+        $sampleCsv = $this->buildSampleCsvString($formatInfo['headers'], $preview['rows']);
+        $encoding = $encodingChecker->check($sampleCsv);
+
         return response()->json([
             'format'      => $formatInfo['format'],
             'headers'     => $formatInfo['headers'],
@@ -2979,7 +2983,85 @@ class ShopController extends Controller
             'row_count'   => $preview['row_count'],
             'total_available' => $orders->count(),
             'validation'  => $validation,
-            'can_export'  => $validation['valid'] && $integrity['valid'],
+            'encoding'    => $encoding,
+            'can_export'  => $validation['valid'] && $integrity['valid'] && $encoding['valid'],
+        ]);
+    }
+
+    /**
+     * @param array<int, string> $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function buildSampleCsvString(array $headers, array $rows): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $headers);
+
+        foreach ($rows as $row) {
+            $values = is_array($row) ? array_map(
+                fn ($v) => is_string($v) || is_numeric($v) ? (string) $v : '',
+                array_values($row),
+            ) : [];
+            fputcsv($handle, $values);
+        }
+
+        rewind($handle);
+
+        return stream_get_contents($handle) ?: '';
+    }
+
+    public function checkCsvEncoding(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
+        ]);
+
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+
+        if (! empty($validated['batch_id'])) {
+            $batch = CourierExportBatch::query()->findOrFail($validated['batch_id']);
+
+            if ($batch->file_path && Storage::disk()->exists($batch->file_path)) {
+                return response()->json([
+                    'courier_code' => strtoupper($validated['courier_code']),
+                    'batch_id' => $batch->id,
+                    'encoding' => $encodingChecker->checkFile(Storage::disk()->path($batch->file_path)),
+                ]);
+            }
+
+            $rows = $batch->rows()->get();
+            $csv = $this->courierExports->csv($rows, $validated['courier_code']);
+
+            return response()->json([
+                'courier_code' => strtoupper($validated['courier_code']),
+                'batch_id' => $batch->id,
+                'encoding' => $encodingChecker->check($csv),
+            ]);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(50)
+            ->get();
+
+        $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
+        $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
+        $sampleCsv = $this->buildSampleCsvString($formatInfo['headers'], $preview['rows']);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'encoding' => $encodingChecker->check($sampleCsv),
         ]);
     }
 
