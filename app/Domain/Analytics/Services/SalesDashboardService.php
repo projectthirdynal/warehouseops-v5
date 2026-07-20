@@ -792,4 +792,51 @@ class SalesDashboardService
             'total_orders' => $totalOrders,
         ];
     }
+
+    /**
+     * Get agent sales leaderboard — top agents by delivered orders and revenue.
+     *
+     * @param int $limit Number of agents to return
+     * @return array<string, mixed>
+     */
+    public function agentLeaderboard(int $limit = 10): array
+    {
+        $rows = Order::where('status', OrderStatus::DELIVERED)
+            ->whereNotNull('assigned_agent_id')
+            ->selectRaw('assigned_agent_id, COUNT(*) as cnt, SUM(total_amount) as rev')
+            ->groupBy('assigned_agent_id')
+            ->orderByDesc('rev')
+            ->limit($limit)
+            ->get();
+
+        $agentIds = $rows->pluck('assigned_agent_id')->unique()->filter();
+        $agents = \App\Models\User::whereIn('id', $agentIds)
+            ->pluck('name', 'id');
+
+        $totalRevenue = (float) $rows->sum('rev');
+        $totalOrders = (int) $rows->sum('cnt');
+
+        $items = $rows->map(fn ($r, $i) => [
+            'rank' => $i + 1,
+            'agent_id' => $r->assigned_agent_id,
+            'agent_name' => $agents[$r->assigned_agent_id] ?? 'Unknown',
+            'orders' => (int) $r->cnt,
+            'revenue' => (float) $r->rev,
+            'avg_order_value' => $r->cnt > 0 ? round((float) $r->rev / (int) $r->cnt, 2) : 0.0,
+            'percentage' => $totalRevenue > 0 ? round((float) $r->rev / $totalRevenue * 100, 1) : 0.0,
+        ])->toArray();
+
+        $topAgent = !empty($items) ? $items[0] : null;
+        $avgOrders = $totalOrders > 0 ? round($totalOrders / count($items), 1) : 0.0;
+        $avgRevenue = $totalOrders > 0 ? round($totalRevenue / count($items), 2) : 0.0;
+
+        return [
+            'items' => $items,
+            'total_revenue' => $totalRevenue,
+            'total_orders' => $totalOrders,
+            'top_agent' => $topAgent,
+            'avg_orders_per_agent' => $avgOrders,
+            'avg_revenue_per_agent' => $avgRevenue,
+        ];
+    }
 }

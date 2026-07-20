@@ -25,6 +25,7 @@ class SalesDashboardController extends Controller
             'salesTrends' => $this->service->salesTrends(),
             'revenueBySource' => $this->service->revenueBySource(),
             'revenueByPaymentMethod' => $this->service->revenueByPaymentMethod(),
+            'agentLeaderboard' => $this->service->agentLeaderboard(),
         ]);
     }
 
@@ -77,6 +78,14 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'revenue_by_payment_method' => $this->service->revenueByPaymentMethod(),
+        ]);
+    }
+
+    public function apiAgentLeaderboard(): JsonResponse
+    {
+        $limit = (int) request()->query('limit', 10);
+        return response()->json([
+            'agent_leaderboard' => $this->service->agentLeaderboard($limit),
         ]);
     }
 }
