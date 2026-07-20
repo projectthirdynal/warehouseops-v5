@@ -440,4 +440,191 @@ class SalesDashboardService
             'products' => $products,
         ];
     }
+
+    /**
+     * Get sales trend data for charting — combined order counts and revenue
+     * with 7-day and 30-day moving averages plus period-over-period growth.
+     *
+     * @param string $period 'daily', 'weekly', or 'monthly'
+     * @param int $points Number of data points
+     * @return array<string, mixed>
+     */
+    public function salesTrends(string $period = 'daily', int $points = 90): array
+    {
+        return match ($period) {
+            'weekly' => $this->weeklyTrends($points),
+            'monthly' => $this->monthlyTrends($points),
+            default => $this->dailyTrends($points),
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dailyTrends(int $days): array
+    {
+        $start = today()->subDays($days - 1);
+
+        $orderRaw = Order::selectRaw('DATE(created_at) as date, COUNT(*) as cnt, COALESCE(SUM(CASE WHEN status = ? THEN total_amount ELSE 0 END), 0) as rev', [OrderStatus::DELIVERED->value])
+            ->whereDate('created_at', '>=', $start)
+            ->groupByRaw('DATE(created_at)')
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->date)->toDateString());
+
+        $series = [];
+        for ($i = 0; $i < $days; $i++) {
+            $date = $start->copy()->addDays($i);
+            $key = $date->toDateString();
+            $row = $orderRaw->get($key);
+            $series[] = [
+                'date' => $key,
+                'label' => $date->format('M j'),
+                'orders' => $row ? (int) $row->cnt : 0,
+                'revenue' => $row ? (float) $row->rev : 0.0,
+            ];
+        }
+
+        return $this->buildTrendResponse($series, 'daily', $days);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function weeklyTrends(int $weeks): array
+    {
+        $start = Carbon::now()->subWeeks($weeks - 1)->startOfWeek();
+
+        $orderRaw = Order::selectRaw("DATE_TRUNC('week', created_at) as week, COUNT(*) as cnt, COALESCE(SUM(CASE WHEN status = ? THEN total_amount ELSE 0 END), 0) as rev", [OrderStatus::DELIVERED->value])
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('week', created_at)")
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->week)->toDateString());
+
+        $series = [];
+        for ($i = 0; $i < $weeks; $i++) {
+            $weekStart = $start->copy()->addWeeks($i);
+            $key = $weekStart->toDateString();
+            $row = $orderRaw->get($key);
+            $series[] = [
+                'date' => $key,
+                'label' => $weekStart->format('M j'),
+                'orders' => $row ? (int) $row->cnt : 0,
+                'revenue' => $row ? (float) $row->rev : 0.0,
+            ];
+        }
+
+        return $this->buildTrendResponse($series, 'weekly', $weeks);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function monthlyTrends(int $months): array
+    {
+        $start = Carbon::now()->subMonths($months - 1)->startOfMonth();
+
+        $orderRaw = Order::selectRaw("DATE_TRUNC('month', created_at) as month, COUNT(*) as cnt, COALESCE(SUM(CASE WHEN status = ? THEN total_amount ELSE 0 END), 0) as rev", [OrderStatus::DELIVERED->value])
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('month', created_at)")
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->month)->toDateString());
+
+        $series = [];
+        for ($i = 0; $i < $months; $i++) {
+            $monthStart = $start->copy()->addMonths($i);
+            $key = $monthStart->toDateString();
+            $row = $orderRaw->get($key);
+            $series[] = [
+                'date' => $key,
+                'label' => $monthStart->format('M Y'),
+                'orders' => $row ? (int) $row->cnt : 0,
+                'revenue' => $row ? (float) $row->rev : 0.0,
+            ];
+        }
+
+        return $this->buildTrendResponse($series, 'monthly', $months);
+    }
+
+    /**
+     * @param array<int, array{date: string, label: string, orders: int, revenue: float}> $series
+     * @return array<string, mixed>
+     */
+    private function buildTrendResponse(array $series, string $period, int $points): array
+    {
+        $orders = array_column($series, 'orders');
+        $revenues = array_column($series, 'revenue');
+
+        $ma7Orders = $this->movingAverage($orders, 7);
+        $ma7Revenue = $this->movingAverage($revenues, 7);
+        $ma30Orders = $this->movingAverage($orders, 30);
+        $ma30Revenue = $this->movingAverage($revenues, 30);
+
+        $chartData = [];
+        for ($i = 0; $i < count($series); $i++) {
+            $chartData[] = [
+                'date' => $series[$i]['date'],
+                'label' => $series[$i]['label'],
+                'orders' => $series[$i]['orders'],
+                'revenue' => $series[$i]['revenue'],
+                'ma7_orders' => $ma7Orders[$i],
+                'ma7_revenue' => $ma7Revenue[$i],
+                'ma30_orders' => $ma30Orders[$i],
+                'ma30_revenue' => $ma30Revenue[$i],
+            ];
+        }
+
+        $totalOrders = array_sum($orders);
+        $totalRevenue = array_sum($revenues);
+        $avgOrders = count($orders) > 0 ? round($totalOrders / count($orders), 1) : 0.0;
+        $avgRevenue = count($revenues) > 0 ? round($totalRevenue / count($revenues), 2) : 0.0;
+
+        $peakOrders = !empty($orders) ? max($orders) : 0;
+        $peakRevenue = !empty($revenues) ? max($revenues) : 0.0;
+        $peakOrdersIndex = !empty($orders) ? array_search($peakOrders, $orders) : false;
+        $peakRevenueIndex = !empty($revenues) ? array_search($peakRevenue, $revenues) : false;
+
+        $firstHalf = array_slice($orders, 0, (int) floor(count($orders) / 2));
+        $secondHalf = array_slice($orders, (int) floor(count($orders) / 2));
+        $firstHalfSum = array_sum($firstHalf);
+        $secondHalfSum = array_sum($secondHalf);
+        $growthRate = $firstHalfSum > 0
+            ? round(($secondHalfSum - $firstHalfSum) / $firstHalfSum * 100, 1)
+            : null;
+
+        return [
+            'period' => $period,
+            'points' => $points,
+            'chart_data' => $chartData,
+            'summary' => [
+                'total_orders' => $totalOrders,
+                'total_revenue' => (float) $totalRevenue,
+                'avg_orders' => $avgOrders,
+                'avg_revenue' => $avgRevenue,
+                'peak_orders' => $peakOrders,
+                'peak_orders_label' => $peakOrdersIndex !== false ? $series[$peakOrdersIndex]['label'] : null,
+                'peak_revenue' => (float) $peakRevenue,
+                'peak_revenue_label' => $peakRevenueIndex !== false ? $series[$peakRevenueIndex]['label'] : null,
+                'growth_rate' => $growthRate,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<int, int|float> $values
+     * @return array<int, float|null>
+     */
+    private function movingAverage(array $values, int $window): array
+    {
+        $result = [];
+        $count = count($values);
+        for ($i = 0; $i < $count; $i++) {
+            if ($i < $window - 1) {
+                $result[] = null;
+                continue;
+            }
+            $slice = array_slice($values, $i - $window + 1, $window);
+            $result[] = round(array_sum($slice) / $window, 2);
+        }
+        return $result;
+    }
 }

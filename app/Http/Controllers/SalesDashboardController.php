@@ -22,6 +22,7 @@ class SalesDashboardController extends Controller
             'revenueTotals' => $this->service->revenueTotals(),
             'statusBreakdown' => $this->service->statusBreakdown(),
             'topProducts' => $this->service->topProducts(),
+            'salesTrends' => $this->service->salesTrends(),
         ]);
     }
 
@@ -51,6 +52,15 @@ class SalesDashboardController extends Controller
         $limit = (int) request()->query('limit', 10);
         return response()->json([
             'top_products' => $this->service->topProducts($limit),
+        ]);
+    }
+
+    public function apiSalesTrends(): JsonResponse
+    {
+        $period = (string) request()->query('period', 'daily');
+        $points = (int) request()->query('points', 90);
+        return response()->json([
+            'sales_trends' => $this->service->salesTrends($period, $points),
         ]);
     }
 }
