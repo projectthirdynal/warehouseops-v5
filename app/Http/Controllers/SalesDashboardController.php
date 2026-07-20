@@ -26,6 +26,7 @@ class SalesDashboardController extends Controller
             'revenueBySource' => $this->service->revenueBySource(),
             'revenueByPaymentMethod' => $this->service->revenueByPaymentMethod(),
             'agentLeaderboard' => $this->service->agentLeaderboard(),
+            'cohortRetention' => $this->service->cohortRetention(),
         ]);
     }
 
@@ -86,6 +87,15 @@ class SalesDashboardController extends Controller
         $limit = (int) request()->query('limit', 10);
         return response()->json([
             'agent_leaderboard' => $this->service->agentLeaderboard($limit),
+        ]);
+    }
+
+    public function apiCohortRetention(): JsonResponse
+    {
+        $cohortMonths = (int) request()->query('cohort_months', 12);
+        $retentionMonths = (int) request()->query('retention_months', 6);
+        return response()->json([
+            'cohort_retention' => $this->service->cohortRetention($cohortMonths, $retentionMonths),
         ]);
     }
 }

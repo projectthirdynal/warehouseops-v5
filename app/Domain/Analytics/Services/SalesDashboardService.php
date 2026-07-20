@@ -839,4 +839,135 @@ class SalesDashboardService
             'avg_revenue_per_agent' => $avgRevenue,
         ];
     }
+
+    /**
+     * Get cohort/retention metrics — groups customers by first-order month
+     * and tracks repeat order rates for subsequent months.
+     *
+     * @param int $cohortMonths Number of months of cohorts to generate
+     * @param int $retentionMonths Number of retention periods to track per cohort
+     * @return array<string, mixed>
+     */
+    public function cohortRetention(int $cohortMonths = 12, int $retentionMonths = 6): array
+    {
+        $cohortStart = Carbon::now()->subMonths($cohortMonths - 1)->startOfMonth();
+
+        $firstOrders = Order::selectRaw('customer_id, MIN(DATE_TRUNC(\'month\', created_at)) as first_month')
+            ->whereNotNull('customer_id')
+            ->where('created_at', '>=', $cohortStart)
+            ->groupBy('customer_id')
+            ->pluck('first_month', 'customer_id');
+
+        $allOrders = Order::whereNotNull('customer_id')
+            ->where('created_at', '>=', $cohortStart)
+            ->selectRaw('customer_id, DATE_TRUNC(\'month\', created_at) as order_month')
+            ->get();
+
+        $customerOrderMonths = [];
+        foreach ($allOrders as $o) {
+            $monthKey = Carbon::parse($o->order_month)->toDateString();
+            $customerOrderMonths[$o->customer_id][$monthKey] = true;
+        }
+
+        $cohorts = [];
+        $totalCustomers = 0;
+        $totalRepeatCustomers = 0;
+
+        for ($c = 0; $c < $cohortMonths; $c++) {
+            $cohortMonth = $cohortStart->copy()->addMonths($c);
+            $cohortKey = $cohortMonth->toDateString();
+            $cohortLabel = $cohortMonth->format('M Y');
+
+            $cohortCustomerIds = $firstOrders->filter(
+                fn ($fm) => Carbon::parse($fm)->toDateString() === $cohortKey
+            )->keys();
+
+            $cohortSize = $cohortCustomerIds->count();
+            if ($cohortSize === 0) {
+                continue;
+            }
+
+            $totalCustomers += $cohortSize;
+
+            $retention = [];
+            $repeatCount = 0;
+
+            for ($r = 0; $r <= $retentionMonths; $r++) {
+                $targetMonth = $cohortMonth->copy()->addMonths($r);
+                $targetKey = $targetMonth->toDateString();
+
+                if ($targetMonth > Carbon::now()->endOfMonth()) {
+                    $retention[] = [
+                        'month_offset' => $r,
+                        'label' => $r === 0 ? 'Month 0' : "Month {$r}",
+                        'customers' => null,
+                        'rate' => null,
+                    ];
+                    continue;
+                }
+
+                $active = 0;
+                foreach ($cohortCustomerIds as $cid) {
+                    if (isset($customerOrderMonths[$cid][$targetKey])) {
+                        $active++;
+                    }
+                }
+
+                $rate = $cohortSize > 0 ? round($active / $cohortSize * 100, 1) : 0.0;
+
+                if ($r > 0 && $active > 0) {
+                    $repeatCount += $active;
+                }
+
+                $retention[] = [
+                    'month_offset' => $r,
+                    'label' => $r === 0 ? 'Month 0' : "Month {$r}",
+                    'customers' => $active,
+                    'rate' => $rate,
+                ];
+            }
+
+            if ($repeatCount > 0) {
+                $totalRepeatCustomers += $cohortSize;
+            }
+
+            $cohorts[] = [
+                'cohort_month' => $cohortKey,
+                'cohort_label' => $cohortLabel,
+                'cohort_size' => $cohortSize,
+                'retention' => $retention,
+                'repeat_customers' => $repeatCount,
+                'repeat_rate' => $cohortSize > 0 ? round($repeatCount / $cohortSize * 100, 1) : 0.0,
+            ];
+        }
+
+        $overallRepeatRate = $totalCustomers > 0
+            ? round($totalRepeatCustomers / $totalCustomers * 100, 1)
+            : 0.0;
+
+        $avgCohortSize = count($cohorts) > 0
+            ? round($totalCustomers / count($cohorts), 1)
+            : 0;
+
+        $month1Rates = array_filter(
+            array_map(fn ($c) => $c['retention'][1]['rate'] ?? null, $cohorts),
+            fn ($r) => $r !== null
+        );
+        $avgMonth1Retention = !empty($month1Rates)
+            ? round(array_sum($month1Rates) / count($month1Rates), 1)
+            : 0.0;
+
+        return [
+            'cohorts' => $cohorts,
+            'summary' => [
+                'total_customers' => $totalCustomers,
+                'total_repeat_customers' => $totalRepeatCustomers,
+                'overall_repeat_rate' => $overallRepeatRate,
+                'avg_cohort_size' => $avgCohortSize,
+                'avg_month1_retention' => $avgMonth1Retention,
+                'cohort_months' => $cohortMonths,
+                'retention_months' => $retentionMonths,
+            ],
+        ];
+    }
 }
