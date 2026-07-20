@@ -2887,7 +2887,7 @@ class ShopController extends Controller
         ]);
 
         $orders = Order::query()
-            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity,unit_price,line_total'])
             ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
             ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
             ->limit(10)
@@ -2896,6 +2896,10 @@ class ShopController extends Controller
         $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
         $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
 
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $validation = $validator->validateOrders($orders, $validated['courier_code']);
+        $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
+
         return response()->json([
             'format'      => $formatInfo['format'],
             'headers'     => $formatInfo['headers'],
@@ -2903,6 +2907,8 @@ class ShopController extends Controller
             'rows'        => $preview['rows'],
             'row_count'   => $preview['row_count'],
             'total_available' => $orders->count(),
+            'validation'  => $validation,
+            'can_export'  => $validation['valid'] && $integrity['valid'],
         ]);
     }
 
