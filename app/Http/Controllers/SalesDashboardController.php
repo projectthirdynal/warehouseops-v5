@@ -20,6 +20,7 @@ class SalesDashboardController extends Controller
         return Inertia::render('SalesDashboard/Index', [
             'orderCounts' => $this->service->orderCounts(),
             'revenueTotals' => $this->service->revenueTotals(),
+            'statusBreakdown' => $this->service->statusBreakdown(),
         ]);
     }
 
@@ -34,6 +35,13 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'revenue_totals' => $this->service->revenueTotals(),
+        ]);
+    }
+
+    public function apiStatusBreakdown(): JsonResponse
+    {
+        return response()->json([
+            'status_breakdown' => $this->service->statusBreakdown(),
         ]);
     }
 }

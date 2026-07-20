@@ -346,4 +346,54 @@ class SalesDashboardService
 
         return $result;
     }
+
+    /**
+     * Get order status breakdown — counts and percentages per status.
+     *
+     * @return array{
+     *     total: int,
+     *     statuses: array<int, array{status: string, label: string, color: string, count: int, percentage: float}>,
+     *     terminal_count: int,
+     *     active_count: int,
+     * }
+     */
+    public function statusBreakdown(): array
+    {
+        $total = Order::count();
+
+        $raw = Order::selectRaw('status, COUNT(*) as cnt')
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
+
+        $statuses = [];
+        $terminalCount = 0;
+        $activeCount = 0;
+
+        foreach (OrderStatus::cases() as $case) {
+            $count = (int) ($raw[$case->value] ?? 0);
+
+            if ($case->isTerminal()) {
+                $terminalCount += $count;
+            } else {
+                $activeCount += $count;
+            }
+
+            $statuses[] = [
+                'status' => $case->value,
+                'label' => $case->label(),
+                'color' => $case->color(),
+                'count' => $count,
+                'percentage' => $total > 0 ? round($count / $total * 100, 1) : 0.0,
+            ];
+        }
+
+        usort($statuses, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return [
+            'total' => $total,
+            'statuses' => $statuses,
+            'terminal_count' => $terminalCount,
+            'active_count' => $activeCount,
+        ];
+    }
 }

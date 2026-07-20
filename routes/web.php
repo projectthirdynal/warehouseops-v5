@@ -312,6 +312,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/sales-dashboard', [SalesDashboardController::class, 'index'])->name('sales-dashboard.index');
     Route::get('/api/sales-dashboard/order-counts', [SalesDashboardController::class, 'apiOrderCounts'])->name('sales-dashboard.order-counts');
     Route::get('/api/sales-dashboard/revenue-totals', [SalesDashboardController::class, 'apiRevenueTotals'])->name('sales-dashboard.revenue-totals');
+    Route::get('/api/sales-dashboard/status-breakdown', [SalesDashboardController::class, 'apiStatusBreakdown'])->name('sales-dashboard.status-breakdown');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
