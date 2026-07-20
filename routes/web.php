@@ -429,6 +429,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/test-orders', [ShopController::class, 'validationTestOrders'])->name('shop.exports.test-orders');
     Route::post('/shop/exports/test-csv', [ShopController::class, 'validationTestCsv'])->name('shop.exports.test-csv');
     Route::post('/shop/exports/test-csv-upload', [ShopController::class, 'validationTestCsvUpload'])->name('shop.exports.test-csv-upload');
+    Route::post('/shop/exports/verify-upload', [ShopController::class, 'verifyCsvUpload'])->name('shop.exports.verify-upload');
+    Route::post('/shop/exports/{batch}/verify-batch', [ShopController::class, 'verifyCsvAgainstBatch'])->name('shop.exports.verify-batch');
     Route::post('/shop/exports/{batch}/validate-rows', [ShopController::class, 'validateExportRows'])->name('shop.exports.validate-rows');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');

@@ -3293,6 +3293,35 @@ class ShopController extends Controller
         );
     }
 
+    public function verifyCsvUpload(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $content = $request->file('file')->getContents();
+
+        return response()->json(
+            $verifier->verify($content, $validated['courier_code']),
+        );
+    }
+
+    public function verifyCsvAgainstBatch(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $content = $request->file('file')->getContents();
+
+        return response()->json(
+            $verifier->verifyAgainstBatch($content, $batch),
+        );
+    }
+
     public function listCourierSchemas(): JsonResponse
     {
         $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
