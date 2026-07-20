@@ -23,6 +23,7 @@ class SalesDashboardController extends Controller
             'statusBreakdown' => $this->service->statusBreakdown(),
             'topProducts' => $this->service->topProducts(),
             'salesTrends' => $this->service->salesTrends(),
+            'revenueBySource' => $this->service->revenueBySource(),
         ]);
     }
 
@@ -61,6 +62,13 @@ class SalesDashboardController extends Controller
         $points = (int) request()->query('points', 90);
         return response()->json([
             'sales_trends' => $this->service->salesTrends($period, $points),
+        ]);
+    }
+
+    public function apiRevenueBySource(): JsonResponse
+    {
+        return response()->json([
+            'revenue_by_source' => $this->service->revenueBySource(),
         ]);
     }
 }

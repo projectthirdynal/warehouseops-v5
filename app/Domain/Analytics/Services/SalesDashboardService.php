@@ -627,4 +627,83 @@ class SalesDashboardService
         }
         return $result;
     }
+
+    /**
+     * Get revenue breakdown by Facebook page and source channel.
+     *
+     * @return array<string, mixed>
+     */
+    public function revenueBySource(): array
+    {
+        $byPage = $this->revenueByPage();
+        $byChannel = $this->revenueByChannel();
+
+        return [
+            'by_page' => $byPage,
+            'by_channel' => $byChannel,
+            'total_revenue' => $byPage['total_revenue'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function revenueByPage(): array
+    {
+        $rows = Order::where('status', OrderStatus::DELIVERED)
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('facebook_page_id, COUNT(*) as cnt, SUM(total_amount) as rev')
+            ->groupBy('facebook_page_id')
+            ->orderByDesc('rev')
+            ->get();
+
+        $pageIds = $rows->pluck('facebook_page_id')->unique()->filter();
+        $pages = \App\Domain\Shop\Models\FacebookPage::whereIn('page_id', $pageIds)
+            ->pluck('page_name', 'page_id');
+
+        $totalRevenue = (float) $rows->sum('rev');
+        $totalOrders = (int) $rows->sum('cnt');
+
+        $items = $rows->map(fn ($r) => [
+            'page_id' => $r->facebook_page_id,
+            'page_name' => $pages[$r->facebook_page_id] ?? 'Unknown Page',
+            'orders' => (int) $r->cnt,
+            'revenue' => (float) $r->rev,
+            'percentage' => $totalRevenue > 0 ? round((float) $r->rev / $totalRevenue * 100, 1) : 0.0,
+        ])->toArray();
+
+        return [
+            'items' => $items,
+            'total_revenue' => $totalRevenue,
+            'total_orders' => $totalOrders,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function revenueByChannel(): array
+    {
+        $rows = Order::where('status', OrderStatus::DELIVERED)
+            ->selectRaw('source_channel, COUNT(*) as cnt, SUM(total_amount) as rev')
+            ->groupBy('source_channel')
+            ->orderByDesc('rev')
+            ->get();
+
+        $totalRevenue = (float) $rows->sum('rev');
+        $totalOrders = (int) $rows->sum('cnt');
+
+        $items = $rows->map(fn ($r) => [
+            'channel' => $r->source_channel ?? 'unknown',
+            'orders' => (int) $r->cnt,
+            'revenue' => (float) $r->rev,
+            'percentage' => $totalRevenue > 0 ? round((float) $r->rev / $totalRevenue * 100, 1) : 0.0,
+        ])->toArray();
+
+        return [
+            'items' => $items,
+            'total_revenue' => $totalRevenue,
+            'total_orders' => $totalOrders,
+        ];
+    }
 }

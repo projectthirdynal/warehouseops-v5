@@ -315,6 +315,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/sales-dashboard/status-breakdown', [SalesDashboardController::class, 'apiStatusBreakdown'])->name('sales-dashboard.status-breakdown');
     Route::get('/api/sales-dashboard/top-products', [SalesDashboardController::class, 'apiTopProducts'])->name('sales-dashboard.top-products');
     Route::get('/api/sales-dashboard/sales-trends', [SalesDashboardController::class, 'apiSalesTrends'])->name('sales-dashboard.sales-trends');
+    Route::get('/api/sales-dashboard/revenue-by-source', [SalesDashboardController::class, 'apiRevenueBySource'])->name('sales-dashboard.revenue-by-source');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
