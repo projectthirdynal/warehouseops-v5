@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Domain\Analytics\Services\SalesDashboardService;
 use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\StatusMapper;
 use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
@@ -33,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(SalesDashboardService::class);
         $this->app->singleton(CourierServiceManager::class);
         $this->app->singleton(StatusMapper::class);
         $this->app->singleton(CourierCsvSchemaRegistry::class);
