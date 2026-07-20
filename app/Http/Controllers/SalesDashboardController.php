@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Domain\Analytics\Services\SalesDashboardService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesDashboardController extends Controller
 {
@@ -112,6 +114,39 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'return_refund_rate' => $this->service->returnRefundRate(),
+        ]);
+    }
+
+    public function apiSalesReport(): JsonResponse
+    {
+        $from = request()->query('from');
+        $to = request()->query('to');
+        return response()->json([
+            'sales_report' => $this->service->exportSalesReport(
+                $from ? (string) $from : null,
+                $to ? (string) $to : null,
+            ),
+        ]);
+    }
+
+    public function downloadSalesReport(): StreamedResponse
+    {
+        $from = request()->query('from');
+        $to = request()->query('to');
+        $csv = $this->service->exportSalesReportCsv(
+            $from ? (string) $from : null,
+            $to ? (string) $to : null,
+        );
+
+        $fromStr = $from ? Carbon::parse($from)->format('Ymd') : 'all';
+        $toStr = $to ? Carbon::parse($to)->format('Ymd') : 'now';
+        $filename = "sales_report_{$fromStr}_{$toStr}.csv";
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 }

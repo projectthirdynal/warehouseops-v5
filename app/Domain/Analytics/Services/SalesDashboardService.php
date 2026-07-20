@@ -1195,4 +1195,174 @@ class SalesDashboardService
             'by_courier' => $courierBreakdown,
         ];
     }
+
+    /**
+     * Generate an exportable sales report with optional date range filter.
+     *
+     * @param string|null $fromDate  Y-m-d start date (default: 30 days ago)
+     * @param string|null $toDate    Y-m-d end date (default: today)
+     * @return array<string, mixed>
+     */
+    public function exportSalesReport(?string $fromDate = null, ?string $toDate = null): array
+    {
+        $from = $fromDate ? Carbon::parse($fromDate)->startOfDay() : Carbon::now()->subDays(29)->startOfDay();
+        $to = $toDate ? Carbon::parse($toDate)->endOfDay() : Carbon::now()->endOfDay();
+
+        $orders = Order::whereBetween('created_at', [$from, $to])
+            ->orderBy('created_at')
+            ->get();
+
+        $delivered = $orders->where('status', OrderStatus::DELIVERED);
+        $returned = $orders->where('status', OrderStatus::RETURNED);
+        $cancelled = $orders->where('status', OrderStatus::CANCELLED);
+
+        $grossRevenue = (float) $delivered->sum('total_amount');
+        $returnedRevenue = (float) $returned->sum('total_amount');
+        $netRevenue = $grossRevenue - $returnedRevenue;
+
+        $totalOrders = $orders->count();
+        $deliveredCount = $delivered->count();
+        $returnedCount = $returned->count();
+        $cancelledCount = $cancelled->count();
+
+        $aov = $deliveredCount > 0 ? round($grossRevenue / $deliveredCount, 2) : 0.0;
+        $returnRate = ($deliveredCount + $returnedCount) > 0
+            ? round($returnedCount / ($deliveredCount + $returnedCount) * 100, 1)
+            : 0.0;
+
+        $summary = [
+            'report_period' => "{$from->format('M j, Y')} – {$to->format('M j, Y')}",
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'total_orders' => $totalOrders,
+            'delivered' => $deliveredCount,
+            'returned' => $returnedCount,
+            'cancelled' => $cancelledCount,
+            'gross_revenue' => $grossRevenue,
+            'returned_revenue' => $returnedRevenue,
+            'net_revenue' => $netRevenue,
+            'average_order_value' => $aov,
+            'return_rate' => $returnRate,
+        ];
+
+        $statusBreakdown = [];
+        $statusCounts = $orders->groupBy(fn ($o) => $o->status->value);
+        foreach ($statusCounts as $status => $group) {
+            $statusBreakdown[] = [
+                'status' => $status,
+                'count' => $group->count(),
+                'revenue' => (float) $group->sum('total_amount'),
+            ];
+        }
+
+        $topProducts = \App\Domain\Shop\Models\ShopOrderItem::query()
+            ->join('orders', 'shop_order_items.order_id', '=', 'orders.id')
+            ->where('orders.status', OrderStatus::DELIVERED)
+            ->whereBetween('orders.created_at', [$from, $to])
+            ->selectRaw('
+                shop_order_items.product_id,
+                shop_order_items.product_name,
+                SUM(shop_order_items.quantity) as total_qty,
+                SUM(shop_order_items.line_total) as total_revenue
+            ')
+            ->groupBy('shop_order_items.product_id', 'shop_order_items.product_name')
+            ->orderByDesc('total_qty')
+            ->limit(20)
+            ->get()
+            ->map(fn ($r) => [
+                'product_id' => $r->product_id,
+                'product_name' => $r->product_name ?? 'Unknown',
+                'quantity' => (int) $r->total_qty,
+                'revenue' => (float) $r->total_revenue,
+            ])
+            ->toArray();
+
+        $orderRows = $orders->map(fn ($o) => [
+            'order_number' => $o->order_number,
+            'date' => $o->created_at->format('Y-m-d'),
+            'status' => $o->status->value,
+            'customer_name' => $o->receiver_name ?? '',
+            'product_name' => $o->product_name ?? '',
+            'quantity' => (int) $o->quantity,
+            'total_amount' => (float) $o->total_amount,
+            'courier' => $o->courier_code ?? '',
+            'source_channel' => $o->source_channel ?? '',
+            'assigned_agent' => $o->assigned_agent_id ?? '',
+        ])->toArray();
+
+        return [
+            'summary' => $summary,
+            'status_breakdown' => $statusBreakdown,
+            'top_products' => $topProducts,
+            'orders' => $orderRows,
+        ];
+    }
+
+    /**
+     * Generate CSV content for the sales report download.
+     *
+     * @param string|null $fromDate
+     * @param string|null $toDate
+     * @return string CSV content
+     */
+    public function exportSalesReportCsv(?string $fromDate = null, ?string $toDate = null): string
+    {
+        $report = $this->exportSalesReport($fromDate, $toDate);
+
+        $handle = fopen('php://temp', 'r+');
+
+        fputcsv($handle, ['SALES REPORT']);
+        fputcsv($handle, ['Period', $report['summary']['report_period']]);
+        fputcsv($handle, []);
+
+        fputcsv($handle, ['SUMMARY']);
+        fputcsv($handle, ['Metric', 'Value']);
+        fputcsv($handle, ['Total Orders', $report['summary']['total_orders']]);
+        fputcsv($handle, ['Delivered', $report['summary']['delivered']]);
+        fputcsv($handle, ['Returned', $report['summary']['returned']]);
+        fputcsv($handle, ['Cancelled', $report['summary']['cancelled']]);
+        fputcsv($handle, ['Gross Revenue', $report['summary']['gross_revenue']]);
+        fputcsv($handle, ['Returned Revenue', $report['summary']['returned_revenue']]);
+        fputcsv($handle, ['Net Revenue', $report['summary']['net_revenue']]);
+        fputcsv($handle, ['Average Order Value', $report['summary']['average_order_value']]);
+        fputcsv($handle, ['Return Rate (%)', $report['summary']['return_rate']]);
+        fputcsv($handle, []);
+
+        fputcsv($handle, ['STATUS BREAKDOWN']);
+        fputcsv($handle, ['Status', 'Count', 'Revenue']);
+        foreach ($report['status_breakdown'] as $row) {
+            fputcsv($handle, [$row['status'], $row['count'], $row['revenue']]);
+        }
+        fputcsv($handle, []);
+
+        fputcsv($handle, ['TOP PRODUCTS']);
+        fputcsv($handle, ['Product ID', 'Product Name', 'Quantity', 'Revenue']);
+        foreach ($report['top_products'] as $row) {
+            fputcsv($handle, [$row['product_id'], $row['product_name'], $row['quantity'], $row['revenue']]);
+        }
+        fputcsv($handle, []);
+
+        fputcsv($handle, ['ORDER DETAILS']);
+        fputcsv($handle, ['Order Number', 'Date', 'Status', 'Customer Name', 'Product Name', 'Quantity', 'Total Amount', 'Courier', 'Source Channel', 'Assigned Agent']);
+        foreach ($report['orders'] as $row) {
+            fputcsv($handle, [
+                $row['order_number'],
+                $row['date'],
+                $row['status'],
+                $row['customer_name'],
+                $row['product_name'],
+                $row['quantity'],
+                $row['total_amount'],
+                $row['courier'],
+                $row['source_channel'],
+                $row['assigned_agent'],
+            ]);
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        return $csv;
+    }
 }

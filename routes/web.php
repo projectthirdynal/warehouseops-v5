@@ -321,6 +321,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/sales-dashboard/cohort-retention', [SalesDashboardController::class, 'apiCohortRetention'])->name('sales-dashboard.cohort-retention');
     Route::get('/api/sales-dashboard/average-order-value', [SalesDashboardController::class, 'apiAverageOrderValue'])->name('sales-dashboard.average-order-value');
     Route::get('/api/sales-dashboard/return-refund-rate', [SalesDashboardController::class, 'apiReturnRefundRate'])->name('sales-dashboard.return-refund-rate');
+    Route::get('/api/sales-dashboard/sales-report', [SalesDashboardController::class, 'apiSalesReport'])->name('sales-dashboard.sales-report');
+    Route::get('/api/sales-dashboard/sales-report/download', [SalesDashboardController::class, 'downloadSalesReport'])->name('sales-dashboard.sales-report.download');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
