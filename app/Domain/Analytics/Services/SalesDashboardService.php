@@ -1081,4 +1081,118 @@ class SalesDashboardService
             'distribution' => $distribution,
         ];
     }
+
+    /**
+     * Get return/refund rate metrics — overall and by period,
+     * with monthly series and per-courier breakdown.
+     *
+     * @return array<string, mixed>
+     */
+    public function returnRefundRate(): array
+    {
+        $deliveredCount = Order::where('status', OrderStatus::DELIVERED)->count();
+        $returnedCount = Order::where('status', OrderStatus::RETURNED)->count();
+        $cancelledCount = Order::where('status', OrderStatus::CANCELLED)->count();
+
+        $totalTerminal = $deliveredCount + $returnedCount + $cancelledCount;
+        $returnRate = $totalTerminal > 0 ? round($returnedCount / $totalTerminal * 100, 1) : 0.0;
+        $cancelRate = $totalTerminal > 0 ? round($cancelledCount / $totalTerminal * 100, 1) : 0.0;
+        $combinedRate = round($returnRate + $cancelRate, 1);
+
+        $returnedRevenue = (float) Order::where('status', OrderStatus::RETURNED)->sum('total_amount');
+        $deliveredRevenue = (float) Order::where('status', OrderStatus::DELIVERED)->sum('total_amount');
+        $refundRate = $deliveredRevenue > 0 ? round($returnedRevenue / ($deliveredRevenue + $returnedRevenue) * 100, 1) : 0.0;
+
+        $todayReturned = Order::where('status', OrderStatus::RETURNED)->whereDate('returned_at', today())->count();
+        $todayDelivered = Order::where('status', OrderStatus::DELIVERED)->whereDate('delivered_at', today())->count();
+        $todayTotal = $todayReturned + $todayDelivered;
+        $todayRate = $todayTotal > 0 ? round($todayReturned / $todayTotal * 100, 1) : 0.0;
+
+        $thisWeekReturned = Order::where('status', OrderStatus::RETURNED)->whereBetween('returned_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])->count();
+        $thisWeekDelivered = Order::where('status', OrderStatus::DELIVERED)->whereBetween('delivered_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])->count();
+        $thisWeekTotal = $thisWeekReturned + $thisWeekDelivered;
+        $thisWeekRate = $thisWeekTotal > 0 ? round($thisWeekReturned / $thisWeekTotal * 100, 1) : 0.0;
+
+        $thisMonthReturned = Order::where('status', OrderStatus::RETURNED)->whereMonth('returned_at', Carbon::now()->month)->whereYear('returned_at', Carbon::now()->year)->count();
+        $thisMonthDelivered = Order::where('status', OrderStatus::DELIVERED)->whereMonth('delivered_at', Carbon::now()->month)->whereYear('delivered_at', Carbon::now()->year)->count();
+        $thisMonthTotal = $thisMonthReturned + $thisMonthDelivered;
+        $thisMonthRate = $thisMonthTotal > 0 ? round($thisMonthReturned / $thisMonthTotal * 100, 1) : 0.0;
+
+        $lastMonthReturned = Order::where('status', OrderStatus::RETURNED)->whereMonth('returned_at', Carbon::now()->subMonth()->month)->whereYear('returned_at', Carbon::now()->subMonth()->year)->count();
+        $lastMonthDelivered = Order::where('status', OrderStatus::DELIVERED)->whereMonth('delivered_at', Carbon::now()->subMonth()->month)->whereYear('delivered_at', Carbon::now()->subMonth()->year)->count();
+        $lastMonthTotal = $lastMonthReturned + $lastMonthDelivered;
+        $lastMonthRate = $lastMonthTotal > 0 ? round($lastMonthReturned / $lastMonthTotal * 100, 1) : 0.0;
+
+        $monthlyTrend = $lastMonthRate > 0 ? round($thisMonthRate - $lastMonthRate, 1) : null;
+
+        $monthlySeries = [];
+        $monthlyRows = Order::whereIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED])
+            ->selectRaw("
+                DATE_TRUNC('month', created_at) as month,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as delivered,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as returned
+            ", [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value])
+            ->where('created_at', '>=', Carbon::now()->subMonths(11)->startOfMonth())
+            ->groupByRaw("DATE_TRUNC('month', created_at)")
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->month)->toDateString());
+
+        for ($i = 11; $i >= 0; $i--) {
+            $m = Carbon::now()->subMonths($i)->startOfMonth();
+            $key = $m->toDateString();
+            $row = $monthlyRows->get($key);
+            $delivered = $row ? (int) $row->delivered : 0;
+            $returned = $row ? (int) $row->returned : 0;
+            $total = $delivered + $returned;
+            $monthlySeries[] = [
+                'month' => $key,
+                'label' => $m->format('M Y'),
+                'delivered' => $delivered,
+                'returned' => $returned,
+                'rate' => $total > 0 ? round($returned / $total * 100, 1) : 0.0,
+            ];
+        }
+
+        $byCourier = Order::whereIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED])
+            ->whereNotNull('courier_code')
+            ->selectRaw("
+                courier_code,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as delivered,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as returned
+            ", [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value])
+            ->groupBy('courier_code')
+            ->orderByDesc('returned')
+            ->get();
+
+        $courierBreakdown = $byCourier->map(fn ($r) => [
+            'courier' => $r->courier_code,
+            'delivered' => (int) $r->delivered,
+            'returned' => (int) $r->returned,
+            'total' => (int) $r->delivered + (int) $r->returned,
+            'rate' => ((int) $r->delivered + (int) $r->returned) > 0
+                ? round((int) $r->returned / ((int) $r->delivered + (int) $r->returned) * 100, 1)
+                : 0.0,
+        ])->toArray();
+
+        return [
+            'overall' => [
+                'return_rate' => $returnRate,
+                'cancel_rate' => $cancelRate,
+                'combined_rate' => $combinedRate,
+                'refund_rate' => $refundRate,
+                'delivered' => $deliveredCount,
+                'returned' => $returnedCount,
+                'cancelled' => $cancelledCount,
+                'returned_revenue' => $returnedRevenue,
+                'delivered_revenue' => $deliveredRevenue,
+            ],
+            'periods' => [
+                'today' => ['rate' => $todayRate, 'returned' => $todayReturned, 'delivered' => $todayDelivered],
+                'this_week' => ['rate' => $thisWeekRate, 'returned' => $thisWeekReturned, 'delivered' => $thisWeekDelivered],
+                'this_month' => ['rate' => $thisMonthRate, 'returned' => $thisMonthReturned, 'delivered' => $thisMonthDelivered, 'trend' => $monthlyTrend],
+            ],
+            'monthly_series' => $monthlySeries,
+            'by_courier' => $courierBreakdown,
+        ];
+    }
 }

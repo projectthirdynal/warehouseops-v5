@@ -28,6 +28,7 @@ class SalesDashboardController extends Controller
             'agentLeaderboard' => $this->service->agentLeaderboard(),
             'cohortRetention' => $this->service->cohortRetention(),
             'averageOrderValue' => $this->service->averageOrderValue(),
+            'returnRefundRate' => $this->service->returnRefundRate(),
         ]);
     }
 
@@ -104,6 +105,13 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'average_order_value' => $this->service->averageOrderValue(),
+        ]);
+    }
+
+    public function apiReturnRefundRate(): JsonResponse
+    {
+        return response()->json([
+            'return_refund_rate' => $this->service->returnRefundRate(),
         ]);
     }
 }
