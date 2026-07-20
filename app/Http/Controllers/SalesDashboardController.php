@@ -24,6 +24,7 @@ class SalesDashboardController extends Controller
             'topProducts' => $this->service->topProducts(),
             'salesTrends' => $this->service->salesTrends(),
             'revenueBySource' => $this->service->revenueBySource(),
+            'revenueByPaymentMethod' => $this->service->revenueByPaymentMethod(),
         ]);
     }
 
@@ -69,6 +70,13 @@ class SalesDashboardController extends Controller
     {
         return response()->json([
             'revenue_by_source' => $this->service->revenueBySource(),
+        ]);
+    }
+
+    public function apiRevenueByPaymentMethod(): JsonResponse
+    {
+        return response()->json([
+            'revenue_by_payment_method' => $this->service->revenueByPaymentMethod(),
         ]);
     }
 }

@@ -706,4 +706,90 @@ class SalesDashboardService
             'total_orders' => $totalOrders,
         ];
     }
+
+    /**
+     * Get revenue breakdown by payment method.
+     *
+     * Payment method is determined by:
+     * - COD: orders with cod_amount > 0
+     * - POS methods (CASH, GCASH, CARD): from ShopOrderItem metadata
+     * - Other: orders with no identifiable payment method
+     *
+     * @return array<string, mixed>
+     */
+    public function revenueByPaymentMethod(): array
+    {
+        $delivered = Order::where('status', OrderStatus::DELIVERED)->get();
+
+        $totals = [
+            'COD' => ['orders' => 0, 'revenue' => 0.0],
+            'CASH' => ['orders' => 0, 'revenue' => 0.0],
+            'GCASH' => ['orders' => 0, 'revenue' => 0.0],
+            'CARD' => ['orders' => 0, 'revenue' => 0.0],
+            'OTHER' => ['orders' => 0, 'revenue' => 0.0],
+        ];
+
+        $posOrderIds = $delivered->where('source_channel', 'pos')->pluck('id');
+        $posMethods = [];
+
+        if ($posOrderIds->isNotEmpty()) {
+            $posMethods = \App\Domain\Shop\Models\ShopOrderItem::whereIn('order_id', $posOrderIds)
+                ->whereNotNull('metadata')
+                ->get()
+                ->groupBy('order_id')
+                ->map(fn ($items) => $items->first()?->metadata['pos_payment_method'] ?? null)
+                ->filter()
+                ->toArray();
+        }
+
+        foreach ($delivered as $order) {
+            $method = null;
+
+            if (isset($posMethods[$order->id])) {
+                $method = strtoupper($posMethods[$order->id]);
+            } elseif ((float) $order->cod_amount > 0) {
+                $method = 'COD';
+            }
+
+            if ($method === null || !isset($totals[$method])) {
+                $method = 'OTHER';
+            }
+
+            $totals[$method]['orders']++;
+            $totals[$method]['revenue'] += (float) $order->total_amount;
+        }
+
+        $totalRevenue = array_sum(array_column($totals, 'revenue'));
+        $totalOrders = array_sum(array_column($totals, 'orders'));
+
+        $labels = [
+            'COD' => 'Cash on Delivery',
+            'CASH' => 'Cash',
+            'GCASH' => 'GCash',
+            'CARD' => 'Card',
+            'OTHER' => 'Other',
+        ];
+
+        $items = [];
+        foreach ($totals as $method => $data) {
+            if ($data['orders'] === 0) {
+                continue;
+            }
+            $items[] = [
+                'method' => $method,
+                'label' => $labels[$method],
+                'orders' => $data['orders'],
+                'revenue' => round($data['revenue'], 2),
+                'percentage' => $totalRevenue > 0 ? round($data['revenue'] / $totalRevenue * 100, 1) : 0.0,
+            ];
+        }
+
+        usort($items, fn ($a, $b) => $b['revenue'] <=> $a['revenue']);
+
+        return [
+            'items' => $items,
+            'total_revenue' => round($totalRevenue, 2),
+            'total_orders' => $totalOrders,
+        ];
+    }
 }
