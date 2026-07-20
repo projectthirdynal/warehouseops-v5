@@ -16,6 +16,8 @@ use Illuminate\Support\Collection;
  */
 final class CourierCsvCodValidator
 {
+    public function __construct(private readonly CourierCsvValidationConfig $config) {}
+
     private const TOLERANCE = 0.01;
 
     /**
@@ -28,8 +30,20 @@ final class CourierCsvCodValidator
      *
      * @return array{valid: bool, expected: float|null, actual: float|null, error: string|null}
      */
-    public function validateOrder(Order $order): array
+    public function validateOrder(Order $order, ?string $courierCode = null): array
     {
+        $rules = $this->config->get($courierCode ?? 'DEFAULT')['cod_amount'] ?? [];
+
+        if (($rules['enabled'] ?? true) === false) {
+            return [
+                'valid' => true,
+                'expected' => null,
+                'actual' => $order->cod_amount !== null ? (float) $order->cod_amount : null,
+                'error' => null,
+            ];
+        }
+
+        $tolerance = (float) ($rules['tolerance'] ?? self::TOLERANCE);
         $actual = $order->cod_amount !== null ? (float) $order->cod_amount : null;
 
         if ($actual === null) {
@@ -61,7 +75,7 @@ final class CourierCsvCodValidator
             ];
         }
 
-        if (abs($expected - $actual) > self::TOLERANCE) {
+        if (abs($expected - $actual) > $tolerance) {
             return [
                 'valid' => false,
                 'expected' => $expected,
@@ -83,7 +97,7 @@ final class CourierCsvCodValidator
      *
      * @return array{valid: bool, expected: float|null, actual: float|null, error: string|null}
      */
-    public function validateRow(CourierExportRow $row): array
+    public function validateRow(CourierExportRow $row, ?string $courierCode = null): array
     {
         $actual = $row->cod_amount !== null ? (float) $row->cod_amount : null;
 
@@ -106,7 +120,7 @@ final class CourierCsvCodValidator
         }
 
         if ($row->relationLoaded('order') && $row->order) {
-            return $this->validateOrder($row->order);
+            return $this->validateOrder($row->order, $courierCode);
         }
 
         return [
@@ -150,8 +164,20 @@ final class CourierCsvCodValidator
      * @param  Collection<int, object{quantity: int, unit_price: float, line_total?: float, discount_amount?: float}>|null  $items
      * @return array{valid: bool, expected: float|null, actual: float|null, error: string|null}
      */
-    public function validate(?float $codAmount, ?float $expectedAmount = null, ?Collection $items = null): array
+    public function validate(?float $codAmount, ?float $expectedAmount = null, ?Collection $items = null, ?string $courierCode = null): array
     {
+        $rules = $this->config->get($courierCode ?? 'DEFAULT')['cod_amount'] ?? [];
+
+        if (($rules['enabled'] ?? true) === false) {
+            return [
+                'valid' => true,
+                'expected' => $expectedAmount,
+                'actual' => $codAmount,
+                'error' => null,
+            ];
+        }
+
+        $tolerance = (float) ($rules['tolerance'] ?? self::TOLERANCE);
         if ($codAmount === null) {
             return [
                 'valid' => false,
@@ -183,7 +209,7 @@ final class CourierCsvCodValidator
             ];
         }
 
-        if (abs($expectedAmount - $codAmount) > self::TOLERANCE) {
+        if (abs($expectedAmount - $codAmount) > $tolerance) {
             return [
                 'valid' => false,
                 'expected' => $expectedAmount,

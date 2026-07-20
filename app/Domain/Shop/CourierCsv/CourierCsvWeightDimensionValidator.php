@@ -19,12 +19,7 @@ use App\Domain\Shop\Models\CourierExportRow;
  */
 final class CourierCsvWeightDimensionValidator
 {
-    /** @var array<string, float> */
-    private const DEFAULT_MAX_WEIGHT_KG = [
-        'JNT' => 50.0,
-        'FLASH' => 50.0,
-        'GENERIC' => 50.0,
-    ];
+    public function __construct(private readonly CourierCsvValidationConfig $config) {}
 
     /**
      * Validate an Order's weight.
@@ -33,7 +28,18 @@ final class CourierCsvWeightDimensionValidator
      */
     public function validateOrder(Order $order, string $courierCode): array
     {
-        $maxWeight = $this->maxWeightKg($courierCode);
+        $rules = $this->config->get(strtoupper($courierCode))['weight'] ?? [];
+
+        if (($rules['enabled'] ?? true) === false) {
+            return [
+                'valid' => true,
+                'weight_kg' => null,
+                'max_weight_kg' => (float) ($rules['max_weight_kg'] ?? 50.0),
+                'errors' => [],
+            ];
+        }
+
+        $maxWeight = (float) ($rules['max_weight_kg'] ?? 50.0);
         $errors = [];
 
         $weightKg = $this->orderWeightKg($order);
@@ -57,6 +63,8 @@ final class CourierCsvWeightDimensionValidator
             $errors[] = sprintf('Order weight %.2f kg exceeds maximum %.2f kg allowed by courier.', $weightKg, $maxWeight);
         }
 
+        $this->validateDimensions($order, $errors, $rules);
+
         return [
             'valid' => $errors === [],
             'weight_kg' => $weightKg,
@@ -76,12 +84,12 @@ final class CourierCsvWeightDimensionValidator
             return $this->validateOrder($row->order, $courierCode);
         }
 
-        $maxWeight = $this->maxWeightKg($courierCode);
+        $rules = $this->config->get(strtoupper($courierCode))['weight'] ?? [];
 
         return [
             'valid' => true,
             'weight_kg' => null,
-            'max_weight_kg' => $maxWeight,
+            'max_weight_kg' => (float) ($rules['max_weight_kg'] ?? 50.0),
             'errors' => [],
         ];
     }
@@ -119,10 +127,43 @@ final class CourierCsvWeightDimensionValidator
     }
 
     /**
-     * Get the maximum weight allowed for a courier.
+     * Validate item dimensions when product/variant exposes them.
+     *
+     * @param array<string, mixed> $rules
+     * @param array<int, string> $errors
      */
-    private function maxWeightKg(string $courierCode): float
+    private function validateDimensions(Order $order, array &$errors, array $rules): void
     {
-        return self::DEFAULT_MAX_WEIGHT_KG[strtoupper($courierCode)] ?? self::DEFAULT_MAX_WEIGHT_KG['GENERIC'];
+        $dimensionRules = $this->config->get('DEFAULT')['dimensions'] ?? [];
+
+        if (($dimensionRules['enabled'] ?? false) === false) {
+            return;
+        }
+
+        $items = $order->relationLoaded('shopItems') ? $order->shopItems : $order->shopItems()->get();
+
+        foreach ($items as $item) {
+            $model = $item->variant ?? $item->product;
+
+            if ($model === null) {
+                continue;
+            }
+
+            foreach (['length_mm', 'width_mm', 'height_mm'] as $dim) {
+                if (! isset($model->{$dim})) {
+                    continue;
+                }
+
+                $value = (float) $model->{$dim};
+                $maxKey = str_replace('_mm', '_cm', $dim);
+                $maxCm = (float) ($dimensionRules[$maxKey] ?? 100.0);
+
+                if ($value <= 0) {
+                    $errors[] = "Dimension {$dim} must be greater than 0.";
+                } elseif ($value / 10 > $maxCm) {
+                    $errors[] = "Dimension {$dim} ({$value} mm) exceeds maximum {$maxCm} cm.";
+                }
+            }
+        }
     }
 }

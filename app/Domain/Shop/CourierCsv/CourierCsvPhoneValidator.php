@@ -17,21 +17,35 @@ namespace App\Domain\Shop\CourierCsv;
  */
 final class CourierCsvPhoneValidator
 {
+    public function __construct(private readonly CourierCsvValidationConfig $config) {}
+
     /**
      * Minimum and maximum length for accepted mobile numbers.
      * National format: 09 + 9 digits = 11 chars.
      * International format: 63 + 10 digits = 12 digits or +63 + 10 digits = 13 chars.
      */
-    public const MIN_LENGTH = 10;
-    public const MAX_LENGTH = 13;
+    private const MIN_LENGTH = 10;
+    private const MAX_LENGTH = 13;
 
     /**
      * Validate a phone number and return a normalized value.
      *
      * @return array{valid: bool, normalized: string|null, error: string|null}
      */
-    public function validate(?string $phone): array
+    public function validate(?string $phone, ?string $courierCode = null): array
     {
+        $rules = $this->config->get($courierCode ?? 'DEFAULT')['phone'] ?? [];
+
+        if (($rules['enabled'] ?? true) === false) {
+            return [
+                'valid' => true,
+                'normalized' => $phone,
+                'error' => null,
+            ];
+        }
+
+        $minLength = (int) ($rules['min_length'] ?? self::MIN_LENGTH);
+        $maxLength = (int) ($rules['max_length'] ?? self::MAX_LENGTH);
         if ($phone === null || trim($phone) === '') {
             return [
                 'valid' => false,
@@ -50,11 +64,11 @@ final class CourierCsvPhoneValidator
             ];
         }
 
-        $normalized = $this->normalize($digits);
+        $normalized = $this->normalize($digits, $minLength, $maxLength);
 
         if ($normalized === null) {
             $length = strlen($digits);
-            $expected = '11 digits starting with 09, or 12-13 digits starting with +63/63';
+            $expected = "{$minLength}-{$maxLength} digits"; 
 
             return [
                 'valid' => false,
@@ -70,15 +84,15 @@ final class CourierCsvPhoneValidator
         ];
     }
 
-    public function isValid(?string $phone): bool
+    public function isValid(?string $phone, ?string $courierCode = null): bool
     {
-        return $this->validate($phone)['valid'];
+        return $this->validate($phone, $courierCode)['valid'];
     }
 
     /**
      * Normalize phone to 09-prefixed 11-digit format.
      */
-    public function normalize(?string $phone): ?string
+    public function normalize(?string $phone, int $minLength = self::MIN_LENGTH, int $maxLength = self::MAX_LENGTH): ?string
     {
         if ($phone === null || trim($phone) === '') {
             return null;
@@ -86,7 +100,7 @@ final class CourierCsvPhoneValidator
 
         $digits = $this->extractDigits($phone);
 
-        if ($digits === '' || ! $this->isValidLength($digits)) {
+        if ($digits === '' || ! $this->isValidLength($digits, $minLength, $maxLength)) {
             return null;
         }
 
@@ -110,10 +124,10 @@ final class CourierCsvPhoneValidator
         return preg_replace('/[^0-9]/', '', $phone) ?? '';
     }
 
-    private function isValidLength(string $digits): bool
+    private function isValidLength(string $digits, int $minLength = self::MIN_LENGTH, int $maxLength = self::MAX_LENGTH): bool
     {
         $length = strlen($digits);
 
-        return $length >= self::MIN_LENGTH && $length <= self::MAX_LENGTH;
+        return $length >= $minLength && $length <= $maxLength;
     }
 }

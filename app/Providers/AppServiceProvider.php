@@ -29,6 +29,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CourierServiceManager::class);
         $this->app->singleton(StatusMapper::class);
         $this->app->singleton(CourierCsvSchemaRegistry::class);
+        $this->app->singleton(CourierCsvValidationConfig::class);
         $this->app->singleton(CourierCsvPhoneValidator::class);
         $this->app->singleton(CourierCsvCodValidator::class);
         $this->app->singleton(CourierCsvAddressValidator::class);

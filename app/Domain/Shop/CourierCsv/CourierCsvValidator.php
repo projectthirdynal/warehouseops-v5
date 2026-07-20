@@ -57,7 +57,7 @@ final class CourierCsvValidator
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveOrderFieldValue($order, $field);
-                $error = $this->getFieldError($value, $field, $order);
+                $error = $this->getFieldError($value, $field, $courierCode, $order);
 
                 if ($error !== null) {
                     $missingColumns[] = $label;
@@ -136,7 +136,7 @@ final class CourierCsvValidator
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveRowFieldValue($row, $field);
-                $error = $this->getFieldError($value, $field, $row);
+                $error = $this->getFieldError($value, $field, $courierCode, $row);
 
                 if ($error !== null) {
                     $missingColumns[] = $label;
@@ -229,7 +229,7 @@ final class CourierCsvValidator
 
             foreach ($requiredColumns as $field => $label) {
                 $value = $this->resolveOrderFieldValue($order, $field);
-                $error = $this->getFieldError($value, $field, $order);
+                $error = $this->getFieldError($value, $field, $courierCode, $order);
 
                 if ($error !== null) {
                     $missing[] = "{$label} ({$error})";
@@ -254,19 +254,19 @@ final class CourierCsvValidator
         return $errors;
     }
 
-    private function getFieldError(mixed $value, string $field, Order|CourierExportRow $model = null): ?string
+    private function getFieldError(mixed $value, string $field, string $courierCode, Order|CourierExportRow $model = null): ?string
     {
         if ($field === 'phone_number' || $field === 'sender_phone') {
-            $validation = $this->phoneValidator->validate($value);
+            $validation = $this->phoneValidator->validate($value, $courierCode);
 
             return $validation['valid'] ? null : $validation['error'];
         }
 
         if ($field === 'cod_amount') {
             if ($model instanceof Order) {
-                $validation = $this->codValidator->validateOrder($model);
+                $validation = $this->codValidator->validateOrder($model, $courierCode);
             } elseif ($model instanceof CourierExportRow) {
-                $validation = $this->codValidator->validateRow($model);
+                $validation = $this->codValidator->validateRow($model, $courierCode);
             }
 
             if (isset($validation) && ! $validation['valid']) {
@@ -285,9 +285,9 @@ final class CourierCsvValidator
         return null;
     }
 
-    private function isInvalidValue(mixed $value, string $field): bool
+    private function isInvalidValue(mixed $value, string $field, string $courierCode): bool
     {
-        return $this->getFieldError($value, $field) !== null;
+        return $this->getFieldError($value, $field, $courierCode) !== null;
     }
 
     private function resolveOrderFieldValue(Order $order, string $field): mixed

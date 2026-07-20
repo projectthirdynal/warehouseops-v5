@@ -18,8 +18,7 @@ use App\Domain\Shop\Models\CourierExportRow;
  */
 final class CourierCsvAddressValidator
 {
-    private const MIN_ADDRESS_LENGTH = 10;
-    private const MIN_PLACE_LENGTH = 2;
+    public function __construct(private readonly CourierCsvValidationConfig $config) {}
 
     /**
      * Validate an Order's address fields for a specific courier.
@@ -28,24 +27,13 @@ final class CourierCsvAddressValidator
      */
     public function validateOrder(Order $order, string $courierCode): array
     {
-        $errors = [];
-        $courier = strtoupper($courierCode);
-
-        $this->validateAddressField((string) $order->receiver_address, 'complete_address', $errors);
-        $this->validatePlaceName((string) $order->state, 'province', $errors);
-        $this->validatePlaceName((string) $order->city, 'city', $errors);
-        $this->validatePlaceName((string) $order->barangay, 'barangay', $errors);
-
-        if ($courier === 'FLASH') {
-            $this->validateAddressField((string) config('services.shop.sender_address'), 'sender_address', $errors);
-            $this->validatePlaceName((string) config('services.shop.sender_province'), 'sender_province', $errors);
-            $this->validatePlaceName((string) config('services.shop.sender_city'), 'sender_city', $errors);
-        }
-
-        return [
-            'valid' => $errors === [],
-            'errors' => $errors,
-        ];
+        return $this->validateAddress(
+            (string) $order->receiver_address,
+            (string) $order->state,
+            (string) $order->city,
+            (string) $order->barangay,
+            strtoupper($courierCode),
+        );
     }
 
     /**
@@ -55,18 +43,55 @@ final class CourierCsvAddressValidator
      */
     public function validateRow(CourierExportRow $row, string $courierCode): array
     {
+        return $this->validateAddress(
+            (string) $row->complete_address,
+            (string) $row->province,
+            (string) $row->city,
+            (string) $row->barangay,
+            strtoupper($courierCode),
+        );
+    }
+
+    /**
+     * @return array{valid: bool, errors: array<int, string>}
+     */
+    private function validateAddress(
+        string $completeAddress,
+        string $province,
+        string $city,
+        string $barangay,
+        string $courier,
+    ): array {
+        $rules = $this->config->get($courier)['address'] ?? [];
+
+        if (($rules['enabled'] ?? true) === false) {
+            return ['valid' => true, 'errors' => []];
+        }
+
+        $minAddressLength = (int) ($rules['min_address_length'] ?? 10);
+        $minPlaceLength = (int) ($rules['min_place_length'] ?? 2);
+        $requireLetters = (bool) ($rules['require_letters'] ?? true);
+        $allowPoBox = (bool) ($rules['allow_po_box'] ?? false);
+        $flashSenderChecks = (bool) ($rules['flash_sender_checks'] ?? true);
+
         $errors = [];
-        $courier = strtoupper($courierCode);
 
-        $this->validateAddressField((string) $row->complete_address, 'complete_address', $errors);
-        $this->validatePlaceName((string) $row->province, 'province', $errors);
-        $this->validatePlaceName((string) $row->city, 'city', $errors);
-        $this->validatePlaceName((string) $row->barangay, 'barangay', $errors);
+        $this->validateAddressField($completeAddress, 'complete_address', $errors, $minAddressLength, $requireLetters, $allowPoBox);
+        $this->validatePlaceName($province, 'province', $errors, $minPlaceLength, $requireLetters);
+        $this->validatePlaceName($city, 'city', $errors, $minPlaceLength, $requireLetters);
+        $this->validatePlaceName($barangay, 'barangay', $errors, $minPlaceLength, $requireLetters);
 
-        if ($courier === 'FLASH') {
-            $this->validateAddressField((string) config('services.shop.sender_address'), 'sender_address', $errors);
-            $this->validatePlaceName((string) config('services.shop.sender_province'), 'sender_province', $errors);
-            $this->validatePlaceName((string) config('services.shop.sender_city'), 'sender_city', $errors);
+        if ($courier === 'FLASH' && $flashSenderChecks) {
+            $this->validateAddressField(
+                (string) config('services.shop.sender_address'),
+                'sender_address',
+                $errors,
+                $minAddressLength,
+                $requireLetters,
+                $allowPoBox,
+            );
+            $this->validatePlaceName((string) config('services.shop.sender_province'), 'sender_province', $errors, $minPlaceLength, $requireLetters);
+            $this->validatePlaceName((string) config('services.shop.sender_city'), 'sender_city', $errors, $minPlaceLength, $requireLetters);
         }
 
         return [
@@ -78,23 +103,29 @@ final class CourierCsvAddressValidator
     /**
      * @param array<int, string> $errors
      */
-    private function validateAddressField(string $value, string $field, array &$errors): void
-    {
+    private function validateAddressField(
+        string $value,
+        string $field,
+        array &$errors,
+        int $minLength,
+        bool $requireLetters,
+        bool $allowPoBox,
+    ): void {
         if (trim($value) === '') {
             $errors[] = "{$field} is required.";
 
             return;
         }
 
-        if (strlen($value) < self::MIN_ADDRESS_LENGTH) {
-            $errors[] = "{$field} is too short (minimum " . self::MIN_ADDRESS_LENGTH . ' characters).';
+        if (strlen($value) < $minLength) {
+            $errors[] = "{$field} is too short (minimum {$minLength} characters).";
         }
 
-        if (! preg_match('/[a-zA-Z]/', $value)) {
+        if ($requireLetters && ! preg_match('/[a-zA-Z]/', $value)) {
             $errors[] = "{$field} must contain letters.";
         }
 
-        if (preg_match('/\bP\.?\s*O\.?\s*Box\b/i', $value)) {
+        if (! $allowPoBox && preg_match('/\bP\.?\s*O\.?\s*Box\b/i', $value)) {
             $errors[] = "{$field} must not be a PO Box address.";
         }
     }
@@ -102,17 +133,22 @@ final class CourierCsvAddressValidator
     /**
      * @param array<int, string> $errors
      */
-    private function validatePlaceName(string $value, string $field, array &$errors): void
-    {
+    private function validatePlaceName(
+        string $value,
+        string $field,
+        array &$errors,
+        int $minLength,
+        bool $requireLetters,
+    ): void {
         if (trim($value) === '') {
             return;
         }
 
-        if (strlen($value) < self::MIN_PLACE_LENGTH) {
+        if (strlen($value) < $minLength) {
             $errors[] = "{$field} is too short.";
         }
 
-        if (! preg_match('/[a-zA-Z]/', $value)) {
+        if ($requireLetters && ! preg_match('/[a-zA-Z]/', $value)) {
             $errors[] = "{$field} must contain letters.";
         }
     }

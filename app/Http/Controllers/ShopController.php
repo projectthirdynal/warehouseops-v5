@@ -2829,14 +2829,20 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
         ]);
 
         $order = Order::query()
-            ->with(['shopItems:id,order_id,quantity,unit_price,line_total'])
+            ->with([
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
             ->findOrFail($validated['order_id']);
 
         $codValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvCodValidator::class);
-        $result = $codValidator->validateOrder($order);
+        $result = $codValidator->validateOrder($order, $validated['courier_code']);
 
         return response()->json([
             'valid' => $result['valid'],
@@ -2845,6 +2851,7 @@ class ShopController extends Controller
             'error' => $result['error'],
             'order_id' => $order->id,
             'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
         ]);
     }
 
@@ -2967,6 +2974,36 @@ class ShopController extends Controller
 
         return response()->json([
             'schemas' => array_values($schemas),
+        ]);
+    }
+
+    public function getValidationRules(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'rules' => $config->get($validated['courier_code']),
+        ]);
+    }
+
+    public function updateValidationRules(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'rules' => ['required', 'array'],
+        ]);
+
+        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+        $config->set($validated['courier_code'], $validated['rules']);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'rules' => $config->get($validated['courier_code']),
         ]);
     }
 
