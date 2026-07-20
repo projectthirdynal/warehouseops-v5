@@ -10,6 +10,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Shop\Models\AddressCorrectionHistory;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CourierExportBatch;
+use App\Domain\Shop\Models\CourierExportBatchShare;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
@@ -2988,6 +2989,29 @@ class ShopController extends Controller
         return back()->with('success', "Notes updated for batch {$batch->batch_number}.");
     }
 
+    public function createBatchShare(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $validated = $request->validate([
+            'expires_in_days' => ['required', 'integer', 'in:1,7,30'],
+        ]);
+
+        $share = CourierExportBatchShare::query()->create([
+            'courier_export_batch_id' => $batch->id,
+            'token' => Str::random(64),
+            'created_by' => $request->user()?->id,
+            'expires_at' => now()->addDays($validated['expires_in_days']),
+        ]);
+
+        return response()->json([
+            'url' => route('shop.exports.shared-download', ['token' => $share->token]),
+            'expires_at' => $share->expires_at->toIso8601String(),
+        ], 201);
+    }
+
     public function previewBatch(CourierExportBatch $batch): JsonResponse
     {
         $rows = $batch->rows()
@@ -4217,6 +4241,29 @@ class ShopController extends Controller
         $timestamp = now()->format('Y-m-d_His');
         $courier = strtoupper($batch->courier_code);
         $filename = "{$batch->batch_number}_{$courier}_{$timestamp}.csv";
+
+        return Storage::disk('local')->download($batch->file_path, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    public function downloadSharedExport(string $token): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $share = CourierExportBatchShare::query()
+            ->with('batch')
+            ->where('token', $token)
+            ->firstOrFail();
+
+        abort_unless($share->isActive(), 410, 'This shared export link has expired or was revoked.');
+
+        $batch = $share->batch;
+
+        if (! $batch || ! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $courier = strtoupper($batch->courier_code);
+        $filename = "{$batch->batch_number}_{$courier}.csv";
 
         return Storage::disk('local')->download($batch->file_path, $filename, [
             'Content-Type' => 'text/csv',

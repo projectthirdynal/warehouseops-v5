@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   ChevronRight,
   ChevronDown,
+  Share2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1205,6 +1206,12 @@ export default function ShopEncoder({
   const [rebuildLoading, setRebuildLoading] = useState(false);
   const [batchViewMode, setBatchViewMode] = useState<'flat' | 'grouped'>('flat');
   const [collapsedCouriers, setCollapsedCouriers] = useState<Set<string>>(new Set());
+  const [showShareLink, setShowShareLink] = useState(false);
+  const [shareBatch, setShareBatch] = useState<{ id: number; batchNumber: string } | null>(null);
+  const [shareExpiryDays, setShareExpiryDays] = useState<1 | 7 | 30>(7);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1629,6 +1636,31 @@ export default function ShopEncoder({
         setErrorLogData(data);
         setShowErrorLog(true);
       });
+  };
+
+  const createShareLink = () => {
+    if (!shareBatch) return;
+
+    setShareLoading(true);
+    fetch(`/shop/exports/${shareBatch.id}/shares`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({ expires_in_days: shareExpiryDays }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Unable to create share link.');
+        return res.json();
+      })
+      .then((data) => {
+        setShareUrl(data.url);
+        setShareExpiresAt(data.expires_at);
+      })
+      .finally(() => setShareLoading(false));
   };
 
   const handleRebuild = () => {
@@ -4241,6 +4273,20 @@ export default function ShopEncoder({
             </div>
             {fileInfoData.file_exists && fileInfoData.status !== 'archived' && (
               <div className="mt-4 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShareBatch({ id: fileInfoData.id, batchNumber: fileInfoData.batch_number });
+                    setShareUrl(null);
+                    setShareExpiresAt(null);
+                    setShowShareLink(true);
+                  }}
+                >
+                  <Share2 className="mr-1.5 h-4 w-4" />
+                  Share Link
+                </Button>
                 <Button asChild size="sm">
                   <Link href={`/shop/exports/${fileInfoData.id}/download`}>
                     <Download className="mr-1.5 h-4 w-4" />
@@ -4420,6 +4466,65 @@ export default function ShopEncoder({
               <Button size="sm" onClick={handleRebuild} disabled={rebuildLoading}>
                 <RotateCcw className="mr-1.5 h-4 w-4" />
                 {rebuildLoading ? 'Rebuilding...' : 'Rebuild'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showShareLink && shareBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Share2 className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Share Batch File</h2>
+              </div>
+              <button onClick={() => setShowShareLink(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Create a public download link for{' '}
+              <span className="font-medium">{shareBatch.batchNumber}</span>.
+            </p>
+            <label className="mb-4 block text-sm font-medium">
+              Link expiry
+              <select
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={shareExpiryDays}
+                onChange={(event) => setShareExpiryDays(Number(event.target.value) as 1 | 7 | 30)}
+                disabled={shareLoading}
+              >
+                <option value={1}>1 day</option>
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </label>
+            {shareUrl && (
+              <div className="mb-4 rounded-md border p-3">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Expires {shareExpiresAt ? new Date(shareExpiresAt).toLocaleString() : ''}
+                </p>
+                <div className="flex gap-2">
+                  <Input value={shareUrl} readOnly className="text-xs" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigator.clipboard.writeText(shareUrl)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowShareLink(false)}>
+                Close
+              </Button>
+              <Button size="sm" onClick={createShareLink} disabled={shareLoading}>
+                <Share2 className="mr-1.5 h-4 w-4" />
+                {shareLoading ? 'Creating...' : shareUrl ? 'Create New Link' : 'Create Link'}
               </Button>
             </div>
           </div>

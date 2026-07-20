@@ -68,6 +68,7 @@ Route::get('/meta/terms', [MetaComplianceController::class, 'terms'])->name('met
 Route::get('/meta/data-deletion', [MetaComplianceController::class, 'dataDeletionInfo'])->name('meta.data-deletion.info');
 Route::post('/meta/data-deletion', [MetaComplianceController::class, 'handleDataDeletion'])->name('meta.data-deletion.handle');
 Route::get('/meta/data-deletion/status/{confirmationCode}', [MetaComplianceController::class, 'dataDeletionStatus'])->name('meta.data-deletion.status');
+Route::get('/shared/exports/{token}', [ShopController::class, 'downloadSharedExport'])->name('shop.exports.shared-download');
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
@@ -417,6 +418,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/{batch}/archive', [ShopController::class, 'archiveCourierBatch'])->name('shop.exports.archive');
     Route::delete('/shop/exports/{batch}', [ShopController::class, 'deleteCourierBatch'])->name('shop.exports.destroy');
     Route::post('/shop/exports/{batch}/retry', [ShopController::class, 'retryCourierBatch'])->name('shop.exports.retry');
+    Route::post('/shop/exports/{batch}/shares', [ShopController::class, 'createBatchShare'])->name('shop.exports.shares.store');
     Route::patch('/shop/exports/{batch}/notes', [ShopController::class, 'updateBatchNotes'])->name('shop.exports.notes');
     Route::get('/shop/exports/{batch}/preview', [ShopController::class, 'previewBatch'])->name('shop.exports.preview');
     Route::get('/shop/exports/{batch}/status-history', [ShopController::class, 'batchStatusHistory'])->name('shop.exports.status-history');
