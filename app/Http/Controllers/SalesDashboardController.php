@@ -27,6 +27,7 @@ class SalesDashboardController extends Controller
             'revenueByPaymentMethod' => $this->service->revenueByPaymentMethod(),
             'agentLeaderboard' => $this->service->agentLeaderboard(),
             'cohortRetention' => $this->service->cohortRetention(),
+            'averageOrderValue' => $this->service->averageOrderValue(),
         ]);
     }
 
@@ -96,6 +97,13 @@ class SalesDashboardController extends Controller
         $retentionMonths = (int) request()->query('retention_months', 6);
         return response()->json([
             'cohort_retention' => $this->service->cohortRetention($cohortMonths, $retentionMonths),
+        ]);
+    }
+
+    public function apiAverageOrderValue(): JsonResponse
+    {
+        return response()->json([
+            'average_order_value' => $this->service->averageOrderValue(),
         ]);
     }
 }

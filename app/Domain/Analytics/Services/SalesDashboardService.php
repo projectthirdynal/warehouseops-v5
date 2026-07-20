@@ -970,4 +970,115 @@ class SalesDashboardService
             ],
         ];
     }
+
+    /**
+     * Get average order value metrics — overall and by period,
+     * with trend and distribution bands.
+     *
+     * @return array<string, mixed>
+     */
+    public function averageOrderValue(): array
+    {
+        $delivered = Order::where('status', OrderStatus::DELIVERED);
+
+        $overall = (clone $delivered)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+        $overallCount = (int) $overall->cnt;
+        $overallRevenue = (float) $overall->rev;
+        $overallAov = $overallCount > 0 ? round($overallRevenue / $overallCount, 2) : 0.0;
+
+        $today = (clone $delivered)->whereDate('created_at', today())->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+        $yesterday = (clone $delivered)->whereDate('created_at', today()->subDay())->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+
+        $thisWeek = (clone $delivered)->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+        $lastWeek = (clone $delivered)->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()])->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+
+        $thisMonth = (clone $delivered)->whereMonth('created_at', Carbon::now()->month)->whereYear('created_at', Carbon::now()->year)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+        $lastMonth = (clone $delivered)->whereMonth('created_at', Carbon::now()->subMonth()->month)->whereYear('created_at', Carbon::now()->subMonth()->year)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev')->first();
+
+        $todayAov = (int) $today->cnt > 0 ? round((float) $today->rev / (int) $today->cnt, 2) : 0.0;
+        $yesterdayAov = (int) $yesterday->cnt > 0 ? round((float) $yesterday->rev / (int) $yesterday->cnt, 2) : 0.0;
+        $thisWeekAov = (int) $thisWeek->cnt > 0 ? round((float) $thisWeek->rev / (int) $thisWeek->cnt, 2) : 0.0;
+        $lastWeekAov = (int) $lastWeek->cnt > 0 ? round((float) $lastWeek->rev / (int) $lastWeek->cnt, 2) : 0.0;
+        $thisMonthAov = (int) $thisMonth->cnt > 0 ? round((float) $thisMonth->rev / (int) $thisMonth->cnt, 2) : 0.0;
+        $lastMonthAov = (int) $lastMonth->cnt > 0 ? round((float) $lastMonth->rev / (int) $lastMonth->cnt, 2) : 0.0;
+
+        $dailyTrend = $yesterdayAov > 0 ? round(($todayAov - $yesterdayAov) / $yesterdayAov * 100, 1) : null;
+        $weeklyTrend = $lastWeekAov > 0 ? round(($thisWeekAov - $lastWeekAov) / $lastWeekAov * 100, 1) : null;
+        $monthlyTrend = $lastMonthAov > 0 ? round(($thisMonthAov - $lastMonthAov) / $lastMonthAov * 100, 1) : null;
+
+        $monthlySeries = [];
+        $monthlyRows = (clone $delivered)
+            ->selectRaw("DATE_TRUNC('month', created_at) as month, COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as rev")
+            ->where('created_at', '>=', Carbon::now()->subMonths(11)->startOfMonth())
+            ->groupByRaw("DATE_TRUNC('month', created_at)")
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->month)->toDateString());
+
+        for ($i = 11; $i >= 0; $i--) {
+            $m = Carbon::now()->subMonths($i)->startOfMonth();
+            $key = $m->toDateString();
+            $row = $monthlyRows->get($key);
+            $cnt = $row ? (int) $row->cnt : 0;
+            $rev = $row ? (float) $row->rev : 0.0;
+            $monthlySeries[] = [
+                'month' => $key,
+                'label' => $m->format('M Y'),
+                'aov' => $cnt > 0 ? round($rev / $cnt, 2) : 0.0,
+                'orders' => $cnt,
+                'revenue' => $rev,
+            ];
+        }
+
+        $bands = [
+            ['label' => 'Under ₱500', 'min' => 0, 'max' => 500, 'count' => 0],
+            ['label' => '₱500–₱1,000', 'min' => 500, 'max' => 1000, 'count' => 0],
+            ['label' => '₱1,000–₱2,000', 'min' => 1000, 'max' => 2000, 'count' => 0],
+            ['label' => '₱2,000–₱5,000', 'min' => 2000, 'max' => 5000, 'count' => 0],
+            ['label' => 'Over ₱5,000', 'min' => 5000, 'max' => PHP_FLOAT_MAX, 'count' => 0],
+        ];
+
+        $allDelivered = (clone $delivered)->select('total_amount')->get();
+        foreach ($allDelivered as $o) {
+            $amt = (float) $o->total_amount;
+            foreach ($bands as &$b) {
+                if ($amt >= $b['min'] && $amt < $b['max']) {
+                    $b['count']++;
+                    break;
+                }
+            }
+        }
+        unset($b);
+
+        $totalForBands = array_sum(array_column($bands, 'count'));
+        $distribution = array_map(fn ($b) => [
+            'label' => $b['label'],
+            'count' => $b['count'],
+            'percentage' => $totalForBands > 0 ? round($b['count'] / $totalForBands * 100, 1) : 0.0,
+        ], $bands);
+
+        $median = 0.0;
+        $sorted = $allDelivered->pluck('total_amount')->sort()->values();
+        if ($sorted->count() > 0) {
+            $mid = (int) floor($sorted->count() / 2);
+            $median = $sorted->count() % 2 === 0
+                ? round(((float) $sorted[$mid - 1] + (float) $sorted[$mid]) / 2, 2)
+                : round((float) $sorted[$mid], 2);
+        }
+
+        return [
+            'overall' => [
+                'aov' => $overallAov,
+                'median' => $median,
+                'total_orders' => $overallCount,
+                'total_revenue' => $overallRevenue,
+            ],
+            'periods' => [
+                'today' => ['aov' => $todayAov, 'orders' => (int) $today->cnt, 'revenue' => (float) $today->rev, 'trend' => $dailyTrend],
+                'this_week' => ['aov' => $thisWeekAov, 'orders' => (int) $thisWeek->cnt, 'revenue' => (float) $thisWeek->rev, 'trend' => $weeklyTrend],
+                'this_month' => ['aov' => $thisMonthAov, 'orders' => (int) $thisMonth->cnt, 'revenue' => (float) $thisMonth->rev, 'trend' => $monthlyTrend],
+            ],
+            'monthly_series' => $monthlySeries,
+            'distribution' => $distribution,
+        ];
+    }
 }

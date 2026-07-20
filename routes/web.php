@@ -319,6 +319,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/sales-dashboard/revenue-by-payment-method', [SalesDashboardController::class, 'apiRevenueByPaymentMethod'])->name('sales-dashboard.revenue-by-payment-method');
     Route::get('/api/sales-dashboard/agent-leaderboard', [SalesDashboardController::class, 'apiAgentLeaderboard'])->name('sales-dashboard.agent-leaderboard');
     Route::get('/api/sales-dashboard/cohort-retention', [SalesDashboardController::class, 'apiCohortRetention'])->name('sales-dashboard.cohort-retention');
+    Route::get('/api/sales-dashboard/average-order-value', [SalesDashboardController::class, 'apiAverageOrderValue'])->name('sales-dashboard.average-order-value');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
