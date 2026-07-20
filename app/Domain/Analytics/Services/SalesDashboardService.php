@@ -166,4 +166,184 @@ class SalesDashboardService
 
         return (int) round((($current - $previous) / $previous) * 100);
     }
+
+    /**
+     * Get revenue totals broken down by daily, weekly, and monthly periods.
+     *
+     * @return array<string, mixed>
+     */
+    public function revenueTotals(): array
+    {
+        $today = today();
+        $yesterday = today()->subDay();
+        $startOfWeek = Carbon::now()->startOfWeek();
+        $endOfWeek = Carbon::now()->endOfWeek();
+        $startOfLastWeek = Carbon::now()->subWeek()->startOfWeek();
+        $endOfLastWeek = Carbon::now()->subWeek()->endOfWeek();
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+        $startOfLastMonth = Carbon::now()->subMonth()->startOfMonth();
+        $endOfLastMonth = Carbon::now()->subMonth()->endOfMonth();
+
+        $todayGross = $this->periodGross($today, $today);
+        $yesterdayGross = $this->periodGross($yesterday, $yesterday);
+        $thisWeekGross = $this->periodGross($startOfWeek, $endOfWeek);
+        $lastWeekGross = $this->periodGross($startOfLastWeek, $endOfLastWeek);
+        $thisMonthGross = $this->periodGross($startOfMonth, $endOfMonth);
+        $lastMonthGross = $this->periodGross($startOfLastMonth, $endOfLastMonth);
+        $totalGross = $this->periodGross(Carbon::parse('2000-01-01'), Carbon::now());
+
+        $todayNet = $this->periodNet($today, $today);
+        $thisWeekNet = $this->periodNet($startOfWeek, $endOfWeek);
+        $thisMonthNet = $this->periodNet($startOfMonth, $endOfMonth);
+        $totalNet = $this->periodNet(Carbon::parse('2000-01-01'), Carbon::now());
+
+        return [
+            'daily' => $this->dailyRevenue(30),
+            'weekly' => $this->weeklyRevenue(12),
+            'monthly' => $this->monthlyRevenue(12),
+            'today_gross' => $todayGross,
+            'yesterday_gross' => $yesterdayGross,
+            'this_week_gross' => $thisWeekGross,
+            'last_week_gross' => $lastWeekGross,
+            'this_month_gross' => $thisMonthGross,
+            'last_month_gross' => $lastMonthGross,
+            'total_gross' => $totalGross,
+            'today_net' => $todayNet,
+            'this_week_net' => $thisWeekNet,
+            'this_month_net' => $thisMonthNet,
+            'total_net' => $totalNet,
+            'today_trend' => $this->trend((int) $todayGross, (int) $yesterdayGross),
+            'week_trend' => $this->trend((int) $thisWeekGross, (int) $lastWeekGross),
+            'month_trend' => $this->trend((int) $thisMonthGross, (int) $lastMonthGross),
+        ];
+    }
+
+    private function periodGross(Carbon $from, Carbon $to): float
+    {
+        return (float) Order::where('status', OrderStatus::DELIVERED)
+            ->whereBetween('created_at', [$from->startOfDay(), $to->endOfDay()])
+            ->sum('total_amount');
+    }
+
+    private function periodNet(Carbon $from, Carbon $to): float
+    {
+        $gross = Order::where('status', OrderStatus::DELIVERED)
+            ->whereBetween('created_at', [$from->startOfDay(), $to->endOfDay()])
+            ->sum('total_amount');
+
+        $refunds = Order::where('status', OrderStatus::RETURNED)
+            ->whereBetween('created_at', [$from->startOfDay(), $to->endOfDay()])
+            ->sum('total_amount');
+
+        return (float) $gross - (float) $refunds;
+    }
+
+    /**
+     * @return array<int, array{date: string, gross: float, net: float, label: string}>
+     */
+    private function dailyRevenue(int $days): array
+    {
+        $start = today()->subDays($days - 1);
+
+        $grossRaw = Order::where('status', OrderStatus::DELIVERED)
+            ->selectRaw('DATE(created_at) as date, SUM(total_amount) as total')
+            ->whereDate('created_at', '>=', $start)
+            ->groupByRaw('DATE(created_at)')
+            ->pluck('total', 'date');
+
+        $refundRaw = Order::where('status', OrderStatus::RETURNED)
+            ->selectRaw('DATE(created_at) as date, SUM(total_amount) as total')
+            ->whereDate('created_at', '>=', $start)
+            ->groupByRaw('DATE(created_at)')
+            ->pluck('total', 'date');
+
+        $result = [];
+        for ($i = 0; $i < $days; $i++) {
+            $date = $start->copy()->addDays($i);
+            $key = $date->toDateString();
+            $gross = (float) ($grossRaw[$key] ?? 0);
+            $refunds = (float) ($refundRaw[$key] ?? 0);
+            $result[] = [
+                'date' => $key,
+                'gross' => $gross,
+                'net' => $gross - $refunds,
+                'label' => $date->format('M j'),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{week_start: string, gross: float, net: float, label: string}>
+     */
+    private function weeklyRevenue(int $weeks): array
+    {
+        $start = Carbon::now()->subWeeks($weeks - 1)->startOfWeek();
+
+        $grossRaw = Order::where('status', OrderStatus::DELIVERED)
+            ->selectRaw("DATE_TRUNC('week', created_at) as week, SUM(total_amount) as total")
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('week', created_at)")
+            ->pluck('total', 'week');
+
+        $refundRaw = Order::where('status', OrderStatus::RETURNED)
+            ->selectRaw("DATE_TRUNC('week', created_at) as week, SUM(total_amount) as total")
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('week', created_at)")
+            ->pluck('total', 'week');
+
+        $result = [];
+        for ($i = 0; $i < $weeks; $i++) {
+            $weekStart = $start->copy()->addWeeks($i);
+            $key = $weekStart->toDateString();
+            $gross = (float) ($grossRaw[$key] ?? 0);
+            $refunds = (float) ($refundRaw[$key] ?? 0);
+            $result[] = [
+                'week_start' => $key,
+                'gross' => $gross,
+                'net' => $gross - $refunds,
+                'label' => $weekStart->format('M j') . ' – ' . $weekStart->copy()->endOfWeek()->format('M j'),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{month_start: string, gross: float, net: float, label: string}>
+     */
+    private function monthlyRevenue(int $months): array
+    {
+        $start = Carbon::now()->subMonths($months - 1)->startOfMonth();
+
+        $grossRaw = Order::where('status', OrderStatus::DELIVERED)
+            ->selectRaw("DATE_TRUNC('month', created_at) as month, SUM(total_amount) as total")
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('month', created_at)")
+            ->pluck('total', 'month');
+
+        $refundRaw = Order::where('status', OrderStatus::RETURNED)
+            ->selectRaw("DATE_TRUNC('month', created_at) as month, SUM(total_amount) as total")
+            ->where('created_at', '>=', $start)
+            ->groupByRaw("DATE_TRUNC('month', created_at)")
+            ->pluck('total', 'month');
+
+        $result = [];
+        for ($i = 0; $i < $months; $i++) {
+            $monthStart = $start->copy()->addMonths($i);
+            $key = $monthStart->toDateString();
+            $gross = (float) ($grossRaw[$key] ?? 0);
+            $refunds = (float) ($refundRaw[$key] ?? 0);
+            $result[] = [
+                'month_start' => $key,
+                'gross' => $gross,
+                'net' => $gross - $refunds,
+                'label' => $monthStart->format('M Y'),
+            ];
+        }
+
+        return $result;
+    }
 }
