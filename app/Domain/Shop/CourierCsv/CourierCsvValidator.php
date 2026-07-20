@@ -18,6 +18,7 @@ final class CourierCsvValidator
         private readonly CourierCsvPhoneValidator $phoneValidator,
         private readonly CourierCsvCodValidator $codValidator,
         private readonly CourierCsvAddressValidator $addressValidator,
+        private readonly CourierCsvWeightDimensionValidator $weightDimensionValidator,
     ) {}
 
     /**
@@ -70,8 +71,9 @@ final class CourierCsvValidator
             }
 
             $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
+            $weightValidation = $this->weightDimensionValidator->validateOrder($order, $courierCode);
 
-            $isValid = $missingColumns === [] && $addressValidation['valid'];
+            $isValid = $missingColumns === [] && $addressValidation['valid'] && $weightValidation['valid'];
             if ($isValid) {
                 $validCount++;
             }
@@ -84,6 +86,8 @@ final class CourierCsvValidator
                 'missing_columns' => $missingColumns,
                 'missing_fields' => $missingFields,
                 'address_errors' => $addressValidation['errors'],
+                'weight_errors' => $weightValidation['errors'],
+                'weight_kg' => $weightValidation['weight_kg'],
             ];
         }
 
@@ -146,8 +150,9 @@ final class CourierCsvValidator
             }
 
             $addressValidation = $this->addressValidator->validateRow($row, $courierCode);
+            $weightValidation = $this->weightDimensionValidator->validateRow($row, $courierCode);
 
-            $isValid = $missingColumns === [] && $addressValidation['valid'];
+            $isValid = $missingColumns === [] && $addressValidation['valid'] && $weightValidation['valid'];
             if ($isValid) {
                 $validCount++;
             }
@@ -161,6 +166,8 @@ final class CourierCsvValidator
                 'missing_columns' => $missingColumns,
                 'missing_fields' => $missingFields,
                 'address_errors' => $addressValidation['errors'],
+                'weight_errors' => $weightValidation['errors'],
+                'weight_kg' => $weightValidation['weight_kg'],
             ];
         }
 
@@ -232,6 +239,11 @@ final class CourierCsvValidator
             $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
             foreach ($addressValidation['errors'] as $addressError) {
                 $missing[] = "Address: {$addressError}";
+            }
+
+            $weightValidation = $this->weightDimensionValidator->validateOrder($order, $courierCode);
+            foreach ($weightValidation['errors'] as $weightError) {
+                $missing[] = "Weight: {$weightError}";
             }
 
             if ($missing !== []) {

@@ -413,6 +413,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/validate-phone-number', [ShopController::class, 'validatePhoneNumber'])->name('shop.exports.validate-phone-number');
     Route::post('/shop/exports/validate-cod-amount', [ShopController::class, 'validateCodAmount'])->name('shop.exports.validate-cod-amount');
     Route::post('/shop/exports/validate-address', [ShopController::class, 'validateCourierAddress'])->name('shop.exports.validate-address');
+    Route::post('/shop/exports/validate-weight', [ShopController::class, 'validateWeight'])->name('shop.exports.validate-weight');
     Route::post('/shop/exports/{batch}/validate-rows', [ShopController::class, 'validateExportRows'])->name('shop.exports.validate-rows');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');

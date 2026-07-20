@@ -2779,7 +2779,13 @@ class ShopController extends Controller
         $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
 
         $orders = Order::query()
-            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
             ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
             ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
             ->get();
@@ -2849,7 +2855,14 @@ class ShopController extends Controller
         ]);
 
         $rows = $batch->rows()
-            ->with(['order' => fn ($q) => $q->with(['shopItems:id,order_id,quantity,unit_price,line_total'])])
+            ->with([
+                'order' => fn ($q) => $q->with([
+                    'shopItems' => fn ($q2) => $q2->with([
+                        'product:id,weight_grams',
+                        'variant:id,weight_grams',
+                    ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+                ]),
+            ])
             ->get();
 
         $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
@@ -2878,6 +2891,31 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validateWeight(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $order = Order::query()
+            ->with(['shopItems' => fn ($q) => $q->with(['product:id,weight_grams', 'variant:id,weight_grams'])->select(['id', 'order_id', 'product_id', 'variant_id', 'quantity'])])
+            ->findOrFail($validated['order_id']);
+
+        $weightValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator::class);
+        $result = $weightValidator->validateOrder($order, $validated['courier_code']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'weight_kg' => $result['weight_kg'],
+            'max_weight_kg' => $result['max_weight_kg'],
+            'errors' => $result['errors'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
+        ]);
+    }
+
     public function previewCsvFormat(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -2887,7 +2925,13 @@ class ShopController extends Controller
         ]);
 
         $orders = Order::query()
-            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity,unit_price,line_total'])
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
             ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
             ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
             ->limit(10)
