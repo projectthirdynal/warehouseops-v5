@@ -3233,6 +3233,66 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validationTestOrders(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit($validated['limit'] ?? 50)
+            ->get();
+
+        return response()->json(
+            $testMode->testOrders($orders, $validated['courier_code']),
+        );
+    }
+
+    public function validationTestCsv(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'csv_content' => ['required', 'string'],
+        ]);
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        return response()->json(
+            $testMode->testCsvContent($validated['csv_content'], $validated['courier_code']),
+        );
+    }
+
+    public function validationTestCsvUpload(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $file = $request->file('file');
+        $content = $file->getContents();
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        return response()->json(
+            $testMode->testCsvContent($content, $validated['courier_code']),
+        );
+    }
+
     public function listCourierSchemas(): JsonResponse
     {
         $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);

@@ -11,6 +11,7 @@ use App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker;
 use App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
 use App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder;
+use App\Domain\Shop\CourierCsv\CourierCsvTestMode;
 use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
 use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
 use App\Domain\Shop\CourierCsv\CourierCsvValidator;
@@ -39,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CourierCsvCorrectionSuggester::class);
         $this->app->singleton(CourierCsvEncodingChecker::class);
         $this->app->singleton(CourierCsvTemplateBuilder::class);
+        $this->app->singleton(CourierCsvTestMode::class);
         $this->app->singleton(CourierCsvPhoneValidator::class);
         $this->app->singleton(CourierCsvCodValidator::class);
         $this->app->singleton(CourierCsvAddressValidator::class);
