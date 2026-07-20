@@ -34,6 +34,7 @@ import {
   ChevronRight,
   ChevronDown,
   Share2,
+  Mail,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1212,6 +1213,14 @@ export default function ShopEncoder({
   const [shareLoading, setShareLoading] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailBatch, setEmailBatch] = useState<{ id: number; batchNumber: string } | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailIncludeShare, setEmailIncludeShare] = useState(true);
+  const [emailShareExpiry, setEmailShareExpiry] = useState<1 | 7 | 30>(7);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1636,6 +1645,36 @@ export default function ShopEncoder({
         setErrorLogData(data);
         setShowErrorLog(true);
       });
+  };
+
+  const sendBatchEmail = () => {
+    if (!emailBatch || !emailRecipient) return;
+
+    setEmailSending(true);
+    setEmailSent(false);
+    fetch(`/shop/exports/${emailBatch.id}/email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-TOKEN':
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+      },
+      body: JSON.stringify({
+        recipient_email: emailRecipient,
+        custom_message: emailMessage || undefined,
+        include_share_link: emailIncludeShare,
+        share_expires_in_days: emailIncludeShare ? emailShareExpiry : undefined,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Unable to send email.');
+        return res.json();
+      })
+      .then(() => {
+        setEmailSent(true);
+      })
+      .finally(() => setEmailSending(false));
   };
 
   const createShareLink = () => {
@@ -4287,6 +4326,23 @@ export default function ShopEncoder({
                   <Share2 className="mr-1.5 h-4 w-4" />
                   Share Link
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEmailBatch({ id: fileInfoData.id, batchNumber: fileInfoData.batch_number });
+                    setEmailRecipient('');
+                    setEmailMessage('');
+                    setEmailIncludeShare(true);
+                    setEmailShareExpiry(7);
+                    setEmailSent(false);
+                    setShowEmailModal(true);
+                  }}
+                >
+                  <Mail className="mr-1.5 h-4 w-4" />
+                  Email
+                </Button>
                 <Button asChild size="sm">
                   <Link href={`/shop/exports/${fileInfoData.id}/download`}>
                     <Download className="mr-1.5 h-4 w-4" />
@@ -4526,6 +4582,94 @@ export default function ShopEncoder({
                 <Share2 className="mr-1.5 h-4 w-4" />
                 {shareLoading ? 'Creating...' : shareUrl ? 'Create New Link' : 'Create Link'}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showEmailModal && emailBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Email Batch</h2>
+              </div>
+              <button onClick={() => setShowEmailModal(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Send batch details for <span className="font-medium">{emailBatch.batchNumber}</span>{' '}
+              to an email recipient.
+            </p>
+            {emailSent ? (
+              <div className="mb-4 rounded-md border border-green-500/50 bg-green-500/10 p-3 text-sm">
+                Email sent successfully to {emailRecipient}.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium">
+                  Recipient email
+                  <Input
+                    type="email"
+                    className="mt-1"
+                    placeholder="recipient@example.com"
+                    value={emailRecipient}
+                    onChange={(e) => setEmailRecipient(e.target.value)}
+                    disabled={emailSending}
+                  />
+                </label>
+                <label className="block text-sm font-medium">
+                  Message (optional)
+                  <Textarea
+                    className="mt-1"
+                    rows={3}
+                    placeholder="Add a custom message..."
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value)}
+                    disabled={emailSending}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={emailIncludeShare}
+                    onChange={(e) => setEmailIncludeShare(e.target.checked)}
+                    disabled={emailSending}
+                  />
+                  Include public download link
+                </label>
+                {emailIncludeShare && (
+                  <label className="block text-sm font-medium">
+                    Link expiry
+                    <select
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={emailShareExpiry}
+                      onChange={(e) => setEmailShareExpiry(Number(e.target.value) as 1 | 7 | 30)}
+                      disabled={emailSending}
+                    >
+                      <option value={1}>1 day</option>
+                      <option value={7}>7 days</option>
+                      <option value={30}>30 days</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowEmailModal(false)}>
+                {emailSent ? 'Close' : 'Cancel'}
+              </Button>
+              {!emailSent && (
+                <Button
+                  size="sm"
+                  onClick={sendBatchEmail}
+                  disabled={emailSending || !emailRecipient}
+                >
+                  <Mail className="mr-1.5 h-4 w-4" />
+                  {emailSending ? 'Sending...' : 'Send Email'}
+                </Button>
+              )}
             </div>
           </div>
         </div>

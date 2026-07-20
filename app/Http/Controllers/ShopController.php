@@ -56,9 +56,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Mail\CourierExportBatchEmail;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Exports\OrderRemarksExport;
@@ -3010,6 +3012,44 @@ class ShopController extends Controller
             'url' => route('shop.exports.shared-download', ['token' => $share->token]),
             'expires_at' => $share->expires_at->toIso8601String(),
         ], 201);
+    }
+
+    public function sendBatchEmail(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $validated = $request->validate([
+            'recipient_email' => ['required', 'email:rfc'],
+            'custom_message' => ['nullable', 'string', 'max:2000'],
+            'include_share_link' => ['boolean'],
+            'share_expires_in_days' => ['nullable', 'integer', 'in:1,7,30'],
+        ]);
+
+        $shareUrl = null;
+
+        if (! empty($validated['include_share_link'])) {
+            $days = $validated['share_expires_in_days'] ?? 7;
+            $share = CourierExportBatchShare::query()->create([
+                'courier_export_batch_id' => $batch->id,
+                'token' => Str::random(64),
+                'created_by' => $request->user()?->id,
+                'expires_at' => now()->addDays($days),
+            ]);
+            $shareUrl = route('shop.exports.shared-download', ['token' => $share->token]);
+        }
+
+        $senderName = $request->user()?->name ?? 'WarehouseOps System';
+
+        Mail::to($validated['recipient_email'])->send(
+            new CourierExportBatchEmail($batch, $shareUrl, $validated['custom_message'] ?? null, $senderName),
+        );
+
+        return response()->json([
+            'message' => "Batch details emailed to {$validated['recipient_email']}.",
+            'share_url' => $shareUrl,
+        ], 200);
     }
 
     public function previewBatch(CourierExportBatch $batch): JsonResponse

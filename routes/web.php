@@ -419,6 +419,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/exports/{batch}', [ShopController::class, 'deleteCourierBatch'])->name('shop.exports.destroy');
     Route::post('/shop/exports/{batch}/retry', [ShopController::class, 'retryCourierBatch'])->name('shop.exports.retry');
     Route::post('/shop/exports/{batch}/shares', [ShopController::class, 'createBatchShare'])->name('shop.exports.shares.store');
+    Route::post('/shop/exports/{batch}/email', [ShopController::class, 'sendBatchEmail'])->name('shop.exports.email');
     Route::patch('/shop/exports/{batch}/notes', [ShopController::class, 'updateBatchNotes'])->name('shop.exports.notes');
     Route::get('/shop/exports/{batch}/preview', [ShopController::class, 'previewBatch'])->name('shop.exports.preview');
     Route::get('/shop/exports/{batch}/status-history', [ShopController::class, 'batchStatusHistory'])->name('shop.exports.status-history');
