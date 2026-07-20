@@ -411,6 +411,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/validate-batch-items', [ShopController::class, 'validateBatchItems'])->name('shop.exports.validate-batch-items');
     Route::post('/shop/exports/validate-columns', [ShopController::class, 'validateExportColumns'])->name('shop.exports.validate-columns');
     Route::post('/shop/exports/validate-phone-number', [ShopController::class, 'validatePhoneNumber'])->name('shop.exports.validate-phone-number');
+    Route::post('/shop/exports/validate-cod-amount', [ShopController::class, 'validateCodAmount'])->name('shop.exports.validate-cod-amount');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');
     Route::get('/shop/exports/{batch}/file-info', [ShopController::class, 'batchFileInfo'])->name('shop.exports.file-info');

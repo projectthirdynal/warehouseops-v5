@@ -2819,6 +2819,29 @@ class ShopController extends Controller
         ]);
     }
 
+    public function validateCodAmount(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = Order::query()
+            ->with(['shopItems:id,order_id,quantity,unit_price,line_total'])
+            ->findOrFail($validated['order_id']);
+
+        $codValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvCodValidator::class);
+        $result = $codValidator->validateOrder($order);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'expected' => $result['expected'],
+            'actual' => $result['actual'],
+            'error' => $result['error'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+        ]);
+    }
+
     public function previewCsvFormat(Request $request): JsonResponse
     {
         $validated = $request->validate([
