@@ -416,6 +416,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/validate-weight', [ShopController::class, 'validateWeight'])->name('shop.exports.validate-weight');
     Route::get('/shop/exports/validation-rules', [ShopController::class, 'getValidationRules'])->name('shop.exports.validation-rules');
     Route::post('/shop/exports/validation-rules', [ShopController::class, 'updateValidationRules'])->name('shop.exports.validation-rules.update');
+    Route::get('/shop/exports/validation-analytics', [ShopController::class, 'validationAnalytics'])->name('shop.exports.validation-analytics');
+    Route::get('/shop/exports/validation-error-logs', [ShopController::class, 'validationErrorLogs'])->name('shop.exports.validation-error-logs');
     Route::post('/shop/exports/{batch}/validate-rows', [ShopController::class, 'validateExportRows'])->name('shop.exports.validate-rows');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');

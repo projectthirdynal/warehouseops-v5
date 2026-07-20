@@ -8,6 +8,8 @@ use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvCodValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
 use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator;
 use App\Domain\Order\Models\Order;
@@ -30,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(StatusMapper::class);
         $this->app->singleton(CourierCsvSchemaRegistry::class);
         $this->app->singleton(CourierCsvValidationConfig::class);
+        $this->app->singleton(CourierCsvValidationAnalytics::class);
         $this->app->singleton(CourierCsvPhoneValidator::class);
         $this->app->singleton(CourierCsvCodValidator::class);
         $this->app->singleton(CourierCsvAddressValidator::class);

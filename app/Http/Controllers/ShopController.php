@@ -2755,11 +2755,20 @@ class ShopController extends Controller
         ]);
 
         $orders = Order::query()
-            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
             ->whereIn('id', $validated['order_ids'])
             ->get();
 
         $result = $this->courierExports->validateBatchItems($orders, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($result, $validated['courier_code'], null, 'validate-batch-items');
 
         return response()->json($result);
     }
@@ -2791,6 +2800,9 @@ class ShopController extends Controller
             ->get();
 
         $validation = $validator->validateOrders($orders, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($validation, $validated['courier_code'], null, 'validate-columns');
 
         return response()->json([
             'courier_code' => $schema->courierCode,
@@ -2874,7 +2886,12 @@ class ShopController extends Controller
 
         $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
 
-        return response()->json($validator->validateRows($rows, $validated['courier_code']));
+        $result = $validator->validateRows($rows, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($result, $validated['courier_code'], $batch->id, 'validate-rows');
+
+        return response()->json($result);
     }
 
     public function validateCourierAddress(Request $request): JsonResponse
@@ -2951,6 +2968,9 @@ class ShopController extends Controller
         $validation = $validator->validateOrders($orders, $validated['courier_code']);
         $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
 
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($validation, $validated['courier_code'], null, 'preview-csv-format');
+
         return response()->json([
             'format'      => $formatInfo['format'],
             'headers'     => $formatInfo['headers'],
@@ -3004,6 +3024,64 @@ class ShopController extends Controller
         return response()->json([
             'courier_code' => strtoupper($validated['courier_code']),
             'rules' => $config->get($validated['courier_code']),
+        ]);
+    }
+
+    public function validationAnalytics(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'group_by' => ['nullable', 'string', 'in:error_type,courier'],
+        ]);
+
+        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
+        $to = isset($validated['to']) ? \Carbon\Carbon::parse($validated['to'])->endOfDay() : null;
+
+        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+
+        return response()->json(
+            $analytics->summary(
+                $validated['courier_code'] ?? null,
+                $from,
+                $to,
+                $validated['group_by'] ?? 'error_type',
+            )
+        );
+    }
+
+    public function validationErrorLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'error_type' => ['nullable', 'string', 'max:50'],
+            'from' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
+
+        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+        $logs = $analytics->recent(
+            $validated['courier_code'] ?? null,
+            $validated['error_type'] ?? null,
+            $from,
+            $validated['limit'] ?? 50,
+        );
+
+        return response()->json([
+            'logs' => $logs->map(fn ($log) => [
+                'id' => $log->id,
+                'courier_code' => $log->courier_code,
+                'order_id' => $log->order_id,
+                'order_number' => $log->order?->order_number,
+                'error_type' => $log->error_type,
+                'error_message' => $log->error_message,
+                'source' => $log->source,
+                'context' => $log->context,
+                'created_at' => $log->created_at?->toIso8601String(),
+            ]),
         ]);
     }
 
