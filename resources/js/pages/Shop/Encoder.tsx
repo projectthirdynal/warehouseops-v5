@@ -35,6 +35,7 @@ import {
   ChevronDown,
   Share2,
   Mail,
+  GitCompare,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -1221,6 +1222,54 @@ export default function ShopEncoder({
   const [emailShareExpiry, setEmailShareExpiry] = useState<1 | 7 | 30>(7);
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [compareData, setCompareData] = useState<{
+    current_batch: {
+      id: number;
+      batch_number: string;
+      courier_code: string;
+      row_count: number;
+      created_at: string;
+    };
+    previous_batch: {
+      id: number;
+      batch_number: string;
+      courier_code: string;
+      row_count: number;
+      created_at: string;
+    } | null;
+    summary: { added: number; removed: number; changed: number; unchanged: number };
+    added: Array<{
+      order_id: number;
+      row_number: number;
+      receiver_name: string;
+      phone_number: string;
+      complete_address: string;
+      city: string | null;
+      product_name: string;
+      cod_amount: string;
+      quantity: number;
+    }>;
+    removed: Array<{
+      order_id: number;
+      row_number: number;
+      receiver_name: string;
+      phone_number: string;
+      complete_address: string;
+      city: string | null;
+      product_name: string;
+      cod_amount: string;
+      quantity: number;
+    }>;
+    changed: Array<{
+      order_id: number;
+      row_number: number;
+      receiver_name: string;
+      changes: Record<string, { from: string; to: string }>;
+    }>;
+  } | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareTab, setCompareTab] = useState<'added' | 'removed' | 'changed'>('added');
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1645,6 +1694,19 @@ export default function ShopEncoder({
         setErrorLogData(data);
         setShowErrorLog(true);
       });
+  };
+
+  const loadComparison = (batchId: number) => {
+    setCompareLoading(true);
+    setCompareData(null);
+    setCompareTab('added');
+    fetch(`/shop/exports/${batchId}/compare`)
+      .then((res) => res.json())
+      .then((data) => {
+        setCompareData(data);
+        setShowCompareModal(true);
+      })
+      .finally(() => setCompareLoading(false));
   };
 
   const sendBatchEmail = () => {
@@ -4330,6 +4392,16 @@ export default function ShopEncoder({
                   type="button"
                   size="sm"
                   variant="outline"
+                  onClick={() => loadComparison(fileInfoData.id)}
+                  disabled={compareLoading}
+                >
+                  <GitCompare className="mr-1.5 h-4 w-4" />
+                  {compareLoading ? 'Comparing...' : 'Compare'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
                   onClick={() => {
                     setEmailBatch({ id: fileInfoData.id, batchNumber: fileInfoData.batch_number });
                     setEmailRecipient('');
@@ -4670,6 +4742,173 @@ export default function ShopEncoder({
                   {emailSending ? 'Sending...' : 'Send Email'}
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showCompareModal && compareData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GitCompare className="h-5 w-5" />
+                <h2 className="text-lg font-bold">Batch Comparison</h2>
+              </div>
+              <button onClick={() => setShowCompareModal(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {compareData.previous_batch ? (
+              <>
+                <div className="mb-4 rounded-md border p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{compareData.current_batch.batch_number}</span>
+                      <span className="ml-2 text-muted-foreground">vs</span>
+                      <span className="ml-2 font-medium">
+                        {compareData.previous_batch.batch_number}
+                      </span>
+                    </div>
+                    <span className="text-muted-foreground">
+                      {compareData.current_batch.courier_code}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex gap-4 text-xs">
+                    <span className="text-green-600">+{compareData.summary.added} added</span>
+                    <span className="text-red-600">-{compareData.summary.removed} removed</span>
+                    <span className="text-yellow-600">{compareData.summary.changed} changed</span>
+                    <span className="text-muted-foreground">
+                      {compareData.summary.unchanged} unchanged
+                    </span>
+                  </div>
+                </div>
+                <div className="mb-3 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={compareTab === 'added' ? 'default' : 'outline'}
+                    onClick={() => setCompareTab('added')}
+                  >
+                    Added ({compareData.summary.added})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={compareTab === 'removed' ? 'default' : 'outline'}
+                    onClick={() => setCompareTab('removed')}
+                  >
+                    Removed ({compareData.summary.removed})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={compareTab === 'changed' ? 'default' : 'outline'}
+                    onClick={() => setCompareTab('changed')}
+                  >
+                    Changed ({compareData.summary.changed})
+                  </Button>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {compareTab === 'added' &&
+                    (compareData.added.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-background">
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th className="p-2">Row</th>
+                            <th className="p-2">Receiver</th>
+                            <th className="p-2">Phone</th>
+                            <th className="p-2">City</th>
+                            <th className="p-2">Product</th>
+                            <th className="p-2 text-right">COD</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compareData.added.map((row) => (
+                            <tr key={row.order_id} className="border-b">
+                              <td className="p-2 text-xs">{row.row_number}</td>
+                              <td className="p-2">{row.receiver_name}</td>
+                              <td className="p-2 text-xs">{row.phone_number}</td>
+                              <td className="p-2 text-xs">{row.city ?? '-'}</td>
+                              <td className="p-2 text-xs">{row.product_name}</td>
+                              <td className="p-2 text-right text-xs">₱{row.cod_amount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="py-4 text-center text-sm text-muted-foreground">
+                        No new orders added.
+                      </p>
+                    ))}
+                  {compareTab === 'removed' &&
+                    (compareData.removed.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-background">
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th className="p-2">Row</th>
+                            <th className="p-2">Receiver</th>
+                            <th className="p-2">Phone</th>
+                            <th className="p-2">City</th>
+                            <th className="p-2">Product</th>
+                            <th className="p-2 text-right">COD</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compareData.removed.map((row) => (
+                            <tr key={row.order_id} className="border-b">
+                              <td className="p-2 text-xs">{row.row_number}</td>
+                              <td className="p-2">{row.receiver_name}</td>
+                              <td className="p-2 text-xs">{row.phone_number}</td>
+                              <td className="p-2 text-xs">{row.city ?? '-'}</td>
+                              <td className="p-2 text-xs">{row.product_name}</td>
+                              <td className="p-2 text-right text-xs">₱{row.cod_amount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="py-4 text-center text-sm text-muted-foreground">
+                        No orders removed.
+                      </p>
+                    ))}
+                  {compareTab === 'changed' &&
+                    (compareData.changed.length > 0 ? (
+                      <div className="space-y-3">
+                        {compareData.changed.map((row) => (
+                          <div key={row.order_id} className="rounded-md border p-3">
+                            <div className="mb-2 text-sm font-medium">
+                              Row {row.row_number} — {row.receiver_name}
+                            </div>
+                            <div className="space-y-1">
+                              {Object.entries(row.changes).map(([field, vals]) => (
+                                <div key={field} className="flex items-center gap-2 text-xs">
+                                  <span className="w-32 font-medium text-muted-foreground">
+                                    {field.replace(/_/g, ' ')}:
+                                  </span>
+                                  <span className="text-red-600 line-through">
+                                    {vals.from || '(empty)'}
+                                  </span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span className="text-green-600">{vals.to || '(empty)'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="py-4 text-center text-sm text-muted-foreground">
+                        No changed orders.
+                      </p>
+                    ))}
+                </div>
+              </>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No previous batch found for courier {compareData.current_batch.courier_code}.
+              </p>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowCompareModal(false)}>
+                Close
+              </Button>
             </div>
           </div>
         </div>

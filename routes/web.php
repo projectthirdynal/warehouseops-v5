@@ -422,6 +422,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/exports/{batch}/email', [ShopController::class, 'sendBatchEmail'])->name('shop.exports.email');
     Route::patch('/shop/exports/{batch}/notes', [ShopController::class, 'updateBatchNotes'])->name('shop.exports.notes');
     Route::get('/shop/exports/{batch}/preview', [ShopController::class, 'previewBatch'])->name('shop.exports.preview');
+    Route::get('/shop/exports/{batch}/compare', [ShopController::class, 'compareBatch'])->name('shop.exports.compare');
     Route::get('/shop/exports/{batch}/status-history', [ShopController::class, 'batchStatusHistory'])->name('shop.exports.status-history');
     Route::post('/shop/exports/{batch}/transition', [ShopController::class, 'transitionBatchStatus'])->name('shop.exports.transition');
     Route::get('/shop/exports/analytics', [ShopController::class, 'batchAnalytics'])->name('shop.exports.analytics');

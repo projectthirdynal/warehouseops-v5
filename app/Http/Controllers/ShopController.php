@@ -3072,6 +3072,132 @@ class ShopController extends Controller
         ]);
     }
 
+    public function compareBatch(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $previousBatch = CourierExportBatch::query()
+            ->where('courier_code', $batch->courier_code)
+            ->where('id', '!=', $batch->id)
+            ->where('created_at', '<', $batch->created_at)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $previousBatch) {
+            return response()->json([
+                'current_batch' => [
+                    'id' => $batch->id,
+                    'batch_number' => $batch->batch_number,
+                    'courier_code' => $batch->courier_code,
+                    'row_count' => $batch->row_count,
+                    'created_at' => $batch->created_at?->toIso8601String(),
+                ],
+                'previous_batch' => null,
+                'summary' => ['added' => 0, 'removed' => 0, 'changed' => 0, 'unchanged' => 0],
+                'added' => [],
+                'removed' => [],
+                'changed' => [],
+            ]);
+        }
+
+        $compareFields = [
+            'receiver_name', 'phone_number', 'complete_address',
+            'province', 'city', 'barangay', 'product_name',
+            'cod_amount', 'quantity', 'remarks',
+        ];
+
+        $currentRows = $batch->rows()->orderBy('row_number')->get();
+        $previousRows = $previousBatch->rows()->orderBy('row_number')->get();
+
+        $currentByOrder = $currentRows->keyBy('order_id');
+        $previousByOrder = $previousRows->keyBy('order_id');
+
+        $added = [];
+        $removed = [];
+        $changed = [];
+        $unchanged = 0;
+
+        foreach ($currentByOrder as $orderId => $row) {
+            if (! $previousByOrder->has($orderId)) {
+                $added[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'phone_number' => $row->phone_number,
+                    'complete_address' => $row->complete_address,
+                    'city' => $row->city,
+                    'product_name' => $row->product_name,
+                    'cod_amount' => (string) $row->cod_amount,
+                    'quantity' => $row->quantity,
+                ];
+                continue;
+            }
+
+            $prevRow = $previousByOrder->get($orderId);
+            $changes = [];
+
+            foreach ($compareFields as $field) {
+                $currentVal = (string) ($row->{$field} ?? '');
+                $previousVal = (string) ($prevRow->{$field} ?? '');
+
+                if ($currentVal !== $previousVal) {
+                    $changes[$field] = ['from' => $previousVal, 'to' => $currentVal];
+                }
+            }
+
+            if (! empty($changes)) {
+                $changed[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'changes' => $changes,
+                ];
+            } else {
+                $unchanged++;
+            }
+        }
+
+        foreach ($previousByOrder as $orderId => $row) {
+            if (! $currentByOrder->has($orderId)) {
+                $removed[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'phone_number' => $row->phone_number,
+                    'complete_address' => $row->complete_address,
+                    'city' => $row->city,
+                    'product_name' => $row->product_name,
+                    'cod_amount' => (string) $row->cod_amount,
+                    'quantity' => $row->quantity,
+                ];
+            }
+        }
+
+        return response()->json([
+            'current_batch' => [
+                'id' => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'courier_code' => $batch->courier_code,
+                'row_count' => $batch->row_count,
+                'created_at' => $batch->created_at?->toIso8601String(),
+            ],
+            'previous_batch' => [
+                'id' => $previousBatch->id,
+                'batch_number' => $previousBatch->batch_number,
+                'courier_code' => $previousBatch->courier_code,
+                'row_count' => $previousBatch->row_count,
+                'created_at' => $previousBatch->created_at?->toIso8601String(),
+            ],
+            'summary' => [
+                'added' => count($added),
+                'removed' => count($removed),
+                'changed' => count($changed),
+                'unchanged' => $unchanged,
+            ],
+            'added' => $added,
+            'removed' => $removed,
+            'changed' => $changed,
+        ]);
+    }
+
     public function batchStatusHistory(CourierExportBatch $batch): JsonResponse
     {
         $history = $batch->statusHistory()
