@@ -541,7 +541,7 @@ class CourierExportService
      *
      * @return array<int, mixed>
      */
-    private function orderToCsvRow(Order $order, \App\Domain\Shop\CourierCsv\CourierCsvSchema $schema): array
+    public function orderToCsvRow(Order $order, \App\Domain\Shop\CourierCsv\CourierCsvSchema $schema): array
     {
         return array_map(
             fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => $this->resolveOrderField($order, $col->field),

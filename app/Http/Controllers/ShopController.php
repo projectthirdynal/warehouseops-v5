@@ -3065,6 +3065,174 @@ class ShopController extends Controller
         ]);
     }
 
+    public function listCsvTemplates(Request $request): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $courierCode = $request->query('courier_code');
+        $activeOnly = (bool) $request->query('active_only', true);
+
+        $templates = $builder->list($courierCode, $activeOnly);
+
+        return response()->json([
+            'templates' => $templates->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'courier_code' => $t->courier_code,
+                'columns' => $t->columns,
+                'is_active' => $t->is_active,
+                'created_by' => $t->creator?->name,
+                'created_at' => $t->created_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    public function availableTemplateFields(): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        return response()->json([
+            'fields' => $builder->availableFields(),
+        ]);
+    }
+
+    public function createCsvTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'courier_code' => ['required', 'string', 'max:30'],
+            'columns' => ['required', 'array', 'min:1'],
+            'columns.*.header' => ['required', 'string', 'max:100'],
+            'columns.*.field' => ['required', 'string', 'max:50'],
+            'columns.*.required' => ['boolean'],
+            'columns.*.label' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        try {
+            $template = $builder->create(
+                $validated['name'],
+                $validated['courier_code'],
+                $validated['columns'],
+                $request->user()?->id,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Template created.',
+            'template' => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'courier_code' => $template->courier_code,
+                'columns' => $template->columns,
+                'is_active' => $template->is_active,
+            ],
+        ], 201);
+    }
+
+    public function updateCsvTemplate(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'columns' => ['required', 'array', 'min:1'],
+            'columns.*.header' => ['required', 'string', 'max:100'],
+            'columns.*.field' => ['required', 'string', 'max:50'],
+            'columns.*.required' => ['boolean'],
+            'columns.*.label' => ['nullable', 'string', 'max:100'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        try {
+            $template = $builder->update(
+                $id,
+                $validated['name'],
+                $validated['columns'],
+                $validated['is_active'] ?? null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        if ($template === null) {
+            return response()->json(['message' => 'Template not found.'], 404);
+        }
+
+        return response()->json([
+            'message' => 'Template updated.',
+            'template' => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'courier_code' => $template->courier_code,
+                'columns' => $template->columns,
+                'is_active' => $template->is_active,
+            ],
+        ]);
+    }
+
+    public function deleteCsvTemplate(int $id): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        if (! $builder->delete($id)) {
+            return response()->json(['message' => 'Template not found.'], 404);
+        }
+
+        return response()->json(['message' => 'Template deleted.']);
+    }
+
+    public function previewCsvTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $schema = $builder->resolveSchema($validated['courier_code']);
+
+        if ($schema === null) {
+            return response()->json(['message' => 'No active custom template for this courier.'], 404);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(10)
+            ->get();
+
+        $headers = $schema->headers();
+        $rows = [];
+        foreach ($orders as $order) {
+            $rows[] = $this->courierExports->orderToCsvRow($order, $schema);
+        }
+
+        $sampleCsv = $this->buildSampleCsvString($headers, $rows);
+
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+
+        return response()->json([
+            'template_name' => $schema->name,
+            'courier_code' => $schema->courierCode,
+            'headers' => $headers,
+            'rows' => $rows,
+            'row_count' => count($rows),
+            'schema' => $schema->toArray(),
+            'encoding' => $encodingChecker->check($sampleCsv),
+        ]);
+    }
+
     public function listCourierSchemas(): JsonResponse
     {
         $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);

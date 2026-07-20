@@ -420,6 +420,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/exports/validation-error-logs', [ShopController::class, 'validationErrorLogs'])->name('shop.exports.validation-error-logs');
     Route::post('/shop/exports/suggest-corrections', [ShopController::class, 'suggestCorrections'])->name('shop.exports.suggest-corrections');
     Route::post('/shop/exports/check-encoding', [ShopController::class, 'checkCsvEncoding'])->name('shop.exports.check-encoding');
+    Route::get('/shop/csv-templates', [ShopController::class, 'listCsvTemplates'])->name('shop.csv-templates.index');
+    Route::get('/shop/csv-templates/fields', [ShopController::class, 'availableTemplateFields'])->name('shop.csv-templates.fields');
+    Route::post('/shop/csv-templates', [ShopController::class, 'createCsvTemplate'])->name('shop.csv-templates.store');
+    Route::put('/shop/csv-templates/{id}', [ShopController::class, 'updateCsvTemplate'])->name('shop.csv-templates.update');
+    Route::delete('/shop/csv-templates/{id}', [ShopController::class, 'deleteCsvTemplate'])->name('shop.csv-templates.destroy');
+    Route::post('/shop/csv-templates/preview', [ShopController::class, 'previewCsvTemplate'])->name('shop.csv-templates.preview');
     Route::post('/shop/exports/{batch}/validate-rows', [ShopController::class, 'validateExportRows'])->name('shop.exports.validate-rows');
     Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
     Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');
