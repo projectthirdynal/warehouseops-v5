@@ -2764,6 +2764,44 @@ class ShopController extends Controller
         return response()->json($result);
     }
 
+    public function validateExportColumns(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['nullable', 'array'],
+            'order_ids.*'  => ['integer', 'exists:orders,id'],
+        ]);
+
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+
+        $schema = $registry->resolve($validated['courier_code']);
+        $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
+
+        $orders = Order::query()
+            ->with(['product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->get();
+
+        $validation = $validator->validateOrders($orders, $validated['courier_code']);
+
+        return response()->json([
+            'courier_code' => $schema->courierCode,
+            'schema_name' => $schema->name,
+            'columns' => array_map(fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => [
+                'header' => $col->header,
+                'field' => $col->field,
+                'required' => $col->required,
+            ], $schema->columns),
+            'required_columns' => $schema->requiredFieldLabels(),
+            'column_count' => $schema->columnCount(),
+            'schema_integrity' => $integrity,
+            'validation' => $validation,
+            'can_export' => $validation['valid'] && $integrity['valid'],
+        ]);
+    }
+
     public function previewCsvFormat(Request $request): JsonResponse
     {
         $validated = $request->validate([

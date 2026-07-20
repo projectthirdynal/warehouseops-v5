@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\StatusMapper;
 use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
+use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Order\Models\Order;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
@@ -24,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CourierServiceManager::class);
         $this->app->singleton(StatusMapper::class);
         $this->app->singleton(CourierCsvSchemaRegistry::class);
+        $this->app->singleton(CourierCsvValidator::class);
     }
 
     /**

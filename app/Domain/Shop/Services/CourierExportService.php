@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Services;
 
 use App\Domain\Order\Models\Order;
 use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
+use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Shop\Models\BatchItemErrorLog;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportRow;
@@ -21,6 +22,7 @@ class CourierExportService
 {
     public function __construct(
         private readonly CourierCsvSchemaRegistry $schemas,
+        private readonly CourierCsvValidator $validator,
     ) {}
 
     /**
@@ -159,58 +161,11 @@ class CourierExportService
 
     /**
      * @param Collection<int, Order> $orders
-     * @return array{valid: bool, total: int, valid_count: int, invalid_count: int, orders: array<int, array{order_id: int, order_number: string, receiver_name: string, valid: bool, missing_fields: array<int, string>}>}
+     * @return array{valid: bool, total: int, valid_count: int, invalid_count: int, schema: string, courier_code: string, required_columns: array<int, string>, column_count: int, orders: array<int, array{order_id: int, order_number: string, receiver_name: string, valid: bool, missing_columns: array<int, string>, missing_fields: array<int, array{column: string, field: string, value: mixed}>}>}
      */
     public function validateBatchItems(Collection $orders, string $courierCode): array
     {
-        $required = $this->requiredFields($courierCode);
-        $results = [];
-        $validCount = 0;
-
-        foreach ($orders as $order) {
-            $missing = [];
-
-            foreach ($required as $field => $label) {
-                $value = match ($field) {
-                    'receiver_name' => $order->receiver_name,
-                    'phone_number' => $order->receiver_phone,
-                    'complete_address' => $order->receiver_address,
-                    'province' => $order->state,
-                    'city' => $order->city,
-                    'barangay' => $order->barangay,
-                    'product_name' => $this->orderLineSummary($order)[0],
-                    'quantity' => $this->orderLineSummary($order)[1],
-                    'cod_amount' => $order->cod_amount,
-                    default => null,
-                };
-
-                if (blank($value) || (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount')) {
-                    $missing[] = $label;
-                }
-            }
-
-            $isValid = $missing === [];
-            if ($isValid) {
-                $validCount++;
-            }
-
-            $results[] = [
-                'order_id'       => $order->id,
-                'order_number'   => $order->order_number,
-                'receiver_name'  => $order->receiver_name,
-                'valid'          => $isValid,
-                'missing_fields' => $missing,
-            ];
-        }
-
-        return [
-            'valid'         => $validCount === $orders->count(),
-            'total'         => $orders->count(),
-            'valid_count'   => $validCount,
-            'invalid_count' => $orders->count() - $validCount,
-            'required_fields' => array_values($required),
-            'orders'         => $results,
-        ];
+        return $this->validator->validateOrders($orders, $courierCode);
     }
 
     /**
@@ -493,39 +448,11 @@ class CourierExportService
      */
     private function validateOrders(Collection $orders, string $courierCode): void
     {
-        $required = $this->requiredFields($courierCode);
-        $errors = [];
-
-        foreach ($orders as $order) {
-            $missing = [];
-
-            foreach ($required as $field => $label) {
-                $value = match ($field) {
-                    'receiver_name' => $order->receiver_name,
-                    'phone_number' => $order->receiver_phone,
-                    'complete_address' => $order->receiver_address,
-                    'province' => $order->state,
-                    'city' => $order->city,
-                    'barangay' => $order->barangay,
-                    'product_name' => $this->orderLineSummary($order)[0],
-                    'quantity' => $this->orderLineSummary($order)[1],
-                    'cod_amount' => $order->cod_amount,
-                    default => null,
-                };
-
-                if (blank($value) || (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount')) {
-                    $missing[] = $label;
-                }
-            }
-
-            if ($missing !== []) {
-                $errors[] = "{$order->order_number}: " . implode(', ', $missing);
-            }
-        }
+        $errors = $this->validator->getExportBlockingErrors($orders, $courierCode);
 
         if ($errors !== []) {
             throw ValidationException::withMessages([
-                'orders' => 'Courier export blocked. Missing required fields: ' . implode(' | ', $errors),
+                'orders' => 'Courier export blocked. Missing required columns: ' . implode(' | ', $errors),
             ]);
         }
     }
