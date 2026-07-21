@@ -338,6 +338,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/duplicate-check/recent', [DuplicateDetectionController::class, 'checkRecent'])->name('duplicate-check.recent');
     Route::get('/api/duplicate-check/conversations', [DuplicateDetectionController::class, 'checkConversations'])->name('duplicate-check.conversations');
     Route::get('/api/duplicate-check/customers', [DuplicateDetectionController::class, 'checkCustomers'])->name('duplicate-check.customers');
+    Route::get('/api/duplicate-check/fuzzy-customers', [DuplicateDetectionController::class, 'checkFuzzyCustomers'])->name('duplicate-check.fuzzy-customers');
     Route::get('/api/duplicate-check/merge-preview', [DuplicateDetectionController::class, 'mergePreview'])->name('duplicate-check.merge-preview');
     Route::post('/api/duplicate-check/merge', [DuplicateDetectionController::class, 'mergeCustomers'])->name('duplicate-check.merge');
 

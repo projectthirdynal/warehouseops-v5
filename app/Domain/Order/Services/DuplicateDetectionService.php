@@ -558,6 +558,215 @@ class DuplicateDetectionService
     }
 
     /**
+     * Detect fuzzy duplicate customers by name and address similarity.
+     *
+     * Uses similar_text for name similarity and token-based Jaccard
+     * similarity for address fields. Returns candidates above the
+     * configured thresholds.
+     *
+     * @param int      $customerId       The primary customer to check against
+     * @param float    $nameThreshold    Minimum name similarity (0-100, default 80)
+     * @param float    $addressThreshold Minimum address similarity (0-1, default 0.6)
+     * @param int      $limit            Max results (default 20)
+     * @return array<string, mixed>
+     */
+    public function detectFuzzyDuplicateCustomers(
+        int $customerId,
+        float $nameThreshold = 80.0,
+        float $addressThreshold = 0.6,
+        int $limit = 20,
+    ): array {
+        $customer = Customer::find($customerId);
+
+        if (!$customer) {
+            return [
+                'is_duplicate' => false,
+                'customer_id' => $customerId,
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        // Build a candidate pool — customers that share at least one
+        // address component or have a similar-ish name (first 3 chars).
+        $candidates = collect();
+
+        $addressFields = ['barangay', 'city_municipality', 'province'];
+        foreach ($addressFields as $field) {
+            if (!empty($customer->{$field})) {
+                $matches = Customer::query()
+                    ->whereKeyNot($customer->id)
+                    ->where($field, $customer->{$field})
+                    ->limit(50)
+                    ->get();
+                $candidates = $candidates->merge($matches);
+            }
+        }
+
+        // Also grab customers with same first 3 chars of name (broad net)
+        $namePrefix = substr($customer->name ?? $customer->facebook_name ?? '', 0, 3);
+        if (strlen($namePrefix) >= 2) {
+            $nameMatches = Customer::query()
+                ->whereKeyNot($customer->id)
+                ->where(function ($q) use ($namePrefix) {
+                    $q->whereRaw('LOWER(name) LIKE ?', [strtolower($namePrefix) . '%'])
+                        ->orWhereRaw('LOWER(facebook_name) LIKE ?', [strtolower($namePrefix) . '%']);
+                })
+                ->limit(50)
+                ->get();
+            $candidates = $candidates->merge($nameMatches);
+        }
+
+        // Also include phone-based matches as a baseline (already exact, but
+        // useful to show alongside fuzzy results)
+        if ($customer->normalized_phone) {
+            $phoneMatches = Customer::query()
+                ->where('normalized_phone', $customer->normalized_phone)
+                ->whereKeyNot($customer->id)
+                ->limit(10)
+                ->get();
+            $candidates = $candidates->merge($phoneMatches);
+        }
+
+        $candidates = $candidates->unique('id')->take(100);
+
+        $results = [];
+
+        foreach ($candidates as $candidate) {
+            $nameScore = $this->nameSimilarity(
+                $customer->name ?? $customer->facebook_name ?? '',
+                $candidate->name ?? $candidate->facebook_name ?? '',
+            );
+
+            $addressScore = $this->addressSimilarity($customer, $candidate);
+
+            // Must exceed at least one threshold to be considered fuzzy
+            if ($nameScore < $nameThreshold && $addressScore < $addressThreshold) {
+                continue;
+            }
+
+            // Combined score: weighted average (name 60%, address 40%)
+            $combinedScore = ($nameScore * 0.6) + ($addressScore * 0.4);
+
+            $results[] = [
+                'id' => $candidate->id,
+                'name' => $candidate->name,
+                'facebook_name' => $candidate->facebook_name,
+                'phone' => $candidate->phone,
+                'normalized_phone' => $candidate->normalized_phone,
+                'canonical_address' => $candidate->canonical_address,
+                'barangay' => $candidate->barangay,
+                'city_municipality' => $candidate->city_municipality,
+                'province' => $candidate->province,
+                'total_orders' => (int) ($candidate->total_orders ?? 0),
+                'total_revenue' => (float) ($candidate->total_revenue ?? 0),
+                'risk_level' => $candidate->risk_level ?? 'LOW',
+                'is_blacklisted' => (bool) $candidate->is_blacklisted,
+                'created_at' => $candidate->created_at?->toIso8601String(),
+                'created_at_formatted' => $candidate->created_at?->format('M j, Y'),
+                'similarity' => [
+                    'name' => round($nameScore, 1),
+                    'address' => round($addressScore, 3),
+                    'combined' => round($combinedScore, 1),
+                ],
+                'match_type' => $nameScore >= $nameThreshold && $addressScore >= $addressThreshold
+                    ? 'name+address'
+                    : ($nameScore >= $nameThreshold ? 'name' : 'address'),
+            ];
+        }
+
+        // Sort by combined similarity descending
+        usort($results, fn ($a, $b) => $b['similarity']['combined'] <=> $a['similarity']['combined']);
+
+        $results = array_slice($results, 0, $limit);
+
+        $count = count($results);
+
+        return [
+            'is_duplicate' => $count > 0,
+            'customer_id' => $customerId,
+            'thresholds' => [
+                'name' => $nameThreshold,
+                'address' => $addressThreshold,
+            ],
+            'duplicate_count' => $count,
+            'duplicates' => $results,
+            'severity' => $this->determineConversationSeverity($count),
+        ];
+    }
+
+    /**
+     * Calculate name similarity using similar_text (returns 0-100 percentage).
+     */
+    private function nameSimilarity(string $a, string $b): float
+    {
+        $a = trim(strtolower($a));
+        $b = trim(strtolower($b));
+
+        if ($a === '' || $b === '') {
+            return 0.0;
+        }
+
+        if ($a === $b) {
+            return 100.0;
+        }
+
+        similar_text($a, $b, $percent);
+
+        return (float) $percent;
+    }
+
+    /**
+     * Calculate address similarity using token-based Jaccard overlap.
+     *
+     * Compares canonical_address + barangay + city_municipality + province
+     * as token sets. Returns 0-1.
+     */
+    private function addressSimilarity(Customer $a, Customer $b): float
+    {
+        $tokensA = $this->tokenizeAddress($a);
+        $tokensB = $this->tokenizeAddress($b);
+
+        if (empty($tokensA) || empty($tokensB)) {
+            return 0.0;
+        }
+
+        $intersection = count(array_intersect($tokensA, $tokensB));
+        $union = count(array_unique(array_merge($tokensA, $tokensB)));
+
+        return $union > 0 ? $intersection / $union : 0.0;
+    }
+
+    /**
+     * Tokenize a customer's address into a normalized set of tokens.
+     *
+     * @return array<int, string>
+     */
+    private function tokenizeAddress(Customer $c): array
+    {
+        $parts = array_filter([
+            $c->canonical_address,
+            $c->barangay,
+            $c->city_municipality,
+            $c->province,
+            $c->region,
+        ]);
+
+        $combined = implode(' ', $parts);
+
+        // Lowercase, remove punctuation, split on whitespace
+        $normalized = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', strtolower($combined));
+        $tokens = array_filter(preg_split('/\s+/', $normalized ?? '') ?: [], fn ($t) => strlen($t) >= 2);
+
+        // Remove common stop words
+        $stopWords = ['the', 'st', 'street', 'brgy', 'barangay', 'city', 'municipality', 'province', 'region', 'of', 'and'];
+        $tokens = array_filter($tokens, fn ($t) => !in_array($t, $stopWords, true));
+
+        return array_values(array_unique($tokens));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function emptyResult(string $phone, int $windowHours): array

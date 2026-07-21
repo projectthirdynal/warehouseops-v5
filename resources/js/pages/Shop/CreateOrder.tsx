@@ -255,6 +255,30 @@ interface DuplicateConversationResult {
   severity: 'none' | 'low' | 'medium' | 'high';
 }
 
+interface FuzzyDuplicate {
+  id: number;
+  name: string;
+  facebook_name: string | null;
+  phone: string;
+  normalized_phone: string | null;
+  canonical_address: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+  total_orders: number;
+  total_revenue: number;
+  risk_level: string;
+  is_blacklisted: boolean;
+  created_at: string;
+  created_at_formatted: string;
+  similarity: {
+    name: number;
+    address: number;
+    combined: number;
+  };
+  match_type: string;
+}
+
 interface Props {
   products: Product[];
   couriers: Courier[];
@@ -406,6 +430,8 @@ export default function CreateShopOrder({
   const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
   const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
   const [mergeExecuting, setMergeExecuting] = useState(false);
+  const [fuzzyDuplicates, setFuzzyDuplicates] = useState<FuzzyDuplicate[]>([]);
+  const [fuzzyLoading, setFuzzyLoading] = useState(false);
   const [commPreferences, setCommPreferences] = useState({
     preferred_courier: '',
     payment_method: '',
@@ -537,6 +563,17 @@ export default function CreateShopOrder({
       .get(`/shop/customers/${data.customer_id}/merge-suggestions`)
       .then((res) => setMergeSuggestions(res.data.suggestions ?? []))
       .catch(() => setMergeSuggestions([]));
+
+    setFuzzyLoading(true);
+    fetch(`/api/duplicate-check/fuzzy-customers?customer_id=${data.customer_id}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data: { fuzzy_duplicates: { is_duplicate: boolean; duplicates: FuzzyDuplicate[] } }) =>
+        setFuzzyDuplicates(data.fuzzy_duplicates?.duplicates ?? [])
+      )
+      .catch(() => setFuzzyDuplicates([]))
+      .finally(() => setFuzzyLoading(false));
   }, [data.customer_id]);
 
   const executeMerge = async () => {
@@ -1567,6 +1604,92 @@ export default function CreateShopOrder({
                       </Button>
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {data.customer_id && (fuzzyLoading || fuzzyDuplicates.length > 0) && (
+              <Card className="border-warning/30 bg-warning/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-warning">
+                    <AlertTriangle className="h-5 w-5" />
+                    Fuzzy Duplicate Matches
+                  </CardTitle>
+                  <CardDescription>
+                    Possible duplicates by name or address similarity (not exact matches).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {fuzzyLoading ? (
+                    <p className="text-sm text-muted-foreground">Checking fuzzy matches…</p>
+                  ) : (
+                    fuzzyDuplicates.map((dup) => (
+                      <div
+                        key={dup.id}
+                        className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/shop/customers/${dup.id}`}
+                            className="font-medium text-info hover:underline"
+                          >
+                            {dup.name}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            {dup.phone} · {dup.total_orders} orders · {dup.risk_level}
+                          </p>
+                          {(dup.barangay || dup.city_municipality || dup.province) && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {[dup.barangay, dup.city_municipality, dup.province]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                dup.similarity.combined >= 85
+                                  ? 'bg-destructive/15 text-destructive'
+                                  : dup.similarity.combined >= 70
+                                    ? 'bg-warning/15 text-warning'
+                                    : 'bg-info/15 text-info'
+                              }`}
+                            >
+                              {dup.similarity.combined}% match
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                              name {dup.similarity.name}%
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                              addr {Math.round(dup.similarity.address * 100)}%
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase">
+                              {dup.match_type}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            openMergeModal({
+                              id: dup.id,
+                              name: dup.name,
+                              phone: dup.phone,
+                              total_orders: dup.total_orders,
+                              successful_orders: 0,
+                              returned_orders: 0,
+                              risk_level: dup.risk_level,
+                              created_at: dup.created_at,
+                            })
+                          }
+                        >
+                          Review & Merge
+                        </Button>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
             )}

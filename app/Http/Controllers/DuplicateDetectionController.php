@@ -122,6 +122,32 @@ class DuplicateDetectionController extends Controller
     }
 
     /**
+     * Check for fuzzy duplicate customers by name and address similarity.
+     *
+     * GET /api/duplicate-check/fuzzy-customers?customer_id=...&name_threshold=80&address_threshold=0.6
+     */
+    public function checkFuzzyCustomers(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => 'required|integer|exists:customers,id',
+            'name_threshold' => 'nullable|numeric|min:0|max:100',
+            'address_threshold' => 'nullable|numeric|min:0|max:1',
+            'limit' => 'nullable|integer|min:1|max:50',
+        ]);
+
+        $result = $this->service->detectFuzzyDuplicateCustomers(
+            (int) $validated['customer_id'],
+            isset($validated['name_threshold']) ? (float) $validated['name_threshold'] : 80.0,
+            isset($validated['address_threshold']) ? (float) $validated['address_threshold'] : 0.6,
+            isset($validated['limit']) ? (int) $validated['limit'] : 20,
+        );
+
+        return response()->json([
+            'fuzzy_duplicates' => $result,
+        ]);
+    }
+
+    /**
      * Preview what will happen when merging source into target.
      *
      * GET /api/duplicate-check/merge-preview?target_id=...&source_id=...
