@@ -1675,4 +1675,166 @@ class SalesDashboardService
 
         return $this->getWidgetConfig($userId, $dashboard);
     }
+
+    /**
+     * List scheduled sales reports for a user.
+     *
+     * @param int $userId
+     * @return array<int, array<string, mixed>>
+     */
+    public function listScheduledReports(int $userId): array
+    {
+        return \App\Models\ScheduledSalesReport::where('user_id', $userId)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($r) => $this->formatScheduledReport($r))
+            ->toArray();
+    }
+
+    /**
+     * Create a scheduled sales report.
+     *
+     * @param int $userId
+     * @param array $data
+     * @return array<string, mixed>
+     */
+    public function createScheduledReport(int $userId, array $data): array
+    {
+        $report = \App\Models\ScheduledSalesReport::create([
+            'user_id' => $userId,
+            'name' => $data['name'] ?? 'Untitled Report',
+            'frequency' => $data['frequency'] ?? 'weekly',
+            'send_at' => $data['send_at'] ?? '08:00',
+            'day_of_week' => $data['day_of_week'] ?? null,
+            'day_of_month' => $data['day_of_month'] ?? null,
+            'format' => $data['format'] ?? 'csv',
+            'lookback_days' => $data['lookback_days'] ?? 7,
+            'recipients' => $data['recipients'] ?? null,
+            'is_active' => $data['is_active'] ?? true,
+            'next_run_at' => $this->calculateNextRunAt(
+                $data['frequency'] ?? 'weekly',
+                $data['send_at'] ?? '08:00',
+                $data['day_of_week'] ?? null,
+                $data['day_of_month'] ?? null,
+            ),
+        ]);
+
+        return $this->formatScheduledReport($report);
+    }
+
+    /**
+     * Update a scheduled sales report.
+     *
+     * @param int $reportId
+     * @param int $userId
+     * @param array $data
+     * @return array<string, mixed>|null
+     */
+    public function updateScheduledReport(int $reportId, int $userId, array $data): ?array
+    {
+        $report = \App\Models\ScheduledSalesReport::where('id', $reportId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$report) {
+            return null;
+        }
+
+        $updates = [];
+        foreach (['name', 'frequency', 'send_at', 'day_of_week', 'day_of_month', 'format', 'lookback_days', 'recipients', 'is_active'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $updates[$field] = $data[$field];
+            }
+        }
+
+        if (isset($updates['frequency']) || isset($updates['send_at']) || isset($updates['day_of_week']) || isset($updates['day_of_month'])) {
+            $updates['next_run_at'] = $this->calculateNextRunAt(
+                $updates['frequency'] ?? $report->frequency,
+                $updates['send_at'] ?? $report->send_at,
+                $updates['day_of_week'] ?? $report->day_of_week,
+                $updates['day_of_month'] ?? $report->day_of_month,
+            );
+        }
+
+        $report->update($updates);
+        return $this->formatScheduledReport($report->fresh());
+    }
+
+    /**
+     * Delete a scheduled sales report.
+     *
+     * @param int $reportId
+     * @param int $userId
+     * @return bool
+     */
+    public function deleteScheduledReport(int $reportId, int $userId): bool
+    {
+        return \App\Models\ScheduledSalesReport::where('id', $reportId)
+            ->where('user_id', $userId)
+            ->delete() > 0;
+    }
+
+    /**
+     * Calculate the next run time for a scheduled report.
+     *
+     * @param string $frequency
+     * @param string $sendAt  H:i format
+     * @param string|null $dayOfWeek
+     * @param int|null $dayOfMonth
+     * @return \Illuminate\Support\Carbon
+     */
+    private function calculateNextRunAt(string $frequency, string $sendAt, ?string $dayOfWeek, ?int $dayOfMonth): \Illuminate\Support\Carbon
+    {
+        $now = Carbon::now();
+
+        return match ($frequency) {
+            'daily' => $now->copy()->addDay()->setTimeFromTimeString($sendAt),
+            'weekly' => $this->nextWeeklyRunAt($dayOfWeek ?? 'mon', $sendAt, $now),
+            'monthly' => $this->nextMonthlyRunAt($dayOfMonth ?? 1, $sendAt, $now),
+            default => $now->copy()->addWeek()->setTimeFromTimeString($sendAt),
+        };
+    }
+
+    private function nextWeeklyRunAt(string $dayOfWeek, string $sendAt, Carbon $now): Carbon
+    {
+        $dayMap = ['sun' => 0, 'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6];
+        $targetDow = $dayMap[strtolower($dayOfWeek)] ?? 1;
+        $daysUntil = ($targetDow - $now->dayOfWeek + 7) % 7;
+        if ($daysUntil === 0) {
+            $daysUntil = 7;
+        }
+        return $now->copy()->addDays($daysUntil)->setTimeFromTimeString($sendAt);
+    }
+
+    private function nextMonthlyRunAt(int $dayOfMonth, string $sendAt, Carbon $now): Carbon
+    {
+        $next = $now->copy()->addMonth();
+        $lastDay = (int) $next->format('t');
+        return $next->setDay(min($dayOfMonth, $lastDay))->setTimeFromTimeString($sendAt);
+    }
+
+    /**
+     * Format a scheduled report for API response.
+     *
+     * @param \App\Models\ScheduledSalesReport $report
+     * @return array<string, mixed>
+     */
+    private function formatScheduledReport(\App\Models\ScheduledSalesReport $report): array
+    {
+        return [
+            'id' => $report->id,
+            'name' => $report->name,
+            'frequency' => $report->frequency,
+            'send_at' => $report->send_at,
+            'day_of_week' => $report->day_of_week,
+            'day_of_month' => $report->day_of_month,
+            'format' => $report->format,
+            'lookback_days' => $report->lookback_days,
+            'recipients' => $report->recipients ?? [],
+            'is_active' => $report->is_active,
+            'last_run_at' => $report->last_run_at?->toIso8601String(),
+            'next_run_at' => $report->next_run_at?->toIso8601String(),
+            'created_at' => $report->created_at->toIso8601String(),
+        ];
+    }
 }

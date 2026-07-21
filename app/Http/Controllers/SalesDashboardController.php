@@ -184,4 +184,68 @@ class SalesDashboardController extends Controller
             'widget_config' => $this->service->resetWidgetConfig(auth()->id() ?? 0, $dashboard),
         ]);
     }
+
+    public function apiListScheduledReports(): JsonResponse
+    {
+        return response()->json([
+            'scheduled_reports' => $this->service->listScheduledReports(auth()->id() ?? 0),
+        ]);
+    }
+
+    public function apiCreateScheduledReport(): JsonResponse
+    {
+        $data = request()->validate([
+            'name' => 'required|string|max:255',
+            'frequency' => 'nullable|string|in:daily,weekly,monthly',
+            'send_at' => 'nullable|string',
+            'day_of_week' => 'nullable|string|in:sun,mon,tue,wed,thu,fri,sat',
+            'day_of_month' => 'nullable|integer|min:1|max:31',
+            'format' => 'nullable|string|in:csv,json',
+            'lookback_days' => 'nullable|integer|min:1|max:365',
+            'recipients' => 'nullable|array',
+            'recipients.*' => 'email',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        return response()->json([
+            'scheduled_report' => $this->service->createScheduledReport(auth()->id() ?? 0, $data),
+        ], 201);
+    }
+
+    public function apiUpdateScheduledReport(int $id): JsonResponse
+    {
+        $data = request()->validate([
+            'name' => 'sometimes|string|max:255',
+            'frequency' => 'sometimes|string|in:daily,weekly,monthly',
+            'send_at' => 'sometimes|string',
+            'day_of_week' => 'sometimes|nullable|string|in:sun,mon,tue,wed,thu,fri,sat',
+            'day_of_month' => 'sometimes|nullable|integer|min:1|max:31',
+            'format' => 'sometimes|string|in:csv,json',
+            'lookback_days' => 'sometimes|integer|min:1|max:365',
+            'recipients' => 'sometimes|nullable|array',
+            'recipients.*' => 'email',
+            'is_active' => 'sometimes|boolean',
+        ]);
+
+        $result = $this->service->updateScheduledReport($id, auth()->id() ?? 0, $data);
+
+        if ($result === null) {
+            return response()->json(['error' => 'Scheduled report not found'], 404);
+        }
+
+        return response()->json([
+            'scheduled_report' => $result,
+        ]);
+    }
+
+    public function apiDeleteScheduledReport(int $id): JsonResponse
+    {
+        $deleted = $this->service->deleteScheduledReport($id, auth()->id() ?? 0);
+
+        if (!$deleted) {
+            return response()->json(['error' => 'Scheduled report not found'], 404);
+        }
+
+        return response()->json(['deleted' => true]);
+    }
 }

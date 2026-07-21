@@ -327,6 +327,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiWidgetConfig'])->name('sales-dashboard.widgets');
     Route::post('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiSaveWidgetConfig'])->name('sales-dashboard.widgets.save');
     Route::post('/api/sales-dashboard/widgets/reset', [SalesDashboardController::class, 'apiResetWidgetConfig'])->name('sales-dashboard.widgets.reset');
+    Route::get('/api/sales-dashboard/scheduled-reports', [SalesDashboardController::class, 'apiListScheduledReports'])->name('sales-dashboard.scheduled-reports.index');
+    Route::post('/api/sales-dashboard/scheduled-reports', [SalesDashboardController::class, 'apiCreateScheduledReport'])->name('sales-dashboard.scheduled-reports.store');
+    Route::put('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiUpdateScheduledReport'])->name('sales-dashboard.scheduled-reports.update');
+    Route::delete('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiDeleteScheduledReport'])->name('sales-dashboard.scheduled-reports.destroy');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
