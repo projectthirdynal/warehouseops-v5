@@ -408,6 +408,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/duplicate-check/export/cross-page', [DuplicateDetectionController::class, 'exportCrossPage'])->name('duplicate-check.export.cross-page');
     Route::get('/api/duplicate-check/export/all', [DuplicateDetectionController::class, 'exportAll'])->name('duplicate-check.export.all');
 
+    // ML-Based Duplicate Scoring
+    Route::get('/shop/duplicate-review/ml-scoring', [DuplicateDetectionController::class, 'mlScoringPage'])->name('duplicate-review.ml-scoring');
+    Route::get('/api/duplicate-check/ml/score', [DuplicateDetectionController::class, 'scorePair'])->name('duplicate-check.ml.score');
+    Route::post('/api/duplicate-check/ml/scan', [DuplicateDetectionController::class, 'scanMl'])->name('duplicate-check.ml.scan');
+    Route::post('/api/duplicate-check/ml/train', [DuplicateDetectionController::class, 'trainMlModel'])->name('duplicate-check.ml.train');
+    Route::get('/api/duplicate-check/ml/stats', [DuplicateDetectionController::class, 'mlModelStats'])->name('duplicate-check.ml.stats');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

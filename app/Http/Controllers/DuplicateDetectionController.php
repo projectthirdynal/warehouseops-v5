@@ -1262,4 +1262,120 @@ class DuplicateDetectionController extends Controller
             'Content-Disposition' => 'attachment; filename="duplicate-report-' . date('Y-m-d') . '.csv"',
         ]);
     }
+
+    // ── ML-Based Duplicate Scoring ───────────────────────────────────
+
+    /**
+     * Render the ML scoring page.
+     *
+     * GET /shop/duplicate-review/ml-scoring
+     */
+    public function mlScoringPage(Request $request): Response
+    {
+        $minScore = (float) ($request->query('min_score', '70'));
+        $limit = (int) ($request->query('limit', '50'));
+
+        $scanResult = $this->service->scanMlDuplicates($minScore, $limit);
+        $stats = $this->service->getMlModelStats();
+
+        return Inertia::render('DuplicateReview/MLScoring', [
+            'pairs' => $scanResult['pairs'],
+            'totalPairs' => $scanResult['total_pairs'],
+            'modelVersion' => $scanResult['model_version'],
+            'modelStats' => $stats,
+            'minScore' => $minScore,
+        ]);
+    }
+
+    /**
+     * Score a specific customer pair.
+     *
+     * GET /api/duplicate-check/ml/score?customer_a=1&customer_b=2
+     */
+    public function scorePair(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_a' => 'required|integer|exists:customers,id',
+            'customer_b' => 'required|integer|exists:customers,id',
+        ]);
+
+        $a = Customer::find($validated['customer_a']);
+        $b = Customer::find($validated['customer_b']);
+
+        return response()->json(
+            $this->service->scorePair($a, $b),
+        );
+    }
+
+    /**
+     * Scan for ML-scored duplicate pairs.
+     *
+     * POST /api/duplicate-check/ml/scan
+     */
+    public function scanMl(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'min_score' => 'nullable|numeric|min:0|max:100',
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        $result = $this->service->scanMlDuplicates(
+            isset($validated['min_score']) ? (float) $validated['min_score'] : 70.0,
+            isset($validated['limit']) ? (int) $validated['limit'] : 100,
+        );
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'scan',
+            'entity_type' => 'ml_scoring',
+            'after_state' => $result,
+            'note' => 'ML duplicate scan triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Train the ML model.
+     *
+     * POST /api/duplicate-check/ml/train
+     */
+    public function trainMlModel(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'epochs' => 'nullable|integer|min:10|max:1000',
+            'learning_rate' => 'nullable|numeric|min:0.001|max:1.0',
+        ]);
+
+        $result = $this->service->trainModel(
+            isset($validated['epochs']) ? (int) $validated['epochs'] : 100,
+            isset($validated['learning_rate']) ? (float) $validated['learning_rate'] : 0.01,
+        );
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'ml_train',
+            'entity_type' => 'ml_model',
+            'after_state' => $result,
+            'note' => 'ML model training triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Get ML model stats.
+     *
+     * GET /api/duplicate-check/ml/stats
+     */
+    public function mlModelStats(): JsonResponse
+    {
+        return response()->json(
+            $this->service->getMlModelStats(),
+        );
+    }
 }

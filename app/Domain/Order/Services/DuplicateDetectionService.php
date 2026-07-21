@@ -18,6 +18,7 @@ use App\Models\DuplicateAuditLog;
 use App\Models\DuplicateDetectionRule;
 use App\Models\DuplicateFamily;
 use App\Models\DuplicateFamilyMember;
+use App\Models\DuplicateMlModel;
 use App\Models\DuplicateNotification;
 use App\Models\DuplicateReviewItem;
 use Illuminate\Support\Carbon;
@@ -3422,6 +3423,508 @@ class DuplicateDetectionService
         }
 
         return 'low';
+    }
+
+    // ── ML-Based Duplicate Scoring ───────────────────────────────────
+
+    private array $defaultFeatureWeights = [
+        'phone_exact' => 2.5,
+        'phone_normalized' => 2.0,
+        'psid_shared' => 2.2,
+        'name_exact' => 1.5,
+        'name_fuzzy' => 1.0,
+        'address_exact' => 1.2,
+        'address_fuzzy' => 0.8,
+        'barangay_match' => 0.5,
+        'city_match' => 0.4,
+        'province_match' => 0.3,
+        'order_overlap' => 0.6,
+        'account_age_similarity' => 0.3,
+        'risk_level_match' => 0.2,
+    ];
+
+    public function extractFeatures(Customer $a, Customer $b): array
+    {
+        $features = [];
+        $features['phone_exact'] = ($a->phone && $b->phone && $a->phone === $b->phone) ? 1.0 : 0.0;
+        $features['phone_normalized'] = ($a->normalized_phone && $b->normalized_phone && $a->normalized_phone === $b->normalized_phone) ? 1.0 : 0.0;
+
+        $sharedPsids = CustomerIdentity::query()
+            ->whereIn('customer_id', [$a->id, $b->id])
+            ->where('provider', 'facebook')
+            ->selectRaw('provider_user_id, COUNT(DISTINCT customer_id) as cust_count')
+            ->groupBy('provider_user_id')
+            ->havingRaw('cust_count > 1')
+            ->count();
+        $features['psid_shared'] = $sharedPsids > 0 ? 1.0 : 0.0;
+
+        $nameA = strtolower($a->name ?? $a->facebook_name ?? '');
+        $nameB = strtolower($b->name ?? $b->facebook_name ?? '');
+        $features['name_exact'] = ($nameA && $nameB && $nameA === $nameB) ? 1.0 : 0.0;
+
+        $nameScore = 0.0;
+        if ($nameA && $nameB) {
+            similar_text($nameA, $nameB, $percent);
+            $nameScore = $percent / 100.0;
+        }
+        $features['name_fuzzy'] = $nameScore;
+
+        $addrA = strtolower($a->canonical_address ?? '');
+        $addrB = strtolower($b->canonical_address ?? '');
+        $features['address_exact'] = ($addrA && $addrB && $addrA === $addrB) ? 1.0 : 0.0;
+        $features['address_fuzzy'] = $this->jaccardSimilarity($addrA, $addrB);
+
+        $features['barangay_match'] = ($a->barangay && $b->barangay && $a->barangay === $b->barangay) ? 1.0 : 0.0;
+        $features['city_match'] = ($a->city_municipality && $b->city_municipality && $a->city_municipality === $b->city_municipality) ? 1.0 : 0.0;
+        $features['province_match'] = ($a->province && $b->province && $a->province === $b->province) ? 1.0 : 0.0;
+
+        $productsA = Order::where('customer_id', $a->id)->whereNotNull('product_id')->pluck('product_id')->unique();
+        $productsB = Order::where('customer_id', $b->id)->whereNotNull('product_id')->pluck('product_id')->unique();
+        if ($productsA->isNotEmpty() && $productsB->isNotEmpty()) {
+            $intersection = $productsA->intersect($productsB)->count();
+            $union = $productsA->merge($productsB)->unique()->count();
+            $features['order_overlap'] = $union > 0 ? $intersection / $union : 0.0;
+        } else {
+            $features['order_overlap'] = 0.0;
+        }
+
+        $ageA = $a->created_at?->diffInDays(now()) ?? 0;
+        $ageB = $b->created_at?->diffInDays(now()) ?? 0;
+        $maxAge = max($ageA, $ageB, 1);
+        $features['account_age_similarity'] = 1.0 - (abs($ageA - $ageB) / $maxAge);
+
+        $features['risk_level_match'] = ($a->risk_level && $b->risk_level && $a->risk_level === $b->risk_level) ? 1.0 : 0.0;
+
+        return $features;
+    }
+
+    public function scorePair(Customer $a, Customer $b): array
+    {
+        $features = $this->extractFeatures($a, $b);
+        $weights = $this->getActiveFeatureWeights();
+
+        $z = 0.0;
+        $contributions = [];
+        foreach ($features as $key => $value) {
+            $weight = $weights[$key] ?? 0.0;
+            $contribution = $weight * $value;
+            $z += $contribution;
+            $contributions[$key] = round($contribution, 4);
+        }
+
+        $score = 1.0 / (1.0 + exp(-$z));
+        $scorePercent = round($score * 100, 2);
+        arsort($contributions);
+
+        return [
+            'score' => $scorePercent,
+            'features' => $features,
+            'feature_contributions' => $contributions,
+        ];
+    }
+
+    private function jaccardSimilarity(string $a, string $b): float
+    {
+        $tokensA = array_filter(preg_split('/\s+/', strtolower($a)) ?: [], fn ($t) => strlen($t) >= 2);
+        $tokensB = array_filter(preg_split('/\s+/', strtolower($b)) ?: [], fn ($t) => strlen($t) >= 2);
+
+        if (empty($tokensA) || empty($tokensB)) {
+            return 0.0;
+        }
+
+        $intersection = count(array_intersect($tokensA, $tokensB));
+        $union = count(array_unique(array_merge($tokensA, $tokensB)));
+
+        return $union > 0 ? $intersection / $union : 0.0;
+    }
+
+    private function getActiveFeatureWeights(): array
+    {
+        $model = DuplicateMlModel::where('name', 'default')->where('is_active', true)->latest()->first();
+
+        if ($model && $model->feature_weights) {
+            return $model->feature_weights;
+        }
+
+        return $this->defaultFeatureWeights;
+    }
+
+    private function getActiveModelVersion(): string
+    {
+        $model = DuplicateMlModel::where('name', 'default')->where('is_active', true)->latest()->first();
+
+        if ($model) {
+            return $model->version . ' (trained ' . $model->trained_at?->diffForHumans() . ')';
+        }
+
+        return 'default (untrained)';
+    }
+
+    /**
+     * Score a batch of customer pairs.
+     *
+     * @param array<array{customer_a: int, customer_b: int}> $pairs
+     * @return array<int, array<string, mixed>>
+     */
+    public function scoreBatch(array $pairs): array
+    {
+        $results = [];
+        $customerIds = collect();
+        foreach ($pairs as $pair) {
+            $customerIds = $customerIds->merge([$pair['customer_a'], $pair['customer_b']]);
+        }
+        $customers = Customer::whereIn('id', $customerIds->unique()->values()->all())->get()->keyBy('id');
+
+        foreach ($pairs as $pair) {
+            $a = $customers->get($pair['customer_a']);
+            $b = $customers->get($pair['customer_b']);
+
+            if (!$a || !$b) {
+                continue;
+            }
+
+            $result = $this->scorePair($a, $b);
+            $results[] = [
+                'customer_a_id' => $a->id,
+                'customer_a_name' => $a->name ?? "Customer #{$a->id}",
+                'customer_b_id' => $b->id,
+                'customer_b_name' => $b->name ?? "Customer #{$b->id}",
+                'score' => $result['score'],
+                'features' => $result['features'],
+                'feature_contributions' => $result['feature_contributions'],
+            ];
+        }
+
+        usort($results, fn ($x, $y) => $y['score'] <=> $x['score']);
+
+        return $results;
+    }
+
+    /**
+     * Scan for high-scoring duplicate pairs using the ML model.
+     *
+     * @param float $minScore  Minimum score (0-100)
+     * @param int $limit  Max pairs to return
+     * @return array<string, mixed>
+     */
+    public function scanMlDuplicates(float $minScore = 70.0, int $limit = 100): array
+    {
+        $candidatePairs = collect();
+
+        $phoneGroups = Customer::query()
+            ->whereNotNull('normalized_phone')
+            ->selectRaw('normalized_phone, COUNT(*) as cnt, GROUP_CONCAT(id) as ids')
+            ->groupBy('normalized_phone')
+            ->havingRaw('cnt > 1')
+            ->limit(200)
+            ->get();
+
+        foreach ($phoneGroups as $group) {
+            $ids = explode(',', $group->ids);
+            for ($i = 0; $i < count($ids); $i++) {
+                for ($j = $i + 1; $j < count($ids); $j++) {
+                    $candidatePairs->push([(int) $ids[$i], (int) $ids[$j]]);
+                }
+            }
+        }
+
+        $psidGroups = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->whereNotNull('customer_id')
+            ->selectRaw('provider_user_id, COUNT(DISTINCT customer_id) as cnt, GROUP_CONCAT(DISTINCT customer_id) as ids')
+            ->groupBy('provider_user_id')
+            ->havingRaw('cnt > 1')
+            ->limit(200)
+            ->get();
+
+        foreach ($psidGroups as $group) {
+            $ids = explode(',', $group->ids);
+            for ($i = 0; $i < count($ids); $i++) {
+                for ($j = $i + 1; $j < count($ids); $j++) {
+                    $candidatePairs->push([(int) $ids[$i], (int) $ids[$j]]);
+                }
+            }
+        }
+
+        $nameGroups = Customer::query()
+            ->whereNotNull('name')
+            ->selectRaw('SUBSTRING(LOWER(name), 1, 3) as prefix, COUNT(*) as cnt, GROUP_CONCAT(id) as ids')
+            ->groupBy('prefix')
+            ->havingRaw('cnt > 1')
+            ->limit(100)
+            ->get();
+
+        foreach ($nameGroups as $group) {
+            $ids = explode(',', $group->ids);
+            for ($i = 0; $i < count($ids); $i++) {
+                for ($j = $i + 1; $j < count($ids); $j++) {
+                    $candidatePairs->push([(int) $ids[$i], (int) $ids[$j]]);
+                }
+            }
+        }
+
+        $candidatePairs = $candidatePairs->unique(function ($pair) {
+            $sorted = $pair;
+            sort($sorted);
+            return implode('-', $sorted);
+        })->take(500);
+
+        $allIds = $candidatePairs->flatten()->unique()->values()->all();
+        $customers = Customer::whereIn('id', $allIds)->get()->keyBy('id');
+
+        $results = [];
+        foreach ($candidatePairs as $pair) {
+            $a = $customers->get($pair[0]);
+            $b = $customers->get($pair[1]);
+
+            if (!$a || !$b || $a->id === $b->id) {
+                continue;
+            }
+            if ($a->is_blacklisted || $b->is_blacklisted) {
+                continue;
+            }
+
+            $result = $this->scorePair($a, $b);
+
+            if ($result['score'] >= $minScore) {
+                $results[] = [
+                    'customer_a_id' => $a->id,
+                    'customer_a_name' => $a->name ?? "Customer #{$a->id}",
+                    'customer_a_phone' => $a->normalized_phone ?? $a->phone,
+                    'customer_a_orders' => (int) ($a->total_orders ?? 0),
+                    'customer_b_id' => $b->id,
+                    'customer_b_name' => $b->name ?? "Customer #{$b->id}",
+                    'customer_b_phone' => $b->normalized_phone ?? $b->phone,
+                    'customer_b_orders' => (int) ($b->total_orders ?? 0),
+                    'score' => $result['score'],
+                    'features' => $result['features'],
+                    'feature_contributions' => $result['feature_contributions'],
+                ];
+            }
+
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        usort($results, fn ($x, $y) => $y['score'] <=> $x['score']);
+
+        return [
+            'total_pairs' => count($results),
+            'pairs' => $results,
+            'model_version' => $this->getActiveModelVersion(),
+        ];
+    }
+
+    /**
+     * Train the ML model using past review decisions as labeled data.
+     *
+     * Uses gradient descent on logistic regression to optimize weights.
+     * Positive: review items 'actioned' + auto-merge 'merged'.
+     * Negative: review items 'dismissed' + auto-merge 'rejected'.
+     *
+     * @param int $epochs
+     * @param float $learningRate
+     * @return array<string, mixed>
+     */
+    public function trainModel(int $epochs = 100, float $learningRate = 0.01): array
+    {
+        $positivePairs = collect();
+        $negativePairs = collect();
+
+        // From review queue
+        $actioned = DuplicateReviewItem::where('status', 'actioned')->where('type', 'customer')->limit(500)->get();
+        $dismissed = DuplicateReviewItem::where('status', 'dismissed')->where('type', 'customer')->limit(500)->get();
+
+        foreach ($actioned as $item) {
+            $meta = $item->metadata ?? [];
+            if (!empty($meta['target_customer_id']) && !empty($meta['source_customer_id'])) {
+                $positivePairs->push([$meta['target_customer_id'], $meta['source_customer_id']]);
+            }
+        }
+        foreach ($dismissed as $item) {
+            $meta = $item->metadata ?? [];
+            if (!empty($meta['target_customer_id']) && !empty($meta['source_customer_id'])) {
+                $negativePairs->push([$meta['target_customer_id'], $meta['source_customer_id']]);
+            }
+        }
+
+        // From auto-merge suggestions
+        $merged = AutoMergeSuggestion::where('status', 'merged')->limit(500)->get();
+        $rejected = AutoMergeSuggestion::where('status', 'rejected')->limit(500)->get();
+
+        foreach ($merged as $s) {
+            $positivePairs->push([$s->target_customer_id, $s->source_customer_id]);
+        }
+        foreach ($rejected as $s) {
+            $negativePairs->push([$s->target_customer_id, $s->source_customer_id]);
+        }
+
+        $positivePairs = $positivePairs->unique(fn ($p) => min($p) . '-' . max($p));
+        $negativePairs = $negativePairs->unique(fn ($p) => min($p) . '-' . max($p));
+
+        if ($positivePairs->isEmpty() && $negativePairs->isEmpty()) {
+            return [
+                'success' => false,
+                'message' => 'No training data available. Need reviewed duplicate items or actioned auto-merge suggestions.',
+                'positive_samples' => 0,
+                'negative_samples' => 0,
+            ];
+        }
+
+        // Build training dataset
+        $allIds = $positivePairs->merge($negativePairs)->flatten()->unique()->values()->all();
+        $customers = Customer::whereIn('id', $allIds)->get()->keyBy('id');
+
+        $trainingData = [];
+        foreach ($positivePairs as $pair) {
+            $a = $customers->get($pair[0]);
+            $b = $customers->get($pair[1]);
+            if ($a && $b) {
+                $trainingData[] = ['features' => $this->extractFeatures($a, $b), 'label' => 1.0];
+            }
+        }
+        foreach ($negativePairs as $pair) {
+            $a = $customers->get($pair[0]);
+            $b = $customers->get($pair[1]);
+            if ($a && $b) {
+                $trainingData[] = ['features' => $this->extractFeatures($a, $b), 'label' => 0.0];
+            }
+        }
+
+        if (count($trainingData) < 4) {
+            return [
+                'success' => false,
+                'message' => 'Insufficient training data (need at least 4 samples).',
+                'positive_samples' => $positivePairs->count(),
+                'negative_samples' => $negativePairs->count(),
+            ];
+        }
+
+        // Gradient descent on logistic regression
+        $weights = $this->getActiveFeatureWeights();
+        $featureKeys = array_keys($this->defaultFeatureWeights);
+
+        for ($epoch = 0; $epoch < $epochs; $epoch++) {
+            $gradients = array_fill_keys($featureKeys, 0.0);
+
+            foreach ($trainingData as $sample) {
+                $z = 0.0;
+                foreach ($featureKeys as $key) {
+                    $z += ($weights[$key] ?? 0.0) * ($sample['features'][$key] ?? 0.0);
+                }
+                $pred = 1.0 / (1.0 + exp(-$z));
+                $error = $pred - $sample['label'];
+
+                foreach ($featureKeys as $key) {
+                    $gradients[$key] += $error * ($sample['features'][$key] ?? 0.0);
+                }
+            }
+
+            $n = (float) count($trainingData);
+            foreach ($featureKeys as $key) {
+                $weights[$key] -= $learningRate * ($gradients[$key] / $n);
+            }
+        }
+
+        // Evaluate model
+        $tp = $fp = $tn = $fn = 0;
+        foreach ($trainingData as $sample) {
+            $z = 0.0;
+            foreach ($featureKeys as $key) {
+                $z += ($weights[$key] ?? 0.0) * ($sample['features'][$key] ?? 0.0);
+            }
+            $pred = 1.0 / (1.0 + exp(-$z));
+            $predicted = $pred >= 0.5 ? 1.0 : 0.0;
+            $actual = $sample['label'];
+
+            if ($predicted == 1 && $actual == 1) $tp++;
+            elseif ($predicted == 1 && $actual == 0) $fp++;
+            elseif ($predicted == 0 && $actual == 0) $tn++;
+            else $fn++;
+        }
+
+        $accuracy = ($tp + $tn) / max($tp + $fp + $tn + $fn, 1);
+        $precision = $tp / max($tp + $fp, 1);
+        $recall = $tp / max($tp + $fn, 1);
+        $f1 = 2.0 * $precision * $recall / max($precision + $recall, 0.0001);
+
+        // Deactivate old models and save new one
+        DuplicateMlModel::where('name', 'default')->update(['is_active' => false]);
+
+        $modelCount = DuplicateMlModel::where('name', 'default')->count();
+        $model = DuplicateMlModel::create([
+            'name' => 'default',
+            'version' => 'v' . ($modelCount + 1),
+            'feature_weights' => $weights,
+            'training_stats' => [
+                'tp' => $tp, 'fp' => $fp, 'tn' => $tn, 'fn' => $fn,
+            ],
+            'training_samples' => count($trainingData),
+            'accuracy' => round($accuracy, 4),
+            'precision' => round($precision, 4),
+            'recall' => round($recall, 4),
+            'f1_score' => round($f1, 4),
+            'trained_at' => now(),
+            'is_active' => true,
+        ]);
+
+        return [
+            'success' => true,
+            'model_id' => $model->id,
+            'version' => $model->version,
+            'training_samples' => count($trainingData),
+            'positive_samples' => $positivePairs->count(),
+            'negative_samples' => $negativePairs->count(),
+            'accuracy' => round($accuracy, 4),
+            'precision' => round($precision, 4),
+            'recall' => round($recall, 4),
+            'f1_score' => round($f1, 4),
+            'confusion_matrix' => ['tp' => $tp, 'fp' => $fp, 'tn' => $tn, 'fn' => $fn],
+            'feature_weights' => $weights,
+        ];
+    }
+
+    /**
+     * Get ML model stats and current model info.
+     *
+     * @return array<string, mixed>
+     */
+    public function getMlModelStats(): array
+    {
+        $activeModel = DuplicateMlModel::where('name', 'default')->where('is_active', true)->latest()->first();
+        $allModels = DuplicateMlModel::where('name', 'default')->orderByDesc('created_at')->limit(10)->get();
+
+        $featureWeights = $activeModel?->feature_weights ?? $this->defaultFeatureWeights;
+
+        // Sort weights by absolute value desc for importance ranking
+        arsort($featureWeights);
+
+        return [
+            'active_model' => $activeModel ? [
+                'id' => $activeModel->id,
+                'version' => $activeModel->version,
+                'training_samples' => $activeModel->training_samples,
+                'accuracy' => $activeModel->accuracy,
+                'precision' => $activeModel->precision,
+                'recall' => $activeModel->recall,
+                'f1_score' => $activeModel->f1_score,
+                'trained_at' => $activeModel->trained_at?->toIso8601String(),
+                'trained_at_formatted' => $activeModel->trained_at?->format('M j, Y g:i A'),
+            ] : null,
+            'feature_weights' => $featureWeights,
+            'feature_importance' => $featureWeights,
+            'model_history' => $allModels->map(fn ($m) => [
+                'id' => $m->id,
+                'version' => $m->version,
+                'training_samples' => $m->training_samples,
+                'accuracy' => $m->accuracy,
+                'f1_score' => $m->f1_score,
+                'trained_at' => $m->trained_at?->toIso8601String(),
+                'is_active' => $m->is_active,
+            ])->toArray(),
+            'default_weights' => $this->defaultFeatureWeights,
+        ];
     }
 
     /**
