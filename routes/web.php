@@ -349,6 +349,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/review-queue/{id}/resolve', [DuplicateDetectionController::class, 'resolveQueueItem'])->name('duplicate-check.review-queue.resolve');
     Route::get('/api/duplicate-check/review-queue/stats', [DuplicateDetectionController::class, 'queueStats'])->name('duplicate-check.review-queue.stats');
 
+    // Duplicate Detection Rules
+    Route::get('/shop/duplicate-review/rules', [DuplicateDetectionController::class, 'rulesPage'])->name('duplicate-review.rules');
+    Route::get('/api/duplicate-check/rules', [DuplicateDetectionController::class, 'listRules'])->name('duplicate-check.rules.list');
+    Route::post('/api/duplicate-check/rules', [DuplicateDetectionController::class, 'createRule'])->name('duplicate-check.rules.create');
+    Route::put('/api/duplicate-check/rules/{id}', [DuplicateDetectionController::class, 'updateRule'])->name('duplicate-check.rules.update');
+    Route::delete('/api/duplicate-check/rules/{id}', [DuplicateDetectionController::class, 'deleteRule'])->name('duplicate-check.rules.delete');
+    Route::post('/api/duplicate-check/rules/{id}/toggle', [DuplicateDetectionController::class, 'toggleRule'])->name('duplicate-check.rules.toggle');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

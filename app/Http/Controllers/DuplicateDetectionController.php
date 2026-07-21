@@ -295,4 +295,133 @@ class DuplicateDetectionController extends Controller
     {
         return response()->json($this->service->getReviewQueueStats());
     }
+
+    // ── Configuration Rules ──────────────────────────────────────────
+
+    /**
+     * Render the detection rules configuration page.
+     *
+     * GET /shop/duplicate-review/rules
+     */
+    public function rulesPage(): Response
+    {
+        $rules = $this->service->getAllRules();
+
+        return Inertia::render('DuplicateReview/Rules', [
+            'rules' => $rules->map(fn ($rule) => [
+                'id' => $rule->id,
+                'name' => $rule->name,
+                'type' => $rule->type,
+                'match_method' => $rule->match_method,
+                'is_enabled' => $rule->is_enabled,
+                'priority' => $rule->priority,
+                'config' => $rule->config,
+                'description' => $rule->description,
+                'created_by' => $rule->creator?->name,
+                'updated_by' => $rule->updater?->name,
+                'created_at' => $rule->created_at?->toIso8601String(),
+                'updated_at' => $rule->updated_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    /**
+     * List all detection rules (API).
+     *
+     * GET /api/duplicate-check/rules
+     */
+    public function listRules(): JsonResponse
+    {
+        $rules = $this->service->getAllRules();
+
+        return response()->json([
+            'rules' => $rules,
+        ]);
+    }
+
+    /**
+     * Create a new detection rule.
+     *
+     * POST /api/duplicate-check/rules
+     */
+    public function createRule(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:order,customer,conversation',
+            'match_method' => 'nullable|string|max:100',
+            'is_enabled' => 'nullable|boolean',
+            'priority' => 'nullable|integer|min:0|max:999',
+            'config' => 'nullable|array',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $rule = $this->service->createRule($validated, $request->user()->id);
+
+        return response()->json([
+            'rule' => $rule,
+        ], 201);
+    }
+
+    /**
+     * Update a detection rule.
+     *
+     * PUT /api/duplicate-check/rules/{id}
+     */
+    public function updateRule(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'nullable|string|max:255',
+            'type' => 'nullable|in:order,customer,conversation',
+            'match_method' => 'nullable|string|max:100',
+            'is_enabled' => 'nullable|boolean',
+            'priority' => 'nullable|integer|min:0|max:999',
+            'config' => 'nullable|array',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $rule = $this->service->updateRule($id, $validated, $request->user()->id);
+
+        if (!$rule) {
+            return response()->json(['error' => 'Rule not found.'], 404);
+        }
+
+        return response()->json([
+            'rule' => $rule,
+        ]);
+    }
+
+    /**
+     * Delete a detection rule.
+     *
+     * DELETE /api/duplicate-check/rules/{id}
+     */
+    public function deleteRule(int $id): JsonResponse
+    {
+        $deleted = $this->service->deleteRule($id);
+
+        if (!$deleted) {
+            return response()->json(['error' => 'Rule not found.'], 404);
+        }
+
+        return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * Toggle a rule's enabled status.
+     *
+     * POST /api/duplicate-check/rules/{id}/toggle
+     */
+    public function toggleRule(Request $request, int $id): JsonResponse
+    {
+        $rule = $this->service->toggleRule($id, $request->user()->id);
+
+        if (!$rule) {
+            return response()->json(['error' => 'Rule not found.'], 404);
+        }
+
+        return response()->json([
+            'rule' => $rule,
+        ]);
+    }
 }

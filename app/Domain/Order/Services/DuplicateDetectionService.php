@@ -11,6 +11,7 @@ use App\Domain\Shop\Models\CustomerIdentity;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Models\Customer;
+use App\Models\DuplicateDetectionRule;
 use App\Models\DuplicateReviewItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -1146,6 +1147,150 @@ class DuplicateDetectionService
         }
 
         return $items;
+    }
+
+    // ── Configuration Rules ──────────────────────────────────────────
+
+    /**
+     * Get all detection rules, ordered by priority.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, DuplicateDetectionRule>
+     */
+    public function getAllRules()
+    {
+        return DuplicateDetectionRule::query()
+            ->with(['creator:id,name', 'updater:id,name'])
+            ->orderBy('priority')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Get enabled rules for a given type, ordered by priority.
+     *
+     * @param string $type  order|customer|conversation
+     * @return \Illuminate\Database\Eloquent\Collection<int, DuplicateDetectionRule>
+     */
+    public function getActiveRules(string $type)
+    {
+        return DuplicateDetectionRule::query()
+            ->where('type', $type)
+            ->where('is_enabled', true)
+            ->orderBy('priority')
+            ->get();
+    }
+
+    /**
+     * Create a new detection rule.
+     *
+     * @param array{name:string,type:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null} $data
+     * @param int $userId
+     * @return DuplicateDetectionRule
+     */
+    public function createRule(array $data, int $userId): DuplicateDetectionRule
+    {
+        return DuplicateDetectionRule::create([
+            'name' => $data['name'],
+            'type' => $data['type'],
+            'match_method' => $data['match_method'] ?? null,
+            'is_enabled' => $data['is_enabled'] ?? true,
+            'priority' => $data['priority'] ?? 0,
+            'config' => $data['config'] ?? null,
+            'description' => $data['description'] ?? null,
+            'created_by' => $userId,
+            'updated_by' => $userId,
+        ]);
+    }
+
+    /**
+     * Update an existing detection rule.
+     *
+     * @param int $ruleId
+     * @param array{name?:string,type?:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null} $data
+     * @param int $userId
+     * @return DuplicateDetectionRule|null
+     */
+    public function updateRule(int $ruleId, array $data, int $userId): ?DuplicateDetectionRule
+    {
+        $rule = DuplicateDetectionRule::find($ruleId);
+
+        if (!$rule) {
+            return null;
+        }
+
+        $updateData = [];
+        foreach (['name', 'type', 'match_method', 'is_enabled', 'priority', 'config', 'description'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $updateData[$field] = $data[$field];
+            }
+        }
+        $updateData['updated_by'] = $userId;
+
+        $rule->update($updateData);
+
+        return $rule->fresh();
+    }
+
+    /**
+     * Delete a detection rule.
+     *
+     * @param int $ruleId
+     * @return bool
+     */
+    public function deleteRule(int $ruleId): bool
+    {
+        $rule = DuplicateDetectionRule::find($ruleId);
+
+        if (!$rule) {
+            return false;
+        }
+
+        return $rule->delete();
+    }
+
+    /**
+     * Toggle a rule's enabled status.
+     *
+     * @param int $ruleId
+     * @param int $userId
+     * @return DuplicateDetectionRule|null
+     */
+    public function toggleRule(int $ruleId, int $userId): ?DuplicateDetectionRule
+    {
+        $rule = DuplicateDetectionRule::find($ruleId);
+
+        if (!$rule) {
+            return null;
+        }
+
+        $rule->update([
+            'is_enabled' => !$rule->is_enabled,
+            'updated_by' => $userId,
+        ]);
+
+        return $rule->fresh();
+    }
+
+    /**
+     * Get the effective config for a detection type by merging
+     * enabled rules' config values. Later-priority rules override earlier.
+     *
+     * @param string $type
+     * @return array<string, mixed>
+     */
+    public function getEffectiveConfig(string $type): array
+    {
+        $rules = $this->getActiveRules($type);
+
+        $config = [];
+
+        foreach ($rules as $rule) {
+            if ($rule->config) {
+                $config = array_merge($config, $rule->config);
+            }
+        }
+
+        return $config;
     }
 
     /**
