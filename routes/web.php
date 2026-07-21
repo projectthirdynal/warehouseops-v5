@@ -388,6 +388,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/notifications/mark-all-read', [DuplicateDetectionController::class, 'markAllNotificationsRead'])->name('duplicate-check.notifications.mark-all-read');
     Route::get('/api/duplicate-check/notifications/stats', [DuplicateDetectionController::class, 'notificationStats'])->name('duplicate-check.notifications.stats');
 
+    // Duplicate Audit Log
+    Route::get('/shop/duplicate-review/audit-log', [DuplicateDetectionController::class, 'auditLogPage'])->name('duplicate-review.audit-log');
+    Route::get('/api/duplicate-check/audit-log', [DuplicateDetectionController::class, 'listAuditLogs'])->name('duplicate-check.audit-log.list');
+    Route::get('/api/duplicate-check/audit-log/stats', [DuplicateDetectionController::class, 'auditLogStats'])->name('duplicate-check.audit-log.stats');
+    Route::get('/api/duplicate-check/audit-log/export', [DuplicateDetectionController::class, 'exportAuditLogs'])->name('duplicate-check.audit-log.export');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

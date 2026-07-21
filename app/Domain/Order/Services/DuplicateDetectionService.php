@@ -13,6 +13,7 @@ use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Models\AutoMergeSuggestion;
 use App\Models\Customer;
+use App\Models\DuplicateAuditLog;
 use App\Models\DuplicateDetectionRule;
 use App\Models\DuplicateFamily;
 use App\Models\DuplicateFamilyMember;
@@ -2611,6 +2612,213 @@ class DuplicateDetectionService
             'unread_by_type' => $unreadByType,
             'unread_by_severity' => $unreadBySeverity,
         ];
+    }
+
+    // ── Duplicate Audit Log ──────────────────────────────────────────
+
+    /**
+     * Record an audit log entry.
+     *
+     * @param array<string, mixed> $data
+     */
+    public function logAction(array $data): DuplicateAuditLog
+    {
+        return DuplicateAuditLog::create([
+            'user_id' => $data['user_id'] ?? null,
+            'action' => $data['action'],
+            'entity_type' => $data['entity_type'] ?? null,
+            'entity_id' => $data['entity_id'] ?? null,
+            'entity_label' => $data['entity_label'] ?? null,
+            'before_state' => $data['before_state'] ?? null,
+            'after_state' => $data['after_state'] ?? null,
+            'note' => $data['note'] ?? null,
+            'ip_address' => $data['ip_address'] ?? null,
+            'user_agent' => $data['user_agent'] ?? null,
+        ]);
+    }
+
+    /**
+     * Get paginated audit logs with filters.
+     *
+     * @param array{user_id?: int, action?: string, entity_type?: string, entity_id?: int, from?: string, to?: string, per_page?: int} $filters
+     * @return array<string, mixed>
+     */
+    public function getAuditLogs(array $filters = []): array
+    {
+        $query = DuplicateAuditLog::query()
+            ->with('user:id,name')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['user_id'])) {
+            $query->where('user_id', $filters['user_id']);
+        }
+
+        if (!empty($filters['action'])) {
+            $query->where('action', $filters['action']);
+        }
+
+        if (!empty($filters['entity_type'])) {
+            $query->where('entity_type', $filters['entity_type']);
+        }
+
+        if (!empty($filters['entity_id'])) {
+            $query->where('entity_id', $filters['entity_id']);
+        }
+
+        if (!empty($filters['from'])) {
+            $query->where('created_at', '>=', $filters['from']);
+        }
+
+        if (!empty($filters['to'])) {
+            $query->where('created_at', '<=', $filters['to']);
+        }
+
+        $perPage = $filters['per_page'] ?? 50;
+        $items = $query->paginate($perPage);
+
+        return [
+            'items' => $items->items(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'from' => $items->firstItem(),
+                'to' => $items->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Get audit log summary stats.
+     *
+     * @param int $days  Lookback period
+     * @return array<string, mixed>
+     */
+    public function getAuditLogStats(int $days = 30): array
+    {
+        $cutoff = Carbon::now()->subDays($days);
+
+        $total = DuplicateAuditLog::where('created_at', '>=', $cutoff)->count();
+
+        $byAction = DuplicateAuditLog::query()
+            ->where('created_at', '>=', $cutoff)
+            ->selectRaw('action, COUNT(*) as count')
+            ->groupBy('action')
+            ->orderByDesc('count')
+            ->pluck('count', 'action')
+            ->toArray();
+
+        $byEntityType = DuplicateAuditLog::query()
+            ->where('created_at', '>=', $cutoff)
+            ->selectRaw('entity_type, COUNT(*) as count')
+            ->groupBy('entity_type')
+            ->orderByDesc('count')
+            ->pluck('count', 'entity_type')
+            ->toArray();
+
+        $byUser = DuplicateAuditLog::query()
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotNull('user_id')
+            ->selectRaw('user_id, COUNT(*) as count')
+            ->groupBy('user_id')
+            ->orderByDesc('count')
+            ->limit(10)
+            ->pluck('count', 'user_id')
+            ->toArray();
+
+        $topUsers = [];
+        if (!empty($byUser)) {
+            $users = \App\Models\User::whereIn('id', array_keys($byUser))->pluck('name', 'id');
+            foreach ($byUser as $uid => $count) {
+                $topUsers[] = [
+                    'user_id' => $uid,
+                    'name' => $users[$uid] ?? "User #{$uid}",
+                    'count' => $count,
+                ];
+            }
+        }
+
+        $merges = $byAction['merge'] ?? 0;
+        $autoMergeApproves = $byAction['auto_merge_approve'] ?? 0;
+        $familyMerges = $byAction['family_merge'] ?? 0;
+        $totalMerges = $merges + $autoMergeApproves + $familyMerges;
+
+        $dismissals = ($byAction['dismiss'] ?? 0) + ($byAction['auto_merge_reject'] ?? 0) + ($byAction['family_dismiss'] ?? 0);
+
+        $dailyTrend = DuplicateAuditLog::query()
+            ->where('created_at', '>=', $cutoff)
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->pluck('count', 'date')
+            ->toArray();
+
+        return [
+            'total' => $total,
+            'days' => $days,
+            'total_merges' => $totalMerges,
+            'total_dismissals' => $dismissals,
+            'by_action' => $byAction,
+            'by_entity_type' => $byEntityType,
+            'top_users' => $topUsers,
+            'daily_trend' => $dailyTrend,
+        ];
+    }
+
+    /**
+     * Export audit logs as CSV.
+     *
+     * @param array<string, mixed> $filters
+     * @return string  CSV content
+     */
+    public function exportAuditLogsCsv(array $filters = []): string
+    {
+        $query = DuplicateAuditLog::query()
+            ->with('user:id,name')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['action'])) {
+            $query->where('action', $filters['action']);
+        }
+
+        if (!empty($filters['entity_type'])) {
+            $query->where('entity_type', $filters['entity_type']);
+        }
+
+        if (!empty($filters['from'])) {
+            $query->where('created_at', '>=', $filters['from']);
+        }
+
+        if (!empty($filters['to'])) {
+            $query->where('created_at', '<=', $filters['to']);
+        }
+
+        $logs = $query->limit(5000)->get();
+
+        $rows = [];
+        $rows[] = ['ID', 'Timestamp', 'User', 'Action', 'Entity Type', 'Entity ID', 'Entity Label', 'Note', 'IP Address'];
+
+        foreach ($logs as $log) {
+            $rows[] = [
+                $log->id,
+                $log->created_at?->toIso8601String(),
+                $log->user?->name ?? 'System',
+                $log->action,
+                $log->entity_type ?? '',
+                $log->entity_id ?? '',
+                $log->entity_label ?? '',
+                $log->note ?? '',
+                $log->ip_address ?? '',
+            ];
+        }
+
+        $csv = '';
+        foreach ($rows as $row) {
+            $csv .= implode(',', array_map(fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', $row)) . "\n";
+        }
+
+        return $csv;
     }
 
     /**

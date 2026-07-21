@@ -186,6 +186,19 @@ class DuplicateDetectionController extends Controller
 
         $merged = $this->customerMerge->merge($target, $source);
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'merge',
+            'entity_type' => 'customer',
+            'entity_id' => $validated['target_id'],
+            'entity_label' => $merged->name ?? "Customer #{$validated['target_id']}",
+            'before_state' => ['source_id' => $validated['source_id'], 'source_name' => $source->name],
+            'after_state' => ['merged_id' => $merged->id, 'total_orders' => (int) ($merged->total_orders ?? 0)],
+            'note' => "Merged customer #{$validated['source_id']} into #{$validated['target_id']}",
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json([
             'merged' => true,
             'customer' => [
@@ -274,6 +287,18 @@ class DuplicateDetectionController extends Controller
             return response()->json(['error' => 'Review item not found.'], 404);
         }
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'review',
+            'entity_type' => 'review_item',
+            'entity_id' => $item->id,
+            'entity_label' => $item->primary_label,
+            'after_state' => ['status' => $validated['status']],
+            'note' => $validated['note'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json([
             'item' => [
                 'id' => $item->id,
@@ -358,6 +383,17 @@ class DuplicateDetectionController extends Controller
 
         $rule = $this->service->createRule($validated, $request->user()->id);
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'rule_create',
+            'entity_type' => 'rule',
+            'entity_id' => $rule->id,
+            'entity_label' => $rule->name,
+            'after_state' => $validated,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json([
             'rule' => $rule,
         ], 201);
@@ -386,6 +422,17 @@ class DuplicateDetectionController extends Controller
             return response()->json(['error' => 'Rule not found.'], 404);
         }
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'rule_update',
+            'entity_type' => 'rule',
+            'entity_id' => $id,
+            'entity_label' => $rule->name,
+            'after_state' => $validated,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json([
             'rule' => $rule,
         ]);
@@ -404,6 +451,13 @@ class DuplicateDetectionController extends Controller
             return response()->json(['error' => 'Rule not found.'], 404);
         }
 
+        $this->service->logAction([
+            'action' => 'rule_delete',
+            'entity_type' => 'rule',
+            'entity_id' => $id,
+            'note' => 'Rule deleted',
+        ]);
+
         return response()->json(['deleted' => true]);
     }
 
@@ -419,6 +473,17 @@ class DuplicateDetectionController extends Controller
         if (!$rule) {
             return response()->json(['error' => 'Rule not found.'], 404);
         }
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'rule_toggle',
+            'entity_type' => 'rule',
+            'entity_id' => $id,
+            'entity_label' => $rule->name,
+            'after_state' => ['is_enabled' => $rule->is_enabled],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return response()->json([
             'rule' => $rule,
@@ -524,6 +589,16 @@ class DuplicateDetectionController extends Controller
             isset($validated['limit']) ? (int) $validated['limit'] : 100,
         );
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'scan',
+            'entity_type' => 'auto_merge_suggestion',
+            'after_state' => $result,
+            'note' => 'Auto-merge scan triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json($result);
     }
 
@@ -566,6 +641,17 @@ class DuplicateDetectionController extends Controller
             return response()->json(['error' => $result['error']], 400);
         }
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'auto_merge_approve',
+            'entity_type' => 'auto_merge_suggestion',
+            'entity_id' => $id,
+            'after_state' => $result,
+            'note' => $validated['note'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json($result);
     }
 
@@ -589,6 +675,16 @@ class DuplicateDetectionController extends Controller
         if (!$suggestion) {
             return response()->json(['error' => 'Suggestion not found.'], 404);
         }
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'auto_merge_reject',
+            'entity_type' => 'auto_merge_suggestion',
+            'entity_id' => $id,
+            'note' => $validated['note'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return response()->json(['suggestion' => $suggestion]);
     }
@@ -641,6 +737,16 @@ class DuplicateDetectionController extends Controller
         $result = $this->service->buildFamilies(
             isset($validated['limit']) ? (int) $validated['limit'] : 100,
         );
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'family_build',
+            'entity_type' => 'family',
+            'after_state' => $result,
+            'note' => 'Family build triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return response()->json($result);
     }
@@ -701,6 +807,17 @@ class DuplicateDetectionController extends Controller
             return response()->json(['error' => $result['error']], 400);
         }
 
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'family_merge',
+            'entity_type' => 'family',
+            'entity_id' => $id,
+            'after_state' => $result,
+            'note' => $validated['note'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         return response()->json($result);
     }
 
@@ -724,6 +841,17 @@ class DuplicateDetectionController extends Controller
         if (!$family) {
             return response()->json(['error' => 'Family not found.'], 404);
         }
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'family_dismiss',
+            'entity_type' => 'family',
+            'entity_id' => $id,
+            'entity_label' => $family->anchor_label,
+            'note' => $validated['note'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return response()->json(['family' => $family]);
     }
@@ -778,6 +906,16 @@ class DuplicateDetectionController extends Controller
         $result = $this->service->generateNotificationsFromScan(
             isset($validated['supervisor_id']) ? (int) $validated['supervisor_id'] : null,
         );
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'notification_generate',
+            'entity_type' => 'notification',
+            'after_state' => $result,
+            'note' => 'Notification generation triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return response()->json($result);
     }
@@ -843,5 +981,81 @@ class DuplicateDetectionController extends Controller
         return response()->json(
             $this->service->getNotificationStats($userId),
         );
+    }
+
+    // ── Duplicate Audit Log ──────────────────────────────────────────
+
+    /**
+     * Render the duplicate audit log page.
+     *
+     * GET /shop/duplicate-review/audit-log
+     */
+    public function auditLogPage(Request $request): Response
+    {
+        $filters = array_filter($request->only(['action', 'entity_type', 'from', 'to']));
+        $days = (int) ($request->query('days', '30'));
+
+        return Inertia::render('DuplicateReview/AuditLog', [
+            'logs' => $this->service->getAuditLogs($filters),
+            'stats' => $this->service->getAuditLogStats($days),
+            'filters' => $filters,
+            'days' => $days,
+        ]);
+    }
+
+    /**
+     * List audit logs (API).
+     *
+     * GET /api/duplicate-check/audit-log
+     */
+    public function listAuditLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'action' => 'nullable|string',
+            'entity_type' => 'nullable|string',
+            'entity_id' => 'nullable|integer',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        return response()->json(
+            $this->service->getAuditLogs($validated),
+        );
+    }
+
+    /**
+     * Get audit log stats (API).
+     *
+     * GET /api/duplicate-check/audit-log/stats?days=30
+     */
+    public function auditLogStats(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        return response()->json(
+            $this->service->getAuditLogStats(isset($validated['days']) ? (int) $validated['days'] : 30),
+        );
+    }
+
+    /**
+     * Download audit logs as CSV.
+     *
+     * GET /api/duplicate-check/audit-log/export
+     */
+    public function exportAuditLogs(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $filters = array_filter($request->only(['action', 'entity_type', 'from', 'to']));
+
+        $csv = $this->service->exportAuditLogsCsv($filters);
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-audit-log-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-audit-log-' . date('Y-m-d') . '.csv"',
+        ]);
     }
 }
