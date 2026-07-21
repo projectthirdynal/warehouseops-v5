@@ -8,6 +8,7 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CustomerIdentity;
+use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\PhoneDetectionService;
@@ -2819,6 +2820,379 @@ class DuplicateDetectionService
         }
 
         return $csv;
+    }
+
+    // ── Cross-Page Duplicate Detection ───────────────────────────────
+
+    /**
+     * Detect cross-page duplicates for a given phone or PSID.
+     *
+     * Finds orders, conversations, or customer identities that span
+     * multiple Facebook pages for the same customer.
+     *
+     * @param array{phone?: string, psid?: string, time_window_hours?: int} $params
+     * @return array<string, mixed>
+     */
+    public function detectCrossPageDuplicates(array $params): array
+    {
+        $results = [
+            'is_duplicate' => false,
+            'phone' => $params['phone'] ?? null,
+            'psid' => $params['psid'] ?? null,
+            'cross_page_orders' => [],
+            'cross_page_conversations' => [],
+            'cross_page_identities' => [],
+            'page_count' => 0,
+            'severity' => 'none',
+        ];
+
+        $pageIds = collect();
+
+        // Cross-page orders by phone
+        if (!empty($params['phone'])) {
+            $normalizedPhone = $this->phones->normalize($params['phone']);
+            $windowHours = $params['time_window_hours'] ?? $this->defaultTimeWindowHours;
+            $cutoff = Carbon::now()->subHours($windowHours);
+
+            $orders = Order::query()
+                ->with(['product:id,name', 'facebookPage:id,page_id,page_name'])
+                ->where('receiver_phone', $normalizedPhone)
+                ->where('created_at', '>=', $cutoff)
+                ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+                ->whereNotNull('facebook_page_id')
+                ->latest()
+                ->limit(50)
+                ->get();
+
+            $ordersByPage = $orders->groupBy('facebook_page_id');
+
+            if ($ordersByPage->count() > 1) {
+                $results['cross_page_orders'] = $ordersByPage->map(function ($pageOrders, $pageId) {
+                    $page = $pageOrders->first()->facebookPage;
+                    return [
+                        'facebook_page_id' => (int) $pageId,
+                        'page_name' => $page?->page_name ?? "Page #{$pageId}",
+                        'order_count' => $pageOrders->count(),
+                        'orders' => $pageOrders->map(fn (Order $o) => [
+                            'order_id' => $o->id,
+                            'order_number' => $o->order_number,
+                            'status' => $o->status->value,
+                            'product_name' => $o->product?->name ?? 'Unknown',
+                            'total_amount' => (float) $o->total_amount,
+                            'created_at' => $o->created_at?->toIso8601String(),
+                            'created_at_formatted' => $o->created_at?->format('M j, Y g:i A'),
+                        ])->values()->toArray(),
+                    ];
+                })->values()->toArray();
+
+                $pageIds = $pageIds->merge($ordersByPage->keys());
+            }
+        }
+
+        // Cross-page conversations by PSID
+        if (!empty($params['psid'])) {
+            $identities = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('provider_user_id', $params['psid'])
+                ->with(['facebookPage:id,page_id,page_name', 'conversations' => function ($q) {
+                    $q->whereIn('status', Conversation::ACTIVE_STATUSES)
+                        ->whereNull('merged_into_id')
+                        ->select('id', 'customer_identity_id', 'status', 'last_message_at', 'last_message_preview', 'created_at');
+                }])
+                ->get();
+
+            $identitiesByPage = $identities->groupBy('facebook_page_id');
+
+            if ($identitiesByPage->count() > 1) {
+                $results['cross_page_conversations'] = $identitiesByPage->map(function ($pageIdentities, $pageId) {
+                    $page = $pageIdentities->first()->facebookPage;
+                    $conversations = $pageIdentities->flatMap->conversations;
+                    return [
+                        'facebook_page_id' => (int) $pageId,
+                        'page_name' => $page?->page_name ?? "Page #{$pageId}",
+                        'conversation_count' => $conversations->count(),
+                        'conversations' => $conversations->map(fn ($conv) => [
+                            'conversation_id' => $conv->id,
+                            'status' => $conv->status,
+                            'last_message_at' => $conv->last_message_at?->toIso8601String(),
+                            'last_message_preview' => $conv->last_message_preview,
+                            'created_at' => $conv->created_at?->toIso8601String(),
+                        ])->values()->toArray(),
+                    ];
+                })->values()->toArray();
+
+                $pageIds = $pageIds->merge($identitiesByPage->keys());
+            }
+
+            $results['cross_page_identities'] = $identities->map(fn ($identity) => [
+                'identity_id' => $identity->id,
+                'facebook_page_id' => $identity->facebook_page_id,
+                'page_name' => $identity->facebookPage?->page_name ?? "Page #{$identity->facebook_page_id}",
+                'display_name' => $identity->display_name,
+                'customer_id' => $identity->customer_id,
+                'phone_detected' => $identity->phone_detected,
+            ])->values()->toArray();
+        }
+
+        $pageCount = $pageIds->unique()->count();
+        $results['page_count'] = $pageCount;
+        $results['is_duplicate'] = $pageCount > 1;
+        $results['severity'] = $this->determineCrossPageSeverity($pageCount);
+
+        return $results;
+    }
+
+    /**
+     * Scan for all cross-page duplicates across the system.
+     *
+     * @param int $limit  Max number of cross-page groups to return
+     * @return array<string, mixed>
+     */
+    public function scanCrossPageDuplicates(int $limit = 100): array
+    {
+        $crossPageGroups = [];
+
+        // 1. Cross-page orders: group by receiver_phone, find phones with orders on multiple pages
+        $cutoff = Carbon::now()->subHours($this->defaultTimeWindowHours);
+
+        $phonePageGroups = Order::query()
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+            ->whereNotNull('facebook_page_id')
+            ->whereNotNull('receiver_phone')
+            ->selectRaw('receiver_phone, COUNT(DISTINCT facebook_page_id) as page_count, COUNT(*) as order_count')
+            ->groupBy('receiver_phone')
+            ->havingRaw('page_count > 1')
+            ->orderByDesc('order_count')
+            ->limit($limit)
+            ->get();
+
+        foreach ($phonePageGroups as $group) {
+            $orders = Order::query()
+                ->with(['product:id,name', 'facebookPage:id,page_id,page_name'])
+                ->where('receiver_phone', $group->receiver_phone)
+                ->where('created_at', '>=', $cutoff)
+                ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+                ->whereNotNull('facebook_page_id')
+                ->latest()
+                ->get();
+
+            $pages = $orders->groupBy('facebook_page_id')->map(fn ($pageOrders, $pageId) => [
+                'facebook_page_id' => (int) $pageId,
+                'page_name' => $pageOrders->first()->facebookPage?->page_name ?? "Page #{$pageId}",
+                'order_count' => $pageOrders->count(),
+                'first_order_at' => $pageOrders->last()?->created_at?->toIso8601String(),
+                'latest_order_at' => $pageOrders->first()?->created_at?->toIso8601String(),
+            ])->values()->toArray();
+
+            $crossPageGroups[] = [
+                'type' => 'order',
+                'key' => $group->receiver_phone,
+                'label' => "Phone: {$group->receiver_phone}",
+                'page_count' => (int) $group->page_count,
+                'order_count' => (int) $group->order_count,
+                'pages' => $pages,
+                'severity' => $this->determineCrossPageSeverity((int) $group->page_count),
+            ];
+        }
+
+        // 2. Cross-page conversations: PSIDs with conversations on multiple pages
+        $psidPageGroups = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('provider_user_id, COUNT(DISTINCT facebook_page_id) as page_count')
+            ->groupBy('provider_user_id')
+            ->havingRaw('page_count > 1')
+            ->orderByDesc('page_count')
+            ->limit($limit)
+            ->get();
+
+        foreach ($psidPageGroups as $group) {
+            $identities = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('provider_user_id', $group->provider_user_id)
+                ->with(['facebookPage:id,page_id,page_name', 'conversations' => function ($q) {
+                    $q->whereIn('status', Conversation::ACTIVE_STATUSES)
+                        ->whereNull('merged_into_id');
+                }])
+                ->get();
+
+            $pages = $identities->groupBy('facebook_page_id')->map(fn ($pageIdentities, $pageId) => [
+                'facebook_page_id' => (int) $pageId,
+                'page_name' => $pageIdentities->first()->facebookPage?->page_name ?? "Page #{$pageId}",
+                'conversation_count' => $pageIdentities->sum(fn ($i) => $i->conversations->count()),
+                'display_name' => $pageIdentities->first()?->display_name,
+            ])->values()->toArray();
+
+            $totalConversations = $identities->sum(fn ($i) => $i->conversations->count());
+
+            if ($totalConversations > 0) {
+                $crossPageGroups[] = [
+                    'type' => 'conversation',
+                    'key' => $group->provider_user_id,
+                    'label' => "PSID: {$group->provider_user_id}",
+                    'page_count' => (int) $group->page_count,
+                    'conversation_count' => $totalConversations,
+                    'pages' => $pages,
+                    'severity' => $this->determineCrossPageSeverity((int) $group->page_count),
+                ];
+            }
+        }
+
+        // 3. Cross-page customers: customers with identities on multiple pages
+        $customerPageGroups = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->whereNotNull('customer_id')
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('customer_id, COUNT(DISTINCT facebook_page_id) as page_count')
+            ->groupBy('customer_id')
+            ->havingRaw('page_count > 1')
+            ->orderByDesc('page_count')
+            ->limit($limit)
+            ->get();
+
+        foreach ($customerPageGroups as $group) {
+            $customer = Customer::find($group->customer_id);
+            if (!$customer) {
+                continue;
+            }
+
+            $identities = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('customer_id', $group->customer_id)
+                ->with('facebookPage:id,page_id,page_name')
+                ->get();
+
+            $pages = $identities->groupBy('facebook_page_id')->map(fn ($pageIdentities, $pageId) => [
+                'facebook_page_id' => (int) $pageId,
+                'page_name' => $pageIdentities->first()->facebookPage?->page_name ?? "Page #{$pageId}",
+                'identity_count' => $pageIdentities->count(),
+            ])->values()->toArray();
+
+            $crossPageGroups[] = [
+                'type' => 'customer',
+                'key' => (string) $group->customer_id,
+                'label' => $customer->name ?? "Customer #{$group->customer_id}",
+                'customer_id' => $group->customer_id,
+                'customer_phone' => $customer->normalized_phone ?? $customer->phone,
+                'page_count' => (int) $group->page_count,
+                'pages' => $pages,
+                'severity' => $this->determineCrossPageSeverity((int) $group->page_count),
+            ];
+        }
+
+        // Sort by page_count desc, then by type
+        usort($crossPageGroups, fn ($a, $b) => $b['page_count'] <=> $a['page_count']);
+
+        return [
+            'total_groups' => count($crossPageGroups),
+            'groups' => array_slice($crossPageGroups, 0, $limit),
+        ];
+    }
+
+    /**
+     * Get cross-page duplicate stats.
+     *
+     * @return array<string, mixed>
+     */
+    public function getCrossPageStats(): array
+    {
+        $cutoff = Carbon::now()->subHours($this->defaultTimeWindowHours);
+
+        // Cross-page order groups
+        $crossPageOrderPhones = Order::query()
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+            ->whereNotNull('facebook_page_id')
+            ->whereNotNull('receiver_phone')
+            ->selectRaw('receiver_phone, COUNT(DISTINCT facebook_page_id) as page_count')
+            ->groupBy('receiver_phone')
+            ->havingRaw('page_count > 1')
+            ->count();
+
+        // Cross-page conversation PSIDs
+        $crossPagePsids = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('provider_user_id, COUNT(DISTINCT facebook_page_id) as page_count')
+            ->groupBy('provider_user_id')
+            ->havingRaw('page_count > 1')
+            ->count();
+
+        // Cross-page customers
+        $crossPageCustomers = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->whereNotNull('customer_id')
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('customer_id, COUNT(DISTINCT facebook_page_id) as page_count')
+            ->groupBy('customer_id')
+            ->havingRaw('page_count > 1')
+            ->count();
+
+        // Total affected pages
+        $affectedPages = FacebookPage::query()
+            ->whereHas('conversations', function ($q) {
+                $q->whereIn('status', Conversation::ACTIVE_STATUSES)
+                    ->whereNull('merged_into_id');
+            })
+            ->orWhereHas('orders', function ($q) use ($cutoff) {
+                $q->where('created_at', '>=', $cutoff)
+                    ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses));
+            })
+            ->count();
+
+        // Top pages by cross-page order volume
+        $topPages = Order::query()
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+            ->whereNotNull('facebook_page_id')
+            ->selectRaw('facebook_page_id, COUNT(*) as order_count, COUNT(DISTINCT receiver_phone) as unique_phones')
+            ->groupBy('facebook_page_id')
+            ->orderByDesc('order_count')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $page = FacebookPage::find($row->facebook_page_id);
+                return [
+                    'facebook_page_id' => $row->facebook_page_id,
+                    'page_name' => $page?->page_name ?? "Page #{$row->facebook_page_id}",
+                    'order_count' => $row->order_count,
+                    'unique_phones' => $row->unique_phones,
+                ];
+            })
+            ->toArray();
+
+        return [
+            'cross_page_order_phones' => $crossPageOrderPhones,
+            'cross_page_psids' => $crossPagePsids,
+            'cross_page_customers' => $crossPageCustomers,
+            'affected_pages' => $affectedPages,
+            'total_pages' => FacebookPage::count(),
+            'top_pages' => $topPages,
+        ];
+    }
+
+    /**
+     * Determine severity for cross-page duplicates based on page count.
+     *
+     * @param int $pageCount
+     * @return string  'none', 'low', 'medium', 'high'
+     */
+    private function determineCrossPageSeverity(int $pageCount): string
+    {
+        if ($pageCount <= 1) {
+            return 'none';
+        }
+
+        if ($pageCount >= 4) {
+            return 'high';
+        }
+
+        if ($pageCount >= 3) {
+            return 'medium';
+        }
+
+        return 'low';
     }
 
     /**

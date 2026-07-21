@@ -1058,4 +1058,87 @@ class DuplicateDetectionController extends Controller
             'Content-Disposition' => 'attachment; filename="duplicate-audit-log-' . date('Y-m-d') . '.csv"',
         ]);
     }
+
+    // ── Cross-Page Duplicate Detection ───────────────────────────────
+
+    /**
+     * Render the cross-page duplicate detection page.
+     *
+     * GET /shop/duplicate-review/cross-page
+     */
+    public function crossPagePage(Request $request): Response
+    {
+        $result = $this->service->scanCrossPageDuplicates(
+            (int) ($request->query('limit', '100')),
+        );
+        $stats = $this->service->getCrossPageStats();
+
+        return Inertia::render('DuplicateReview/CrossPage', [
+            'groups' => $result['groups'],
+            'totalGroups' => $result['total_groups'],
+            'stats' => $stats,
+        ]);
+    }
+
+    /**
+     * Detect cross-page duplicates for a specific phone or PSID.
+     *
+     * GET /api/duplicate-check/cross-page/detect?phone=...&psid=...
+     */
+    public function detectCrossPage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => 'nullable|string|max:30',
+            'psid' => 'nullable|string|max:100',
+            'time_window_hours' => 'nullable|integer|min:1|max:720',
+        ]);
+
+        if (empty($validated['phone']) && empty($validated['psid'])) {
+            return response()->json(['error' => 'Either phone or psid is required.'], 422);
+        }
+
+        return response()->json(
+            $this->service->detectCrossPageDuplicates($validated),
+        );
+    }
+
+    /**
+     * Scan for all cross-page duplicates.
+     *
+     * POST /api/duplicate-check/cross-page/scan
+     */
+    public function scanCrossPage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        $result = $this->service->scanCrossPageDuplicates(
+            isset($validated['limit']) ? (int) $validated['limit'] : 100,
+        );
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'scan',
+            'entity_type' => 'cross_page',
+            'after_state' => $result,
+            'note' => 'Cross-page duplicate scan triggered',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Get cross-page duplicate stats.
+     *
+     * GET /api/duplicate-check/cross-page/stats
+     */
+    public function crossPageStats(): JsonResponse
+    {
+        return response()->json(
+            $this->service->getCrossPageStats(),
+        );
+    }
 }
