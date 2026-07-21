@@ -169,6 +169,8 @@ interface Props {
     category?: string | null;
     body: string;
     variables?: string[];
+    shortcut?: string | null;
+    source?: 'shop' | 'reply_templates';
   }[];
   agents: { id: number; name: string; role: string }[];
   user_role?: string;
@@ -589,6 +591,17 @@ export default function ShopConversation({
     variables?: string[];
   } | null>(null);
   const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [shortcutMatches, setShortcutMatches] = useState<
+    {
+      id: number;
+      name: string;
+      body: string;
+      shortcut: string;
+      source: string;
+      variables?: string[];
+    }[]
+  >([]);
+  const [showShortcutDropdown, setShowShortcutDropdown] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -887,7 +900,12 @@ export default function ShopConversation({
     name: string;
     body: string;
     variables?: string[];
+    shortcut?: string | null;
+    source?: string;
   }) => {
+    if (template.source === 'reply_templates') {
+      axiosWithCsrf.post(`/api/reply-templates/${template.id}/use`).catch(() => {});
+    }
     if (!template.variables || template.variables.length === 0) {
       setData('body', template.body);
       setSelectedTemplate(null);
@@ -895,6 +913,48 @@ export default function ShopConversation({
     }
     setSelectedTemplate(template);
     setTemplateVars(template.variables.reduce((acc, v) => ({ ...acc, [v]: '' }), {}));
+  };
+
+  const insertByShortcut = (template: {
+    id: number;
+    name: string;
+    body: string;
+    shortcut: string;
+    source: string;
+    variables?: string[];
+  }) => {
+    insertTemplate(template);
+    // Remove the /shortcut text from the textarea
+    const currentBody = data.body;
+    const slashIdx = currentBody.lastIndexOf('/');
+    if (slashIdx >= 0) {
+      setData('body', currentBody.substring(0, slashIdx));
+    }
+    setShowShortcutDropdown(false);
+    setShortcutMatches([]);
+  };
+
+  const detectShortcut = (text: string) => {
+    const lastWordMatch = text.match(/\/(\w*)$/);
+    if (!lastWordMatch) {
+      setShowShortcutDropdown(false);
+      setShortcutMatches([]);
+      return;
+    }
+    const query = lastWordMatch[1].toLowerCase();
+    const matches = saved_templates
+      .filter((t) => t.shortcut && t.shortcut.toLowerCase().startsWith(query))
+      .slice(0, 5)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        body: t.body,
+        shortcut: t.shortcut!,
+        source: t.source ?? 'shop',
+        variables: t.variables,
+      }));
+    setShortcutMatches(matches);
+    setShowShortcutDropdown(matches.length > 0);
   };
 
   const confirmInsertTemplate = () => {
@@ -1241,9 +1301,17 @@ export default function ShopConversation({
 
               {saved_templates.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Saved Templates
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Saved Templates
+                    </p>
+                    <Link
+                      href="/shop/reply-templates"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Manage →
+                    </Link>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="relative flex-1 min-w-[160px]">
                       <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1294,6 +1362,11 @@ export default function ShopConversation({
                           className="gap-1.5"
                         >
                           {template.name}
+                          {template.shortcut && (
+                            <span className="rounded bg-muted-foreground/20 px-1 font-mono text-[10px]">
+                              /{template.shortcut}
+                            </span>
+                          )}
                           {template.variables && template.variables.length > 0 && (
                             <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">
                               {template.variables.length} var
@@ -1821,30 +1894,59 @@ export default function ShopConversation({
               )}
 
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
-                <Textarea
-                  value={data.body}
-                  onChange={(event) => {
-                    setData('body', event.target.value);
-                    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-                    setDraftSaved(false);
-                    if (conversation?.id) {
-                      draftTimerRef.current = setTimeout(() => {
-                        axiosWithCsrf
-                          .post(`/shop/inbox/${conversation.id}/draft`, {
-                            draft_body: event.target.value,
-                          })
-                          .then(() => setDraftSaved(true))
-                          .catch(() => {});
-                      }, 1000);
-                    }
-                  }}
-                  onFocus={() => {
-                    if (conversation?.id) {
-                      axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
-                    }
-                  }}
-                  placeholder="Type a reply..."
-                />
+                <div className="relative">
+                  <Textarea
+                    value={data.body}
+                    onChange={(event) => {
+                      setData('body', event.target.value);
+                      detectShortcut(event.target.value);
+                      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+                      setDraftSaved(false);
+                      if (conversation?.id) {
+                        draftTimerRef.current = setTimeout(() => {
+                          axiosWithCsrf
+                            .post(`/shop/inbox/${conversation.id}/draft`, {
+                              draft_body: event.target.value,
+                            })
+                            .then(() => setDraftSaved(true))
+                            .catch(() => {});
+                        }, 1000);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (conversation?.id) {
+                        axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowShortcutDropdown(false), 200);
+                    }}
+                    placeholder="Type a reply... (type / for template shortcuts)"
+                  />
+                  {showShortcutDropdown && shortcutMatches.length > 0 && (
+                    <div className="absolute bottom-full left-0 z-20 mb-1 w-72 rounded-md border bg-popover shadow-md">
+                      {shortcutMatches.map((match) => (
+                        <button
+                          key={match.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            insertByShortcut(match);
+                          }}
+                          className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-xs last:border-b-0 hover:bg-muted/50"
+                        >
+                          <span className="font-mono text-muted-foreground">/{match.shortcut}</span>
+                          <span className="flex-1 truncate font-medium">{match.name}</span>
+                          {match.source === 'reply_templates' && (
+                            <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">
+                              New
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {draftSaved && <p className="text-xs text-muted-foreground">Draft saved</p>}
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
 

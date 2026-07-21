@@ -50,6 +50,7 @@ use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\AgentProfile;
+use App\Models\ReplyTemplate;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\RemarkMentionedNotification;
@@ -6903,30 +6904,60 @@ class ShopController extends Controller
 
     private function savedTemplatesForConversation(Conversation $conversation): array
     {
-        if (! Schema::hasTable('shop_reply_templates')) {
-            return [];
+        $pageId = $conversation->facebook_page_id;
+        $templates = [];
+
+        // Existing shop_reply_templates
+        if (Schema::hasTable('shop_reply_templates')) {
+            $templates = ShopReplyTemplate::query()
+                ->where('is_active', true)
+                ->where(function ($q) use ($pageId) {
+                    $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+                })
+                ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
+                ->map(fn (ShopReplyTemplate $template) => [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'category' => $template->category,
+                    'body' => $this->renderReplyTemplate($template->message, $conversation),
+                    'variables' => $template->variables ?? [],
+                    'is_page_specific' => $template->facebook_page_id !== null,
+                    'shortcut' => null,
+                    'source' => 'shop',
+                ])
+                ->all();
         }
 
-        $pageId = $conversation->facebook_page_id;
+        // New reply_templates table
+        if (Schema::hasTable('reply_templates')) {
+            $newTemplates = ReplyTemplate::query()
+                ->where('is_active', true)
+                ->where(function ($q) use ($pageId) {
+                    $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+                })
+                ->orderByDesc('usage_count')
+                ->orderBy('title')
+                ->limit(50)
+                ->get(['id', 'title', 'content', 'shortcut', 'facebook_page_id', 'usage_count'])
+                ->map(fn (ReplyTemplate $template) => [
+                    'id' => $template->id,
+                    'name' => $template->title,
+                    'category' => null,
+                    'body' => $this->renderReplyTemplate($template->content, $conversation),
+                    'variables' => [],
+                    'is_page_specific' => $template->facebook_page_id !== null,
+                    'shortcut' => $template->shortcut,
+                    'source' => 'reply_templates',
+                ])
+                ->all();
 
-        return ShopReplyTemplate::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($pageId) {
-                $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
-            })
-            ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
-            ->map(fn (ShopReplyTemplate $template) => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'category' => $template->category,
-                'body' => $this->renderReplyTemplate($template->message, $conversation),
-                'variables' => $template->variables ?? [],
-                'is_page_specific' => $template->facebook_page_id !== null,
-            ])
-            ->all();
+            $templates = array_merge($templates, $newTemplates);
+        }
+
+        return $templates;
     }
 
     private function renderReplyTemplate(string $message, Conversation $conversation): string
