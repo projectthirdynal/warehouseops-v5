@@ -1558,4 +1558,121 @@ class SalesDashboardService
             'anomalies' => $anomalies,
         ];
     }
+
+    /**
+     * Available widget catalog for the sales dashboard.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function availableWidgets(): array
+    {
+        return [
+            ['key' => 'order_counts', 'label' => 'Order Counts', 'description' => 'Daily/weekly/monthly order counts', 'category' => 'overview', 'default_visible' => true, 'default_order' => 1],
+            ['key' => 'revenue_totals', 'label' => 'Revenue Totals', 'description' => 'Gross and net revenue by period', 'category' => 'overview', 'default_visible' => true, 'default_order' => 2],
+            ['key' => 'status_breakdown', 'label' => 'Order Status Breakdown', 'description' => 'Orders grouped by status', 'category' => 'overview', 'default_visible' => true, 'default_order' => 3],
+            ['key' => 'top_products', 'label' => 'Top Products', 'description' => 'Best-selling products by quantity', 'category' => 'products', 'default_visible' => true, 'default_order' => 4],
+            ['key' => 'sales_trends', 'label' => 'Sales Trends', 'description' => 'Order and revenue trends with moving averages', 'category' => 'trends', 'default_visible' => true, 'default_order' => 5],
+            ['key' => 'revenue_by_source', 'label' => 'Revenue by Source', 'description' => 'Revenue breakdown by page and channel', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 6],
+            ['key' => 'revenue_by_payment_method', 'label' => 'Revenue by Payment Method', 'description' => 'Revenue breakdown by COD, cash, GCash, card', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 7],
+            ['key' => 'agent_leaderboard', 'label' => 'Agent Leaderboard', 'description' => 'Top agents by orders and revenue', 'category' => 'agents', 'default_visible' => true, 'default_order' => 8],
+            ['key' => 'cohort_retention', 'label' => 'Cohort Retention', 'description' => 'Customer retention by first-order month', 'category' => 'customers', 'default_visible' => false, 'default_order' => 9],
+            ['key' => 'average_order_value', 'label' => 'Average Order Value', 'description' => 'AOV with distribution and median', 'category' => 'revenue', 'default_visible' => false, 'default_order' => 10],
+            ['key' => 'return_refund_rate', 'label' => 'Return/Refund Rate', 'description' => 'Return and cancellation rates', 'category' => 'overview', 'default_visible' => false, 'default_order' => 11],
+            ['key' => 'predictive_insights', 'label' => 'Predictive Insights', 'description' => 'Revenue forecasts and anomaly detection', 'category' => 'trends', 'default_visible' => false, 'default_order' => 12],
+        ];
+    }
+
+    /**
+     * Get the user's dashboard widget configuration.
+     *
+     * @param int $userId
+     * @param string $dashboard
+     * @return array<string, mixed>
+     */
+    public function getWidgetConfig(int $userId, string $dashboard = 'sales'): array
+    {
+        $configs = \App\Models\DashboardWidgetConfig::where('user_id', $userId)
+            ->where('dashboard', $dashboard)
+            ->get()
+            ->keyBy('widget_key');
+
+        $available = self::availableWidgets();
+        $widgets = [];
+
+        foreach ($available as $widget) {
+            $config = $configs->get($widget['key']);
+            $widgets[] = [
+                'key' => $widget['key'],
+                'label' => $widget['label'],
+                'description' => $widget['description'],
+                'category' => $widget['category'],
+                'is_visible' => $config?->is_visible ?? $widget['default_visible'],
+                'sort_order' => $config?->sort_order ?? $widget['default_order'],
+                'settings' => $config?->settings ?? [],
+            ];
+        }
+
+        usort($widgets, fn ($a, $b) => $a['sort_order'] <=> $b['sort_order']);
+
+        $visible = array_values(array_filter($widgets, fn ($w) => $w['is_visible']));
+        $hidden = array_values(array_filter($widgets, fn ($w) => !$w['is_visible']));
+
+        return [
+            'widgets' => $widgets,
+            'visible_widgets' => $visible,
+            'hidden_widgets' => $hidden,
+            'dashboard' => $dashboard,
+        ];
+    }
+
+    /**
+     * Save the user's dashboard widget configuration.
+     *
+     * @param int $userId
+     * @param array $widgetConfigs  Array of ['key' => ..., 'is_visible' => ..., 'sort_order' => ..., 'settings' => ...]
+     * @param string $dashboard
+     * @return array<string, mixed>
+     */
+    public function saveWidgetConfig(int $userId, array $widgetConfigs, string $dashboard = 'sales'): array
+    {
+        $availableKeys = array_column(self::availableWidgets(), 'key');
+
+        foreach ($widgetConfigs as $config) {
+            $key = $config['key'] ?? null;
+            if (!$key || !in_array($key, $availableKeys)) {
+                continue;
+            }
+
+            \App\Models\DashboardWidgetConfig::updateOrCreate(
+                [
+                    'user_id' => $userId,
+                    'dashboard' => $dashboard,
+                    'widget_key' => $key,
+                ],
+                [
+                    'is_visible' => $config['is_visible'] ?? true,
+                    'sort_order' => $config['sort_order'] ?? 0,
+                    'settings' => $config['settings'] ?? null,
+                ]
+            );
+        }
+
+        return $this->getWidgetConfig($userId, $dashboard);
+    }
+
+    /**
+     * Reset the user's dashboard widget configuration to defaults.
+     *
+     * @param int $userId
+     * @param string $dashboard
+     * @return array<string, mixed>
+     */
+    public function resetWidgetConfig(int $userId, string $dashboard = 'sales'): array
+    {
+        \App\Models\DashboardWidgetConfig::where('user_id', $userId)
+            ->where('dashboard', $dashboard)
+            ->delete();
+
+        return $this->getWidgetConfig($userId, $dashboard);
+    }
 }

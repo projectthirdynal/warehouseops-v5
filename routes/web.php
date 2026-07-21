@@ -324,6 +324,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/sales-dashboard/sales-report', [SalesDashboardController::class, 'apiSalesReport'])->name('sales-dashboard.sales-report');
     Route::get('/api/sales-dashboard/sales-report/download', [SalesDashboardController::class, 'downloadSalesReport'])->name('sales-dashboard.sales-report.download');
     Route::get('/api/sales-dashboard/predictive-insights', [SalesDashboardController::class, 'apiPredictiveInsights'])->name('sales-dashboard.predictive-insights');
+    Route::get('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiWidgetConfig'])->name('sales-dashboard.widgets');
+    Route::post('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiSaveWidgetConfig'])->name('sales-dashboard.widgets.save');
+    Route::post('/api/sales-dashboard/widgets/reset', [SalesDashboardController::class, 'apiResetWidgetConfig'])->name('sales-dashboard.widgets.reset');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');

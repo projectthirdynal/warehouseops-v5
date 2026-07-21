@@ -32,6 +32,7 @@ class SalesDashboardController extends Controller
             'averageOrderValue' => $this->service->averageOrderValue(),
             'returnRefundRate' => $this->service->returnRefundRate(),
             'predictiveInsights' => $this->service->predictiveSalesInsights(),
+            'widgetConfig' => $this->service->getWidgetConfig(auth()->id() ?? 0),
         ]);
     }
 
@@ -156,6 +157,31 @@ class SalesDashboardController extends Controller
         $forecastDays = (int) request()->query('forecast_days', 30);
         return response()->json([
             'predictive_insights' => $this->service->predictiveSalesInsights($forecastDays),
+        ]);
+    }
+
+    public function apiWidgetConfig(): JsonResponse
+    {
+        $dashboard = (string) request()->query('dashboard', 'sales');
+        return response()->json([
+            'widget_config' => $this->service->getWidgetConfig(auth()->id() ?? 0, $dashboard),
+        ]);
+    }
+
+    public function apiSaveWidgetConfig(): JsonResponse
+    {
+        $dashboard = (string) request()->input('dashboard', 'sales');
+        $widgets = request()->input('widgets', []);
+        return response()->json([
+            'widget_config' => $this->service->saveWidgetConfig(auth()->id() ?? 0, $widgets, $dashboard),
+        ]);
+    }
+
+    public function apiResetWidgetConfig(): JsonResponse
+    {
+        $dashboard = (string) request()->query('dashboard', 'sales');
+        return response()->json([
+            'widget_config' => $this->service->resetWidgetConfig(auth()->id() ?? 0, $dashboard),
         ]);
     }
 }
