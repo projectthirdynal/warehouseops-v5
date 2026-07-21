@@ -10,6 +10,7 @@ use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CustomerIdentity;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\PhoneDetectionService;
+use App\Models\Customer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -333,6 +334,227 @@ class DuplicateDetectionService
         }
 
         return 'low';
+    }
+
+    /**
+     * Detect duplicate customer records by phone, PSID, or name similarity.
+     *
+     * @param int      $customerId    The primary customer to check against
+     * @param array    $methods       Detection methods: 'phone', 'psid', 'name'
+     * @return array<string, mixed>
+     */
+    public function detectDuplicateCustomers(int $customerId, array $methods = ['phone', 'psid', 'name']): array
+    {
+        $customer = Customer::find($customerId);
+
+        if (!$customer) {
+            return [
+                'is_duplicate' => false,
+                'customer_id' => $customerId,
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        $duplicateIds = collect();
+
+        // Match by normalized phone
+        if (in_array('phone', $methods, true) && $customer->normalized_phone) {
+            $phoneMatches = Customer::query()
+                ->where('normalized_phone', $customer->normalized_phone)
+                ->whereKeyNot($customer->id)
+                ->pluck('id');
+            $duplicateIds = $duplicateIds->merge($phoneMatches);
+        }
+
+        // Match by PSID (via customer_identities)
+        if (in_array('psid', $methods, true)) {
+            $psids = CustomerIdentity::query()
+                ->where('customer_id', $customer->id)
+                ->where('provider', 'facebook')
+                ->pluck('provider_user_id');
+
+            if ($psids->isNotEmpty()) {
+                $psidCustomerIds = CustomerIdentity::query()
+                    ->whereIn('provider_user_id', $psids->all())
+                    ->where('customer_id', '!=', $customer->id)
+                    ->whereNotNull('customer_id')
+                    ->pluck('customer_id')
+                    ->unique();
+                $duplicateIds = $duplicateIds->merge($psidCustomerIds);
+            }
+        }
+
+        // Match by name (case-insensitive exact match on facebook_name or name)
+        if (in_array('name', $methods, true) && ($customer->name || $customer->facebook_name)) {
+            $nameQuery = Customer::query()->whereKeyNot($customer->id);
+            $nameQuery->where(function ($q) use ($customer) {
+                if ($customer->name) {
+                    $q->whereRaw('LOWER(name) = ?', [strtolower($customer->name)]);
+                }
+                if ($customer->facebook_name) {
+                    $q->orWhereRaw('LOWER(facebook_name) = ?', [strtolower($customer->facebook_name)]);
+                }
+            });
+            $nameMatches = $nameQuery->pluck('id');
+            $duplicateIds = $duplicateIds->merge($nameMatches);
+        }
+
+        $duplicateIds = $duplicateIds->unique()->values();
+
+        if ($duplicateIds->isEmpty()) {
+            return [
+                'is_duplicate' => false,
+                'customer_id' => $customerId,
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        $duplicates = Customer::query()
+            ->whereIn('id', $duplicateIds->all())
+            ->withCount(['orders as orders_count'])
+            ->orderByDesc('total_orders')
+            ->get()
+            ->map(function (Customer $dup) use ($customer) {
+                $matchReasons = [];
+                if ($customer->normalized_phone && $dup->normalized_phone === $customer->normalized_phone) {
+                    $matchReasons[] = 'phone';
+                }
+
+                $sharedPsids = CustomerIdentity::query()
+                    ->whereIn('customer_id', [$customer->id, $dup->id])
+                    ->where('provider', 'facebook')
+                    ->selectRaw('provider_user_id, COUNT(DISTINCT customer_id) as cust_count')
+                    ->groupBy('provider_user_id')
+                    ->havingRaw('cust_count > 1')
+                    ->pluck('provider_user_id');
+                if ($sharedPsids->isNotEmpty()) {
+                    $matchReasons[] = 'psid';
+                }
+
+                if (
+                    ($customer->name && $dup->name && strtolower($customer->name) === strtolower($dup->name))
+                    || ($customer->facebook_name && $dup->facebook_name
+                        && strtolower($customer->facebook_name) === strtolower($dup->facebook_name))
+                ) {
+                    $matchReasons[] = 'name';
+                }
+
+                return [
+                    'id' => $dup->id,
+                    'name' => $dup->name,
+                    'facebook_name' => $dup->facebook_name,
+                    'phone' => $dup->phone,
+                    'normalized_phone' => $dup->normalized_phone,
+                    'total_orders' => (int) ($dup->total_orders ?? 0),
+                    'successful_orders' => (int) ($dup->successful_orders ?? 0),
+                    'returned_orders' => (int) ($dup->returned_orders ?? 0),
+                    'total_revenue' => (float) ($dup->total_revenue ?? 0),
+                    'risk_level' => $dup->risk_level ?? 'LOW',
+                    'is_blacklisted' => (bool) $dup->is_blacklisted,
+                    'created_at' => $dup->created_at?->toIso8601String(),
+                    'created_at_formatted' => $dup->created_at?->format('M j, Y'),
+                    'orders_count' => $dup->orders_count ?? 0,
+                    'match_reasons' => $matchReasons,
+                ];
+            })->values();
+
+        $count = $duplicates->count();
+
+        return [
+            'is_duplicate' => $count > 0,
+            'customer_id' => $customerId,
+            'duplicate_count' => $count,
+            'duplicates' => $duplicates->toArray(),
+            'severity' => $this->determineConversationSeverity($count),
+        ];
+    }
+
+    /**
+     * Preview what will happen when merging $source into $target.
+     *
+     * @param int $targetId
+     * @param int $sourceId
+     * @return array<string, mixed>
+     */
+    public function previewMerge(int $targetId, int $sourceId): array
+    {
+        $target = Customer::find($targetId);
+        $source = Customer::find($sourceId);
+
+        if (!$target || !$source || $targetId === $sourceId) {
+            return [
+                'can_merge' => false,
+                'reason' => 'Invalid customer IDs or same customer.',
+            ];
+        }
+
+        $ordersCount = Order::query()->where('customer_id', $sourceId)->count();
+        $conversationsCount = Conversation::query()->where('customer_id', $sourceId)->count();
+        $identitiesCount = CustomerIdentity::query()->where('customer_id', $sourceId)->count();
+
+        $addressCount = \DB::table('customer_addresses')->where('customer_id', $sourceId)->count();
+        $notesCount = \DB::table('customer_notes')->where('customer_id', $sourceId)->count();
+        $leadsCount = \DB::table('leads')->where('customer_id', $sourceId)->count();
+
+        $totalRecords = $ordersCount + $conversationsCount + $identitiesCount + $addressCount + $notesCount + $leadsCount;
+
+        // Determine which fields will be filled from source
+        $filledFields = [];
+        foreach (['phone', 'facebook_name', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region'] as $field) {
+            if (empty($target->{$field}) && !empty($source->{$field})) {
+                $filledFields[] = $field;
+            }
+        }
+
+        // Risk level will change?
+        $riskOrder = ['LOW' => 0, 'MEDIUM' => 1, 'HIGH' => 2, 'BLACKLISTED' => 3];
+        $riskWillChange = ($riskOrder[$source->risk_level ?? 'LOW'] ?? 0) > ($riskOrder[$target->risk_level ?? 'LOW'] ?? 0);
+
+        return [
+            'can_merge' => true,
+            'target' => [
+                'id' => $target->id,
+                'name' => $target->name,
+                'phone' => $target->phone,
+                'normalized_phone' => $target->normalized_phone,
+                'total_orders' => (int) ($target->total_orders ?? 0),
+                'total_revenue' => (float) ($target->total_revenue ?? 0),
+                'risk_level' => $target->risk_level ?? 'LOW',
+                'is_blacklisted' => (bool) $target->is_blacklisted,
+            ],
+            'source' => [
+                'id' => $source->id,
+                'name' => $source->name,
+                'phone' => $source->phone,
+                'normalized_phone' => $source->normalized_phone,
+                'total_orders' => (int) ($source->total_orders ?? 0),
+                'total_revenue' => (float) ($source->total_revenue ?? 0),
+                'risk_level' => $source->risk_level ?? 'LOW',
+                'is_blacklisted' => (bool) $source->is_blacklisted,
+            ],
+            'transfer_summary' => [
+                'orders' => $ordersCount,
+                'conversations' => $conversationsCount,
+                'identities' => $identitiesCount,
+                'addresses' => $addressCount,
+                'notes' => $notesCount,
+                'leads' => $leadsCount,
+                'total_records' => $totalRecords,
+            ],
+            'merged_stats' => [
+                'total_orders' => (int) ($target->total_orders ?? 0) + (int) ($source->total_orders ?? 0),
+                'successful_orders' => (int) ($target->successful_orders ?? 0) + (int) ($source->successful_orders ?? 0),
+                'returned_orders' => (int) ($target->returned_orders ?? 0) + (int) ($source->returned_orders ?? 0),
+                'total_revenue' => (float) ($target->total_revenue ?? 0) + (float) ($source->total_revenue ?? 0),
+            ],
+            'filled_fields' => $filledFields,
+            'risk_will_change' => $riskWillChange,
+            'new_risk_level' => $riskWillChange ? $source->risk_level : $target->risk_level,
+        ];
     }
 
     /**

@@ -122,6 +122,55 @@ interface CustomerMergeSuggestion {
   returned_orders: number;
   risk_level: string;
   created_at: string;
+  facebook_name?: string | null;
+  normalized_phone?: string | null;
+  total_revenue?: number;
+  is_blacklisted?: boolean;
+  orders_count?: number;
+  match_reasons?: string[];
+}
+
+interface MergePreview {
+  can_merge: boolean;
+  reason?: string;
+  target?: {
+    id: number;
+    name: string;
+    phone: string;
+    normalized_phone: string;
+    total_orders: number;
+    total_revenue: number;
+    risk_level: string;
+    is_blacklisted: boolean;
+  };
+  source?: {
+    id: number;
+    name: string;
+    phone: string;
+    normalized_phone: string;
+    total_orders: number;
+    total_revenue: number;
+    risk_level: string;
+    is_blacklisted: boolean;
+  };
+  transfer_summary?: {
+    orders: number;
+    conversations: number;
+    identities: number;
+    addresses: number;
+    notes: number;
+    leads: number;
+    total_records: number;
+  };
+  merged_stats?: {
+    total_orders: number;
+    successful_orders: number;
+    returned_orders: number;
+    total_revenue: number;
+  };
+  filled_fields?: string[];
+  risk_will_change?: boolean;
+  new_risk_level?: string;
 }
 
 interface CustomerNoteSummary {
@@ -354,7 +403,9 @@ export default function CreateShopOrder({
   const [customerTagInput, setCustomerTagInput] = useState('');
   const [savingCustomerTags, setSavingCustomerTags] = useState(false);
   const [mergeSuggestions, setMergeSuggestions] = useState<CustomerMergeSuggestion[]>([]);
-  const [mergingCustomerId, setMergingCustomerId] = useState<number | null>(null);
+  const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
+  const [mergeExecuting, setMergeExecuting] = useState(false);
   const [commPreferences, setCommPreferences] = useState({
     preferred_courier: '',
     payment_method: '',
@@ -488,23 +539,34 @@ export default function CreateShopOrder({
       .catch(() => setMergeSuggestions([]));
   }, [data.customer_id]);
 
-  const mergeCustomerSuggestion = async (source: CustomerMergeSuggestion) => {
-    if (
-      !data.customer_id ||
-      !window.confirm(
-        `Merge ${source.name} (${source.phone}) into this customer? This moves its orders and records, then archives the duplicate profile.`
-      )
-    ) {
-      return;
-    }
-
-    setMergingCustomerId(source.id);
+  const executeMerge = async () => {
+    if (!data.customer_id || !mergePreview?.source || !mergePreview.can_merge) return;
+    setMergeExecuting(true);
     try {
-      await axios.post(`/shop/customers/${data.customer_id}/merge-suggestions/${source.id}`);
-      setMergeSuggestions((suggestions) => suggestions.filter((item) => item.id !== source.id));
+      await axios.post('/api/duplicate-check/merge', {
+        target_id: data.customer_id,
+        source_id: mergePreview.source.id,
+      });
+      setMergeSuggestions((s) => s.filter((item) => item.id !== mergePreview.source!.id));
+      setMergePreview(null);
     } finally {
-      setMergingCustomerId(null);
+      setMergeExecuting(false);
     }
+  };
+
+  const openMergeModal = (source: CustomerMergeSuggestion) => {
+    setMergePreview(null);
+    setMergePreviewLoading(true);
+    fetch(
+      `/api/duplicate-check/merge-preview?target_id=${data.customer_id}&source_id=${source.id}`,
+      {
+        headers: { Accept: 'application/json' },
+      }
+    )
+      .then((res) => res.json())
+      .then((data: MergePreview) => setMergePreview(data))
+      .catch(() => setMergePreview({ can_merge: false, reason: 'Failed to load merge preview.' }))
+      .finally(() => setMergePreviewLoading(false));
   };
 
   const addCustomerNote = async () => {
@@ -1482,15 +1544,26 @@ export default function CreateShopOrder({
                           {suggestion.phone} · {suggestion.total_orders} orders ·{' '}
                           {suggestion.risk_level}
                         </p>
+                        {suggestion.match_reasons && suggestion.match_reasons.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {suggestion.match_reasons.map((reason) => (
+                              <span
+                                key={reason}
+                                className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase"
+                              >
+                                {reason}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={mergingCustomerId === suggestion.id}
-                        onClick={() => mergeCustomerSuggestion(suggestion)}
+                        onClick={() => openMergeModal(suggestion)}
                       >
-                        {mergingCustomerId === suggestion.id ? 'Merging…' : 'Merge'}
+                        Review & Merge
                       </Button>
                     </div>
                   ))}
@@ -2757,6 +2830,166 @@ export default function CreateShopOrder({
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {mergePreview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !mergeExecuting && setMergePreview(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Merge Customer Records
+              </h2>
+              <button
+                type="button"
+                onClick={() => !mergeExecuting && setMergePreview(null)}
+                disabled={mergeExecuting}
+              >
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {mergePreviewLoading ? (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                Loading merge preview…
+              </div>
+            ) : !mergePreview.can_merge ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                <p className="font-medium text-destructive">Cannot merge</p>
+                <p className="mt-1 text-muted-foreground">{mergePreview.reason}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                    <p className="mb-1 text-xs font-medium text-primary">Keep (Target)</p>
+                    <p className="text-sm font-medium">{mergePreview.target?.name}</p>
+                    <p className="text-xs text-muted-foreground">{mergePreview.target?.phone}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {mergePreview.target?.total_orders} orders ·{' '}
+                      {money(mergePreview.target?.total_revenue ?? 0)}
+                    </p>
+                    {mergePreview.target?.is_blacklisted && (
+                      <Badge variant="destructive" className="mt-1 text-[10px]">
+                        Blacklisted
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                    <p className="mb-1 text-xs font-medium text-warning">Merge (Source)</p>
+                    <p className="text-sm font-medium">{mergePreview.source?.name}</p>
+                    <p className="text-xs text-muted-foreground">{mergePreview.source?.phone}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {mergePreview.source?.total_orders} orders ·{' '}
+                      {money(mergePreview.source?.total_revenue ?? 0)}
+                    </p>
+                    {mergePreview.source?.is_blacklisted && (
+                      <Badge variant="destructive" className="mt-1 text-[10px]">
+                        Blacklisted
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {mergePreview.transfer_summary && (
+                  <div className="rounded-md border p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      Records to transfer from source:
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.orders}</p>
+                        <p className="text-[10px] text-muted-foreground">Orders</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.conversations}</p>
+                        <p className="text-[10px] text-muted-foreground">Conversations</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.identities}</p>
+                        <p className="text-[10px] text-muted-foreground">Identities</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.addresses}</p>
+                        <p className="text-[10px] text-muted-foreground">Addresses</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.notes}</p>
+                        <p className="text-[10px] text-muted-foreground">Notes</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.leads}</p>
+                        <p className="text-[10px] text-muted-foreground">Leads</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.merged_stats && (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Merged result:</p>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total orders</span>
+                      <span className="font-medium">{mergePreview.merged_stats.total_orders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total revenue</span>
+                      <span className="font-medium">
+                        {money(mergePreview.merged_stats.total_revenue)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.filled_fields && mergePreview.filled_fields.length > 0 && (
+                  <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs">
+                    <p className="font-medium">Fields to fill from source:</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {mergePreview.filled_fields.map((f) => (
+                        <span key={f} className="rounded bg-muted px-1.5 py-0.5">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.risk_will_change && (
+                  <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+                    <span className="text-muted-foreground">
+                      Risk level will change to{' '}
+                      <span className="font-medium text-destructive">
+                        {mergePreview.new_risk_level}
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setMergePreview(null)}
+                    disabled={mergeExecuting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={executeMerge} disabled={mergeExecuting}>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    {mergeExecuting ? 'Merging…' : 'Confirm Merge'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
