@@ -9,6 +9,8 @@ use App\Domain\Shop\Services\CustomerMergeService;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Inertia\Response;
+use Inertia\Inertia;
 
 class DuplicateDetectionController extends Controller
 {
@@ -196,5 +198,101 @@ class DuplicateDetectionController extends Controller
                 'risk_level' => $merged->risk_level ?? 'LOW',
             ],
         ]);
+    }
+
+    /**
+     * Render the duplicate review queue page.
+     *
+     * GET /shop/duplicate-review
+     */
+    public function reviewQueuePage(Request $request): Response
+    {
+        $filters = array_filter($request->only(['type', 'status', 'severity', 'per_page']));
+        $queue = $this->service->getReviewQueue($filters);
+        $stats = $this->service->getReviewQueueStats();
+
+        return Inertia::render('DuplicateReview/Index', [
+            'queue' => $queue['items'],
+            'meta' => $queue['meta'],
+            'stats' => $stats,
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Trigger a scan for duplicates and populate the review queue.
+     *
+     * POST /api/duplicate-check/scan
+     */
+    public function scanQueue(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => 'nullable|integer|min:1|max:200',
+        ]);
+
+        $result = $this->service->scanForReviewQueue(
+            isset($validated['limit']) ? (int) $validated['limit'] : 50,
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * Get review queue items (API).
+     *
+     * GET /api/duplicate-check/review-queue
+     */
+    public function listQueue(Request $request): JsonResponse
+    {
+        $filters = array_filter($request->only(['type', 'status', 'severity', 'per_page']));
+
+        $result = $this->service->getReviewQueue($filters);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Resolve a review queue item.
+     *
+     * POST /api/duplicate-check/review-queue/{id}/resolve
+     */
+    public function resolveQueueItem(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:reviewed,dismissed,actioned',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        $item = $this->service->resolveReviewItem(
+            $id,
+            $validated['status'],
+            $request->user()->id,
+            $validated['note'] ?? null,
+        );
+
+        if (!$item) {
+            return response()->json(['error' => 'Review item not found.'], 404);
+        }
+
+        return response()->json([
+            'item' => [
+                'id' => $item->id,
+                'type' => $item->type,
+                'status' => $item->status,
+                'reviewed_by' => $item->reviewer?->name,
+                'reviewed_at' => $item->reviewed_at?->toIso8601String(),
+                'review_note' => $item->review_note,
+            ],
+        ]);
+    }
+
+    /**
+     * Get review queue stats.
+     *
+     * GET /api/duplicate-check/review-queue/stats
+     */
+    public function queueStats(): JsonResponse
+    {
+        return response()->json($this->service->getReviewQueueStats());
     }
 }

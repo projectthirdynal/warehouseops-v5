@@ -342,6 +342,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/duplicate-check/merge-preview', [DuplicateDetectionController::class, 'mergePreview'])->name('duplicate-check.merge-preview');
     Route::post('/api/duplicate-check/merge', [DuplicateDetectionController::class, 'mergeCustomers'])->name('duplicate-check.merge');
 
+    // Duplicate Review Queue
+    Route::get('/shop/duplicate-review', [DuplicateDetectionController::class, 'reviewQueuePage'])->name('duplicate-review.index');
+    Route::post('/api/duplicate-check/scan', [DuplicateDetectionController::class, 'scanQueue'])->name('duplicate-check.scan');
+    Route::get('/api/duplicate-check/review-queue', [DuplicateDetectionController::class, 'listQueue'])->name('duplicate-check.review-queue');
+    Route::post('/api/duplicate-check/review-queue/{id}/resolve', [DuplicateDetectionController::class, 'resolveQueueItem'])->name('duplicate-check.review-queue.resolve');
+    Route::get('/api/duplicate-check/review-queue/stats', [DuplicateDetectionController::class, 'queueStats'])->name('duplicate-check.review-queue.stats');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

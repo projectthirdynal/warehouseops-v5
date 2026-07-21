@@ -11,6 +11,7 @@ use App\Domain\Shop\Models\CustomerIdentity;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Models\Customer;
+use App\Models\DuplicateReviewItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -764,6 +765,387 @@ class DuplicateDetectionService
         $tokens = array_filter($tokens, fn ($t) => !in_array($t, $stopWords, true));
 
         return array_values(array_unique($tokens));
+    }
+
+    /**
+     * Scan for all duplicate types and populate the review queue.
+     *
+     * @param int $limit  Max items per type to create
+     * @return array{created: int, skipped: int, type_breakdown: array<string, int>}
+     */
+    public function scanForReviewQueue(int $limit = 50): array
+    {
+        $created = 0;
+        $skipped = 0;
+        $typeBreakdown = ['order' => 0, 'customer' => 0, 'conversation' => 0];
+
+        // 1. Scan for duplicate orders (phone + product within 72h)
+        $orderDuplicates = $this->scanDuplicateOrdersForQueue($limit);
+        foreach ($orderDuplicates as $item) {
+            $exists = DuplicateReviewItem::query()
+                ->where('type', 'order')
+                ->where('primary_ref_id', $item['primary_ref_id'])
+                ->where('duplicate_ref_id', $item['duplicate_ref_id'])
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            DuplicateReviewItem::create($item);
+            $created++;
+            $typeBreakdown['order']++;
+        }
+
+        // 2. Scan for duplicate customers (phone)
+        $customerDuplicates = $this->scanDuplicateCustomersForQueue($limit);
+        foreach ($customerDuplicates as $item) {
+            $exists = DuplicateReviewItem::query()
+                ->where('type', 'customer')
+                ->where('primary_ref_id', $item['primary_ref_id'])
+                ->where('duplicate_ref_id', $item['duplicate_ref_id'])
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            DuplicateReviewItem::create($item);
+            $created++;
+            $typeBreakdown['customer']++;
+        }
+
+        // 3. Scan for duplicate conversations (PSID)
+        $conversationDuplicates = $this->scanDuplicateConversationsForQueue($limit);
+        foreach ($conversationDuplicates as $item) {
+            $exists = DuplicateReviewItem::query()
+                ->where('type', 'conversation')
+                ->where('primary_ref_id', $item['primary_ref_id'])
+                ->where('duplicate_ref_id', $item['duplicate_ref_id'])
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            DuplicateReviewItem::create($item);
+            $created++;
+            $typeBreakdown['conversation']++;
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => $skipped,
+            'type_breakdown' => $typeBreakdown,
+        ];
+    }
+
+    /**
+     * Get the review queue with filtering and pagination.
+     *
+     * @param array{type?: string, status?: string, severity?: string, per_page?: int} $filters
+     * @return array<string, mixed>
+     */
+    public function getReviewQueue(array $filters = []): array
+    {
+        $query = DuplicateReviewItem::query()
+            ->with('reviewer:id,name')
+            ->orderByDesc('severity')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        } else {
+            $query->where('status', 'pending');
+        }
+
+        if (!empty($filters['severity'])) {
+            $query->where('severity', $filters['severity']);
+        }
+
+        $perPage = $filters['per_page'] ?? 25;
+        $items = $query->paginate($perPage);
+
+        return [
+            'items' => $items->items(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'from' => $items->firstItem(),
+                'to' => $items->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Resolve a review item (mark as reviewed, dismissed, or actioned).
+     *
+     * @param int    $itemId
+     * @param string $status     reviewed|dismissed|actioned
+     * @param int    $userId
+     * @param string|null $note
+     * @return DuplicateReviewItem|null
+     */
+    public function resolveReviewItem(int $itemId, string $status, int $userId, ?string $note = null): ?DuplicateReviewItem
+    {
+        $item = DuplicateReviewItem::find($itemId);
+
+        if (!$item) {
+            return null;
+        }
+
+        $item->update([
+            'status' => $status,
+            'reviewed_by' => $userId,
+            'reviewed_at' => now(),
+            'review_note' => $note,
+        ]);
+
+        return $item->fresh();
+    }
+
+    /**
+     * Get summary stats for the review queue.
+     *
+     * @return array<string, mixed>
+     */
+    public function getReviewQueueStats(): array
+    {
+        $total = DuplicateReviewItem::count();
+        $pending = DuplicateReviewItem::where('status', 'pending')->count();
+        $reviewed = DuplicateReviewItem::where('status', 'reviewed')->count();
+        $dismissed = DuplicateReviewItem::where('status', 'dismissed')->count();
+        $actioned = DuplicateReviewItem::where('status', 'actioned')->count();
+
+        $byType = DuplicateReviewItem::query()
+            ->selectRaw('type, status, COUNT(*) as count')
+            ->groupBy('type', 'status')
+            ->get()
+            ->groupBy('type')
+            ->map(fn ($group) => $group->pluck('count', 'status')->toArray())
+            ->toArray();
+
+        $bySeverity = DuplicateReviewItem::query()
+            ->selectRaw('severity, COUNT(*) as count')
+            ->where('status', 'pending')
+            ->groupBy('severity')
+            ->pluck('count', 'severity')
+            ->toArray();
+
+        return [
+            'total' => $total,
+            'pending' => $pending,
+            'reviewed' => $reviewed,
+            'dismissed' => $dismissed,
+            'actioned' => $actioned,
+            'by_type' => $byType,
+            'by_severity' => $bySeverity,
+        ];
+    }
+
+    /**
+     * Scan for duplicate orders and return review item data.
+     *
+     * @param int $limit
+     * @return array<int, array<string, mixed>>
+     */
+    private function scanDuplicateOrdersForQueue(int $limit): array
+    {
+        $cutoff = Carbon::now()->subHours($this->defaultTimeWindowHours);
+
+        $orders = Order::query()
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+            ->orderByDesc('created_at')
+            ->limit($limit * 2)
+            ->get(['id', 'order_number', 'receiver_phone', 'product_id', 'created_at']);
+
+        $items = [];
+        $seen = [];
+
+        foreach ($orders as $order) {
+            if (empty($order->receiver_phone)) {
+                continue;
+            }
+
+            $duplicates = Order::query()
+                ->where('receiver_phone', $order->receiver_phone)
+                ->where('id', '!=', $order->id)
+                ->where('created_at', '>=', $cutoff)
+                ->whereNotIn('status', array_map(fn ($s) => $s->value, $this->excludedStatuses))
+                ->limit(5)
+                ->get(['id', 'order_number', 'created_at']);
+
+            foreach ($duplicates as $dup) {
+                $key = $order->id < $dup->id ? "{$order->id}-{$dup->id}" : "{$dup->id}-{$order->id}";
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+
+                $hoursAgo = $order->created_at?->diffInHours(now()) ?? 0;
+                $severity = $hoursAgo <= 24 ? 'high' : ($hoursAgo <= 48 ? 'medium' : 'low');
+
+                $items[] = [
+                    'type' => 'order',
+                    'primary_ref_id' => $order->id,
+                    'duplicate_ref_id' => $dup->id,
+                    'primary_label' => $order->order_number,
+                    'duplicate_label' => $dup->order_number,
+                    'match_method' => 'phone+product',
+                    'similarity_score' => null,
+                    'severity' => $severity,
+                    'status' => 'pending',
+                    'metadata' => [
+                        'phone' => $order->receiver_phone,
+                        'primary_created_at' => $order->created_at?->toIso8601String(),
+                        'duplicate_created_at' => $dup->created_at?->toIso8601String(),
+                    ],
+                ];
+
+                if (count($items) >= $limit) {
+                    return $items;
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * Scan for duplicate customers by phone and return review item data.
+     *
+     * @param int $limit
+     * @return array<int, array<string, mixed>>
+     */
+    private function scanDuplicateCustomersForQueue(int $limit): array
+    {
+        $duplicatePhones = Customer::query()
+            ->select('normalized_phone')
+            ->whereNotNull('normalized_phone')
+            ->groupBy('normalized_phone')
+            ->havingRaw('COUNT(*) > 1')
+            ->limit($limit)
+            ->pluck('normalized_phone');
+
+        $items = [];
+
+        foreach ($duplicatePhones as $phone) {
+            $records = Customer::query()
+                ->where('normalized_phone', $phone)
+                ->orderBy('id')
+                ->get(['id', 'name', 'phone', 'normalized_phone', 'total_orders', 'created_at']);
+
+            if ($records->count() < 2) {
+                continue;
+            }
+
+            $target = $records->first();
+
+            foreach ($records->skip(1) as $source) {
+                $items[] = [
+                    'type' => 'customer',
+                    'primary_ref_id' => $target->id,
+                    'duplicate_ref_id' => $source->id,
+                    'primary_label' => $target->name ?? "Customer #{$target->id}",
+                    'duplicate_label' => $source->name ?? "Customer #{$source->id}",
+                    'match_method' => 'phone',
+                    'similarity_score' => 100.0,
+                    'severity' => 'high',
+                    'status' => 'pending',
+                    'metadata' => [
+                        'normalized_phone' => $phone,
+                        'primary_total_orders' => (int) ($target->total_orders ?? 0),
+                        'duplicate_total_orders' => (int) ($source->total_orders ?? 0),
+                    ],
+                ];
+
+                if (count($items) >= $limit) {
+                    return $items;
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * Scan for duplicate conversations by PSID and return review item data.
+     *
+     * @param int $limit
+     * @return array<int, array<string, mixed>>
+     */
+    private function scanDuplicateConversationsForQueue(int $limit): array
+    {
+        $duplicatePsids = CustomerIdentity::query()
+            ->select('provider_user_id')
+            ->where('provider', 'facebook')
+            ->groupBy('provider_user_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->limit($limit)
+            ->pluck('provider_user_id');
+
+        $items = [];
+
+        foreach ($duplicatePsids as $psid) {
+            $identities = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('provider_user_id', $psid)
+                ->with('conversations:id,customer_identity_id,status,created_at')
+                ->get(['id', 'provider_user_id', 'display_name', 'customer_id']);
+
+            $conversations = collect();
+            foreach ($identities as $identity) {
+                foreach ($identity->conversations as $conv) {
+                    if (in_array($conv->status, Conversation::ACTIVE_STATUSES) && !$conv->merged_into_id) {
+                        $conversations->push($conv);
+                    }
+                }
+            }
+
+            if ($conversations->count() < 2) {
+                continue;
+            }
+
+            $sorted = $conversations->sortBy('id')->values();
+            $primary = $sorted->first();
+
+            foreach ($sorted->skip(1) as $dup) {
+                $items[] = [
+                    'type' => 'conversation',
+                    'primary_ref_id' => $primary->id,
+                    'duplicate_ref_id' => $dup->id,
+                    'primary_label' => "Conversation #{$primary->id}",
+                    'duplicate_label' => "Conversation #{$dup->id}",
+                    'match_method' => 'psid',
+                    'similarity_score' => 100.0,
+                    'severity' => 'medium',
+                    'status' => 'pending',
+                    'metadata' => [
+                        'psid' => $psid,
+                        'display_name' => $identities->first()?->display_name,
+                    ],
+                ];
+
+                if (count($items) >= $limit) {
+                    return $items;
+                }
+            }
+        }
+
+        return $items;
     }
 
     /**
