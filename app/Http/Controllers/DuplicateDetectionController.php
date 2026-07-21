@@ -604,4 +604,139 @@ class DuplicateDetectionController extends Controller
             $this->service->getAutoMergeStats(),
         );
     }
+
+    // ── Duplicate Family Grouping ────────────────────────────────────
+
+    /**
+     * Render the duplicate families page.
+     *
+     * GET /shop/duplicate-review/families
+     */
+    public function familiesPage(Request $request): Response
+    {
+        $filters = array_filter([
+            'status' => $request->query('status'),
+            'method' => $request->query('method'),
+            'min_members' => $request->query('min_members'),
+        ]);
+
+        return Inertia::render('DuplicateReview/Families', [
+            'families' => $this->service->getFamilies($filters),
+            'stats' => $this->service->getFamilyStats(),
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Build duplicate families (scan).
+     *
+     * POST /api/duplicate-check/families/build
+     */
+    public function buildFamilies(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        $result = $this->service->buildFamilies(
+            isset($validated['limit']) ? (int) $validated['limit'] : 100,
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * List duplicate families (API).
+     *
+     * GET /api/duplicate-check/families
+     */
+    public function listFamilies(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'nullable|string|in:active,merged,dismissed',
+            'method' => 'nullable|string|in:phone,psid',
+            'min_members' => 'nullable|integer|min:2',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        return response()->json(
+            $this->service->getFamilies($validated),
+        );
+    }
+
+    /**
+     * Get a single family with members and merge previews.
+     *
+     * GET /api/duplicate-check/families/{id}
+     */
+    public function familyDetail(int $id): JsonResponse
+    {
+        $detail = $this->service->getFamilyDetail($id);
+
+        if (!$detail) {
+            return response()->json(['error' => 'Family not found.'], 404);
+        }
+
+        return response()->json($detail);
+    }
+
+    /**
+     * Merge all non-anchor members of a family into the anchor.
+     *
+     * POST /api/duplicate-check/families/{id}/merge
+     */
+    public function mergeFamily(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $result = $this->service->mergeFamily(
+            $id,
+            $request->user()->id,
+            $validated['note'] ?? null,
+        );
+
+        if (!$result['success']) {
+            return response()->json(['error' => $result['error']], 400);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Dismiss a family without merging.
+     *
+     * POST /api/duplicate-check/families/{id}/dismiss
+     */
+    public function dismissFamily(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $family = $this->service->dismissFamily(
+            $id,
+            $request->user()->id,
+            $validated['note'] ?? null,
+        );
+
+        if (!$family) {
+            return response()->json(['error' => 'Family not found.'], 404);
+        }
+
+        return response()->json(['family' => $family]);
+    }
+
+    /**
+     * Get family stats (API).
+     *
+     * GET /api/duplicate-check/families/stats
+     */
+    public function familyStats(): JsonResponse
+    {
+        return response()->json(
+            $this->service->getFamilyStats(),
+        );
+    }
 }

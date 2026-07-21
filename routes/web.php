@@ -371,6 +371,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/auto-merge/{id}/reject', [DuplicateDetectionController::class, 'rejectAutoMerge'])->name('duplicate-check.auto-merge.reject');
     Route::get('/api/duplicate-check/auto-merge/stats', [DuplicateDetectionController::class, 'autoMergeStats'])->name('duplicate-check.auto-merge.stats');
 
+    // Duplicate Family Grouping
+    Route::get('/shop/duplicate-review/families', [DuplicateDetectionController::class, 'familiesPage'])->name('duplicate-review.families');
+    Route::post('/api/duplicate-check/families/build', [DuplicateDetectionController::class, 'buildFamilies'])->name('duplicate-check.families.build');
+    Route::get('/api/duplicate-check/families', [DuplicateDetectionController::class, 'listFamilies'])->name('duplicate-check.families.list');
+    Route::get('/api/duplicate-check/families/{id}', [DuplicateDetectionController::class, 'familyDetail'])->name('duplicate-check.families.detail');
+    Route::post('/api/duplicate-check/families/{id}/merge', [DuplicateDetectionController::class, 'mergeFamily'])->name('duplicate-check.families.merge');
+    Route::post('/api/duplicate-check/families/{id}/dismiss', [DuplicateDetectionController::class, 'dismissFamily'])->name('duplicate-check.families.dismiss');
+    Route::get('/api/duplicate-check/families/stats', [DuplicateDetectionController::class, 'familyStats'])->name('duplicate-check.families.stats');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

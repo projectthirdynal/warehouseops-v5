@@ -14,6 +14,8 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Models\AutoMergeSuggestion;
 use App\Models\Customer;
 use App\Models\DuplicateDetectionRule;
+use App\Models\DuplicateFamily;
+use App\Models\DuplicateFamilyMember;
 use App\Models\DuplicateReviewItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -1877,6 +1879,418 @@ class DuplicateDetectionService
             'rejected' => $rejected,
             'by_confidence' => $byConfidence,
             'avg_confidence' => round($avgConfidence, 1),
+        ];
+    }
+
+    // ── Duplicate Family Grouping ────────────────────────────────────
+
+    /**
+     * Build duplicate families by grouping customers that share the
+     * same normalized_phone or the same PSID.
+     *
+     * Each group of 2+ customers becomes a DuplicateFamily with members.
+     * Existing active families for the same group_key are skipped.
+     *
+     * @param int $limit  Max groups to process per method
+     * @return array{created: int, skipped: int, members_grouped: int}
+     */
+    public function buildFamilies(int $limit = 100): array
+    {
+        $created = 0;
+        $skipped = 0;
+        $membersGrouped = 0;
+
+        // 1. Group by normalized_phone
+        $phoneGroups = Customer::query()
+            ->select('normalized_phone')
+            ->whereNotNull('normalized_phone')
+            ->where('normalized_phone', '!=', '')
+            ->groupBy('normalized_phone')
+            ->havingRaw('COUNT(*) > 1')
+            ->limit($limit)
+            ->pluck('normalized_phone');
+
+        foreach ($phoneGroups as $phone) {
+            $groupKey = "phone:{$phone}";
+
+            $exists = DuplicateFamily::query()
+                ->where('type', 'customer')
+                ->where('group_key', $groupKey)
+                ->where('status', 'active')
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            $customers = Customer::query()
+                ->where('normalized_phone', $phone)
+                ->orderByDesc('total_orders')
+                ->orderBy('id')
+                ->get();
+
+            if ($customers->count() < 2) {
+                continue;
+            }
+
+            $anchor = $customers->first();
+            $family = DuplicateFamily::create([
+                'type' => 'customer',
+                'group_key' => $groupKey,
+                'group_method' => 'phone',
+                'anchor_ref_id' => $anchor->id,
+                'anchor_label' => $anchor->name ?? $anchor->facebook_name ?? "Customer #{$anchor->id}",
+                'member_count' => $customers->count(),
+                'merged_count' => 0,
+                'status' => 'active',
+                'metadata' => [
+                    'phone' => $phone,
+                    'total_orders' => $customers->sum(fn ($c) => $c->total_orders ?? 0),
+                    'total_revenue' => $customers->sum(fn ($c) => (float) ($c->total_revenue ?? 0)),
+                ],
+            ]);
+
+            foreach ($customers as $idx => $customer) {
+                DuplicateFamilyMember::create([
+                    'family_id' => $family->id,
+                    'customer_id' => $customer->id,
+                    'is_anchor' => $idx === 0,
+                    'member_data' => [
+                        'name' => $customer->name,
+                        'facebook_name' => $customer->facebook_name,
+                        'phone' => $customer->phone,
+                        'normalized_phone' => $customer->normalized_phone,
+                        'total_orders' => (int) ($customer->total_orders ?? 0),
+                        'total_revenue' => (float) ($customer->total_revenue ?? 0),
+                        'risk_level' => $customer->risk_level ?? 'LOW',
+                        'is_blacklisted' => (bool) $customer->is_blacklisted,
+                        'created_at' => $customer->created_at?->toIso8601String(),
+                    ],
+                    'match_reason' => 'phone',
+                    'similarity_score' => 100.0,
+                ]);
+                $membersGrouped++;
+            }
+            $created++;
+        }
+
+        // 2. Group by PSID
+        $psidGroups = CustomerIdentity::query()
+            ->select('provider_user_id')
+            ->where('provider', 'facebook')
+            ->whereNotNull('provider_user_id')
+            ->groupBy('provider_user_id')
+            ->havingRaw('COUNT(DISTINCT customer_id) > 1')
+            ->limit($limit)
+            ->pluck('provider_user_id');
+
+        foreach ($psidGroups as $psid) {
+            $groupKey = "psid:{$psid}";
+
+            $exists = DuplicateFamily::query()
+                ->where('type', 'customer')
+                ->where('group_key', $groupKey)
+                ->where('status', 'active')
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            $customerIds = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('provider_user_id', $psid)
+                ->distinct()
+                ->pluck('customer_id');
+
+            $customers = Customer::query()
+                ->whereIn('id', $customerIds)
+                ->orderByDesc('total_orders')
+                ->orderBy('id')
+                ->get();
+
+            if ($customers->count() < 2) {
+                continue;
+            }
+
+            $anchor = $customers->first();
+            $family = DuplicateFamily::create([
+                'type' => 'customer',
+                'group_key' => $groupKey,
+                'group_method' => 'psid',
+                'anchor_ref_id' => $anchor->id,
+                'anchor_label' => $anchor->name ?? $anchor->facebook_name ?? "Customer #{$anchor->id}",
+                'member_count' => $customers->count(),
+                'merged_count' => 0,
+                'status' => 'active',
+                'metadata' => [
+                    'psid' => $psid,
+                    'total_orders' => $customers->sum(fn ($c) => $c->total_orders ?? 0),
+                    'total_revenue' => $customers->sum(fn ($c) => (float) ($c->total_revenue ?? 0)),
+                ],
+            ]);
+
+            foreach ($customers as $idx => $customer) {
+                DuplicateFamilyMember::create([
+                    'family_id' => $family->id,
+                    'customer_id' => $customer->id,
+                    'is_anchor' => $idx === 0,
+                    'member_data' => [
+                        'name' => $customer->name,
+                        'facebook_name' => $customer->facebook_name,
+                        'phone' => $customer->phone,
+                        'normalized_phone' => $customer->normalized_phone,
+                        'total_orders' => (int) ($customer->total_orders ?? 0),
+                        'total_revenue' => (float) ($customer->total_revenue ?? 0),
+                        'risk_level' => $customer->risk_level ?? 'LOW',
+                        'is_blacklisted' => (bool) $customer->is_blacklisted,
+                        'created_at' => $customer->created_at?->toIso8601String(),
+                    ],
+                    'match_reason' => 'psid',
+                    'similarity_score' => 100.0,
+                ]);
+                $membersGrouped++;
+            }
+            $created++;
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => $skipped,
+            'members_grouped' => $membersGrouped,
+        ];
+    }
+
+    /**
+     * Get paginated duplicate families with filters.
+     *
+     * @param array{status?: string, method?: string, min_members?: int, per_page?: int} $filters
+     * @return array<string, mixed>
+     */
+    public function getFamilies(array $filters = []): array
+    {
+        $query = DuplicateFamily::query()
+            ->withCount('members')
+            ->with('actioner:id,name')
+            ->orderByDesc('member_count')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        } else {
+            $query->where('status', 'active');
+        }
+
+        if (!empty($filters['method'])) {
+            $query->where('group_method', $filters['method']);
+        }
+
+        if (!empty($filters['min_members'])) {
+            $query->having('members_count', '>=', (int) $filters['min_members']);
+        }
+
+        $perPage = $filters['per_page'] ?? 25;
+        $items = $query->paginate($perPage);
+
+        return [
+            'items' => $items->items(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'from' => $items->firstItem(),
+                'to' => $items->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Get a single family with all members and merge preview.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getFamilyDetail(int $familyId): ?array
+    {
+        $family = DuplicateFamily::with(['members', 'actioner:id,name'])->find($familyId);
+
+        if (!$family) {
+            return null;
+        }
+
+        // Build merge previews for each non-anchor member into the anchor
+        $members = $family->members->map(function ($member) use ($family) {
+            $data = $member->member_data ?? [];
+            $preview = null;
+
+            if (!$member->is_anchor && $member->customer_id && $family->anchor_ref_id) {
+                $preview = $this->previewMerge($family->anchor_ref_id, $member->customer_id);
+            }
+
+            return [
+                'id' => $member->id,
+                'customer_id' => $member->customer_id,
+                'is_anchor' => $member->is_anchor,
+                'match_reason' => $member->match_reason,
+                'similarity_score' => $member->similarity_score,
+                'name' => $data['name'] ?? null,
+                'facebook_name' => $data['facebook_name'] ?? null,
+                'phone' => $data['phone'] ?? null,
+                'total_orders' => $data['total_orders'] ?? 0,
+                'total_revenue' => $data['total_revenue'] ?? 0,
+                'risk_level' => $data['risk_level'] ?? 'LOW',
+                'is_blacklisted' => $data['is_blacklisted'] ?? false,
+                'created_at' => $data['created_at'] ?? null,
+                'merge_preview' => $preview,
+            ];
+        });
+
+        return [
+            'id' => $family->id,
+            'type' => $family->type,
+            'group_key' => $family->group_key,
+            'group_method' => $family->group_method,
+            'anchor_ref_id' => $family->anchor_ref_id,
+            'anchor_label' => $family->anchor_label,
+            'member_count' => $family->member_count,
+            'merged_count' => $family->merged_count,
+            'status' => $family->status,
+            'metadata' => $family->metadata,
+            'actioned_by' => $family->actioned_by,
+            'actioned_at' => $family->actioned_at?->toIso8601String(),
+            'action_note' => $family->action_note,
+            'actioner_name' => $family->actioner?->name,
+            'created_at' => $family->created_at?->toIso8601String(),
+            'members' => $members->toArray(),
+        ];
+    }
+
+    /**
+     * Merge all non-anchor members of a family into the anchor customer.
+     *
+     * @param int    $familyId
+     * @param int    $userId
+     * @param string|null $note
+     * @return array{success: bool, merged_count?: int, error?: string}
+     */
+    public function mergeFamily(int $familyId, int $userId, ?string $note = null): array
+    {
+        $family = DuplicateFamily::with('members')->find($familyId);
+
+        if (!$family) {
+            return ['success' => false, 'error' => 'Family not found.'];
+        }
+
+        if ($family->status !== 'active') {
+            return ['success' => false, 'error' => 'Family has already been actioned.'];
+        }
+
+        $anchor = Customer::find($family->anchor_ref_id);
+        if (!$anchor) {
+            return ['success' => false, 'error' => 'Anchor customer no longer exists.'];
+        }
+
+        $mergeService = app(CustomerMergeService::class);
+        $mergedCount = 0;
+
+        foreach ($family->members as $member) {
+            if ($member->is_anchor || !$member->customer_id) {
+                continue;
+            }
+
+            $source = Customer::find($member->customer_id);
+            if (!$source) {
+                continue;
+            }
+
+            $mergeService->merge($anchor, $source);
+            $mergedCount++;
+        }
+
+        $family->update([
+            'status' => 'merged',
+            'merged_count' => $mergedCount,
+            'actioned_by' => $userId,
+            'actioned_at' => now(),
+            'action_note' => $note,
+        ]);
+
+        return ['success' => true, 'merged_count' => $mergedCount];
+    }
+
+    /**
+     * Dismiss a family without merging.
+     *
+     * @return DuplicateFamily|null
+     */
+    public function dismissFamily(int $familyId, int $userId, ?string $note = null): ?DuplicateFamily
+    {
+        $family = DuplicateFamily::find($familyId);
+
+        if (!$family) {
+            return null;
+        }
+
+        $family->update([
+            'status' => 'dismissed',
+            'actioned_by' => $userId,
+            'actioned_at' => now(),
+            'action_note' => $note,
+        ]);
+
+        return $family->fresh();
+    }
+
+    /**
+     * Get summary stats for duplicate families.
+     *
+     * @return array<string, mixed>
+     */
+    public function getFamilyStats(): array
+    {
+        $total = DuplicateFamily::count();
+        $active = DuplicateFamily::where('status', 'active')->count();
+        $merged = DuplicateFamily::where('status', 'merged')->count();
+        $dismissed = DuplicateFamily::where('status', 'dismissed')->count();
+
+        $byMethod = DuplicateFamily::query()
+            ->selectRaw('group_method, COUNT(*) as count')
+            ->where('status', 'active')
+            ->groupBy('group_method')
+            ->pluck('count', 'group_method')
+            ->toArray();
+
+        $totalMembers = DuplicateFamilyMember::count();
+        $activeMembers = DuplicateFamilyMember::query()
+            ->whereIn('family_id', fn ($q) => $q->select('id')->from('duplicate_families')->where('status', 'active'))
+            ->count();
+
+        $avgFamilySize = $active > 0
+            ? round(DuplicateFamilyMember::query()
+                ->whereIn('family_id', fn ($q) => $q->select('id')->from('duplicate_families')->where('status', 'active'))
+                ->count() / $active, 1)
+            : 0;
+
+        $largestFamily = DuplicateFamily::where('status', 'active')
+            ->orderByDesc('member_count')
+            ->first(['id', 'anchor_label', 'member_count']);
+
+        return [
+            'total' => $total,
+            'active' => $active,
+            'merged' => $merged,
+            'dismissed' => $dismissed,
+            'by_method' => $byMethod,
+            'total_members' => $totalMembers,
+            'active_members' => $activeMembers,
+            'avg_family_size' => $avgFamilySize,
+            'largest_family' => $largestFamily ? [
+                'id' => $largestFamily->id,
+                'label' => $largestFamily->anchor_label,
+                'members' => $largestFamily->member_count,
+            ] : null,
         ];
     }
 
