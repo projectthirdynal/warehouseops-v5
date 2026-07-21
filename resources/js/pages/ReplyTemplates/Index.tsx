@@ -15,6 +15,7 @@ interface ReplyTemplate {
   id: number;
   title: string;
   content: string;
+  variables?: string[] | null;
   shortcut: string | null;
   facebook_page_id: number | null;
   is_active: boolean;
@@ -24,6 +25,20 @@ interface ReplyTemplate {
   facebook_page?: { id: number; page_name: string } | null;
   creator?: { id: number; name: string } | null;
 }
+
+const AVAILABLE_VARIABLES = [
+  { key: '{customer_name}', desc: 'Customer display name' },
+  { key: '{phone}', desc: 'Customer phone number' },
+  { key: '{address}', desc: 'Customer delivery address' },
+  { key: '{order_number}', desc: 'Most recent order number' },
+  { key: '{tracking_number}', desc: 'Most recent tracking number' },
+  { key: '{courier}', desc: 'Most recent order courier' },
+  { key: '{total_amount}', desc: 'Most recent order total (₱)' },
+  { key: '{page_name}', desc: 'Facebook page name' },
+  { key: '{status}', desc: 'Conversation status' },
+  { key: '{last_message}', desc: 'Last message preview' },
+  { key: '{agent_name}', desc: 'Assigned agent name' },
+];
 
 interface PaginatedTemplates {
   data: ReplyTemplate[];
@@ -268,6 +283,19 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                         {template.content}
                       </p>
+                      {template.variables && template.variables.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {template.variables.map((v) => (
+                            <Badge
+                              key={v}
+                              variant="outline"
+                              className="font-mono text-[10px] text-primary"
+                            >
+                              {v}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                         <span>Used {template.usage_count} times</span>
                         {template.creator && <span>by {template.creator.name}</span>}
@@ -399,6 +427,48 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
                     rows={6}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                   />
+                  {/* Detected variables */}
+                  {form.content &&
+                    (() => {
+                      const matches = form.content.match(/\{\w+\}/g);
+                      if (!matches || matches.length === 0) return null;
+                      const unique = [...new Set(matches)];
+                      return (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Detected variables:</span>
+                          {unique.map((v) => (
+                            <Badge
+                              key={v}
+                              variant="outline"
+                              className="font-mono text-[10px] text-primary"
+                            >
+                              {v}
+                            </Badge>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  {/* Variable reference */}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-muted-foreground">
+                      Available variables (click to insert)
+                    </summary>
+                    <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                      {AVAILABLE_VARIABLES.map((v) => (
+                        <button
+                          key={v.key}
+                          type="button"
+                          onClick={() => {
+                            setForm({ ...form, content: form.content + v.key });
+                          }}
+                          className="flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted/50"
+                        >
+                          <span className="font-mono text-primary">{v.key}</span>
+                          <span className="text-muted-foreground">{v.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">

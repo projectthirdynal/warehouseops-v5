@@ -18,6 +18,7 @@ class ReplyTemplate extends Model
     protected $fillable = [
         'title',
         'content',
+        'variables',
         'shortcut',
         'facebook_page_id',
         'created_by',
@@ -28,6 +29,7 @@ class ReplyTemplate extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'usage_count' => 'integer',
+        'variables' => 'array',
     ];
 
     public function facebookPage(): BelongsTo

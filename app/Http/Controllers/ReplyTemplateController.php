@@ -70,6 +70,10 @@ class ReplyTemplateController extends Controller
         $validated['created_by'] = $request->user()->id;
         $validated['is_active'] = $validated['is_active'] ?? true;
 
+        // Auto-detect variables from content
+        preg_match_all('/\{(\w+)\}/', $validated['content'], $matches);
+        $validated['variables'] = $matches[0] ?? [];
+
         $template = ReplyTemplate::create($validated);
 
         return response()->json([
@@ -96,6 +100,13 @@ class ReplyTemplateController extends Controller
         ]);
 
         $template->update($validated);
+
+        // Auto-detect variables if content was updated
+        if (isset($validated['content'])) {
+            preg_match_all('/\{(\w+)\}/', $validated['content'], $matches);
+            $template->variables = $matches[0] ?? [];
+            $template->save();
+        }
 
         return response()->json([
             'success' => true,

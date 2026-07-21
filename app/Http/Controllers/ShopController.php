@@ -6941,13 +6941,13 @@ class ShopController extends Controller
                 ->orderByDesc('usage_count')
                 ->orderBy('title')
                 ->limit(50)
-                ->get(['id', 'title', 'content', 'shortcut', 'facebook_page_id', 'usage_count'])
+                ->get(['id', 'title', 'content', 'variables', 'shortcut', 'facebook_page_id', 'usage_count'])
                 ->map(fn (ReplyTemplate $template) => [
                     'id' => $template->id,
                     'name' => $template->title,
                     'category' => null,
                     'body' => $this->renderReplyTemplate($template->content, $conversation),
-                    'variables' => [],
+                    'variables' => $template->variables ?? [],
                     'is_page_specific' => $template->facebook_page_id !== null,
                     'shortcut' => $template->shortcut,
                     'source' => 'reply_templates',
@@ -6969,6 +6969,11 @@ class ShopController extends Controller
                 $conversation->customer?->province,
             ])->filter()->implode(', ');
 
+        // Get most recent order for order-related variables
+        $recentOrder = $conversation->customer?->orders()
+            ->latest()
+            ->first();
+
         $replacements = [
             '{customer_name}' => $conversation->customer?->name
                 ?? $conversation->identity?->display_name
@@ -6981,6 +6986,13 @@ class ShopController extends Controller
             '{page_name}' => $conversation->facebookPage?->page_name ?? 'our Page',
             '{status}' => $conversation->status,
             '{last_message}' => $conversation->last_message_preview ?? '',
+            '{order_number}' => $recentOrder?->order_number ?? '',
+            '{tracking_number}' => $recentOrder?->tracking_number ?? '',
+            '{courier}' => $recentOrder?->courier ?? '',
+            '{total_amount}' => $recentOrder?->total_amount
+                ? '₱' . number_format((float) $recentOrder->total_amount, 2)
+                : '',
+            '{agent_name}' => $conversation->assignedAgent?->name ?? 'Agent',
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $message);
