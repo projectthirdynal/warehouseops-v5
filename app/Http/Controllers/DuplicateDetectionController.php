@@ -487,4 +487,121 @@ class DuplicateDetectionController extends Controller
             $this->service->getAnalyticsBreakdown(),
         );
     }
+
+    // ── Auto-Merge Suggestions ───────────────────────────────────────
+
+    /**
+     * Render the auto-merge suggestions page.
+     *
+     * GET /shop/duplicate-review/auto-merge
+     */
+    public function autoMergePage(Request $request): Response
+    {
+        $filters = array_filter([
+            'status' => $request->query('status'),
+            'min_confidence' => $request->query('min_confidence'),
+        ]);
+
+        return Inertia::render('DuplicateReview/AutoMerge', [
+            'suggestions' => $this->service->getAutoMergeSuggestions($filters),
+            'stats' => $this->service->getAutoMergeStats(),
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Scan for auto-merge suggestions.
+     *
+     * POST /api/duplicate-check/auto-merge/scan
+     */
+    public function scanAutoMerge(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        $result = $this->service->scanForAutoMergeSuggestions(
+            isset($validated['limit']) ? (int) $validated['limit'] : 100,
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * List auto-merge suggestions (API).
+     *
+     * GET /api/duplicate-check/auto-merge
+     */
+    public function listAutoMerge(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'nullable|string|in:pending,merged,rejected',
+            'min_confidence' => 'nullable|numeric|min:0|max:100',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        return response()->json(
+            $this->service->getAutoMergeSuggestions($validated),
+        );
+    }
+
+    /**
+     * Approve and execute an auto-merge suggestion.
+     *
+     * POST /api/duplicate-check/auto-merge/{id}/approve
+     */
+    public function approveAutoMerge(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $result = $this->service->approveAutoMergeSuggestion(
+            $id,
+            $request->user()->id,
+            $validated['note'] ?? null,
+        );
+
+        if (!$result['success']) {
+            return response()->json(['error' => $result['error']], 400);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Reject an auto-merge suggestion.
+     *
+     * POST /api/duplicate-check/auto-merge/{id}/reject
+     */
+    public function rejectAutoMerge(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $suggestion = $this->service->rejectAutoMergeSuggestion(
+            $id,
+            $request->user()->id,
+            $validated['note'] ?? null,
+        );
+
+        if (!$suggestion) {
+            return response()->json(['error' => 'Suggestion not found.'], 404);
+        }
+
+        return response()->json(['suggestion' => $suggestion]);
+    }
+
+    /**
+     * Get auto-merge stats (API).
+     *
+     * GET /api/duplicate-check/auto-merge/stats
+     */
+    public function autoMergeStats(): JsonResponse
+    {
+        return response()->json(
+            $this->service->getAutoMergeStats(),
+        );
+    }
 }

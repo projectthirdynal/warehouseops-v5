@@ -9,7 +9,9 @@ use App\Domain\Order\Models\Order;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CustomerIdentity;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\PhoneDetectionService;
+use App\Models\AutoMergeSuggestion;
 use App\Models\Customer;
 use App\Models\DuplicateDetectionRule;
 use App\Models\DuplicateReviewItem;
@@ -1485,6 +1487,397 @@ class DuplicateDetectionService
         }
 
         return $breakdown;
+    }
+
+    // ── Auto-Merge Suggestions ───────────────────────────────────────
+
+    /**
+     * Scan for high-confidence duplicate customer pairs and create
+     * auto-merge suggestions.
+     *
+     * Confidence scoring:
+     *  - Exact phone match: +40
+     *  - Shared PSID: +35
+     *  - Exact name match: +15
+     *  - Exact address match: +10
+     *  - Minimum threshold to create suggestion: 70
+     *
+     * @param int $limit  Max pairs to evaluate
+     * @return array{created: int, skipped: int, evaluated: int}
+     */
+    public function scanForAutoMergeSuggestions(int $limit = 100): array
+    {
+        $created = 0;
+        $skipped = 0;
+        $evaluated = 0;
+
+        // 1. Find customers sharing the same normalized_phone
+        $phoneGroups = Customer::query()
+            ->select('normalized_phone')
+            ->whereNotNull('normalized_phone')
+            ->where('normalized_phone', '!=', '')
+            ->groupBy('normalized_phone')
+            ->havingRaw('COUNT(*) > 1')
+            ->limit($limit)
+            ->pluck('normalized_phone');
+
+        foreach ($phoneGroups as $phone) {
+            $customers = Customer::query()
+                ->where('normalized_phone', $phone)
+                ->orderBy('id')
+                ->get();
+
+            $evaluated += $customers->count();
+
+            for ($i = 0; $i < $customers->count(); $i++) {
+                for ($j = $i + 1; $j < $customers->count(); $j++) {
+                    $target = $customers[$i];
+                    $source = $customers[$j];
+
+                    $result = $this->evaluateAutoMergePair($target, $source);
+                    if ($result === null) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $exists = AutoMergeSuggestion::query()
+                        ->where(function ($q) use ($target, $source) {
+                            $q->where('target_customer_id', $target->id)
+                                ->where('source_customer_id', $source->id);
+                        })
+                        ->orWhere(function ($q) use ($target, $source) {
+                            $q->where('target_customer_id', $source->id)
+                                ->where('source_customer_id', $target->id);
+                        })
+                        ->where('status', 'pending')
+                        ->exists();
+
+                    if ($exists) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    AutoMergeSuggestion::create($result);
+                    $created++;
+                }
+            }
+        }
+
+        // 2. Find customers sharing the same PSID
+        $psidGroups = CustomerIdentity::query()
+            ->select('provider_user_id')
+            ->where('provider', 'facebook')
+            ->whereNotNull('provider_user_id')
+            ->groupBy('provider_user_id')
+            ->havingRaw('COUNT(DISTINCT customer_id) > 1')
+            ->limit($limit)
+            ->pluck('provider_user_id');
+
+        foreach ($psidGroups as $psid) {
+            $customerIds = CustomerIdentity::query()
+                ->where('provider', 'facebook')
+                ->where('provider_user_id', $psid)
+                ->distinct()
+                ->pluck('customer_id');
+
+            $customers = Customer::query()
+                ->whereIn('id', $customerIds)
+                ->orderBy('id')
+                ->get();
+
+            $evaluated += $customers->count();
+
+            for ($i = 0; $i < $customers->count(); $i++) {
+                for ($j = $i + 1; $j < $customers->count(); $j++) {
+                    $target = $customers[$i];
+                    $source = $customers[$j];
+
+                    // Skip if already paired via phone (same pair)
+                    $exists = AutoMergeSuggestion::query()
+                        ->where(function ($q) use ($target, $source) {
+                            $q->where('target_customer_id', $target->id)
+                                ->where('source_customer_id', $source->id);
+                        })
+                        ->orWhere(function ($q) use ($target, $source) {
+                            $q->where('target_customer_id', $source->id)
+                                ->where('source_customer_id', $target->id);
+                        })
+                        ->where('status', 'pending')
+                        ->exists();
+
+                    if ($exists) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $result = $this->evaluateAutoMergePair($target, $source);
+                    if ($result === null) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    AutoMergeSuggestion::create($result);
+                    $created++;
+                }
+            }
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => $skipped,
+            'evaluated' => $evaluated,
+        ];
+    }
+
+    /**
+     * Evaluate a customer pair for auto-merge suitability.
+     *
+     * @return array<string, mixed>|null  Suggestion data or null if below threshold
+     */
+    private function evaluateAutoMergePair(Customer $target, Customer $source): ?array
+    {
+        if ($target->id === $source->id) {
+            return null;
+        }
+
+        // Skip if either is blacklisted — require manual review
+        if ($target->is_blacklisted || $source->is_blacklisted) {
+            return null;
+        }
+
+        $confidence = 0;
+        $matchReasons = [];
+
+        // Phone match
+        if (
+            $target->normalized_phone
+            && $target->normalized_phone === $source->normalized_phone
+        ) {
+            $confidence += 40;
+            $matchReasons[] = 'phone';
+        }
+
+        // PSID match
+        $sharedPsids = CustomerIdentity::query()
+            ->whereIn('customer_id', [$target->id, $source->id])
+            ->where('provider', 'facebook')
+            ->selectRaw('provider_user_id, COUNT(DISTINCT customer_id) as cust_count')
+            ->groupBy('provider_user_id')
+            ->havingRaw('cust_count > 1')
+            ->pluck('provider_user_id');
+        if ($sharedPsids->isNotEmpty()) {
+            $confidence += 35;
+            $matchReasons[] = 'psid';
+        }
+
+        // Name match
+        if (
+            ($target->name && $source->name && strtolower($target->name) === strtolower($source->name))
+            || ($target->facebook_name && $source->facebook_name
+                && strtolower($target->facebook_name) === strtolower($source->facebook_name))
+        ) {
+            $confidence += 15;
+            $matchReasons[] = 'name';
+        }
+
+        // Address match
+        if (
+            $target->canonical_address
+            && $source->canonical_address
+            && strtolower($target->canonical_address) === strtolower($source->canonical_address)
+        ) {
+            $confidence += 10;
+            $matchReasons[] = 'address';
+        }
+
+        // Must meet minimum confidence threshold
+        if ($confidence < 70) {
+            return null;
+        }
+
+        // Target = customer with more orders (canonical record)
+        if (($source->total_orders ?? 0) > ($target->total_orders ?? 0)) {
+            [$target, $source] = [$source, $target];
+        }
+
+        // Build merge preview
+        $preview = $this->previewMerge($target->id, $source->id);
+
+        return [
+            'target_customer_id' => $target->id,
+            'source_customer_id' => $source->id,
+            'confidence_score' => min($confidence, 100),
+            'match_reasons' => $matchReasons,
+            'merge_preview' => $preview,
+            'status' => 'pending',
+        ];
+    }
+
+    /**
+     * Get paginated auto-merge suggestions with filters.
+     *
+     * @param array{status?: string, min_confidence?: float, per_page?: int} $filters
+     * @return array<string, mixed>
+     */
+    public function getAutoMergeSuggestions(array $filters = []): array
+    {
+        $query = AutoMergeSuggestion::query()
+            ->with([
+                'targetCustomer:id,name,phone,normalized_phone,facebook_name,total_orders,total_revenue,risk_level,is_blacklisted,created_at',
+                'sourceCustomer:id,name,phone,normalized_phone,facebook_name,total_orders,total_revenue,risk_level,is_blacklisted,created_at',
+                'actioner:id,name',
+            ])
+            ->orderByDesc('confidence_score')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        } else {
+            $query->where('status', 'pending');
+        }
+
+        if (!empty($filters['min_confidence'])) {
+            $query->where('confidence_score', '>=', (float) $filters['min_confidence']);
+        }
+
+        $perPage = $filters['per_page'] ?? 25;
+        $items = $query->paginate($perPage);
+
+        return [
+            'items' => $items->items(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'from' => $items->firstItem(),
+                'to' => $items->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Approve and execute an auto-merge suggestion.
+     *
+     * @param int    $suggestionId
+     * @param int    $userId
+     * @param string|null $note
+     * @return array{success: bool, suggestion?: AutoMergeSuggestion, error?: string}
+     */
+    public function approveAutoMergeSuggestion(int $suggestionId, int $userId, ?string $note = null): array
+    {
+        $suggestion = AutoMergeSuggestion::find($suggestionId);
+
+        if (!$suggestion) {
+            return ['success' => false, 'error' => 'Suggestion not found.'];
+        }
+
+        if ($suggestion->status !== 'pending') {
+            return ['success' => false, 'error' => 'Suggestion has already been actioned.'];
+        }
+
+        $target = Customer::find($suggestion->target_customer_id);
+        $source = Customer::find($suggestion->source_customer_id);
+
+        if (!$target || !$source) {
+            $suggestion->update([
+                'status' => 'rejected',
+                'actioned_by' => $userId,
+                'actioned_at' => now(),
+                'action_note' => 'Customer record no longer exists.',
+            ]);
+            return ['success' => false, 'error' => 'Customer record no longer exists.'];
+        }
+
+        // Execute the merge
+        $mergeService = app(CustomerMergeService::class);
+        $mergeService->merge($target, $source);
+
+        $suggestion->update([
+            'status' => 'merged',
+            'actioned_by' => $userId,
+            'actioned_at' => now(),
+            'action_note' => $note,
+        ]);
+
+        // Also resolve any related review items
+        DuplicateReviewItem::query()
+            ->where('type', 'customer')
+            ->where(function ($q) use ($target, $source) {
+                $q->where(function ($q2) use ($target, $source) {
+                    $q2->where('primary_ref_id', $target->id)
+                        ->where('duplicate_ref_id', $source->id);
+                })->orWhere(function ($q2) use ($target, $source) {
+                    $q2->where('primary_ref_id', $source->id)
+                        ->where('duplicate_ref_id', $target->id);
+                });
+            })
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'actioned',
+                'reviewed_by' => $userId,
+                'reviewed_at' => now(),
+                'review_note' => 'Auto-merged via suggestion #' . $suggestionId,
+            ]);
+
+        return ['success' => true, 'suggestion' => $suggestion->fresh()];
+    }
+
+    /**
+     * Reject an auto-merge suggestion.
+     *
+     * @param int    $suggestionId
+     * @param int    $userId
+     * @param string|null $note
+     * @return AutoMergeSuggestion|null
+     */
+    public function rejectAutoMergeSuggestion(int $suggestionId, int $userId, ?string $note = null): ?AutoMergeSuggestion
+    {
+        $suggestion = AutoMergeSuggestion::find($suggestionId);
+
+        if (!$suggestion) {
+            return null;
+        }
+
+        $suggestion->update([
+            'status' => 'rejected',
+            'actioned_by' => $userId,
+            'actioned_at' => now(),
+            'action_note' => $note,
+        ]);
+
+        return $suggestion->fresh();
+    }
+
+    /**
+     * Get summary stats for auto-merge suggestions.
+     *
+     * @return array<string, mixed>
+     */
+    public function getAutoMergeStats(): array
+    {
+        $total = AutoMergeSuggestion::count();
+        $pending = AutoMergeSuggestion::where('status', 'pending')->count();
+        $merged = AutoMergeSuggestion::where('status', 'merged')->count();
+        $rejected = AutoMergeSuggestion::where('status', 'rejected')->count();
+
+        $byConfidence = [
+            'high' => AutoMergeSuggestion::where('status', 'pending')->where('confidence_score', '>=', 90)->count(),
+            'medium' => AutoMergeSuggestion::where('status', 'pending')->whereBetween('confidence_score', [75, 89])->count(),
+            'low' => AutoMergeSuggestion::where('status', 'pending')->whereBetween('confidence_score', [70, 74])->count(),
+        ];
+
+        $avgConfidence = (float) AutoMergeSuggestion::where('status', 'pending')
+            ->avg('confidence_score');
+
+        return [
+            'total' => $total,
+            'pending' => $pending,
+            'merged' => $merged,
+            'rejected' => $rejected,
+            'by_confidence' => $byConfidence,
+            'avg_confidence' => round($avgConfidence, 1),
+        ];
     }
 
     /**
