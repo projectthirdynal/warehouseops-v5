@@ -1365,4 +1365,197 @@ class SalesDashboardService
 
         return $csv;
     }
+
+    /**
+     * Get predictive sales insights — revenue/order forecasts using
+     * linear regression on historical data, day-of-week patterns,
+     * growth projections, and anomaly detection.
+     *
+     * @param int $forecastDays Number of days to forecast
+     * @return array<string, mixed>
+     */
+    public function predictiveSalesInsights(int $forecastDays = 30): array
+    {
+        $historyDays = max($forecastDays * 3, 90);
+
+        $dailyData = Order::where('status', OrderStatus::DELIVERED)
+            ->where('created_at', '>=', Carbon::now()->subDays($historyDays)->startOfDay())
+            ->selectRaw("DATE(created_at) as date, COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue")
+            ->groupByRaw("DATE(created_at)")
+            ->orderBy('date')
+            ->get();
+
+        $dates = [];
+        $orders = [];
+        $revenues = [];
+        foreach ($dailyData as $d) {
+            $dates[] = $d->date;
+            $orders[] = (int) $d->orders;
+            $revenues[] = (float) $d->revenue;
+        }
+
+        $n = count($revenues);
+        $forecast = [];
+        $growthRate = 0.0;
+        $trendDirection = 'stable';
+
+        if ($n >= 7) {
+            $x = range(0, $n - 1);
+            $sumX = array_sum($x);
+            $sumY = array_sum($revenues);
+            $sumXY = 0;
+            $sumX2 = 0;
+            foreach ($x as $i => $xi) {
+                $sumXY += $xi * $revenues[$i];
+                $sumX2 += $xi * $xi;
+            }
+            $denominator = ($n * $sumX2 - $sumX * $sumX);
+            $slope = $denominator != 0 ? ($n * $sumXY - $sumX * $sumY) / $denominator : 0;
+            $intercept = $n > 0 ? ($sumY - $slope * $sumX) / $n : 0;
+
+            $avgRevenue = $n > 0 ? $sumY / $n : 0;
+            $growthRate = $avgRevenue > 0 ? ($slope / $avgRevenue) * 100 : 0;
+
+            if ($growthRate > 2) {
+                $trendDirection = 'increasing';
+            } elseif ($growthRate < -2) {
+                $trendDirection = 'decreasing';
+            }
+
+            $xOrders = range(0, $n - 1);
+            $sumXO = array_sum($xOrders);
+            $sumYO = array_sum($orders);
+            $sumXYO = 0;
+            $sumX2O = 0;
+            foreach ($xOrders as $i => $xi) {
+                $sumXYO += $xi * $orders[$i];
+                $sumX2O += $xi * $xi;
+            }
+            $denomO = ($n * $sumX2O - $sumXO * $sumXO);
+            $slopeOrders = $denomO != 0 ? ($n * $sumXYO - $sumXO * $sumYO) / $denomO : 0;
+            $interceptOrders = $n > 0 ? ($sumYO - $slopeOrders * $sumXO) / $n : 0;
+
+            $dowFactors = array_fill(0, 7, 0.0);
+            $dowCounts = array_fill(0, 7, 0);
+            foreach ($dailyData as $d) {
+                $dow = Carbon::parse($d->date)->dayOfWeek;
+                $dowFactors[$dow] += (float) $d->revenue;
+                $dowCounts[$dow]++;
+            }
+            $avgDailyRevenue = $n > 0 ? $sumY / $n : 0;
+            foreach ($dowFactors as $i => $total) {
+                $dowFactors[$i] = $dowCounts[$i] > 0
+                    ? ($total / $dowCounts[$i]) / ($avgDailyRevenue > 0 ? $avgDailyRevenue : 1)
+                    : 1.0;
+            }
+
+            for ($f = 1; $f <= $forecastDays; $f++) {
+                $futureX = $n + $f - 1;
+                $futureDate = Carbon::now()->addDays($f);
+                $dow = $futureDate->dayOfWeek;
+
+                $baseRevenue = $intercept + $slope * $futureX;
+                $baseOrders = $interceptOrders + $slopeOrders * $futureX;
+
+                $dowMultiplier = $dowFactors[$dow] > 0 ? $dowFactors[$dow] : 1.0;
+
+                $predictedRevenue = max(0, $baseRevenue * $dowMultiplier);
+                $predictedOrders = max(0, $baseOrders * $dowMultiplier);
+
+                $confidence = max(0, min(100, 100 - ($f / $forecastDays * 40)));
+
+                $forecast[] = [
+                    'date' => $futureDate->toDateString(),
+                    'day' => $futureDate->format('D'),
+                    'predicted_revenue' => round($predictedRevenue, 2),
+                    'predicted_orders' => (int) round($predictedOrders),
+                    'confidence' => round($confidence, 1),
+                ];
+            }
+        }
+
+        $dowAverages = [];
+        $dowData = array_fill(0, 7, ['orders' => 0, 'revenue' => 0.0, 'count' => 0]);
+        foreach ($dailyData as $d) {
+            $dow = Carbon::parse($d->date)->dayOfWeek;
+            $dowData[$dow]['orders'] += (int) $d->orders;
+            $dowData[$dow]['revenue'] += (float) $d->revenue;
+            $dowData[$dow]['count']++;
+        }
+        $dowLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for ($i = 0; $i < 7; $i++) {
+            $cnt = $dowData[$i]['count'];
+            $dowAverages[] = [
+                'day' => $dowLabels[$i],
+                'avg_orders' => $cnt > 0 ? round($dowData[$i]['orders'] / $cnt, 1) : 0.0,
+                'avg_revenue' => $cnt > 0 ? round($dowData[$i]['revenue'] / $cnt, 2) : 0.0,
+            ];
+        }
+
+        $bestDay = null;
+        $worstDay = null;
+        foreach ($dowAverages as $d) {
+            if ($bestDay === null || $d['avg_revenue'] > $bestDay['avg_revenue']) {
+                $bestDay = $d;
+            }
+            if ($worstDay === null || $d['avg_revenue'] < $worstDay['avg_revenue']) {
+                $worstDay = $d;
+            }
+        }
+
+        $anomalies = [];
+        if ($n >= 14) {
+            $recent14 = array_slice($revenues, -14);
+            $mean14 = array_sum($recent14) / 14;
+            $variance14 = 0;
+            foreach ($recent14 as $r) {
+                $variance14 += ($r - $mean14) ** 2;
+            }
+            $stdDev = sqrt($variance14 / 14);
+
+            $checkStart = max(0, $n - 7);
+            for ($i = $checkStart; $i < $n; $i++) {
+                if ($stdDev > 0 && abs($revenues[$i] - $mean14) > $stdDev * 2) {
+                    $anomalies[] = [
+                        'date' => $dates[$i],
+                        'revenue' => $revenues[$i],
+                        'avg_revenue' => round($mean14, 2),
+                        'deviation' => round(($revenues[$i] - $mean14) / $stdDev, 1),
+                        'type' => $revenues[$i] > $mean14 ? 'spike' : 'drop',
+                    ];
+                }
+            }
+        }
+
+        $totalForecastRevenue = array_sum(array_column($forecast, 'predicted_revenue'));
+        $totalForecastOrders = array_sum(array_column($forecast, 'predicted_orders'));
+
+        $last30Revenue = array_sum(array_slice($revenues, -min(30, $n)));
+        $last30Orders = array_sum(array_slice($orders, -min(30, $n)));
+
+        $projectedGrowth = $last30Revenue > 0
+            ? round(($totalForecastRevenue - $last30Revenue) / $last30Revenue * 100, 1)
+            : null;
+
+        return [
+            'forecast' => $forecast,
+            'summary' => [
+                'forecast_days' => $forecastDays,
+                'history_days' => $historyDays,
+                'total_forecast_revenue' => round($totalForecastRevenue, 2),
+                'total_forecast_orders' => (int) $totalForecastOrders,
+                'last_30d_revenue' => round($last30Revenue, 2),
+                'last_30d_orders' => (int) $last30Orders,
+                'projected_growth' => $projectedGrowth,
+                'daily_growth_rate' => round($growthRate, 2),
+                'trend_direction' => $trendDirection,
+            ],
+            'day_of_week' => [
+                'averages' => $dowAverages,
+                'best_day' => $bestDay,
+                'worst_day' => $worstDay,
+            ],
+            'anomalies' => $anomalies,
+        ];
+    }
 }

@@ -31,6 +31,7 @@ class SalesDashboardController extends Controller
             'cohortRetention' => $this->service->cohortRetention(),
             'averageOrderValue' => $this->service->averageOrderValue(),
             'returnRefundRate' => $this->service->returnRefundRate(),
+            'predictiveInsights' => $this->service->predictiveSalesInsights(),
         ]);
     }
 
@@ -147,6 +148,14 @@ class SalesDashboardController extends Controller
         }, $filename, [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    public function apiPredictiveInsights(): JsonResponse
+    {
+        $forecastDays = (int) request()->query('forecast_days', 30);
+        return response()->json([
+            'predictive_insights' => $this->service->predictiveSalesInsights($forecastDays),
         ]);
     }
 }
