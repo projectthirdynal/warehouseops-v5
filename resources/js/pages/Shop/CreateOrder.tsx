@@ -53,13 +53,32 @@ interface Courier {
   label: string;
 }
 
+interface DuplicateMatchedProduct {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+}
+
 interface DuplicateWarning {
   id: number;
   order_number: string;
   status: string;
-  total_amount: string | number;
+  total_amount: number;
   created_at: string;
+  created_at_formatted?: string;
+  hours_ago?: number;
+  receiver_name?: string;
+  receiver_phone?: string;
+  courier_code?: string;
+  matched_products?: DuplicateMatchedProduct[];
   product?: { id: number; name: string; sku: string } | null;
+}
+
+interface DuplicateCheckResult {
+  is_duplicate: boolean;
+  severity: 'none' | 'low' | 'medium' | 'high';
+  duplicate_count: number;
+  time_window_hours: number;
 }
 
 interface CartItemForm {
@@ -605,6 +624,8 @@ export default function CreateShopOrder({
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftList, setDraftList] = useState<DraftSummary[]>(drafts);
   const [liveDuplicates, setLiveDuplicates] = useState<DuplicateWarning[]>([]);
+  const [duplicateCheck, setDuplicateCheck] = useState<DuplicateCheckResult | null>(null);
+  const [acknowledgedDuplicates, setAcknowledgedDuplicates] = useState(false);
 
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -628,9 +649,13 @@ export default function CreateShopOrder({
         body: JSON.stringify({ phone, product_ids: productIds }),
       })
         .then((res) => res.json())
-        .then((result: { duplicates: DuplicateWarning[] }) => {
-          setLiveDuplicates(result.duplicates ?? []);
-        })
+        .then(
+          (result: { duplicates: DuplicateWarning[]; duplicate_check?: DuplicateCheckResult }) => {
+            setLiveDuplicates(result.duplicates ?? []);
+            setDuplicateCheck(result.duplicate_check ?? null);
+            setAcknowledgedDuplicates(false);
+          }
+        )
         .catch(() => undefined);
     }, 600);
 
@@ -640,6 +665,38 @@ export default function CreateShopOrder({
   const allDuplicates = [...duplicate_warnings, ...liveDuplicates].filter(
     (dup, index, self) => index === self.findIndex((d) => d.id === dup.id)
   );
+
+  const severityConfig: Record<
+    string,
+    { label: string; className: string; borderClass: string; bgClass: string; iconClass: string }
+  > = {
+    high: {
+      label: 'High',
+      className: 'text-destructive',
+      borderClass: 'border-destructive/40',
+      bgClass: 'bg-destructive/5',
+      iconClass: 'text-destructive',
+    },
+    medium: {
+      label: 'Medium',
+      className: 'text-warning',
+      borderClass: 'border-warning/40',
+      bgClass: 'bg-warning/5',
+      iconClass: 'text-warning',
+    },
+    low: {
+      label: 'Low',
+      className: 'text-info',
+      borderClass: 'border-info/30',
+      bgClass: 'bg-info/5',
+      iconClass: 'text-info',
+    },
+    none: { label: 'None', className: '', borderClass: '', bgClass: '', iconClass: '' },
+  };
+  const dupSeverity = duplicateCheck?.severity ?? (allDuplicates.length > 0 ? 'low' : 'none');
+  const sevCfg = severityConfig[dupSeverity] ?? severityConfig.none;
+  const hasDuplicates = allDuplicates.length > 0;
+  const canConfirm = !hasDuplicates || acknowledgedDuplicates;
 
   const saveDraft = () => {
     setSavingDraft(true);
@@ -1038,16 +1095,52 @@ export default function CreateShopOrder({
           </div>
         </div>
 
-        {liveDuplicates.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-            <span className="text-muted-foreground">
-              <span className="font-medium text-warning">
-                {liveDuplicates.length} possible duplicate order
-                {liveDuplicates.length > 1 ? 's' : ''}
-              </span>{' '}
-              found for this phone number in the last 30 days. Review before submitting.
-            </span>
+        {hasDuplicates && (
+          <div
+            className={`flex flex-col gap-3 rounded-md border ${sevCfg.borderClass} ${sevCfg.bgClass} p-4 text-sm`}
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className={`h-4 w-4 shrink-0 ${sevCfg.iconClass}`} />
+              <span className="text-muted-foreground">
+                <span className={`font-medium ${sevCfg.className}`}>
+                  {allDuplicates.length} possible duplicate order
+                  {allDuplicates.length > 1 ? 's' : ''}
+                </span>{' '}
+                found for this phone + product(s) within {duplicateCheck?.time_window_hours ?? 72}h.
+              </span>
+              <Badge
+                variant="outline"
+                className={`ml-auto ${sevCfg.className} ${sevCfg.borderClass}`}
+              >
+                {sevCfg.label} Severity
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {allDuplicates.slice(0, 3).map((dup) => (
+                <Link
+                  key={dup.id}
+                  href={`/orders/${dup.id}`}
+                  className={`inline-flex items-center gap-1.5 rounded-md border ${sevCfg.borderClass} bg-background px-2 py-1 text-xs transition-colors hover:bg-accent/30`}
+                >
+                  <span className="font-medium">{dup.order_number}</span>
+                  <span className="text-muted-foreground">
+                    {dup.hours_ago != null
+                      ? `${dup.hours_ago}h ago`
+                      : new Date(dup.created_at).toLocaleDateString()}
+                  </span>
+                  {dup.matched_products?.map((mp) => (
+                    <span key={mp.product_id} className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                      {mp.product_name} ×{mp.quantity}
+                    </span>
+                  ))}
+                </Link>
+              ))}
+              {allDuplicates.length > 3 && (
+                <span className="text-xs text-muted-foreground">
+                  +{allDuplicates.length - 3} more
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -1755,14 +1848,21 @@ export default function CreateShopOrder({
 
           <div className="space-y-6">
             {allDuplicates.length > 0 && (
-              <Card className="border-warning/20 bg-warning/5/50">
+              <Card className={`${sevCfg.borderClass} ${sevCfg.bgClass}`}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-warning">
+                  <CardTitle className={`flex items-center gap-2 ${sevCfg.className}`}>
                     <AlertTriangle className="h-5 w-5" />
                     Possible Duplicates
+                    <Badge
+                      variant="outline"
+                      className={`ml-1 ${sevCfg.className} ${sevCfg.borderClass}`}
+                    >
+                      {sevCfg.label}
+                    </Badge>
                   </CardTitle>
                   <CardDescription>
-                    Recent Shop orders found for this phone number or products
+                    {allDuplicates.length} order{allDuplicates.length > 1 ? 's' : ''} matching this
+                    phone + product(s) within {duplicateCheck?.time_window_hours ?? 72}h
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1776,13 +1876,33 @@ export default function CreateShopOrder({
                         <div>
                           <p className="font-medium">{order.order_number}</p>
                           <p className="text-xs text-muted-foreground">
-                            {order.product?.name ?? 'No product'}
+                            {order.receiver_name ?? 'Unknown customer'}
                           </p>
                         </div>
                         <Badge variant="outline">{order.status}</Badge>
                       </div>
+                      {order.matched_products && order.matched_products.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {order.matched_products.map((mp) => (
+                            <span
+                              key={mp.product_id}
+                              className="rounded bg-muted px-1.5 py-0.5 text-[10px]"
+                            >
+                              {mp.product_name} ×{mp.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {order.product?.name ?? 'No product'}
+                        </p>
+                      )}
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{new Date(order.created_at).toLocaleString()}</span>
+                        <span>
+                          {order.hours_ago != null
+                            ? `${order.hours_ago}h ago`
+                            : new Date(order.created_at).toLocaleString()}
+                        </span>
                         <span>{money(Number(order.total_amount ?? 0))}</span>
                       </div>
                     </Link>
@@ -2154,16 +2274,57 @@ export default function CreateShopOrder({
             </div>
 
             <div className="space-y-4">
-              {allDuplicates.length > 0 && (
-                <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-                  <span className="text-muted-foreground">
-                    <span className="font-medium text-warning">
-                      {allDuplicates.length} possible duplicate order
-                      {allDuplicates.length > 1 ? 's' : ''}
-                    </span>{' '}
-                    found for this customer. Please review before confirming.
-                  </span>
+              {hasDuplicates && (
+                <div
+                  className={`rounded-md border ${sevCfg.borderClass} ${sevCfg.bgClass} p-4 text-sm`}
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={`h-4 w-4 shrink-0 ${sevCfg.iconClass}`} />
+                    <span className="text-muted-foreground">
+                      <span className={`font-medium ${sevCfg.className}`}>
+                        {allDuplicates.length} possible duplicate order
+                        {allDuplicates.length > 1 ? 's' : ''}
+                      </span>{' '}
+                      found for this customer. Please review before confirming.
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`ml-auto ${sevCfg.className} ${sevCfg.borderClass}`}
+                    >
+                      {sevCfg.label}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {allDuplicates.map((dup) => (
+                      <Link
+                        key={dup.id}
+                        href={`/orders/${dup.id}`}
+                        className={`flex items-center gap-2 rounded border ${sevCfg.borderClass} bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent/30`}
+                      >
+                        <span className="font-medium">{dup.order_number}</span>
+                        <span className="text-muted-foreground">
+                          {dup.hours_ago != null
+                            ? `${dup.hours_ago}h ago`
+                            : new Date(dup.created_at).toLocaleDateString()}
+                        </span>
+                        <Badge variant="outline" className="ml-auto">
+                          {dup.status}
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                  <label className="mt-3 flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgedDuplicates}
+                      onChange={(e) => setAcknowledgedDuplicates(e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      I have reviewed the duplicate order(s) and confirm this is a new, separate
+                      order.
+                    </span>
+                  </label>
                 </div>
               )}
               <div className="grid gap-4 md:grid-cols-2">
@@ -2327,7 +2488,12 @@ export default function CreateShopOrder({
                   <X className="mr-1.5 h-4 w-4" />
                   Edit Order
                 </Button>
-                <Button type="button" onClick={confirmSubmit} disabled={processing}>
+                <Button
+                  type="button"
+                  onClick={confirmSubmit}
+                  disabled={processing || !canConfirm}
+                  title={!canConfirm ? 'Acknowledge duplicate warnings to confirm' : undefined}
+                >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
                   {edit_order_id ? 'Confirm & Update' : 'Confirm & Save'}
                 </Button>

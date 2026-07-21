@@ -5514,45 +5514,40 @@ class ShopController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'product_ids' => ['nullable', 'array'],
             'product_ids.*' => ['integer'],
+            'exclude_order_id' => ['nullable', 'integer'],
         ]);
 
         $phone = $validated['phone'] ?? '';
         $productIds = $validated['product_ids'] ?? [];
 
-        $normalizedPhone = $this->phones->normalize($phone);
-        if (! $normalizedPhone) {
-            return response()->json(['duplicates' => []]);
-        }
-
-        $query = Order::query()
-            ->with('product:id,name,sku')
-            ->where('receiver_phone', $normalizedPhone)
-            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
-            ->where('created_at', '>=', now()->subDays(30))
-            ->where('status', '!=', OrderStatus::DRAFT)
-            ->latest()
-            ->limit(10);
-
-        if (! empty($productIds)) {
-            $query->where(function ($q) use ($productIds) {
-                $q->whereIn('product_id', $productIds)
-                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
-                        $sq->whereIn('product_id', $productIds);
-                    });
-            });
-        }
-
-        $duplicates = $query->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at'])
-            ->map(fn ($o) => [
-                'id' => $o->id,
-                'order_number' => $o->order_number,
-                'status' => $o->status->value,
-                'total_amount' => (float) $o->total_amount,
-                'created_at' => $o->created_at?->toIso8601String(),
-                'product' => $o->product?->only(['id', 'name', 'sku']),
+        if (empty($phone) || empty($productIds)) {
+            return response()->json([
+                'duplicates' => [],
+                'duplicate_check' => [
+                    'is_duplicate' => false,
+                    'severity' => 'none',
+                    'duplicate_count' => 0,
+                    'time_window_hours' => 72,
+                ],
             ]);
+        }
 
-        return response()->json(['duplicates' => $duplicates]);
+        $result = $this->duplicateDetection->detectDuplicateOrders(
+            $phone,
+            $productIds,
+            null,
+            isset($validated['exclude_order_id']) ? (int) $validated['exclude_order_id'] : null,
+        );
+
+        return response()->json([
+            'duplicates' => $result['duplicates'],
+            'duplicate_check' => [
+                'is_duplicate' => $result['is_duplicate'],
+                'severity' => $result['severity'],
+                'duplicate_count' => $result['duplicate_count'],
+                'time_window_hours' => $result['time_window_hours'],
+            ],
+        ]);
     }
 
     public function calculateShipping(Request $request): JsonResponse
