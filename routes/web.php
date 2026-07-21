@@ -44,6 +44,7 @@ use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ReplyTemplateController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\DeadStockController;
@@ -414,6 +415,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/ml/scan', [DuplicateDetectionController::class, 'scanMl'])->name('duplicate-check.ml.scan');
     Route::post('/api/duplicate-check/ml/train', [DuplicateDetectionController::class, 'trainMlModel'])->name('duplicate-check.ml.train');
     Route::get('/api/duplicate-check/ml/stats', [DuplicateDetectionController::class, 'mlModelStats'])->name('duplicate-check.ml.stats');
+
+    // Reply Templates
+    Route::get('/shop/reply-templates', [ReplyTemplateController::class, 'index'])->name('reply-templates.index');
+    Route::get('/api/reply-templates', [ReplyTemplateController::class, 'list'])->name('reply-templates.list');
+    Route::post('/api/reply-templates', [ReplyTemplateController::class, 'store'])->name('reply-templates.store');
+    Route::put('/api/reply-templates/{id}', [ReplyTemplateController::class, 'update'])->name('reply-templates.update');
+    Route::delete('/api/reply-templates/{id}', [ReplyTemplateController::class, 'destroy'])->name('reply-templates.destroy');
+    Route::post('/api/reply-templates/{id}/toggle', [ReplyTemplateController::class, 'toggle'])->name('reply-templates.toggle');
+    Route::post('/api/reply-templates/{id}/use', [ReplyTemplateController::class, 'incrementUsage'])->name('reply-templates.use');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
