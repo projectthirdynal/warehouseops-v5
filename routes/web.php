@@ -357,6 +357,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/api/duplicate-check/rules/{id}', [DuplicateDetectionController::class, 'deleteRule'])->name('duplicate-check.rules.delete');
     Route::post('/api/duplicate-check/rules/{id}/toggle', [DuplicateDetectionController::class, 'toggleRule'])->name('duplicate-check.rules.toggle');
 
+    // Duplicate Analytics
+    Route::get('/shop/duplicate-review/analytics', [DuplicateDetectionController::class, 'analyticsPage'])->name('duplicate-review.analytics');
+    Route::get('/api/duplicate-check/analytics/overview', [DuplicateDetectionController::class, 'analyticsOverview'])->name('duplicate-check.analytics.overview');
+    Route::get('/api/duplicate-check/analytics/trend', [DuplicateDetectionController::class, 'analyticsTrend'])->name('duplicate-check.analytics.trend');
+    Route::get('/api/duplicate-check/analytics/breakdown', [DuplicateDetectionController::class, 'analyticsBreakdown'])->name('duplicate-check.analytics.breakdown');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

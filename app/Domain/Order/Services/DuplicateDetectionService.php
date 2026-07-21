@@ -1293,6 +1293,200 @@ class DuplicateDetectionService
         return $config;
     }
 
+    // ── Analytics ────────────────────────────────────────────────────
+
+    /**
+     * Get a comprehensive analytics overview for the duplicate review system.
+     *
+     * @param int $days  Look-back period (default 30)
+     * @return array<string, mixed>
+     */
+    public function getAnalyticsOverview(int $days = 30): array
+    {
+        $cutoff = Carbon::now()->subDays($days);
+
+        $totalItems = DuplicateReviewItem::count();
+        $itemsInPeriod = DuplicateReviewItem::where('created_at', '>=', $cutoff)->count();
+
+        $byType = DuplicateReviewItem::query()
+            ->selectRaw('type, COUNT(*) as count')
+            ->groupBy('type')
+            ->pluck('count', 'type')
+            ->toArray();
+
+        $byStatus = DuplicateReviewItem::query()
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $bySeverity = DuplicateReviewItem::query()
+            ->selectRaw('severity, COUNT(*) as count')
+            ->groupBy('severity')
+            ->pluck('count', 'severity')
+            ->toArray();
+
+        $byMatchMethod = DuplicateReviewItem::query()
+            ->selectRaw('match_method, COUNT(*) as count')
+            ->whereNotNull('match_method')
+            ->groupBy('match_method')
+            ->pluck('count', 'match_method')
+            ->toArray();
+
+        $resolutionRate = $totalItems > 0
+            ? round((($byStatus['reviewed'] ?? 0) + ($byStatus['actioned'] ?? 0)) / $totalItems * 100, 1)
+            : 0;
+
+        $avgResolutionHours = null;
+        $resolvedCount = ($byStatus['reviewed'] ?? 0) + ($byStatus['actioned'] ?? 0) + ($byStatus['dismissed'] ?? 0);
+        if ($resolvedCount > 0) {
+            $avgResolutionHours = (float) DuplicateReviewItem::query()
+                ->whereIn('status', ['reviewed', 'actioned', 'dismissed'])
+                ->whereNotNull('reviewed_at')
+                ->selectRaw('AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at)) / 3600) as avg_hours')
+                ->value('avg_hours');
+            $avgResolutionHours = $avgResolutionHours ? round($avgResolutionHours, 1) : null;
+        }
+
+        $topReviewers = DuplicateReviewItem::query()
+            ->selectRaw('reviewed_by, COUNT(*) as count')
+            ->whereNotNull('reviewed_by')
+            ->groupBy('reviewed_by')
+            ->orderByDesc('count')
+            ->limit(5)
+            ->get()
+            ->map(function ($row) {
+                $user = \App\Models\User::find($row->reviewed_by);
+                return [
+                    'user_id' => $row->reviewed_by,
+                    'name' => $user?->name ?? "User #{$row->reviewed_by}",
+                    'count' => (int) $row->count,
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        $activeRulesCount = DuplicateDetectionRule::where('is_enabled', true)->count();
+        $totalRulesCount = DuplicateDetectionRule::count();
+
+        return [
+            'period_days' => $days,
+            'total_items' => $totalItems,
+            'items_in_period' => $itemsInPeriod,
+            'by_type' => $byType,
+            'by_status' => $byStatus,
+            'by_severity' => $bySeverity,
+            'by_match_method' => $byMatchMethod,
+            'resolution_rate' => $resolutionRate,
+            'avg_resolution_hours' => $avgResolutionHours,
+            'top_reviewers' => $topReviewers,
+            'active_rules' => $activeRulesCount,
+            'total_rules' => $totalRulesCount,
+        ];
+    }
+
+    /**
+     * Get daily/weekly trend of duplicate items created and resolved.
+     *
+     * @param int $days  Look-back period (default 30)
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAnalyticsTrend(int $days = 30): array
+    {
+        $cutoff = Carbon::now()->subDays($days);
+
+        $created = DuplicateReviewItem::query()
+            ->selectRaw("DATE(created_at) as date, COUNT(*) as count")
+            ->where('created_at', '>=', $cutoff)
+            ->groupByRaw("DATE(created_at)")
+            ->orderByRaw("DATE(created_at)")
+            ->get()
+            ->pluck('count', 'date')
+            ->toArray();
+
+        $resolved = DuplicateReviewItem::query()
+            ->selectRaw("DATE(reviewed_at) as date, COUNT(*) as count")
+            ->where('reviewed_at', '>=', $cutoff)
+            ->whereNotNull('reviewed_at')
+            ->groupByRaw("DATE(reviewed_at)")
+            ->orderByRaw("DATE(reviewed_at)")
+            ->get()
+            ->pluck('count', 'date')
+            ->toArray();
+
+        $dates = array_unique(array_merge(array_keys($created), array_keys($resolved)));
+        sort($dates);
+
+        $trend = [];
+        $cumulativeCreated = 0;
+        $cumulativeResolved = 0;
+
+        foreach ($dates as $date) {
+            $createdCount = $created[$date] ?? 0;
+            $resolvedCount = $resolved[$date] ?? 0;
+            $cumulativeCreated += $createdCount;
+            $cumulativeResolved += $resolvedCount;
+
+            $trend[] = [
+                'date' => $date,
+                'created' => $createdCount,
+                'resolved' => $resolvedCount,
+                'cumulative_created' => $cumulativeCreated,
+                'cumulative_resolved' => $cumulativeResolved,
+                'backlog' => $cumulativeCreated - $cumulativeResolved,
+            ];
+        }
+
+        return $trend;
+    }
+
+    /**
+     * Get breakdown analytics by type with status and severity cross-tabs.
+     *
+     * @return array<string, mixed>
+     */
+    public function getAnalyticsBreakdown(): array
+    {
+        $types = ['order', 'customer', 'conversation'];
+
+        $breakdown = [];
+
+        foreach ($types as $type) {
+            $items = DuplicateReviewItem::where('type', $type);
+
+            $total = $items->count();
+            $pending = (clone $items)->where('status', 'pending')->count();
+            $reviewed = (clone $items)->where('status', 'reviewed')->count();
+            $dismissed = (clone $items)->where('status', 'dismissed')->count();
+            $actioned = (clone $items)->where('status', 'actioned')->count();
+
+            $bySeverity = (clone $items)
+                ->selectRaw('severity, COUNT(*) as count')
+                ->groupBy('severity')
+                ->pluck('count', 'severity')
+                ->toArray();
+
+            $byMatchMethod = (clone $items)
+                ->selectRaw('match_method, COUNT(*) as count')
+                ->whereNotNull('match_method')
+                ->groupBy('match_method')
+                ->pluck('count', 'match_method')
+                ->toArray();
+
+            $breakdown[$type] = [
+                'total' => $total,
+                'pending' => $pending,
+                'reviewed' => $reviewed,
+                'dismissed' => $dismissed,
+                'actioned' => $actioned,
+                'by_severity' => $bySeverity,
+                'by_match_method' => $byMatchMethod,
+            ];
+        }
+
+        return $breakdown;
+    }
+
     /**
      * @return array<string, mixed>
      */

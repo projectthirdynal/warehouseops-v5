@@ -424,4 +424,67 @@ class DuplicateDetectionController extends Controller
             'rule' => $rule,
         ]);
     }
+
+    // ── Analytics ────────────────────────────────────────────────────
+
+    /**
+     * Render the duplicate analytics dashboard page.
+     *
+     * GET /shop/duplicate-review/analytics
+     */
+    public function analyticsPage(Request $request): Response
+    {
+        $days = (int) ($request->query('days', '30'));
+
+        return Inertia::render('DuplicateReview/Analytics', [
+            'overview' => $this->service->getAnalyticsOverview($days),
+            'trend' => $this->service->getAnalyticsTrend($days),
+            'breakdown' => $this->service->getAnalyticsBreakdown(),
+            'days' => $days,
+        ]);
+    }
+
+    /**
+     * Get analytics overview (API).
+     *
+     * GET /api/duplicate-check/analytics/overview?days=30
+     */
+    public function analyticsOverview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        return response()->json(
+            $this->service->getAnalyticsOverview(isset($validated['days']) ? (int) $validated['days'] : 30),
+        );
+    }
+
+    /**
+     * Get analytics trend (API).
+     *
+     * GET /api/duplicate-check/analytics/trend?days=30
+     */
+    public function analyticsTrend(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        return response()->json([
+            'trend' => $this->service->getAnalyticsTrend(isset($validated['days']) ? (int) $validated['days'] : 30),
+        ]);
+    }
+
+    /**
+     * Get analytics breakdown (API).
+     *
+     * GET /api/duplicate-check/analytics/breakdown
+     */
+    public function analyticsBreakdown(): JsonResponse
+    {
+        return response()->json(
+            $this->service->getAnalyticsBreakdown(),
+        );
+    }
 }
