@@ -1141,4 +1141,125 @@ class DuplicateDetectionController extends Controller
             $this->service->getCrossPageStats(),
         );
     }
+
+    // ── Duplicate Export ─────────────────────────────────────────────
+
+    /**
+     * Render the duplicate export page.
+     *
+     * GET /shop/duplicate-review/export
+     */
+    public function exportPage(Request $request): Response
+    {
+        $stats = $this->service->getReviewQueueStats();
+        $autoMergeStats = $this->service->getAutoMergeStats();
+        $familyStats = $this->service->getFamilyStats();
+        $crossPageStats = $this->service->getCrossPageStats();
+        $auditLogStats = $this->service->getAuditLogStats(30);
+
+        return Inertia::render('DuplicateReview/Export', [
+            'reviewQueueStats' => $stats,
+            'autoMergeStats' => $autoMergeStats,
+            'familyStats' => $familyStats,
+            'crossPageStats' => $crossPageStats,
+            'auditLogStats' => $auditLogStats,
+        ]);
+    }
+
+    /**
+     * Export review queue as CSV.
+     *
+     * GET /api/duplicate-check/export/review-queue
+     */
+    public function exportReviewQueue(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $filters = array_filter($request->only(['type', 'status', 'severity']));
+        $csv = $this->service->exportReviewQueueCsv($filters);
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-review-queue-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-review-queue-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /**
+     * Export auto-merge suggestions as CSV.
+     *
+     * GET /api/duplicate-check/export/auto-merge
+     */
+    public function exportAutoMerge(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $filters = array_filter($request->only(['status', 'min_confidence']));
+        $csv = $this->service->exportAutoMergeSuggestionsCsv($filters);
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-auto-merge-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-auto-merge-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /**
+     * Export duplicate families as CSV.
+     *
+     * GET /api/duplicate-check/export/families
+     */
+    public function exportFamilies(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $filters = array_filter($request->only(['status', 'method']));
+        $csv = $this->service->exportFamiliesCsv($filters);
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-families-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-families-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /**
+     * Export cross-page duplicates as CSV.
+     *
+     * GET /api/duplicate-check/export/cross-page
+     */
+    public function exportCrossPage(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $csv = $this->service->exportCrossPageCsv();
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-cross-page-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-cross-page-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /**
+     * Export all duplicates as a combined CSV report.
+     *
+     * GET /api/duplicate-check/export/all
+     */
+    public function exportAll(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $csv = $this->service->exportAllDuplicatesCsv();
+
+        $this->service->logAction([
+            'user_id' => $request->user()->id,
+            'action' => 'export',
+            'entity_type' => 'duplicate_report',
+            'note' => 'Full duplicate export downloaded',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->streamDownload(function () use ($csv) {
+            echo $csv;
+        }, 'duplicate-report-' . date('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="duplicate-report-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
 }

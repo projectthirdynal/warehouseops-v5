@@ -400,6 +400,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/cross-page/scan', [DuplicateDetectionController::class, 'scanCrossPage'])->name('duplicate-check.cross-page.scan');
     Route::get('/api/duplicate-check/cross-page/stats', [DuplicateDetectionController::class, 'crossPageStats'])->name('duplicate-check.cross-page.stats');
 
+    // Duplicate Export
+    Route::get('/shop/duplicate-review/export', [DuplicateDetectionController::class, 'exportPage'])->name('duplicate-review.export');
+    Route::get('/api/duplicate-check/export/review-queue', [DuplicateDetectionController::class, 'exportReviewQueue'])->name('duplicate-check.export.review-queue');
+    Route::get('/api/duplicate-check/export/auto-merge', [DuplicateDetectionController::class, 'exportAutoMerge'])->name('duplicate-check.export.auto-merge');
+    Route::get('/api/duplicate-check/export/families', [DuplicateDetectionController::class, 'exportFamilies'])->name('duplicate-check.export.families');
+    Route::get('/api/duplicate-check/export/cross-page', [DuplicateDetectionController::class, 'exportCrossPage'])->name('duplicate-check.export.cross-page');
+    Route::get('/api/duplicate-check/export/all', [DuplicateDetectionController::class, 'exportAll'])->name('duplicate-check.export.all');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

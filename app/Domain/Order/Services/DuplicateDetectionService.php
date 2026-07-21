@@ -2822,6 +2822,235 @@ class DuplicateDetectionService
         return $csv;
     }
 
+    // ── Duplicate Export ─────────────────────────────────────────────
+
+    /**
+     * Export review queue items as CSV.
+     *
+     * @param array{type?: string, status?: string, severity?: string} $filters
+     * @return string
+     */
+    public function exportReviewQueueCsv(array $filters = []): string
+    {
+        $query = DuplicateReviewItem::query()
+            ->with('reviewer:id,name')
+            ->orderByDesc('severity')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+        if (!empty($filters['severity'])) {
+            $query->where('severity', $filters['severity']);
+        }
+
+        $items = $query->limit(5000)->get();
+
+        $rows = [];
+        $rows[] = ['ID', 'Type', 'Primary Label', 'Duplicate Label', 'Match Method', 'Similarity Score', 'Severity', 'Status', 'Reviewer', 'Reviewed At', 'Review Note', 'Created At'];
+
+        foreach ($items as $item) {
+            $rows[] = [
+                $item->id,
+                $item->type,
+                $item->primary_label,
+                $item->duplicate_label,
+                $item->match_method,
+                number_format((float) ($item->similarity_score ?? 0), 2),
+                $item->severity,
+                $item->status,
+                $item->reviewer?->name ?? '',
+                $item->reviewed_at?->toIso8601String() ?? '',
+                $item->review_note ?? '',
+                $item->created_at?->toIso8601String() ?? '',
+            ];
+        }
+
+        return $this->buildCsv($rows);
+    }
+
+    /**
+     * Export auto-merge suggestions as CSV.
+     *
+     * @param array{status?: string, min_confidence?: float} $filters
+     * @return string
+     */
+    public function exportAutoMergeSuggestionsCsv(array $filters = []): string
+    {
+        $query = AutoMergeSuggestion::query()
+            ->with([
+                'targetCustomer:id,name,phone,normalized_phone,total_orders,total_revenue',
+                'sourceCustomer:id,name,phone,normalized_phone,total_orders,total_revenue',
+                'actioner:id,name',
+            ])
+            ->orderByDesc('confidence_score')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+        if (!empty($filters['min_confidence'])) {
+            $query->where('confidence_score', '>=', (float) $filters['min_confidence']);
+        }
+
+        $items = $query->limit(5000)->get();
+
+        $rows = [];
+        $rows[] = ['ID', 'Target Customer', 'Target Phone', 'Target Orders', 'Target Revenue', 'Source Customer', 'Source Phone', 'Source Orders', 'Source Revenue', 'Confidence Score', 'Match Reasons', 'Status', 'Actioned By', 'Actioned At', 'Action Note', 'Created At'];
+
+        foreach ($items as $item) {
+            $rows[] = [
+                $item->id,
+                $item->targetCustomer?->name ?? "Customer #{$item->target_customer_id}",
+                $item->targetCustomer?->phone ?? '',
+                (int) ($item->targetCustomer?->total_orders ?? 0),
+                (float) ($item->targetCustomer?->total_revenue ?? 0),
+                $item->sourceCustomer?->name ?? "Customer #{$item->source_customer_id}",
+                $item->sourceCustomer?->phone ?? '',
+                (int) ($item->sourceCustomer?->total_orders ?? 0),
+                (float) ($item->sourceCustomer?->total_revenue ?? 0),
+                number_format((float) ($item->confidence_score ?? 0), 2),
+                is_array($item->match_reasons) ? implode('; ', $item->match_reasons) : '',
+                $item->status,
+                $item->actioner?->name ?? '',
+                $item->actioned_at?->toIso8601String() ?? '',
+                $item->action_note ?? '',
+                $item->created_at?->toIso8601String() ?? '',
+            ];
+        }
+
+        return $this->buildCsv($rows);
+    }
+
+    /**
+     * Export duplicate families as CSV.
+     *
+     * @param array{status?: string, method?: string, min_members?: int} $filters
+     * @return string
+     */
+    public function exportFamiliesCsv(array $filters = []): string
+    {
+        $query = DuplicateFamily::query()
+            ->withCount('members')
+            ->with('actioner:id,name')
+            ->orderByDesc('member_count')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+        if (!empty($filters['method'])) {
+            $query->where('group_method', $filters['method']);
+        }
+
+        $items = $query->limit(5000)->get();
+
+        $rows = [];
+        $rows[] = ['ID', 'Type', 'Group Key', 'Group Method', 'Anchor Label', 'Member Count', 'Merged Count', 'Status', 'Actioned By', 'Actioned At', 'Action Note', 'Created At'];
+
+        foreach ($items as $item) {
+            $rows[] = [
+                $item->id,
+                $item->type,
+                $item->group_key,
+                $item->group_method,
+                $item->anchor_label,
+                $item->member_count,
+                $item->merged_count ?? 0,
+                $item->status,
+                $item->actioner?->name ?? '',
+                $item->actioned_at?->toIso8601String() ?? '',
+                $item->action_note ?? '',
+                $item->created_at?->toIso8601String() ?? '',
+            ];
+        }
+
+        return $this->buildCsv($rows);
+    }
+
+    /**
+     * Export cross-page duplicates as CSV.
+     *
+     * @return string
+     */
+    public function exportCrossPageCsv(): string
+    {
+        $result = $this->scanCrossPageDuplicates(5000);
+
+        $rows = [];
+        $rows[] = ['Type', 'Key', 'Label', 'Page Count', 'Order Count', 'Conversation Count', 'Customer ID', 'Customer Phone', 'Severity', 'Pages'];
+
+        foreach ($result['groups'] as $group) {
+            $pagesSummary = collect($group['pages'])
+                ->map(fn ($p) => $p['page_name'] . ' (' . ($p['order_count'] ?? $p['conversation_count'] ?? $p['identity_count'] ?? 0) . ')')
+                ->implode('; ');
+
+            $rows[] = [
+                $group['type'],
+                $group['key'],
+                $group['label'],
+                $group['page_count'],
+                $group['order_count'] ?? '',
+                $group['conversation_count'] ?? '',
+                $group['customer_id'] ?? '',
+                $group['customer_phone'] ?? '',
+                $group['severity'],
+                $pagesSummary,
+            ];
+        }
+
+        return $this->buildCsv($rows);
+    }
+
+    /**
+     * Export a combined duplicate report with all sections.
+     *
+     * @return string
+     */
+    public function exportAllDuplicatesCsv(): string
+    {
+        $csv = '';
+
+        $csv .= "DUPLICATE REVIEW QUEUE\n";
+        $csv .= $this->exportReviewQueueCsv([]);
+        $csv .= "\n\n";
+
+        $csv .= "AUTO-MERGE SUGGESTIONS\n";
+        $csv .= $this->exportAutoMergeSuggestionsCsv([]);
+        $csv .= "\n\n";
+
+        $csv .= "DUPLICATE FAMILIES\n";
+        $csv .= $this->exportFamiliesCsv([]);
+        $csv .= "\n\n";
+
+        $csv .= "CROSS-PAGE DUPLICATES\n";
+        $csv .= $this->exportCrossPageCsv();
+        $csv .= "\n\n";
+
+        $csv .= "AUDIT LOGS\n";
+        $csv .= $this->exportAuditLogsCsv([]);
+
+        return $csv;
+    }
+
+    /**
+     * Build CSV from array of rows.
+     *
+     * @param array<int, array<int, mixed>> $rows
+     * @return string
+     */
+    private function buildCsv(array $rows): string
+    {
+        $csv = '';
+        foreach ($rows as $row) {
+            $csv .= implode(',', array_map(fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', $row)) . "\n";
+        }
+        return $csv;
+    }
+
     // ── Cross-Page Duplicate Detection ───────────────────────────────
 
     /**
