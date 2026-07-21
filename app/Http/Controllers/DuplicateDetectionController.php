@@ -739,4 +739,109 @@ class DuplicateDetectionController extends Controller
             $this->service->getFamilyStats(),
         );
     }
+
+    // ── Duplicate Notifications ──────────────────────────────────────
+
+    /**
+     * Render the duplicate notifications page.
+     *
+     * GET /shop/duplicate-review/notifications
+     */
+    public function notificationsPage(Request $request): Response
+    {
+        $filters = array_filter([
+            'type' => $request->query('type'),
+            'severity' => $request->query('severity'),
+            'unread_only' => $request->boolean('unread_only') ? '1' : null,
+        ]);
+
+        $userId = $request->user()?->id;
+
+        return Inertia::render('DuplicateReview/Notifications', [
+            'notifications' => $this->service->getNotifications(array_merge($filters, ['user_id' => $userId])),
+            'stats' => $this->service->getNotificationStats($userId),
+            'filters' => $filters,
+        ]);
+    }
+
+    /**
+     * Generate notifications from current duplicate state.
+     *
+     * POST /api/duplicate-check/notifications/generate
+     */
+    public function generateNotifications(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'supervisor_id' => 'nullable|integer|exists:users,id',
+        ]);
+
+        $result = $this->service->generateNotificationsFromScan(
+            isset($validated['supervisor_id']) ? (int) $validated['supervisor_id'] : null,
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * List notifications (API).
+     *
+     * GET /api/duplicate-check/notifications
+     */
+    public function listNotifications(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'type' => 'nullable|string|in:review_item,auto_merge,family,high_severity',
+            'severity' => 'nullable|string|in:low,medium,high,critical',
+            'unread_only' => 'nullable|boolean',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $validated['user_id'] = $request->user()?->id;
+
+        return response()->json(
+            $this->service->getNotifications($validated),
+        );
+    }
+
+    /**
+     * Mark a single notification as read.
+     *
+     * POST /api/duplicate-check/notifications/{id}/read
+     */
+    public function markNotificationRead(Request $request, int $id): JsonResponse
+    {
+        $notification = $this->service->markNotificationRead($id, $request->user()->id);
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found.'], 404);
+        }
+
+        return response()->json(['notification' => $notification]);
+    }
+
+    /**
+     * Mark all notifications as read for the current user.
+     *
+     * POST /api/duplicate-check/notifications/mark-all-read
+     */
+    public function markAllNotificationsRead(Request $request): JsonResponse
+    {
+        $count = $this->service->markAllNotificationsRead($request->user()->id);
+
+        return response()->json(['marked_read' => $count]);
+    }
+
+    /**
+     * Get notification stats (API).
+     *
+     * GET /api/duplicate-check/notifications/stats
+     */
+    public function notificationStats(Request $request): JsonResponse
+    {
+        $userId = $request->user()?->id;
+
+        return response()->json(
+            $this->service->getNotificationStats($userId),
+        );
+    }
 }

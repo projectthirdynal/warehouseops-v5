@@ -380,6 +380,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/duplicate-check/families/{id}/dismiss', [DuplicateDetectionController::class, 'dismissFamily'])->name('duplicate-check.families.dismiss');
     Route::get('/api/duplicate-check/families/stats', [DuplicateDetectionController::class, 'familyStats'])->name('duplicate-check.families.stats');
 
+    // Duplicate Notifications
+    Route::get('/shop/duplicate-review/notifications', [DuplicateDetectionController::class, 'notificationsPage'])->name('duplicate-review.notifications');
+    Route::post('/api/duplicate-check/notifications/generate', [DuplicateDetectionController::class, 'generateNotifications'])->name('duplicate-check.notifications.generate');
+    Route::get('/api/duplicate-check/notifications', [DuplicateDetectionController::class, 'listNotifications'])->name('duplicate-check.notifications.list');
+    Route::post('/api/duplicate-check/notifications/{id}/read', [DuplicateDetectionController::class, 'markNotificationRead'])->name('duplicate-check.notifications.read');
+    Route::post('/api/duplicate-check/notifications/mark-all-read', [DuplicateDetectionController::class, 'markAllNotificationsRead'])->name('duplicate-check.notifications.mark-all-read');
+    Route::get('/api/duplicate-check/notifications/stats', [DuplicateDetectionController::class, 'notificationStats'])->name('duplicate-check.notifications.stats');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

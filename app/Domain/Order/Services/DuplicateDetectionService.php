@@ -16,6 +16,7 @@ use App\Models\Customer;
 use App\Models\DuplicateDetectionRule;
 use App\Models\DuplicateFamily;
 use App\Models\DuplicateFamilyMember;
+use App\Models\DuplicateNotification;
 use App\Models\DuplicateReviewItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -2291,6 +2292,324 @@ class DuplicateDetectionService
                 'label' => $largestFamily->anchor_label,
                 'members' => $largestFamily->member_count,
             ] : null,
+        ];
+    }
+
+    // ── Duplicate Notifications ──────────────────────────────────────
+
+    /**
+     * Create a single duplicate notification.
+     *
+     * @param array<string, mixed> $data
+     */
+    public function createNotification(array $data): DuplicateNotification
+    {
+        return DuplicateNotification::create([
+            'user_id' => $data['user_id'] ?? null,
+            'type' => $data['type'] ?? 'review_item',
+            'severity' => $data['severity'] ?? 'medium',
+            'title' => $data['title'] ?? 'Duplicate Detected',
+            'message' => $data['message'] ?? '',
+            'entity_type' => $data['entity_type'] ?? null,
+            'entity_id' => $data['entity_id'] ?? null,
+            'action_url' => $data['action_url'] ?? null,
+            'action_label' => $data['action_label'] ?? null,
+            'metadata' => $data['metadata'] ?? null,
+        ]);
+    }
+
+    /**
+     * Generate notifications from the current state of the duplicate
+     * review queue, auto-merge suggestions, and families.
+     *
+     * - High-severity review items → notification for supervisors
+     * - New auto-merge suggestions with confidence >= 90 → notification
+     * - Large families (3+ members) → notification
+     *
+     * @param int|null $supervisorId  Target supervisor user ID, null = broadcast
+     * @return array{created: int, skipped: int}
+     */
+    public function generateNotificationsFromScan(?int $supervisorId = null): array
+    {
+        $created = 0;
+        $skipped = 0;
+
+        // 1. High-severity pending review items
+        $highSeverityItems = DuplicateReviewItem::query()
+            ->where('status', 'pending')
+            ->whereIn('severity', ['high', 'critical'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get();
+
+        foreach ($highSeverityItems as $item) {
+            $exists = DuplicateNotification::query()
+                ->where('type', 'review_item')
+                ->where('entity_type', $item->type)
+                ->where('entity_id', $item->id)
+                ->whereNull('read_at')
+                ->when($supervisorId, fn ($q) => $q->where('user_id', $supervisorId))
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            $this->createNotification([
+                'user_id' => $supervisorId,
+                'type' => 'review_item',
+                'severity' => $item->severity,
+                'title' => "High-severity duplicate: {$item->primary_label}",
+                'message' => "Duplicate {$item->type} detected between \"{$item->primary_label}\" and \"{$item->duplicate_label}\" with {$item->severity} severity. Match method: {$item->match_method}.",
+                'entity_type' => $item->type,
+                'entity_id' => $item->id,
+                'action_url' => '/shop/duplicate-review',
+                'action_label' => 'Review Queue',
+                'metadata' => [
+                    'review_item_id' => $item->id,
+                    'match_method' => $item->match_method,
+                    'similarity_score' => $item->similarity_score,
+                ],
+            ]);
+            $created++;
+        }
+
+        // 2. High-confidence auto-merge suggestions
+        $highConfidenceSuggestions = AutoMergeSuggestion::query()
+            ->where('status', 'pending')
+            ->where('confidence_score', '>=', 90)
+            ->orderByDesc('confidence_score')
+            ->limit(50)
+            ->get();
+
+        foreach ($highConfidenceSuggestions as $suggestion) {
+            $exists = DuplicateNotification::query()
+                ->where('type', 'auto_merge')
+                ->where('entity_id', $suggestion->id)
+                ->whereNull('read_at')
+                ->when($supervisorId, fn ($q) => $q->where('user_id', $supervisorId))
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            $targetName = $suggestion->targetCustomer?->name ?? "Customer #{$suggestion->target_customer_id}";
+            $sourceName = $suggestion->sourceCustomer?->name ?? "Customer #{$suggestion->source_customer_id}";
+
+            $this->createNotification([
+                'user_id' => $supervisorId,
+                'type' => 'auto_merge',
+                'severity' => 'high',
+                'title' => "Auto-merge suggestion: {$targetName}",
+                'message' => "High-confidence ({$suggestion->confidence_score}%) merge suggestion between \"{$targetName}\" and \"{$sourceName}\". Match reasons: " . implode(', ', $suggestion->match_reasons ?? []) . '.',
+                'entity_type' => 'customer',
+                'entity_id' => $suggestion->id,
+                'action_url' => '/shop/duplicate-review/auto-merge',
+                'action_label' => 'Review Suggestions',
+                'metadata' => [
+                    'suggestion_id' => $suggestion->id,
+                    'confidence_score' => $suggestion->confidence_score,
+                    'match_reasons' => $suggestion->match_reasons,
+                ],
+            ]);
+            $created++;
+        }
+
+        // 3. Large duplicate families (3+ members)
+        $largeFamilies = DuplicateFamily::query()
+            ->where('status', 'active')
+            ->where('member_count', '>=', 3)
+            ->orderByDesc('member_count')
+            ->limit(20)
+            ->get();
+
+        foreach ($largeFamilies as $family) {
+            $exists = DuplicateNotification::query()
+                ->where('type', 'family')
+                ->where('entity_id', $family->id)
+                ->whereNull('read_at')
+                ->when($supervisorId, fn ($q) => $q->where('user_id', $supervisorId))
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            $this->createNotification([
+                'user_id' => $supervisorId,
+                'type' => 'family',
+                'severity' => 'medium',
+                'title' => "Duplicate family: {$family->anchor_label}",
+                'message' => "Duplicate family with {$family->member_count} members detected via {$family->group_method}. Anchor: \"{$family->anchor_label}\". Consider merging to consolidate records.",
+                'entity_type' => 'customer',
+                'entity_id' => $family->id,
+                'action_url' => '/shop/duplicate-review/families',
+                'action_label' => 'View Families',
+                'metadata' => [
+                    'family_id' => $family->id,
+                    'member_count' => $family->member_count,
+                    'group_method' => $family->group_method,
+                ],
+            ]);
+            $created++;
+        }
+
+        return [
+            'created' => $created,
+            'skipped' => $skipped,
+        ];
+    }
+
+    /**
+     * Get paginated notifications with filters.
+     *
+     * @param array{user_id?: int, type?: string, severity?: string, unread_only?: bool, per_page?: int} $filters
+     * @return array<string, mixed>
+     */
+    public function getNotifications(array $filters = []): array
+    {
+        $query = DuplicateNotification::query()
+            ->with('reader:id,name')
+            ->orderByDesc('created_at');
+
+        if (!empty($filters['user_id'])) {
+            $query->where(function ($q) use ($filters) {
+                $q->where('user_id', $filters['user_id'])
+                    ->orWhereNull('user_id');
+            });
+        }
+
+        if (!empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (!empty($filters['severity'])) {
+            $query->where('severity', $filters['severity']);
+        }
+
+        if (!empty($filters['unread_only'])) {
+            $query->whereNull('read_at');
+        }
+
+        $perPage = $filters['per_page'] ?? 25;
+        $items = $query->paginate($perPage);
+
+        return [
+            'items' => $items->items(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'per_page' => $items->perPage(),
+                'total' => $items->total(),
+                'from' => $items->firstItem(),
+                'to' => $items->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * Mark a single notification as read.
+     */
+    public function markNotificationRead(int $notificationId, int $userId): ?DuplicateNotification
+    {
+        $notification = DuplicateNotification::find($notificationId);
+
+        if (!$notification) {
+            return null;
+        }
+
+        if ($notification->read_at === null) {
+            $notification->update([
+                'read_at' => now(),
+                'read_by' => $userId,
+            ]);
+        }
+
+        return $notification->fresh();
+    }
+
+    /**
+     * Mark all unread notifications as read for a user (including broadcasts).
+     *
+     * @return int Number of notifications marked read
+     */
+    public function markAllNotificationsRead(int $userId): int
+    {
+        return DuplicateNotification::query()
+            ->whereNull('read_at')
+            ->where(function ($q) use ($userId) {
+                $q->where('user_id', $userId)
+                    ->orWhereNull('user_id');
+            })
+            ->update([
+                'read_at' => now(),
+                'read_by' => $userId,
+            ]);
+    }
+
+    /**
+     * Get notification summary stats.
+     *
+     * @param int|null $userId  Filter to user + broadcasts, null = all
+     * @return array<string, mixed>
+     */
+    public function getNotificationStats(?int $userId = null): array
+    {
+        $query = DuplicateNotification::query();
+        $unreadQuery = DuplicateNotification::query()->whereNull('read_at');
+
+        if ($userId) {
+            $query->where(function ($q) use ($userId) {
+                $q->where('user_id', $userId)->orWhereNull('user_id');
+            });
+            $unreadQuery->where(function ($q) use ($userId) {
+                $q->where('user_id', $userId)->orWhereNull('user_id');
+            });
+        }
+
+        $total = $query->count();
+        $unread = $unreadQuery->count();
+
+        $byType = (clone $query)
+            ->selectRaw('type, COUNT(*) as count')
+            ->groupBy('type')
+            ->pluck('count', 'type')
+            ->toArray();
+
+        $bySeverity = (clone $query)
+            ->selectRaw('severity, COUNT(*) as count')
+            ->groupBy('severity')
+            ->pluck('count', 'severity')
+            ->toArray();
+
+        $unreadByType = (clone $unreadQuery)
+            ->selectRaw('type, COUNT(*) as count')
+            ->groupBy('type')
+            ->pluck('count', 'type')
+            ->toArray();
+
+        $unreadBySeverity = (clone $unreadQuery)
+            ->selectRaw('severity, COUNT(*) as count')
+            ->groupBy('severity')
+            ->pluck('count', 'severity')
+            ->toArray();
+
+        $recentCount = (clone $query)
+            ->where('created_at', '>=', Carbon::now()->subDays(7))
+            ->count();
+
+        return [
+            'total' => $total,
+            'unread' => $unread,
+            'recent_7d' => $recentCount,
+            'by_type' => $byType,
+            'by_severity' => $bySeverity,
+            'unread_by_type' => $unreadByType,
+            'unread_by_severity' => $unreadBySeverity,
         ];
     }
 
