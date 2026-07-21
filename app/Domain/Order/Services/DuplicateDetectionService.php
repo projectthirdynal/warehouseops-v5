@@ -6,6 +6,8 @@ namespace App\Domain\Order\Services;
 
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\CustomerIdentity;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\PhoneDetectionService;
 use Illuminate\Support\Carbon;
@@ -148,6 +150,165 @@ class DuplicateDetectionService
                 'created_at_formatted' => $o->created_at?->format('M j, Y g:i A'),
             ])->values()->toArray(),
         ];
+    }
+
+    /**
+     * Detect duplicate conversations by PSID (page-scoped ID).
+     *
+     * Finds multiple active conversations for the same customer identity (PSID)
+     * on the same or different Facebook pages, indicating the same person may
+     * have multiple open conversation threads.
+     *
+     * @param string      $psid             The provider_user_id (PSID) to check
+     * @param int|null    $facebookPageId   Optional: scope to a specific page
+     * @param int|null    $excludeConversationId  Conversation ID to exclude
+     * @return array<string, mixed>
+     */
+    public function detectDuplicateConversationsByPsid(
+        string $psid,
+        ?int $facebookPageId = null,
+        ?int $excludeConversationId = null,
+    ): array {
+        if (empty($psid)) {
+            return [
+                'is_duplicate' => false,
+                'psid' => '',
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        $identityQuery = CustomerIdentity::query()
+            ->where('provider', 'facebook')
+            ->where('provider_user_id', $psid);
+
+        if ($facebookPageId) {
+            $identityQuery->where('facebook_page_id', $facebookPageId);
+        }
+
+        $identities = $identityQuery->get();
+
+        if ($identities->isEmpty()) {
+            return [
+                'is_duplicate' => false,
+                'psid' => $psid,
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        $identityIds = $identities->pluck('id')->all();
+
+        $conversationQuery = Conversation::query()
+            ->whereIn('customer_identity_id', $identityIds)
+            ->whereIn('status', Conversation::ACTIVE_STATUSES)
+            ->whereNull('merged_into_id');
+
+        if ($excludeConversationId) {
+            $conversationQuery->where('id', '!=', $excludeConversationId);
+        }
+
+        $conversations = $conversationQuery
+            ->with([
+                'identity:id,provider_user_id,display_name,phone_detected,facebook_page_id',
+                'facebookPage:id,page_id,page_name',
+                'customer:id,name,phone,normalized_phone',
+                'assignedAgent:id,name',
+            ])
+            ->latest()
+            ->get();
+
+        $duplicates = $conversations->map(function (Conversation $conv) {
+            return [
+                'conversation_id' => $conv->id,
+                'status' => $conv->status,
+                'channel' => $conv->channel,
+                'priority' => $conv->priority,
+                'is_flagged' => $conv->is_flagged,
+                'flag_reason' => $conv->flag_reason,
+                'last_message_at' => $conv->last_message_at?->toIso8601String(),
+                'last_message_preview' => $conv->last_message_preview,
+                'unread_count' => $conv->unread_count ?? 0,
+                'psid' => $conv->identity?->provider_user_id,
+                'display_name' => $conv->identity?->display_name,
+                'phone_detected' => $conv->identity?->phone_detected,
+                'page_name' => $conv->facebookPage?->page_name,
+                'facebook_page_id' => $conv->facebook_page_id,
+                'customer_name' => $conv->customer?->name,
+                'customer_phone' => $conv->customer?->normalized_phone ?? $conv->customer?->phone,
+                'assigned_agent' => $conv->assignedAgent?->name,
+                'created_at' => $conv->created_at?->toIso8601String(),
+                'created_at_formatted' => $conv->created_at?->format('M j, Y g:i A'),
+                'hours_ago' => $conv->created_at?->diffInHours(now()) ?? 0,
+            ];
+        })->values();
+
+        $count = $duplicates->count();
+
+        return [
+            'is_duplicate' => $count > 0,
+            'psid' => $psid,
+            'identity_count' => $identities->count(),
+            'duplicate_count' => $count,
+            'duplicates' => $duplicates->toArray(),
+            'severity' => $this->determineConversationSeverity($count),
+        ];
+    }
+
+    /**
+     * Detect duplicate conversations by customer identity ID.
+     *
+     * Convenience method to check for duplicate conversations when
+     * the customer_identity_id is already known (e.g., from a webhook).
+     *
+     * @param int      $identityId
+     * @param int|null $excludeConversationId
+     * @return array<string, mixed>
+     */
+    public function detectDuplicateConversationsByIdentity(int $identityId, ?int $excludeConversationId = null): array
+    {
+        $identity = CustomerIdentity::find($identityId);
+
+        if (!$identity || $identity->provider !== 'facebook') {
+            return [
+                'is_duplicate' => false,
+                'psid' => '',
+                'duplicate_count' => 0,
+                'duplicates' => [],
+                'severity' => 'none',
+            ];
+        }
+
+        return $this->detectDuplicateConversationsByPsid(
+            $identity->provider_user_id,
+            $identity->facebook_page_id,
+            $excludeConversationId,
+        );
+    }
+
+    /**
+     * Determine severity for conversation duplicates based on count.
+     *
+     * @param int $count
+     * @return string  'none', 'low', 'medium', 'high'
+     */
+    private function determineConversationSeverity(int $count): string
+    {
+        if ($count === 0) {
+            return 'none';
+        }
+
+        if ($count >= 3) {
+            return 'high';
+        }
+
+        if ($count >= 2) {
+            return 'medium';
+        }
+
+        return 'low';
     }
 
     /**

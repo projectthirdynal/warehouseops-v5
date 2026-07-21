@@ -67,4 +67,28 @@ class DuplicateDetectionController extends Controller
             'recent_orders' => $result,
         ]);
     }
+
+    /**
+     * Check for duplicate conversations by PSID.
+     *
+     * GET /api/duplicate-check/conversations?psid=...&facebook_page_id=...&exclude_conversation_id=...
+     */
+    public function checkConversations(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'psid' => 'required|string|max:255',
+            'facebook_page_id' => 'nullable|integer',
+            'exclude_conversation_id' => 'nullable|integer',
+        ]);
+
+        $result = $this->service->detectDuplicateConversationsByPsid(
+            $validated['psid'],
+            isset($validated['facebook_page_id']) ? (int) $validated['facebook_page_id'] : null,
+            isset($validated['exclude_conversation_id']) ? (int) $validated['exclude_conversation_id'] : null,
+        );
+
+        return response()->json([
+            'duplicate_conversations' => $result,
+        ]);
+    }
 }

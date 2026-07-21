@@ -336,6 +336,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Duplicate Detection
     Route::get('/api/duplicate-check/orders', [DuplicateDetectionController::class, 'checkOrders'])->name('duplicate-check.orders');
     Route::get('/api/duplicate-check/recent', [DuplicateDetectionController::class, 'checkRecent'])->name('duplicate-check.recent');
+    Route::get('/api/duplicate-check/conversations', [DuplicateDetectionController::class, 'checkConversations'])->name('duplicate-check.conversations');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');

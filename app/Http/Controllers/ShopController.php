@@ -5780,6 +5780,13 @@ class ShopController extends Controller
                         ?? $conversation->identity?->phone_detected
                 )
                 : null,
+            'duplicate_conversations' => $conversation?->identity?->provider_user_id
+                ? $this->duplicateDetection->detectDuplicateConversationsByPsid(
+                    $conversation->identity->provider_user_id,
+                    $conversation->facebook_page_id,
+                    $conversation->id,
+                )
+                : null,
             'drafts' => Order::query()
                 ->where('status', OrderStatus::DRAFT)
                 ->where('assigned_agent_id', auth()->id())

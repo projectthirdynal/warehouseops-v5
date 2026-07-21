@@ -174,11 +174,44 @@ interface RecommendedProduct {
   selling_price: number;
 }
 
+interface DuplicateConversation {
+  conversation_id: number;
+  status: string;
+  channel: string;
+  priority: string;
+  is_flagged: boolean;
+  flag_reason: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_count: number;
+  psid: string | null;
+  display_name: string | null;
+  phone_detected: string | null;
+  page_name: string | null;
+  facebook_page_id: number | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  assigned_agent: string | null;
+  created_at: string;
+  created_at_formatted: string;
+  hours_ago: number;
+}
+
+interface DuplicateConversationResult {
+  is_duplicate: boolean;
+  psid: string;
+  identity_count: number;
+  duplicate_count: number;
+  duplicates: DuplicateConversation[];
+  severity: 'none' | 'low' | 'medium' | 'high';
+}
+
 interface Props {
   products: Product[];
   couriers: Courier[];
   prefill?: Partial<OrderForm> | null;
   duplicate_warnings: DuplicateWarning[];
+  duplicate_conversations?: DuplicateConversationResult | null;
   drafts: DraftSummary[];
   edit_order_id?: number | null;
   edit_order_number?: string | null;
@@ -261,6 +294,7 @@ export default function CreateShopOrder({
   couriers,
   prefill,
   duplicate_warnings,
+  duplicate_conversations,
   drafts,
   edit_order_id = null,
   edit_order_number = null,
@@ -1904,6 +1938,63 @@ export default function CreateShopOrder({
                             : new Date(order.created_at).toLocaleString()}
                         </span>
                         <span>{money(Number(order.total_amount ?? 0))}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {duplicate_conversations && duplicate_conversations.is_duplicate && (
+              <Card className="border-info/30 bg-info/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-info">
+                    <AlertTriangle className="h-5 w-5" />
+                    Duplicate Conversations
+                    <Badge variant="outline" className={`ml-1 text-info border-info/30`}>
+                      {duplicate_conversations.severity}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    {duplicate_conversations.duplicate_count} other active conversation
+                    {duplicate_conversations.duplicate_count > 1 ? 's' : ''} from the same PSID
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {duplicate_conversations.duplicates.map((conv) => (
+                    <Link
+                      key={conv.conversation_id}
+                      href={`/shop/inbox?conversation=${conv.conversation_id}`}
+                      className="block rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-accent/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {conv.display_name ?? conv.customer_name ?? 'Unknown'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {conv.page_name ?? 'Unknown page'}
+                            {conv.assigned_agent ? ` · ${conv.assigned_agent}` : ''}
+                          </p>
+                        </div>
+                        <Badge variant="outline">{conv.status}</Badge>
+                      </div>
+                      {conv.last_message_preview && (
+                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                          {conv.last_message_preview}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {conv.hours_ago != null
+                            ? `${conv.hours_ago}h ago`
+                            : new Date(conv.created_at).toLocaleString()}
+                        </span>
+                        {conv.unread_count > 0 && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            {conv.unread_count} unread
+                          </Badge>
+                        )}
                       </div>
                     </Link>
                   ))}
