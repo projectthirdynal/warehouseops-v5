@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Services\OrderFulfillmentService;
+use App\Domain\Order\Services\DuplicateDetectionService;
 use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
@@ -87,6 +88,7 @@ class ShopController extends Controller
         private readonly OrderFulfillmentService $fulfillment,
         private readonly GeocodingService $geocoder,
         private readonly AddressFormatService $addressFormatter,
+        private readonly DuplicateDetectionService $duplicateDetection,
     ) {}
 
     public function index(): Response
@@ -5776,6 +5778,13 @@ class ShopController extends Controller
                     ?? $conversation?->customer?->phone
                     ?? $conversation?->identity?->phone_detected
             ),
+            'duplicate_check' => ($conversation?->customer?->normalized_phone ?? $conversation?->customer?->phone ?? $conversation?->identity?->phone_detected)
+                ? $this->duplicateDetection->checkRecentOrdersByPhone(
+                    $conversation->customer?->normalized_phone
+                        ?? $conversation->customer?->phone
+                        ?? $conversation->identity?->phone_detected
+                )
+                : null,
             'drafts' => Order::query()
                 ->where('status', OrderStatus::DRAFT)
                 ->where('assigned_agent_id', auth()->id())
@@ -6261,10 +6270,13 @@ class ShopController extends Controller
         $totalQuantity = (int) $preparedItems->sum('quantity');
         $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
         $normalizedPhone = $this->phones->normalize($validated['phone']);
-        $possibleDuplicates = $this->possibleDuplicateOrders(
+        $duplicateCheck = $this->duplicateDetection->detectDuplicateOrders(
             $normalizedPhone ?: $validated['phone'],
-            $preparedItems->pluck('product.id')->map(fn ($id) => (int) $id)->all()
+            $preparedItems->pluck('product.id')->map(fn ($id) => (int) $id)->all(),
         );
+        $possibleDuplicates = Order::query()
+            ->whereIn('id', collect($duplicateCheck['duplicates'])->pluck('order_id'))
+            ->get(['id', 'order_number', 'created_at']);
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['province'] ?? null,
             'city_municipality' => $validated['city_municipality'] ?? null,

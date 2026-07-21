@@ -5,6 +5,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SalesDashboardController;
+use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillImportController;
@@ -331,6 +332,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/sales-dashboard/scheduled-reports', [SalesDashboardController::class, 'apiCreateScheduledReport'])->name('sales-dashboard.scheduled-reports.store');
     Route::put('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiUpdateScheduledReport'])->name('sales-dashboard.scheduled-reports.update');
     Route::delete('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiDeleteScheduledReport'])->name('sales-dashboard.scheduled-reports.destroy');
+
+    // Duplicate Detection
+    Route::get('/api/duplicate-check/orders', [DuplicateDetectionController::class, 'checkOrders'])->name('duplicate-check.orders');
+    Route::get('/api/duplicate-check/recent', [DuplicateDetectionController::class, 'checkRecent'])->name('duplicate-check.recent');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
