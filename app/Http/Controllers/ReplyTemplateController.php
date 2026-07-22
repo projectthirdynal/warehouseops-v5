@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Shop\Models\FacebookPage;
+use App\Domain\Shop\Models\Conversation;
 use App\Models\ReplyTemplate;
 use App\Models\ReplyTemplateUsage;
 use App\Models\ReplyTemplateVersion;
@@ -547,6 +548,189 @@ class ReplyTemplateController extends Controller
                 'percent_change' => $trendPercent,
             ],
         ];
+    }
+
+    /**
+     * Suggest templates for a conversation based on context-aware ranking.
+     *
+     * GET /api/reply-templates/suggest?conversation_id={id}
+     */
+    public function suggestTemplates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'conversation_id' => 'required|integer|exists:conversations,id',
+        ]);
+
+        $conversation = Conversation::with([
+            'facebookPage:id,page_name',
+            'customer:id,name,phone,normalized_phone',
+            'assignedAgent:id,name',
+        ])->findOrFail($validated['conversation_id']);
+
+        $pageId = $conversation->facebook_page_id;
+        $userRole = $request->user()?->role;
+        $userId = $request->user()?->id;
+
+        // Base query: active, approved/null, accessible by role, available for this page
+        $templates = ReplyTemplate::query()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('approval_status')
+                    ->orWhere('approval_status', ReplyTemplate::APPROVAL_APPROVED);
+            })
+            ->where(function ($q) use ($pageId) {
+                $q->where('facebook_page_id', $pageId)
+                    ->orWhereNull('facebook_page_id')
+                    ->orWhereHas('sharedPages', fn ($sp) => $sp->where('facebook_page_id', $pageId));
+            })
+            ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
+                $q->where(function ($sub) use ($userRole) {
+                    $sub->whereNull('allowed_roles')
+                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                });
+            })
+            ->when($userId, function ($q) use ($userId) {
+                $q->withExists(['favoritedBy as is_favorited' => fn ($sub) => $sub->where('user_id', $userId)]);
+            })
+            ->limit(100)
+            ->get([
+                'id', 'title', 'content', 'shortcut', 'category', 'intent',
+                'facebook_page_id', 'usage_count', 'variables',
+            ]);
+
+        // Context signals from conversation
+        $lastMessage = strtolower($conversation->last_message_preview ?? '');
+        $convStatus = $conversation->status;
+        $hasOrder = $conversation->customer?->total_orders > 0;
+
+        // Intent → conversation status mapping
+        $intentScores = [
+            'new' => ['greeting' => 3, 'order_confirmation' => 2, 'faq' => 1],
+            'assigned' => ['order_confirmation' => 3, 'shipping_update' => 3, 'payment_reminder' => 2, 'follow_up' => 2, 'faq' => 1],
+            'awaiting_customer' => ['follow_up' => 3, 'payment_reminder' => 2, 'apology' => 1],
+            'resolved' => ['closing' => 3, 'follow_up' => 1],
+            'archived' => ['closing' => 1],
+        ];
+
+        // Keyword → intent mapping for last message content
+        $keywordIntents = [
+            'order' => 'order_confirmation',
+            'confirm' => 'order_confirmation',
+            'ship' => 'shipping_update',
+            'delivery' => 'shipping_update',
+            'track' => 'shipping_update',
+            'pay' => 'payment_reminder',
+            'payment' => 'payment_reminder',
+            'cod' => 'payment_reminder',
+            'gcash' => 'payment_reminder',
+            'cancel' => 'apology',
+            'return' => 'apology',
+            'refund' => 'apology',
+            'sorry' => 'apology',
+            'problem' => 'escalation',
+            'complaint' => 'escalation',
+            'manager' => 'escalation',
+            'thank' => 'closing',
+            'thanks' => 'closing',
+            'salamat' => 'closing',
+            'hi' => 'greeting',
+            'hello' => 'greeting',
+            'po' => 'greeting',
+        ];
+
+        // Detect intent from last message keywords
+        $detectedIntents = [];
+        foreach ($keywordIntents as $keyword => $intent) {
+            if (str_contains($lastMessage, $keyword)) {
+                $detectedIntents[$intent] = ($detectedIntents[$intent] ?? 0) + 1;
+            }
+        }
+
+        // Status-based intent scores
+        $statusIntentScores = $intentScores[$convStatus] ?? [];
+
+        // Score each template
+        $scored = $templates->map(function (ReplyTemplate $template) use ($statusIntentScores, $detectedIntents, $lastMessage, $hasOrder, $userId) {
+            $score = 0;
+            $reasons = [];
+
+            // 1. Intent match from conversation status
+            if ($template->intent && isset($statusIntentScores[$template->intent])) {
+                $points = $statusIntentScores[$template->intent];
+                $score += $points;
+                $reasons[] = "Matches conversation status ({$template->intent})";
+            }
+
+            // 2. Intent match from keyword detection
+            if ($template->intent && isset($detectedIntents[$template->intent])) {
+                $points = $detectedIntents[$template->intent] * 2;
+                $score += $points;
+                $reasons[] = "Keywords in last message match ({$template->intent})";
+            }
+
+            // 3. Content keyword overlap with last message
+            $templateWords = array_unique(str_word_count(strtolower($template->content), 1));
+            $messageWords = array_unique(str_word_count($lastMessage, 1));
+            $overlap = count(array_intersect($templateWords, $messageWords));
+            if ($overlap > 0) {
+                $score += min($overlap, 3);
+                if ($overlap >= 2) {
+                    $reasons[] = "Content overlaps with customer message";
+                }
+            }
+
+            // 4. Usage popularity (normalized 0-3)
+            if ($template->usage_count > 0) {
+                $popularityScore = min(3, round(log($template->usage_count + 1, 3)));
+                $score += $popularityScore;
+                if ($template->usage_count >= 10) {
+                    $reasons[] = "Frequently used ({$template->usage_count}×)";
+                }
+            }
+
+            // 5. Favorite boost
+            if ($template->is_favorited ?? false) {
+                $score += 1;
+                $reasons[] = "In your favorites";
+            }
+
+            // 6. Order-related templates get boost if customer has orders
+            if ($hasOrder && in_array($template->intent, ['order_confirmation', 'shipping_update', 'payment_reminder'])) {
+                $score += 1;
+                $reasons[] = "Customer has order history";
+            }
+
+            // 7. Greeting boost for new conversations with no agent replies yet
+            if ($template->intent === 'greeting' && empty($lastMessage)) {
+                $score += 2;
+                $reasons[] = "Good opening message";
+            }
+
+            return [
+                'id' => $template->id,
+                'title' => $template->title,
+                'content' => $template->content,
+                'shortcut' => $template->shortcut,
+                'category' => $template->category,
+                'intent' => $template->intent,
+                'usage_count' => $template->usage_count,
+                'variables' => $template->variables,
+                'is_favorited' => $template->is_favorited ?? false,
+                'source' => 'reply_templates',
+                'suggestion_score' => round($score, 1),
+                'suggestion_reasons' => array_slice($reasons, 0, 3),
+            ];
+        })
+        ->filter(fn ($t) => $t['suggestion_score'] > 0)
+        ->sortByDesc('suggestion_score')
+        ->take(5)
+        ->values();
+
+        return response()->json([
+            'suggestions' => $scored,
+            'conversation_status' => $convStatus,
+            'detected_intents' => array_keys($detectedIntents),
+        ]);
     }
 
     /**

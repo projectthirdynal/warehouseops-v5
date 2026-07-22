@@ -35,6 +35,7 @@ import {
   UserCheck,
   Video as VideoIcon,
   X,
+  Lightbulb,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +174,20 @@ interface Props {
     shortcut?: string | null;
     source?: 'shop' | 'reply_templates';
     is_favorited?: boolean;
+  }[];
+  suggested_templates?: {
+    id: number;
+    title: string;
+    content: string;
+    shortcut: string | null;
+    category: string | null;
+    intent: string | null;
+    usage_count: number;
+    variables?: string[];
+    is_favorited: boolean;
+    source: string;
+    suggestion_score: number;
+    suggestion_reasons: string[];
   }[];
   agents: { id: number; name: string; role: string }[];
   user_role?: string;
@@ -349,6 +364,7 @@ export default function ShopConversation({
   recent_orders,
   quick_replies,
   saved_templates,
+  suggested_templates: initialSuggestions = [],
   agents = [],
   user_role: userRole = 'agent',
   statuses = [],
@@ -508,6 +524,20 @@ export default function ShopConversation({
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!conversation?.id) return;
+    setSuggestionsLoading(true);
+    axios
+      .get('/api/reply-templates/suggest', {
+        params: { conversation_id: conversation.id },
+      })
+      .then(({ data }) => {
+        setSuggestedTemplates(data.suggestions ?? []);
+      })
+      .catch(() => setSuggestedTemplates([]))
+      .finally(() => setSuggestionsLoading(false));
+  }, [conversation?.id, conversation?.status, conversation?.last_message_at]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setNewMessageCount(0);
@@ -604,6 +634,9 @@ export default function ShopConversation({
     }[]
   >([]);
   const [showShortcutDropdown, setShowShortcutDropdown] = useState(false);
+  const [suggestedTemplates, setSuggestedTemplates] = useState(initialSuggestions);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -1302,6 +1335,102 @@ export default function ShopConversation({
                   </div>
                 </div>
               )}
+
+              {/* AI-Suggested Templates */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestions((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                  >
+                    <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                    AI Suggestions
+                    {suggestedTemplates.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 text-[10px]">
+                        {suggestedTemplates.length}
+                      </Badge>
+                    )}
+                  </button>
+                </div>
+                {showSuggestions && (
+                  <div className="space-y-2">
+                    {suggestionsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading suggestions...</p>
+                    ) : suggestedTemplates.length > 0 ? (
+                      suggestedTemplates.map((s) => (
+                        <div
+                          key={s.id}
+                          className="rounded-md border border-amber-500/30 bg-amber-50/50 p-2.5 dark:bg-amber-950/10"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    insertTemplate({
+                                      id: s.id,
+                                      name: s.title,
+                                      body: s.content,
+                                      variables: s.variables,
+                                      source: 'reply_templates',
+                                    })
+                                  }
+                                  className="truncate text-left text-sm font-medium hover:text-primary hover:underline"
+                                >
+                                  {s.title}
+                                </button>
+                                {s.intent && (
+                                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                                    {s.intent.replace(/_/g, ' ')}
+                                  </Badge>
+                                )}
+                              </div>
+                              {s.suggestion_reasons.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {s.suggestion_reasons.map((reason, i) => (
+                                    <span
+                                      key={i}
+                                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                    >
+                                      {reason}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                {s.content}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 shrink-0 px-2 text-xs"
+                              onClick={() =>
+                                insertTemplate({
+                                  id: s.id,
+                                  name: s.title,
+                                  body: s.content,
+                                  variables: s.variables,
+                                  source: 'reply_templates',
+                                })
+                              }
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        No suggestions for this conversation yet.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {saved_templates.length > 0 && (
                 <div className="space-y-2">
