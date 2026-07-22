@@ -58,6 +58,11 @@ class ReplyTemplate extends Model
         return $this->hasMany(ReplyTemplateUsage::class);
     }
 
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ReplyTemplateVersion::class)->orderByDesc('version_number');
+    }
+
     public function sharedPages(): BelongsToMany
     {
         return $this->belongsToMany(FacebookPage::class, 'reply_template_shares')->withTimestamps();

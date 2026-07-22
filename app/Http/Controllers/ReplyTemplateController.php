@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Models\ReplyTemplate;
 use App\Models\ReplyTemplateUsage;
+use App\Models\ReplyTemplateVersion;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -175,6 +176,9 @@ class ReplyTemplateController extends Controller
             $sharedPageIds = $validated['shared_page_ids'] ?? [];
             unset($validated['shared_page_ids']);
         }
+
+        // Snapshot the current state before updating
+        $this->createVersionSnapshot($template, $request->user()?->id);
 
         $template->update($validated);
 
@@ -396,6 +400,121 @@ class ReplyTemplateController extends Controller
         return response()->json([
             'success' => true,
             'is_favorited' => !$isFavorited,
+        ]);
+    }
+
+    /**
+     * List version history for a template.
+     *
+     * GET /api/reply-templates/{id}/versions
+     */
+    public function versions(int $id): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+
+        $versions = $template->versions()
+            ->with('editor:id,name')
+            ->get(['id', 'version_number', 'title', 'change_summary', 'edited_by', 'created_at'])
+            ->map(fn (ReplyTemplateVersion $v) => [
+                'id' => $v->id,
+                'version_number' => $v->version_number,
+                'title' => $v->title,
+                'change_summary' => $v->change_summary,
+                'edited_by' => $v->editor?->name,
+                'created_at' => $v->created_at->toIso8601String(),
+            ]);
+
+        return response()->json([
+            'versions' => $versions,
+        ]);
+    }
+
+    /**
+     * Get a specific version's full content.
+     *
+     * GET /api/reply-templates/{id}/versions/{versionId}
+     */
+    public function showVersion(int $id, int $versionId): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+        $version = $template->versions()->with('editor:id,name')->findOrFail($versionId);
+
+        return response()->json([
+            'version' => [
+                'id' => $version->id,
+                'version_number' => $version->version_number,
+                'title' => $version->title,
+                'content' => $version->content,
+                'variables' => $version->variables,
+                'category' => $version->category,
+                'intent' => $version->intent,
+                'allowed_roles' => $version->allowed_roles,
+                'shortcut' => $version->shortcut,
+                'facebook_page_id' => $version->facebook_page_id,
+                'is_active' => $version->is_active,
+                'shared_page_ids' => $version->shared_page_ids,
+                'change_summary' => $version->change_summary,
+                'edited_by' => $version->editor?->name,
+                'created_at' => $version->created_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Restore a template to a previous version.
+     *
+     * POST /api/reply-templates/{id}/versions/{versionId}/restore
+     */
+    public function restoreVersion(Request $request, int $id, int $versionId): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+        $version = $template->versions()->findOrFail($versionId);
+
+        // Snapshot current state before restoring
+        $this->createVersionSnapshot($template, $request->user()?->id, 'Restored to version ' . $version->version_number);
+
+        $template->update([
+            'title' => $version->title,
+            'content' => $version->content,
+            'variables' => $version->variables,
+            'category' => $version->category,
+            'intent' => $version->intent,
+            'allowed_roles' => $version->allowed_roles,
+            'shortcut' => $version->shortcut,
+            'facebook_page_id' => $version->facebook_page_id,
+            'is_active' => $version->is_active,
+        ]);
+
+        // Restore shared pages if available
+        if ($version->shared_page_ids !== null) {
+            $template->sharedPages()->sync($version->shared_page_ids);
+        }
+
+        return response()->json([
+            'success' => true,
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages']),
+        ]);
+    }
+
+    private function createVersionSnapshot(ReplyTemplate $template, ?int $userId, ?string $changeSummary = null): void
+    {
+        $lastVersion = $template->versions()->max('version_number') ?? 0;
+
+        ReplyTemplateVersion::create([
+            'reply_template_id' => $template->id,
+            'edited_by' => $userId,
+            'version_number' => $lastVersion + 1,
+            'title' => $template->title,
+            'content' => $template->content,
+            'variables' => $template->variables,
+            'category' => $template->category,
+            'intent' => $template->intent,
+            'allowed_roles' => $template->allowed_roles,
+            'shortcut' => $template->shortcut,
+            'facebook_page_id' => $template->facebook_page_id,
+            'is_active' => $template->is_active,
+            'shared_page_ids' => $template->sharedPages()->pluck('facebook_pages.id')->toArray(),
+            'change_summary' => $changeSummary,
         ]);
     }
 }

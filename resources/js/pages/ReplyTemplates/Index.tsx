@@ -15,6 +15,8 @@ import {
   X,
   Star,
   BarChart3,
+  History,
+  RotateCcw,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -138,6 +140,27 @@ export default function ReplyTemplatesIndex({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [versionTemplateId, setVersionTemplateId] = useState<number | null>(null);
+  const [versions, setVersions] = useState<
+    {
+      id: number;
+      version_number: number;
+      title: string;
+      change_summary: string | null;
+      edited_by: string | null;
+      created_at: string;
+    }[]
+  >([]);
+  const [versionDetail, setVersionDetail] = useState<{
+    id: number;
+    version_number: number;
+    title: string;
+    content: string;
+    change_summary: string | null;
+    edited_by: string | null;
+    created_at: string;
+  } | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   const applyFilters = () => {
     router.get(
@@ -272,6 +295,42 @@ export default function ReplyTemplatesIndex({
 
   const copyContent = (content: string) => {
     navigator.clipboard.writeText(content);
+  };
+
+  const openVersionHistory = (templateId: number) => {
+    setVersionTemplateId(templateId);
+    setVersionDetail(null);
+    fetch(`/api/reply-templates/${templateId}/versions`)
+      .then((res) => res.json())
+      .then((data) => setVersions(data.versions ?? []));
+  };
+
+  const viewVersion = (versionId: number) => {
+    if (!versionTemplateId) return;
+    fetch(`/api/reply-templates/${versionTemplateId}/versions/${versionId}`)
+      .then((res) => res.json())
+      .then((data) => setVersionDetail(data.version));
+  };
+
+  const restoreVersion = (versionId: number) => {
+    if (!versionTemplateId) return;
+    setRestoring(true);
+    router.post(
+      `/api/reply-templates/${versionTemplateId}/versions/${versionId}/restore`,
+      {},
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setRestoring(false);
+          setVersionTemplateId(null);
+          setVersionDetail(null);
+          router.reload({ only: ['templates'] });
+        },
+        onError: () => {
+          setRestoring(false);
+        },
+      }
+    );
   };
 
   return (
@@ -600,6 +659,15 @@ export default function ReplyTemplatesIndex({
                         title="Copy content"
                       >
                         <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => openVersionHistory(template.id)}
+                        title="Version history"
+                      >
+                        <History className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"
@@ -935,6 +1003,105 @@ export default function ReplyTemplatesIndex({
                 <Button variant="destructive" onClick={doDelete}>
                   Delete
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Version History Modal */}
+      {versionTemplateId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-2xl">
+            <CardContent className="p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-lg font-bold">
+                  <History className="h-5 w-5" />
+                  Version History
+                </h2>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    setVersionTemplateId(null);
+                    setVersionDetail(null);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* Version list */}
+                <div className="max-h-96 space-y-2 overflow-y-auto">
+                  {versions.length > 0 ? (
+                    versions.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => viewVersion(v.id)}
+                        className={`w-full rounded-md border p-3 text-left text-sm transition-colors hover:bg-muted/50 ${
+                          versionDetail?.id === v.id ? 'border-primary bg-muted/50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">v{v.version_number}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(v.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {v.change_summary || v.title}
+                        </div>
+                        {v.edited_by && (
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            by {v.edited_by}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No version history yet. Versions are created when a template is edited.
+                    </p>
+                  )}
+                </div>
+
+                {/* Version detail */}
+                <div className="max-h-96 overflow-y-auto">
+                  {versionDetail ? (
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Version {versionDetail.version_number}
+                        </span>
+                        <h3 className="text-sm font-semibold">{versionDetail.title}</h3>
+                        {versionDetail.change_summary && (
+                          <p className="text-xs text-muted-foreground">
+                            {versionDetail.change_summary}
+                          </p>
+                        )}
+                      </div>
+                      <div className="rounded-md border bg-muted/30 p-3">
+                        <p className="whitespace-pre-wrap text-sm">{versionDetail.content}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => restoreVersion(versionDetail.id)}
+                        disabled={restoring}
+                      >
+                        <RotateCcw className="mr-1.5 h-4 w-4" />
+                        {restoring ? 'Restoring...' : 'Restore this version'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-sm text-muted-foreground">
+                        Select a version to view its content.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
