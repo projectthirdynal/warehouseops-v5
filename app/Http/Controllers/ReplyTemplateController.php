@@ -29,7 +29,7 @@ class ReplyTemplateController extends Controller
         $userRole = $request->user()?->role;
 
         $query = ReplyTemplate::query()
-            ->with(['facebookPage:id,page_name', 'creator:id,name'])
+            ->with(['facebookPage:id,page_name', 'creator:id,name', 'sharedPages:id,page_name'])
             ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
@@ -46,7 +46,11 @@ class ReplyTemplateController extends Controller
                 });
             })
             ->when($request->query('page_id'), function ($q, $pageId) {
-                $q->where('facebook_page_id', $pageId);
+                $q->where(function ($sub) use ($pageId) {
+                    $sub->where('facebook_page_id', $pageId)
+                        ->orWhereNull('facebook_page_id')
+                        ->orWhereHas('sharedPages', fn ($sp) => $sp->where('facebook_page_id', $pageId));
+                });
             })
             ->when($request->query('category'), function ($q, $category) {
                 $q->where('category', $category);
@@ -116,11 +120,16 @@ class ReplyTemplateController extends Controller
             'allowed_roles.*' => 'string|in:admin,supervisor,agent',
             'shortcut' => 'nullable|string|max:50|unique:reply_templates,shortcut',
             'facebook_page_id' => 'nullable|exists:facebook_pages,id',
+            'shared_page_ids' => 'nullable|array',
+            'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'boolean',
         ]);
 
         $validated['created_by'] = $request->user()->id;
         $validated['is_active'] = $validated['is_active'] ?? true;
+
+        $sharedPageIds = $validated['shared_page_ids'] ?? [];
+        unset($validated['shared_page_ids']);
 
         // Auto-detect variables from content
         preg_match_all('/\{(\w+)\}/', $validated['content'], $matches);
@@ -128,9 +137,13 @@ class ReplyTemplateController extends Controller
 
         $template = ReplyTemplate::create($validated);
 
+        if (!empty($sharedPageIds)) {
+            $template->sharedPages()->sync($sharedPageIds);
+        }
+
         return response()->json([
             'success' => true,
-            'template' => $template,
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages']),
         ], 201);
     }
 
@@ -152,10 +165,23 @@ class ReplyTemplateController extends Controller
             'allowed_roles.*' => 'string|in:admin,supervisor,agent',
             'shortcut' => 'sometimes|nullable|string|max:50|unique:reply_templates,shortcut,' . $id,
             'facebook_page_id' => 'sometimes|nullable|exists:facebook_pages,id',
+            'shared_page_ids' => 'sometimes|nullable|array',
+            'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'sometimes|boolean',
         ]);
 
+        $sharedPageIds = null;
+        if (array_key_exists('shared_page_ids', $validated)) {
+            $sharedPageIds = $validated['shared_page_ids'] ?? [];
+            unset($validated['shared_page_ids']);
+        }
+
         $template->update($validated);
+
+        // Sync shared pages if provided
+        if ($sharedPageIds !== null) {
+            $template->sharedPages()->sync($sharedPageIds);
+        }
 
         // Auto-detect variables if content was updated
         if (isset($validated['content'])) {
@@ -166,7 +192,7 @@ class ReplyTemplateController extends Controller
 
         return response()->json([
             'success' => true,
-            'template' => $template->fresh(['facebookPage', 'creator']),
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages']),
         ]);
     }
 
@@ -223,7 +249,8 @@ class ReplyTemplateController extends Controller
             ->when($request->query('page_id'), function ($q, $pageId) {
                 $q->where(function ($sub) use ($pageId) {
                     $sub->where('facebook_page_id', $pageId)
-                        ->orWhereNull('facebook_page_id');
+                        ->orWhereNull('facebook_page_id')
+                        ->orWhereHas('sharedPages', fn ($sp) => $sp->where('facebook_page_id', $pageId));
                 });
             })
             ->when($request->query('search'), function ($q, $search) {

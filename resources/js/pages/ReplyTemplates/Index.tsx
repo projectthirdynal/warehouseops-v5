@@ -40,6 +40,7 @@ interface ReplyTemplate {
   updated_at: string;
   facebook_page?: { id: number; page_name: string } | null;
   creator?: { id: number; name: string } | null;
+  shared_pages?: { id: number; page_name: string }[];
 }
 
 const INTENT_OPTIONS = [
@@ -131,6 +132,7 @@ export default function ReplyTemplatesIndex({
     allowed_roles: [] as string[],
     shortcut: '',
     facebook_page_id: '',
+    shared_page_ids: [] as number[],
     is_active: true,
   });
   const [saving, setSaving] = useState(false);
@@ -162,6 +164,7 @@ export default function ReplyTemplatesIndex({
       allowed_roles: [] as string[],
       shortcut: '',
       facebook_page_id: '',
+      shared_page_ids: [] as number[],
       is_active: true,
     });
     setError(null);
@@ -178,6 +181,7 @@ export default function ReplyTemplatesIndex({
       allowed_roles: template.allowed_roles ?? [],
       shortcut: template.shortcut ?? '',
       facebook_page_id: template.facebook_page_id?.toString() ?? '',
+      shared_page_ids: (template.shared_pages ?? []).map((p) => p.id),
       is_active: template.is_active,
     });
     setError(null);
@@ -196,6 +200,7 @@ export default function ReplyTemplatesIndex({
       allowed_roles: form.allowed_roles.length > 0 ? form.allowed_roles : null,
       shortcut: form.shortcut || null,
       facebook_page_id: form.facebook_page_id || null,
+      shared_page_ids: form.shared_page_ids.length > 0 ? form.shared_page_ids : [],
       is_active: form.is_active,
     };
 
@@ -547,6 +552,11 @@ export default function ReplyTemplatesIndex({
                             {template.allowed_roles.join(', ')}
                           </Badge>
                         )}
+                        {template.shared_pages && template.shared_pages.length > 0 && (
+                          <Badge variant="outline" className="text-xs text-success">
+                            Shared: {template.shared_pages.map((p) => p.page_name).join(', ')}
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                         {template.content}
@@ -815,6 +825,39 @@ export default function ReplyTemplatesIndex({
                           className="rounded"
                         />
                         <span className="capitalize">{role}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Share with Pages</label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Select pages to share this template with. The template will be available on
+                    those pages in addition to its assigned page.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {pages.map((p) => (
+                      <label key={p.id} className="flex items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={form.shared_page_ids.includes(p.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({
+                                ...form,
+                                shared_page_ids: [...form.shared_page_ids, p.id],
+                              });
+                            } else {
+                              setForm({
+                                ...form,
+                                shared_page_ids: form.shared_page_ids.filter((id) => id !== p.id),
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span>{p.page_name}</span>
                       </label>
                     ))}
                   </div>

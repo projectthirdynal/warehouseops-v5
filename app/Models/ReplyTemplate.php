@@ -58,6 +58,33 @@ class ReplyTemplate extends Model
         return $this->hasMany(ReplyTemplateUsage::class);
     }
 
+    public function sharedPages(): BelongsToMany
+    {
+        return $this->belongsToMany(FacebookPage::class, 'reply_template_shares')->withTimestamps();
+    }
+
+    public function isSharedWithPage(int $pageId): bool
+    {
+        return $this->sharedPages()->where('facebook_page_id', $pageId)->exists();
+    }
+
+    public function isAvailableForPage(?int $pageId): bool
+    {
+        if ($this->facebook_page_id === null) {
+            return true;
+        }
+
+        if ($this->facebook_page_id === $pageId) {
+            return true;
+        }
+
+        if ($pageId !== null && $this->isSharedWithPage($pageId)) {
+            return true;
+        }
+
+        return false;
+    }
+
     public function isAccessibleBy(string $role): bool
     {
         if (empty($this->allowed_roles)) {

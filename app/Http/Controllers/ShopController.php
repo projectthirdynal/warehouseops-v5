@@ -6936,7 +6936,9 @@ class ShopController extends Controller
             $newTemplates = ReplyTemplate::query()
                 ->where('is_active', true)
                 ->where(function ($q) use ($pageId) {
-                    $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+                    $q->where('facebook_page_id', $pageId)
+                        ->orWhereNull('facebook_page_id')
+                        ->orWhereHas('sharedPages', fn ($sp) => $sp->where('facebook_page_id', $pageId));
                 })
                 ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                     $q->where(function ($sub) use ($userRole) {
