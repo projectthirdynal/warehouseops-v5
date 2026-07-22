@@ -99,6 +99,45 @@ interface UsageAnalytics {
   daily_usage: { date: string; count: number }[];
 }
 
+interface PerformanceMetrics {
+  approval_stats: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    no_status: number;
+  };
+  avg_approval_time_seconds: number | null;
+  rejection_rate: number;
+  template_performance: {
+    id: number;
+    title: string;
+    category: string | null;
+    intent: string | null;
+    total_uses: number;
+    unique_users: number;
+    unique_conversations: number;
+    resolved_conversations: number;
+    resolution_rate: number;
+    last_used: string | null;
+  }[];
+  category_performance: {
+    category: string;
+    template_count: number;
+    total_usage: number;
+  }[];
+  intent_performance: {
+    intent: string;
+    template_count: number;
+    total_usage: number;
+  }[];
+  usage_trend: {
+    last_7_days: number;
+    prev_7_days: number;
+    direction: string;
+    percent_change: number;
+  };
+}
+
 interface Props {
   templates: PaginatedTemplates;
   pages: FacebookPage[];
@@ -106,6 +145,7 @@ interface Props {
   intents: string[];
   roles: string[];
   analytics: UsageAnalytics;
+  performance: PerformanceMetrics;
   approval_statuses: string[];
   filters: {
     search: string;
@@ -125,6 +165,7 @@ export default function ReplyTemplatesIndex({
   intents,
   roles,
   analytics,
+  performance,
   approval_statuses,
   filters,
 }: Props) {
@@ -614,6 +655,176 @@ export default function ReplyTemplatesIndex({
                     </ul>
                   ) : (
                     <p className="text-sm text-muted-foreground">No usage data yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+
+        {/* Performance Metrics */}
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Performance Metrics
+          </h2>
+
+          {/* Approval + Trend Summary Cards */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Pending Approval</p>
+                <p className="mt-1 text-2xl font-bold text-warning">
+                  {performance.approval_stats.pending}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Rejection Rate</p>
+                <p className="mt-1 text-2xl font-bold text-destructive">
+                  {performance.rejection_rate}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Avg Approval Time</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {performance.avg_approval_time_seconds
+                    ? `${Math.round(performance.avg_approval_time_seconds / 60)}m`
+                    : '—'}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Usage Trend (7d)</p>
+                <p
+                  className={`mt-1 text-2xl font-bold ${
+                    performance.usage_trend.direction === 'up'
+                      ? 'text-green-500'
+                      : performance.usage_trend.direction === 'down'
+                        ? 'text-red-500'
+                        : 'text-muted-foreground'
+                  }`}
+                >
+                  {performance.usage_trend.direction === 'up'
+                    ? '↑'
+                    : performance.usage_trend.direction === 'down'
+                      ? '↓'
+                      : '→'}{' '}
+                  {performance.usage_trend.percent_change}%
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {performance.usage_trend.last_7_days} uses (prev:{' '}
+                  {performance.usage_trend.prev_7_days})
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Template Performance Table + Category/Intent Breakdown */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Per-template performance */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Template Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {performance.template_performance.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="pb-2 pr-3">Template</th>
+                          <th className="pb-2 pr-3 text-right">Uses</th>
+                          <th className="pb-2 pr-3 text-right">Users</th>
+                          <th className="pb-2 pr-3 text-right">Convs</th>
+                          <th className="pb-2 pr-3 text-right">Resolved</th>
+                          <th className="pb-2 text-right">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {performance.template_performance.slice(0, 10).map((t) => (
+                          <tr key={t.id} className="border-b last:border-0">
+                            <td className="py-2 pr-3">
+                              <span className="truncate" title={t.title}>
+                                {t.title}
+                              </span>
+                              {t.category && (
+                                <span className="ml-1 text-xs text-info">[{t.category}]</span>
+                              )}
+                            </td>
+                            <td className="py-2 pr-3 text-right">{t.total_uses}</td>
+                            <td className="py-2 pr-3 text-right">{t.unique_users}</td>
+                            <td className="py-2 pr-3 text-right">{t.unique_conversations}</td>
+                            <td className="py-2 pr-3 text-right">{t.resolved_conversations}</td>
+                            <td className="py-2 text-right font-medium">{t.resolution_rate}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No performance data yet. Use templates in conversations to see metrics.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Category + Intent breakdown */}
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">By Category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {performance.category_performance.length > 0 ? (
+                    <ul className="space-y-2 text-sm">
+                      {performance.category_performance.map((c) => (
+                        <li key={c.category} className="flex items-center justify-between">
+                          <span className="truncate pr-2">{c.category}</span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {c.template_count} templates
+                            </Badge>
+                            <Badge variant="secondary">{c.total_usage}</Badge>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No categories yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">By Intent</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {performance.intent_performance.length > 0 ? (
+                    <ul className="space-y-2 text-sm">
+                      {performance.intent_performance.map((i) => (
+                        <li key={i.intent} className="flex items-center justify-between">
+                          <span className="truncate pr-2">
+                            {INTENT_OPTIONS.find((opt) => opt.value === i.intent)?.label ??
+                              i.intent}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {i.template_count} templates
+                            </Badge>
+                            <Badge variant="secondary">{i.total_usage}</Badge>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No intents yet.</p>
                   )}
                 </CardContent>
               </Card>

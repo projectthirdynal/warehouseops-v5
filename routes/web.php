@@ -420,6 +420,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/reply-templates', [ReplyTemplateController::class, 'index'])->name('reply-templates.index');
     Route::get('/api/reply-templates', [ReplyTemplateController::class, 'list'])->name('reply-templates.list');
     Route::get('/api/reply-templates/analytics', [ReplyTemplateController::class, 'analytics'])->name('reply-templates.analytics');
+    Route::get('/api/reply-templates/performance', [ReplyTemplateController::class, 'performanceMetrics'])->name('reply-templates.performance');
     Route::post('/api/reply-templates', [ReplyTemplateController::class, 'store'])->name('reply-templates.store');
     Route::put('/api/reply-templates/{id}', [ReplyTemplateController::class, 'update'])->name('reply-templates.update');
     Route::delete('/api/reply-templates/{id}', [ReplyTemplateController::class, 'destroy'])->name('reply-templates.destroy');

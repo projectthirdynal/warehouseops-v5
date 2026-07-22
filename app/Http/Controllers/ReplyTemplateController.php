@@ -101,6 +101,7 @@ class ReplyTemplateController extends Controller
             'intents' => $intents,
             'roles' => self::ROLE_OPTIONS,
             'analytics' => $this->usageAnalytics(),
+            'performance' => $this->performanceAnalytics(),
             'approval_statuses' => ReplyTemplate::APPROVAL_STATUSES,
             'filters' => [
                 'search' => $request->query('search', ''),
@@ -418,6 +419,133 @@ class ReplyTemplateController extends Controller
             'top_templates' => $topTemplates,
             'top_users' => $topUsers,
             'daily_usage' => $dailySeries,
+        ];
+    }
+
+    /**
+     * Get reply template performance metrics.
+     *
+     * GET /api/reply-templates/performance
+     */
+    public function performanceMetrics(): JsonResponse
+    {
+        return response()->json($this->performanceAnalytics());
+    }
+
+    private function performanceAnalytics(): array
+    {
+        // Approval workflow stats
+        $approvalStats = [
+            'pending' => ReplyTemplate::where('approval_status', ReplyTemplate::APPROVAL_PENDING)->count(),
+            'approved' => ReplyTemplate::where('approval_status', ReplyTemplate::APPROVAL_APPROVED)->count(),
+            'rejected' => ReplyTemplate::where('approval_status', ReplyTemplate::APPROVAL_REJECTED)->count(),
+            'no_status' => ReplyTemplate::whereNull('approval_status')->count(),
+        ];
+
+        // Average approval turnaround time (for approved templates)
+        $avgApprovalTime = ReplyTemplate::whereNotNull('approved_at')
+            ->whereNotNull('created_at')
+            ->selectRaw('AVG(EXTRACT(EPOCH FROM (approved_at - created_at))) as avg_seconds')
+            ->value('avg_seconds');
+
+        // Rejection rate
+        $totalDecided = $approvalStats['approved'] + $approvalStats['rejected'];
+        $rejectionRate = $totalDecided > 0 ? round(($approvalStats['rejected'] / $totalDecided) * 100, 1) : 0;
+
+        // Per-template performance: join usage with conversations
+        $templatePerformance = ReplyTemplate::query()
+            ->select('reply_templates.id', 'reply_templates.title', 'reply_templates.category', 'reply_templates.intent')
+            ->selectRaw('COUNT(DISTINCT reply_template_usage.id) as total_uses')
+            ->selectRaw('COUNT(DISTINCT reply_template_usage.user_id) as unique_users')
+            ->selectRaw('COUNT(DISTINCT reply_template_usage.conversation_id) as unique_conversations')
+            ->leftJoin('reply_template_usage', 'reply_templates.id', '=', 'reply_template_usage.reply_template_id')
+            ->groupBy('reply_templates.id', 'reply_templates.title', 'reply_templates.category', 'reply_templates.intent')
+            ->havingRaw('COUNT(DISTINCT reply_template_usage.id) > 0')
+            ->orderByDesc('total_uses')
+            ->limit(20)
+            ->get()
+            ->map(function ($t) {
+                // Resolution rate for conversations where this template was used
+                $resolvedCount = DB::table('reply_template_usage')
+                    ->join('conversations', 'reply_template_usage.conversation_id', '=', 'conversations.id')
+                    ->where('reply_template_usage.reply_template_id', $t->id)
+                    ->whereNotNull('reply_template_usage.conversation_id')
+                    ->where('conversations.status', 'resolved')
+                    ->count();
+
+                $convCount = (int) $t->unique_conversations;
+                $resolutionRate = $convCount > 0 ? round(($resolvedCount / $convCount) * 100, 1) : 0;
+
+                // Last used
+                $lastUsed = DB::table('reply_template_usage')
+                    ->where('reply_template_id', $t->id)
+                    ->max('created_at');
+
+                return [
+                    'id' => $t->id,
+                    'title' => $t->title,
+                    'category' => $t->category,
+                    'intent' => $t->intent,
+                    'total_uses' => (int) $t->total_uses,
+                    'unique_users' => (int) $t->unique_users,
+                    'unique_conversations' => $convCount,
+                    'resolved_conversations' => $resolvedCount,
+                    'resolution_rate' => $resolutionRate,
+                    'last_used' => $lastUsed,
+                ];
+            });
+
+        // Category performance breakdown
+        $categoryPerformance = ReplyTemplate::query()
+            ->select('category')
+            ->selectRaw('COUNT(*) as template_count')
+            ->selectRaw('COALESCE(SUM(usage_count), 0) as total_usage')
+            ->whereNotNull('category')
+            ->groupBy('category')
+            ->orderByDesc('total_usage')
+            ->get()
+            ->map(fn ($c) => [
+                'category' => $c->category,
+                'template_count' => (int) $c->template_count,
+                'total_usage' => (int) $c->total_usage,
+            ]);
+
+        // Intent performance breakdown
+        $intentPerformance = ReplyTemplate::query()
+            ->select('intent')
+            ->selectRaw('COUNT(*) as template_count')
+            ->selectRaw('COALESCE(SUM(usage_count), 0) as total_usage')
+            ->whereNotNull('intent')
+            ->groupBy('intent')
+            ->orderByDesc('total_usage')
+            ->get()
+            ->map(fn ($i) => [
+                'intent' => $i->intent,
+                'template_count' => (int) $i->template_count,
+                'total_usage' => (int) $i->total_usage,
+            ]);
+
+        // Usage trend: compare last 7 days vs previous 7 days
+        $last7Days = ReplyTemplateUsage::where('created_at', '>=', Carbon::now()->subDays(7))->count();
+        $prev7Days = ReplyTemplateUsage::where('created_at', '>=', Carbon::now()->subDays(14))
+            ->where('created_at', '<', Carbon::now()->subDays(7))
+            ->count();
+        $trendDirection = $prev7Days === 0 ? ($last7Days > 0 ? 'up' : 'flat') : ($last7Days > $prev7Days ? 'up' : ($last7Days < $prev7Days ? 'down' : 'flat'));
+        $trendPercent = $prev7Days > 0 ? round((($last7Days - $prev7Days) / $prev7Days) * 100, 1) : 0;
+
+        return [
+            'approval_stats' => $approvalStats,
+            'avg_approval_time_seconds' => $avgApprovalTime ? round((float) $avgApprovalTime) : null,
+            'rejection_rate' => $rejectionRate,
+            'template_performance' => $templatePerformance,
+            'category_performance' => $categoryPerformance,
+            'intent_performance' => $intentPerformance,
+            'usage_trend' => [
+                'last_7_days' => $last7Days,
+                'prev_7_days' => $prev7Days,
+                'direction' => $trendDirection,
+                'percent_change' => $trendPercent,
+            ],
         ];
     }
 
