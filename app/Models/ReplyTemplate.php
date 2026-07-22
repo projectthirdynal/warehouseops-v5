@@ -22,6 +22,7 @@ class ReplyTemplate extends Model
         'variables',
         'category',
         'intent',
+        'allowed_roles',
         'shortcut',
         'facebook_page_id',
         'created_by',
@@ -33,6 +34,7 @@ class ReplyTemplate extends Model
         'is_active' => 'boolean',
         'usage_count' => 'integer',
         'variables' => 'array',
+        'allowed_roles' => 'array',
     ];
 
     public function facebookPage(): BelongsTo
@@ -48,5 +50,14 @@ class ReplyTemplate extends Model
     public function favoritedBy(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'reply_template_favorites')->withTimestamps();
+    }
+
+    public function isAccessibleBy(string $role): bool
+    {
+        if (empty($this->allowed_roles)) {
+            return true;
+        }
+
+        return in_array($role, $this->allowed_roles, true);
     }
 }

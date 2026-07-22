@@ -1119,7 +1119,7 @@ class ShopController extends Controller
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
             'quick_replies' => $this->quickRepliesForConversation($conversation),
-            'saved_templates' => $this->savedTemplatesForConversation($conversation, $request->user()?->id),
+            'saved_templates' => $this->savedTemplatesForConversation($conversation, $request->user()?->id, $request->user()?->role),
             'agents' => $this->shopAgents(),
             'user_role' => $request->user()->role,
             'statuses' => $this->conversationStatuses(),
@@ -6902,7 +6902,7 @@ class ShopController extends Controller
         return $replies;
     }
 
-    private function savedTemplatesForConversation(Conversation $conversation, ?int $userId = null): array
+    private function savedTemplatesForConversation(Conversation $conversation, ?int $userId = null, ?string $userRole = null): array
     {
         $pageId = $conversation->facebook_page_id;
         $templates = [];
@@ -6937,6 +6937,12 @@ class ShopController extends Controller
                 ->where('is_active', true)
                 ->where(function ($q) use ($pageId) {
                     $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+                })
+                ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
+                    $q->where(function ($sub) use ($userRole) {
+                        $sub->whereNull('allowed_roles')
+                            ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                    });
                 })
                 ->when($userId, function ($q) use ($userId) {
                     $q->withExists(['favoritedBy as is_favorited' => fn ($sub) => $sub->where('user_id', $userId)]);

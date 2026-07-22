@@ -13,6 +13,8 @@ use Inertia\Response;
 
 class ReplyTemplateController extends Controller
 {
+    private const ROLE_OPTIONS = ['admin', 'supervisor', 'agent'];
+
     /**
      * Render the reply templates management page.
      *
@@ -21,10 +23,17 @@ class ReplyTemplateController extends Controller
     public function index(Request $request): Response
     {
         $userId = $request->user()?->id;
+        $userRole = $request->user()?->role;
 
         $query = ReplyTemplate::query()
             ->with(['facebookPage:id,page_name', 'creator:id,name'])
             ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
+            ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
+                $q->where(function ($sub) use ($userRole) {
+                    $sub->whereNull('allowed_roles')
+                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                });
+            })
             ->when($request->query('search'), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('title', 'like', "%{$search}%")
@@ -75,6 +84,7 @@ class ReplyTemplateController extends Controller
             'pages' => $pages,
             'categories' => $categories,
             'intents' => $intents,
+            'roles' => self::ROLE_OPTIONS,
             'filters' => [
                 'search' => $request->query('search', ''),
                 'page_id' => $request->query('page_id', ''),
@@ -98,6 +108,8 @@ class ReplyTemplateController extends Controller
             'content' => 'required|string|max:5000',
             'category' => 'nullable|string|max:100',
             'intent' => 'nullable|string|max:100',
+            'allowed_roles' => 'nullable|array',
+            'allowed_roles.*' => 'string|in:admin,supervisor,agent',
             'shortcut' => 'nullable|string|max:50|unique:reply_templates,shortcut',
             'facebook_page_id' => 'nullable|exists:facebook_pages,id',
             'is_active' => 'boolean',
@@ -132,6 +144,8 @@ class ReplyTemplateController extends Controller
             'content' => 'sometimes|string|max:5000',
             'category' => 'sometimes|nullable|string|max:100',
             'intent' => 'sometimes|nullable|string|max:100',
+            'allowed_roles' => 'sometimes|nullable|array',
+            'allowed_roles.*' => 'string|in:admin,supervisor,agent',
             'shortcut' => 'sometimes|nullable|string|max:50|unique:reply_templates,shortcut,' . $id,
             'facebook_page_id' => 'sometimes|nullable|exists:facebook_pages,id',
             'is_active' => 'sometimes|boolean',
@@ -191,10 +205,17 @@ class ReplyTemplateController extends Controller
     public function list(Request $request): JsonResponse
     {
         $userId = $request->user()?->id;
+        $userRole = $request->user()?->role;
 
         $query = ReplyTemplate::query()
             ->where('is_active', true)
             ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
+            ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
+                $q->where(function ($sub) use ($userRole) {
+                    $sub->whereNull('allowed_roles')
+                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                });
+            })
             ->when($request->query('page_id'), function ($q, $pageId) {
                 $q->where(function ($sub) use ($pageId) {
                     $sub->where('facebook_page_id', $pageId)

@@ -18,6 +18,7 @@ interface ReplyTemplate {
   variables?: string[] | null;
   category?: string | null;
   intent?: string | null;
+  allowed_roles?: string[] | null;
   shortcut: string | null;
   facebook_page_id: number | null;
   is_active: boolean;
@@ -72,6 +73,7 @@ interface Props {
   pages: FacebookPage[];
   categories: string[];
   intents: string[];
+  roles: string[];
   filters: {
     search: string;
     page_id: string;
@@ -87,6 +89,7 @@ export default function ReplyTemplatesIndex({
   pages,
   categories,
   intents,
+  roles,
   filters,
 }: Props) {
   const [search, setSearch] = useState(filters.search);
@@ -102,6 +105,7 @@ export default function ReplyTemplatesIndex({
     content: '',
     category: '',
     intent: '',
+    allowed_roles: [] as string[],
     shortcut: '',
     facebook_page_id: '',
     is_active: true,
@@ -132,6 +136,7 @@ export default function ReplyTemplatesIndex({
       content: '',
       category: '',
       intent: '',
+      allowed_roles: [] as string[],
       shortcut: '',
       facebook_page_id: '',
       is_active: true,
@@ -147,6 +152,7 @@ export default function ReplyTemplatesIndex({
       content: template.content,
       category: template.category ?? '',
       intent: template.intent ?? '',
+      allowed_roles: template.allowed_roles ?? [],
       shortcut: template.shortcut ?? '',
       facebook_page_id: template.facebook_page_id?.toString() ?? '',
       is_active: template.is_active,
@@ -164,6 +170,7 @@ export default function ReplyTemplatesIndex({
       content: form.content,
       category: form.category || null,
       intent: form.intent || null,
+      allowed_roles: form.allowed_roles.length > 0 ? form.allowed_roles : null,
       shortcut: form.shortcut || null,
       facebook_page_id: form.facebook_page_id || null,
       is_active: form.is_active,
@@ -380,6 +387,11 @@ export default function ReplyTemplatesIndex({
                           <Badge variant="outline" className="text-xs text-warning">
                             {INTENT_OPTIONS.find((opt) => opt.value === template.intent)?.label ??
                               template.intent}
+                          </Badge>
+                        )}
+                        {template.allowed_roles && template.allowed_roles.length > 0 && (
+                          <Badge variant="outline" className="text-xs text-destructive">
+                            {template.allowed_roles.join(', ')}
                           </Badge>
                         )}
                       </div>
@@ -623,6 +635,35 @@ export default function ReplyTemplatesIndex({
                     <p className="mt-1 text-xs text-muted-foreground">
                       Classify the purpose of this template
                     </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Allowed Roles</label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Leave empty to allow all roles. Select specific roles to restrict access.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {roles.map((role) => (
+                      <label key={role} className="flex items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={form.allowed_roles.includes(role)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, allowed_roles: [...form.allowed_roles, role] });
+                            } else {
+                              setForm({
+                                ...form,
+                                allowed_roles: form.allowed_roles.filter((r) => r !== role),
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="capitalize">{role}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
