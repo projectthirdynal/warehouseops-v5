@@ -17,6 +17,8 @@ import {
   BarChart3,
   History,
   RotateCcw,
+  Check,
+  XCircle,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -43,6 +45,11 @@ interface ReplyTemplate {
   facebook_page?: { id: number; page_name: string } | null;
   creator?: { id: number; name: string } | null;
   shared_pages?: { id: number; page_name: string }[];
+  approval_status?: string | null;
+  approved_by?: number | null;
+  approved_at?: string | null;
+  rejection_reason?: string | null;
+  approver?: { id: number; name: string } | null;
 }
 
 const INTENT_OPTIONS = [
@@ -99,11 +106,13 @@ interface Props {
   intents: string[];
   roles: string[];
   analytics: UsageAnalytics;
+  approval_statuses: string[];
   filters: {
     search: string;
     page_id: string;
     category: string;
     intent: string;
+    approval_status: string;
     favorites_only: boolean;
     active_only: boolean;
   };
@@ -116,12 +125,14 @@ export default function ReplyTemplatesIndex({
   intents,
   roles,
   analytics,
+  approval_statuses,
   filters,
 }: Props) {
   const [search, setSearch] = useState(filters.search);
   const [pageFilter, setPageFilter] = useState(filters.page_id);
   const [categoryFilter, setCategoryFilter] = useState(filters.category);
   const [intentFilter, setIntentFilter] = useState(filters.intent);
+  const [approvalFilter, setApprovalFilter] = useState(filters.approval_status);
   const [favoritesOnly, setFavoritesOnly] = useState(filters.favorites_only);
   const [activeOnly, setActiveOnly] = useState(filters.active_only);
   const [showModal, setShowModal] = useState(false);
@@ -170,6 +181,7 @@ export default function ReplyTemplatesIndex({
         page_id: pageFilter || undefined,
         category: categoryFilter || undefined,
         intent: intentFilter || undefined,
+        approval_status: approvalFilter || undefined,
         favorites_only: favoritesOnly,
         active_only: activeOnly,
       },
@@ -333,6 +345,30 @@ export default function ReplyTemplatesIndex({
     );
   };
 
+  const approveTemplate = (template: ReplyTemplate) => {
+    router.post(
+      `/api/reply-templates/${template.id}/approve`,
+      {},
+      {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['templates'] }),
+      }
+    );
+  };
+
+  const rejectTemplate = (template: ReplyTemplate) => {
+    const reason = prompt('Rejection reason (optional):');
+    if (reason === null) return;
+    router.post(
+      `/api/reply-templates/${template.id}/reject`,
+      { rejection_reason: reason || undefined },
+      {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['templates'] }),
+      }
+    );
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 p-6">
@@ -408,6 +444,19 @@ export default function ReplyTemplatesIndex({
             {intents.map((i) => (
               <option key={i} value={i}>
                 {INTENT_OPTIONS.find((opt) => opt.value === i)?.label ?? i}
+              </option>
+            ))}
+          </select>
+          <select
+            value={approvalFilter}
+            onChange={(e) => setApprovalFilter(e.target.value)}
+            className="rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">All Approval Status</option>
+            <option value="null">No Status (Legacy)</option>
+            {approval_statuses.map((s) => (
+              <option key={s} value={s}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
               </option>
             ))}
           </select>
@@ -616,6 +665,16 @@ export default function ReplyTemplatesIndex({
                             Shared: {template.shared_pages.map((p) => p.page_name).join(', ')}
                           </Badge>
                         )}
+                        {template.approval_status === 'pending' && (
+                          <Badge variant="outline" className="text-xs text-warning">
+                            Pending Approval
+                          </Badge>
+                        )}
+                        {template.approval_status === 'rejected' && (
+                          <Badge variant="outline" className="text-xs text-destructive">
+                            Rejected
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                         {template.content}
@@ -637,6 +696,16 @@ export default function ReplyTemplatesIndex({
                         <span>Used {template.usage_count} times</span>
                         {template.creator && <span>by {template.creator.name}</span>}
                         <span>{new Date(template.created_at).toLocaleDateString()}</span>
+                        {template.approval_status === 'rejected' && template.rejection_reason && (
+                          <span className="text-destructive" title={template.rejection_reason}>
+                            Rejected: {template.rejection_reason}
+                          </span>
+                        )}
+                        {template.approval_status === 'approved' && template.approver && (
+                          <span title={`Approved by ${template.approver.name}`}>
+                            Approved by {template.approver.name}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex shrink-0 gap-1">
@@ -689,6 +758,39 @@ export default function ReplyTemplatesIndex({
                           className={`h-4 w-4 ${template.is_active ? 'text-green-500' : 'text-muted-foreground'}`}
                         />
                       </Button>
+                      {template.approval_status === 'pending' && (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-green-600"
+                            onClick={() => approveTemplate(template)}
+                            title="Approve"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-red-500"
+                            onClick={() => rejectTemplate(template)}
+                            title="Reject"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                      {template.approval_status === 'rejected' && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-green-600"
+                          onClick={() => approveTemplate(template)}
+                          title="Approve"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"

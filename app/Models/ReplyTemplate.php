@@ -29,6 +29,10 @@ class ReplyTemplate extends Model
         'created_by',
         'is_active',
         'usage_count',
+        'approval_status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
@@ -36,6 +40,17 @@ class ReplyTemplate extends Model
         'usage_count' => 'integer',
         'variables' => 'array',
         'allowed_roles' => 'array',
+        'approved_at' => 'datetime',
+    ];
+
+    public const APPROVAL_PENDING = 'pending';
+    public const APPROVAL_APPROVED = 'approved';
+    public const APPROVAL_REJECTED = 'rejected';
+
+    public const APPROVAL_STATUSES = [
+        self::APPROVAL_PENDING,
+        self::APPROVAL_APPROVED,
+        self::APPROVAL_REJECTED,
     ];
 
     public function facebookPage(): BelongsTo
@@ -97,5 +112,25 @@ class ReplyTemplate extends Model
         }
 
         return in_array($role, $this->allowed_roles, true);
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->approval_status === null || $this->approval_status === self::APPROVAL_APPROVED;
+    }
+
+    public function isPending(): bool
+    {
+        return $this->approval_status === self::APPROVAL_PENDING;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->approval_status === self::APPROVAL_REJECTED;
     }
 }

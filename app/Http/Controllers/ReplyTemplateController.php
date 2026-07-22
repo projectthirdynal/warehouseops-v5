@@ -30,7 +30,7 @@ class ReplyTemplateController extends Controller
         $userRole = $request->user()?->role;
 
         $query = ReplyTemplate::query()
-            ->with(['facebookPage:id,page_name', 'creator:id,name', 'sharedPages:id,page_name'])
+            ->with(['facebookPage:id,page_name', 'creator:id,name', 'sharedPages:id,page_name', 'approver:id,name'])
             ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
@@ -58,6 +58,13 @@ class ReplyTemplateController extends Controller
             })
             ->when($request->query('intent'), function ($q, $intent) {
                 $q->where('intent', $intent);
+            })
+            ->when($request->query('approval_status'), function ($q, $status) {
+                if ($status === 'null') {
+                    $q->whereNull('approval_status');
+                } else {
+                    $q->where('approval_status', $status);
+                }
             })
             ->when($request->boolean('favorites_only'), function ($q) use ($userId) {
                 $q->whereHas('favoritedBy', fn ($sub) => $sub->where('user_id', $userId));
@@ -94,11 +101,13 @@ class ReplyTemplateController extends Controller
             'intents' => $intents,
             'roles' => self::ROLE_OPTIONS,
             'analytics' => $this->usageAnalytics(),
+            'approval_statuses' => ReplyTemplate::APPROVAL_STATUSES,
             'filters' => [
                 'search' => $request->query('search', ''),
                 'page_id' => $request->query('page_id', ''),
                 'category' => $request->query('category', ''),
                 'intent' => $request->query('intent', ''),
+                'approval_status' => $request->query('approval_status', ''),
                 'favorites_only' => $request->boolean('favorites_only'),
                 'active_only' => $request->boolean('active_only', true),
             ],
@@ -128,6 +137,16 @@ class ReplyTemplateController extends Controller
 
         $validated['created_by'] = $request->user()->id;
         $validated['is_active'] = $validated['is_active'] ?? true;
+
+        // Auto-approve if creator is admin/superadmin; otherwise pending
+        $creatorRole = $request->user()->role;
+        if ($creatorRole === 'admin' || $creatorRole === 'superadmin') {
+            $validated['approval_status'] = ReplyTemplate::APPROVAL_APPROVED;
+            $validated['approved_by'] = $request->user()->id;
+            $validated['approved_at'] = now();
+        } else {
+            $validated['approval_status'] = ReplyTemplate::APPROVAL_PENDING;
+        }
 
         $sharedPageIds = $validated['shared_page_ids'] ?? [];
         unset($validated['shared_page_ids']);
@@ -182,6 +201,25 @@ class ReplyTemplateController extends Controller
 
         $template->update($validated);
 
+        // If content/title changed, re-submit for approval (unless editor is admin)
+        $editorRole = $request->user()?->role;
+        $contentChanged = isset($validated['content']) || isset($validated['title']);
+        if ($contentChanged && $editorRole !== 'admin' && $editorRole !== 'superadmin') {
+            $template->update([
+                'approval_status' => ReplyTemplate::APPROVAL_PENDING,
+                'approved_by' => null,
+                'approved_at' => null,
+                'rejection_reason' => null,
+            ]);
+        } elseif ($contentChanged && ($editorRole === 'admin' || $editorRole === 'superadmin')) {
+            $template->update([
+                'approval_status' => ReplyTemplate::APPROVAL_APPROVED,
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => null,
+            ]);
+        }
+
         // Sync shared pages if provided
         if ($sharedPageIds !== null) {
             $template->sharedPages()->sync($sharedPageIds);
@@ -196,7 +234,7 @@ class ReplyTemplateController extends Controller
 
         return response()->json([
             'success' => true,
-            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages']),
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages', 'approver']),
         ]);
     }
 
@@ -243,6 +281,10 @@ class ReplyTemplateController extends Controller
 
         $query = ReplyTemplate::query()
             ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('approval_status')
+                    ->orWhere('approval_status', ReplyTemplate::APPROVAL_APPROVED);
+            })
             ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
@@ -400,6 +442,61 @@ class ReplyTemplateController extends Controller
         return response()->json([
             'success' => true,
             'is_favorited' => !$isFavorited,
+        ]);
+    }
+
+    /**
+     * Approve a pending template.
+     *
+     * POST /api/reply-templates/{id}/approve
+     */
+    public function approve(Request $request, int $id): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+
+        if ($template->approval_status === ReplyTemplate::APPROVAL_APPROVED) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Template is already approved.',
+            ]);
+        }
+
+        $template->update([
+            'approval_status' => ReplyTemplate::APPROVAL_APPROVED,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+            'rejection_reason' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages', 'approver']),
+        ]);
+    }
+
+    /**
+     * Reject a pending template.
+     *
+     * POST /api/reply-templates/{id}/reject
+     */
+    public function reject(Request $request, int $id): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+
+        $validated = $request->validate([
+            'rejection_reason' => 'nullable|string|max:1000',
+        ]);
+
+        $template->update([
+            'approval_status' => ReplyTemplate::APPROVAL_REJECTED,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'template' => $template->fresh(['facebookPage', 'creator', 'sharedPages', 'approver']),
         ]);
     }
 

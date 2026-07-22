@@ -6935,6 +6935,10 @@ class ShopController extends Controller
         if (Schema::hasTable('reply_templates')) {
             $newTemplates = ReplyTemplate::query()
                 ->where('is_active', true)
+                ->where(function ($q) {
+                    $q->whereNull('approval_status')
+                        ->orWhere('approval_status', 'approved');
+                })
                 ->where(function ($q) use ($pageId) {
                     $q->where('facebook_page_id', $pageId)
                         ->orWhereNull('facebook_page_id')

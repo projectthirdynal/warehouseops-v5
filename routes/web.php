@@ -426,6 +426,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/api/reply-templates/{id}/toggle', [ReplyTemplateController::class, 'toggle'])->name('reply-templates.toggle');
     Route::post('/api/reply-templates/{id}/use', [ReplyTemplateController::class, 'incrementUsage'])->name('reply-templates.use');
     Route::post('/api/reply-templates/{id}/favorite', [ReplyTemplateController::class, 'toggleFavorite'])->name('reply-templates.favorite');
+    Route::post('/api/reply-templates/{id}/approve', [ReplyTemplateController::class, 'approve'])->name('reply-templates.approve');
+    Route::post('/api/reply-templates/{id}/reject', [ReplyTemplateController::class, 'reject'])->name('reply-templates.reject');
     Route::get('/api/reply-templates/{id}/versions', [ReplyTemplateController::class, 'versions'])->name('reply-templates.versions');
     Route::get('/api/reply-templates/{id}/versions/{versionId}', [ReplyTemplateController::class, 'showVersion'])->name('reply-templates.versions.show');
     Route::post('/api/reply-templates/{id}/versions/{versionId}/restore', [ReplyTemplateController::class, 'restoreVersion'])->name('reply-templates.versions.restore');
