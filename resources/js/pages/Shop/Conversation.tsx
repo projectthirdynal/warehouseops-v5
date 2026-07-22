@@ -172,6 +172,7 @@ interface Props {
     variables?: string[];
     shortcut?: string | null;
     source?: 'shop' | 'reply_templates';
+    is_favorited?: boolean;
   }[];
   agents: { id: number; name: string; role: string }[];
   user_role?: string;
@@ -1362,6 +1363,7 @@ export default function ShopConversation({
                           onClick={() => insertTemplate(template)}
                           className="gap-1.5"
                         >
+                          {template.is_favorited && <span className="text-warning">★</span>}
                           {template.name}
                           {template.shortcut && (
                             <span className="rounded bg-muted-foreground/20 px-1 font-mono text-[10px]">

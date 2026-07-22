@@ -100,4 +100,9 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return 'away';
     }
+
+    public function favoriteTemplates(): BelongsToMany
+    {
+        return $this->belongsToMany(ReplyTemplate::class, 'reply_template_favorites')->withTimestamps();
+    }
 }

@@ -1119,7 +1119,7 @@ class ShopController extends Controller
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
             'quick_replies' => $this->quickRepliesForConversation($conversation),
-            'saved_templates' => $this->savedTemplatesForConversation($conversation),
+            'saved_templates' => $this->savedTemplatesForConversation($conversation, $request->user()?->id),
             'agents' => $this->shopAgents(),
             'user_role' => $request->user()->role,
             'statuses' => $this->conversationStatuses(),
@@ -6902,7 +6902,7 @@ class ShopController extends Controller
         return $replies;
     }
 
-    private function savedTemplatesForConversation(Conversation $conversation): array
+    private function savedTemplatesForConversation(Conversation $conversation, ?int $userId = null): array
     {
         $pageId = $conversation->facebook_page_id;
         $templates = [];
@@ -6938,6 +6938,10 @@ class ShopController extends Controller
                 ->where(function ($q) use ($pageId) {
                     $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
                 })
+                ->when($userId, function ($q) use ($userId) {
+                    $q->withExists(['favoritedBy as is_favorited' => fn ($sub) => $sub->where('user_id', $userId)]);
+                })
+                ->orderByRaw($userId ? 'CASE WHEN EXISTS (SELECT 1 FROM reply_template_favorites WHERE reply_template_id = reply_templates.id AND user_id = ?) THEN 0 ELSE 1 END' : '0', $userId ? [$userId] : [])
                 ->orderByDesc('usage_count')
                 ->orderBy('title')
                 ->limit(50)
@@ -6952,6 +6956,7 @@ class ShopController extends Controller
                     'shortcut' => $template->shortcut,
                     'source' => 'reply_templates',
                     'intent' => $template->intent,
+                    'is_favorited' => $template->is_favorited ?? false,
                 ])
                 ->all();
 

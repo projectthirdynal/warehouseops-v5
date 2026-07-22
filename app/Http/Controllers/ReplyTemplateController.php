@@ -20,13 +20,17 @@ class ReplyTemplateController extends Controller
      */
     public function index(Request $request): Response
     {
+        $userId = $request->user()?->id;
+
         $query = ReplyTemplate::query()
             ->with(['facebookPage:id,page_name', 'creator:id,name'])
+            ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
             ->when($request->query('search'), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('title', 'like', "%{$search}%")
                         ->orWhere('content', 'like', "%{$search}%")
-                        ->orWhere('shortcut', 'like', "%{$search}%");
+                        ->orWhere('shortcut', 'like', "%{$search}%")
+                        ->orWhere('category', 'like', "%{$search}%");
                 });
             })
             ->when($request->query('page_id'), function ($q, $pageId) {
@@ -38,9 +42,13 @@ class ReplyTemplateController extends Controller
             ->when($request->query('intent'), function ($q, $intent) {
                 $q->where('intent', $intent);
             })
+            ->when($request->boolean('favorites_only'), function ($q) use ($userId) {
+                $q->whereHas('favoritedBy', fn ($sub) => $sub->where('user_id', $userId));
+            })
             ->when($request->boolean('active_only', true), function ($q) {
                 $q->where('is_active', true);
             })
+            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM reply_template_favorites WHERE reply_template_id = reply_templates.id AND user_id = ?) THEN 0 ELSE 1 END', [$userId])
             ->orderByDesc('usage_count')
             ->orderByDesc('created_at');
 
@@ -72,6 +80,7 @@ class ReplyTemplateController extends Controller
                 'page_id' => $request->query('page_id', ''),
                 'category' => $request->query('category', ''),
                 'intent' => $request->query('intent', ''),
+                'favorites_only' => $request->boolean('favorites_only'),
                 'active_only' => $request->boolean('active_only', true),
             ],
         ]);
@@ -181,8 +190,11 @@ class ReplyTemplateController extends Controller
      */
     public function list(Request $request): JsonResponse
     {
+        $userId = $request->user()?->id;
+
         $query = ReplyTemplate::query()
             ->where('is_active', true)
+            ->withExists(['favoritedBy as is_favorited' => fn ($q) => $q->where('user_id', $userId)])
             ->when($request->query('page_id'), function ($q, $pageId) {
                 $q->where(function ($sub) use ($pageId) {
                     $sub->where('facebook_page_id', $pageId)
@@ -192,7 +204,8 @@ class ReplyTemplateController extends Controller
             ->when($request->query('search'), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('title', 'like', "%{$search}%")
-                        ->orWhere('shortcut', 'like', "%{$search}%");
+                        ->orWhere('shortcut', 'like', "%{$search}%")
+                        ->orWhere('category', 'like', "%{$search}%");
                 });
             })
             ->when($request->query('category'), function ($q, $category) {
@@ -201,6 +214,10 @@ class ReplyTemplateController extends Controller
             ->when($request->query('intent'), function ($q, $intent) {
                 $q->where('intent', $intent);
             })
+            ->when($request->boolean('favorites_only'), function ($q) use ($userId) {
+                $q->whereHas('favoritedBy', fn ($sub) => $sub->where('user_id', $userId));
+            })
+            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM reply_template_favorites WHERE reply_template_id = reply_templates.id AND user_id = ?) THEN 0 ELSE 1 END', [$userId])
             ->orderByDesc('usage_count')
             ->limit(50);
 
@@ -225,6 +242,30 @@ class ReplyTemplateController extends Controller
         return response()->json([
             'success' => true,
             'usage_count' => $template?->usage_count,
+        ]);
+    }
+
+    /**
+     * Toggle favorite status for the authenticated user.
+     *
+     * POST /api/reply-templates/{id}/favorite
+     */
+    public function toggleFavorite(Request $request, int $id): JsonResponse
+    {
+        $template = ReplyTemplate::findOrFail($id);
+        $user = $request->user();
+
+        $isFavorited = $user->favoriteTemplates()->where('reply_template_id', $id)->exists();
+
+        if ($isFavorited) {
+            $user->favoriteTemplates()->detach($id);
+        } else {
+            $user->favoriteTemplates()->attach($id);
+        }
+
+        return response()->json([
+            'success' => true,
+            'is_favorited' => !$isFavorited,
         ]);
     }
 }

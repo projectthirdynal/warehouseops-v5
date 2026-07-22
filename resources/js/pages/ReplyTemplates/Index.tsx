@@ -4,7 +4,7 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Pencil, Trash2, Power, MessageSquare, Copy, X } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Power, MessageSquare, Copy, X, Star } from 'lucide-react';
 
 interface FacebookPage {
   id: number;
@@ -21,6 +21,7 @@ interface ReplyTemplate {
   shortcut: string | null;
   facebook_page_id: number | null;
   is_active: boolean;
+  is_favorited?: boolean;
   usage_count: number;
   created_at: string;
   updated_at: string;
@@ -76,6 +77,7 @@ interface Props {
     page_id: string;
     category: string;
     intent: string;
+    favorites_only: boolean;
     active_only: boolean;
   };
 }
@@ -91,6 +93,7 @@ export default function ReplyTemplatesIndex({
   const [pageFilter, setPageFilter] = useState(filters.page_id);
   const [categoryFilter, setCategoryFilter] = useState(filters.category);
   const [intentFilter, setIntentFilter] = useState(filters.intent);
+  const [favoritesOnly, setFavoritesOnly] = useState(filters.favorites_only);
   const [activeOnly, setActiveOnly] = useState(filters.active_only);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ReplyTemplate | null>(null);
@@ -115,6 +118,7 @@ export default function ReplyTemplatesIndex({
         page_id: pageFilter || undefined,
         category: categoryFilter || undefined,
         intent: intentFilter || undefined,
+        favorites_only: favoritesOnly,
         active_only: activeOnly,
       },
       { preserveScroll: true, preserveState: true }
@@ -220,6 +224,17 @@ export default function ReplyTemplatesIndex({
     });
   };
 
+  const toggleFavorite = (template: ReplyTemplate) => {
+    router.post(
+      `/api/reply-templates/${template.id}/favorite`,
+      {},
+      {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['templates'] }),
+      }
+    );
+  };
+
   const copyContent = (content: string) => {
     navigator.clipboard.writeText(content);
   };
@@ -260,7 +275,7 @@ export default function ReplyTemplatesIndex({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-              placeholder="Search title, content, shortcut..."
+              placeholder="Search title, content, shortcut, category..."
               className="w-64 rounded-md border bg-background py-2 pl-9 pr-3 text-sm"
             />
           </div>
@@ -302,6 +317,16 @@ export default function ReplyTemplatesIndex({
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={favoritesOnly}
+              onChange={(e) => setFavoritesOnly(e.target.checked)}
+              className="rounded"
+            />
+            <Star className="h-3.5 w-3.5 text-warning" />
+            Favorites only
+          </label>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -381,6 +406,17 @@ export default function ReplyTemplatesIndex({
                       </div>
                     </div>
                     <div className="flex shrink-0 gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => toggleFavorite(template)}
+                        title={template.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        <Star
+                          className={`h-4 w-4 ${template.is_favorited ? 'fill-warning text-warning' : 'text-muted-foreground'}`}
+                        />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"

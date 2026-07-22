@@ -424,6 +424,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/api/reply-templates/{id}', [ReplyTemplateController::class, 'destroy'])->name('reply-templates.destroy');
     Route::post('/api/reply-templates/{id}/toggle', [ReplyTemplateController::class, 'toggle'])->name('reply-templates.toggle');
     Route::post('/api/reply-templates/{id}/use', [ReplyTemplateController::class, 'incrementUsage'])->name('reply-templates.use');
+    Route::post('/api/reply-templates/{id}/favorite', [ReplyTemplateController::class, 'toggleFavorite'])->name('reply-templates.favorite');
 
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
