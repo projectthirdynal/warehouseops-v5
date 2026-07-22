@@ -6941,16 +6941,17 @@ class ShopController extends Controller
                 ->orderByDesc('usage_count')
                 ->orderBy('title')
                 ->limit(50)
-                ->get(['id', 'title', 'content', 'variables', 'shortcut', 'facebook_page_id', 'usage_count'])
+                ->get(['id', 'title', 'content', 'variables', 'category', 'intent', 'shortcut', 'facebook_page_id', 'usage_count'])
                 ->map(fn (ReplyTemplate $template) => [
                     'id' => $template->id,
                     'name' => $template->title,
-                    'category' => null,
+                    'category' => $template->category,
                     'body' => $this->renderReplyTemplate($template->content, $conversation),
                     'variables' => $template->variables ?? [],
                     'is_page_specific' => $template->facebook_page_id !== null,
                     'shortcut' => $template->shortcut,
                     'source' => 'reply_templates',
+                    'intent' => $template->intent,
                 ])
                 ->all();
 

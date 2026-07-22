@@ -32,6 +32,12 @@ class ReplyTemplateController extends Controller
             ->when($request->query('page_id'), function ($q, $pageId) {
                 $q->where('facebook_page_id', $pageId);
             })
+            ->when($request->query('category'), function ($q, $category) {
+                $q->where('category', $category);
+            })
+            ->when($request->query('intent'), function ($q, $intent) {
+                $q->where('intent', $intent);
+            })
             ->when($request->boolean('active_only', true), function ($q) {
                 $q->where('is_active', true);
             })
@@ -41,12 +47,31 @@ class ReplyTemplateController extends Controller
         $templates = $query->paginate(20)->withQueryString();
         $pages = FacebookPage::select('id', 'page_name')->orderBy('page_name')->get();
 
+        // Get distinct categories and intents for filter dropdowns
+        $categories = ReplyTemplate::query()
+            ->whereNotNull('category')
+            ->distinct()
+            ->pluck('category')
+            ->filter()
+            ->values();
+
+        $intents = ReplyTemplate::query()
+            ->whereNotNull('intent')
+            ->distinct()
+            ->pluck('intent')
+            ->filter()
+            ->values();
+
         return Inertia::render('ReplyTemplates/Index', [
             'templates' => $templates,
             'pages' => $pages,
+            'categories' => $categories,
+            'intents' => $intents,
             'filters' => [
                 'search' => $request->query('search', ''),
                 'page_id' => $request->query('page_id', ''),
+                'category' => $request->query('category', ''),
+                'intent' => $request->query('intent', ''),
                 'active_only' => $request->boolean('active_only', true),
             ],
         ]);
@@ -62,6 +87,8 @@ class ReplyTemplateController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string|max:5000',
+            'category' => 'nullable|string|max:100',
+            'intent' => 'nullable|string|max:100',
             'shortcut' => 'nullable|string|max:50|unique:reply_templates,shortcut',
             'facebook_page_id' => 'nullable|exists:facebook_pages,id',
             'is_active' => 'boolean',
@@ -94,6 +121,8 @@ class ReplyTemplateController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'content' => 'sometimes|string|max:5000',
+            'category' => 'sometimes|nullable|string|max:100',
+            'intent' => 'sometimes|nullable|string|max:100',
             'shortcut' => 'sometimes|nullable|string|max:50|unique:reply_templates,shortcut,' . $id,
             'facebook_page_id' => 'sometimes|nullable|exists:facebook_pages,id',
             'is_active' => 'sometimes|boolean',
@@ -166,11 +195,17 @@ class ReplyTemplateController extends Controller
                         ->orWhere('shortcut', 'like', "%{$search}%");
                 });
             })
+            ->when($request->query('category'), function ($q, $category) {
+                $q->where('category', $category);
+            })
+            ->when($request->query('intent'), function ($q, $intent) {
+                $q->where('intent', $intent);
+            })
             ->orderByDesc('usage_count')
             ->limit(50);
 
         return response()->json([
-            'templates' => $query->get(['id', 'title', 'content', 'shortcut', 'facebook_page_id', 'usage_count']),
+            'templates' => $query->get(['id', 'title', 'content', 'shortcut', 'category', 'intent', 'facebook_page_id', 'usage_count']),
         ]);
     }
 

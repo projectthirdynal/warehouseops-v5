@@ -16,6 +16,8 @@ interface ReplyTemplate {
   title: string;
   content: string;
   variables?: string[] | null;
+  category?: string | null;
+  intent?: string | null;
   shortcut: string | null;
   facebook_page_id: number | null;
   is_active: boolean;
@@ -25,6 +27,19 @@ interface ReplyTemplate {
   facebook_page?: { id: number; page_name: string } | null;
   creator?: { id: number; name: string } | null;
 }
+
+const INTENT_OPTIONS = [
+  { value: 'greeting', label: 'Greeting' },
+  { value: 'order_confirmation', label: 'Order Confirmation' },
+  { value: 'shipping_update', label: 'Shipping Update' },
+  { value: 'payment_reminder', label: 'Payment Reminder' },
+  { value: 'follow_up', label: 'Follow Up' },
+  { value: 'apology', label: 'Apology' },
+  { value: 'closing', label: 'Closing' },
+  { value: 'faq', label: 'FAQ' },
+  { value: 'escalation', label: 'Escalation' },
+  { value: 'other', label: 'Other' },
+];
 
 const AVAILABLE_VARIABLES = [
   { key: '{customer_name}', desc: 'Customer display name' },
@@ -54,22 +69,36 @@ interface PaginatedTemplates {
 interface Props {
   templates: PaginatedTemplates;
   pages: FacebookPage[];
+  categories: string[];
+  intents: string[];
   filters: {
     search: string;
     page_id: string;
+    category: string;
+    intent: string;
     active_only: boolean;
   };
 }
 
-export default function ReplyTemplatesIndex({ templates, pages, filters }: Props) {
+export default function ReplyTemplatesIndex({
+  templates,
+  pages,
+  categories,
+  intents,
+  filters,
+}: Props) {
   const [search, setSearch] = useState(filters.search);
   const [pageFilter, setPageFilter] = useState(filters.page_id);
+  const [categoryFilter, setCategoryFilter] = useState(filters.category);
+  const [intentFilter, setIntentFilter] = useState(filters.intent);
   const [activeOnly, setActiveOnly] = useState(filters.active_only);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ReplyTemplate | null>(null);
   const [form, setForm] = useState({
     title: '',
     content: '',
+    category: '',
+    intent: '',
     shortcut: '',
     facebook_page_id: '',
     is_active: true,
@@ -84,6 +113,8 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
       {
         search: search || undefined,
         page_id: pageFilter || undefined,
+        category: categoryFilter || undefined,
+        intent: intentFilter || undefined,
         active_only: activeOnly,
       },
       { preserveScroll: true, preserveState: true }
@@ -92,7 +123,15 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ title: '', content: '', shortcut: '', facebook_page_id: '', is_active: true });
+    setForm({
+      title: '',
+      content: '',
+      category: '',
+      intent: '',
+      shortcut: '',
+      facebook_page_id: '',
+      is_active: true,
+    });
     setError(null);
     setShowModal(true);
   };
@@ -102,6 +141,8 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
     setForm({
       title: template.title,
       content: template.content,
+      category: template.category ?? '',
+      intent: template.intent ?? '',
       shortcut: template.shortcut ?? '',
       facebook_page_id: template.facebook_page_id?.toString() ?? '',
       is_active: template.is_active,
@@ -117,6 +158,8 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
     const payload = {
       title: form.title,
       content: form.content,
+      category: form.category || null,
+      intent: form.intent || null,
       shortcut: form.shortcut || null,
       facebook_page_id: form.facebook_page_id || null,
       is_active: form.is_active,
@@ -235,6 +278,30 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
               </option>
             ))}
           </select>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={intentFilter}
+            onChange={(e) => setIntentFilter(e.target.value)}
+            className="rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">All Intents</option>
+            {intents.map((i) => (
+              <option key={i} value={i}>
+                {INTENT_OPTIONS.find((opt) => opt.value === i)?.label ?? i}
+              </option>
+            ))}
+          </select>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -277,6 +344,17 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
                         {template.facebook_page && (
                           <Badge variant="secondary" className="text-xs">
                             {template.facebook_page.page_name}
+                          </Badge>
+                        )}
+                        {template.category && (
+                          <Badge variant="outline" className="text-xs text-info">
+                            {template.category}
+                          </Badge>
+                        )}
+                        {template.intent && (
+                          <Badge variant="outline" className="text-xs text-warning">
+                            {INTENT_OPTIONS.find((opt) => opt.value === template.intent)?.label ??
+                              template.intent}
                           </Badge>
                         )}
                       </div>
@@ -469,6 +547,47 @@ export default function ReplyTemplatesIndex({ templates, pages, filters }: Props
                       ))}
                     </div>
                   </details>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Category</label>
+                    <input
+                      type="text"
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      placeholder="e.g. Sales, Support, Logistics"
+                      list="category-suggestions"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    />
+                    <datalist id="category-suggestions">
+                      {categories.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Free-text grouping for templates
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Intent</label>
+                    <select
+                      value={form.intent}
+                      onChange={(e) => setForm({ ...form, intent: e.target.value })}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">No intent</option>
+                      {INTENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Classify the purpose of this template
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">

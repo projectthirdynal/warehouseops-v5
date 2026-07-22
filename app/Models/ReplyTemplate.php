@@ -19,6 +19,8 @@ class ReplyTemplate extends Model
         'title',
         'content',
         'variables',
+        'category',
+        'intent',
         'shortcut',
         'facebook_page_id',
         'created_by',

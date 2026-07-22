@@ -167,6 +167,7 @@ interface Props {
     id: number;
     name: string;
     category?: string | null;
+    intent?: string | null;
     body: string;
     variables?: string[];
     shortcut?: string | null;
