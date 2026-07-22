@@ -6,8 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Domain\Shop\Models\FacebookPage;
 use App\Models\ReplyTemplate;
+use App\Models\ReplyTemplateUsage;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -85,6 +88,7 @@ class ReplyTemplateController extends Controller
             'categories' => $categories,
             'intents' => $intents,
             'roles' => self::ROLE_OPTIONS,
+            'analytics' => $this->usageAnalytics(),
             'filters' => [
                 'search' => $request->query('search', ''),
                 'page_id' => $request->query('page_id', ''),
@@ -252,18 +256,96 @@ class ReplyTemplateController extends Controller
      *
      * POST /api/reply-templates/{id}/use
      */
-    public function incrementUsage(int $id): JsonResponse
+    public function incrementUsage(Request $request, int $id): JsonResponse
     {
         $template = ReplyTemplate::find($id);
 
         if ($template) {
             $template->increment('usage_count');
+
+            ReplyTemplateUsage::create([
+                'reply_template_id' => $template->id,
+                'user_id' => $request->user()?->id,
+                'conversation_id' => $request->input('conversation_id'),
+                'created_at' => now(),
+            ]);
         }
 
         return response()->json([
             'success' => true,
             'usage_count' => $template?->usage_count,
         ]);
+    }
+
+    /**
+     * Get reply template usage analytics.
+     *
+     * GET /api/reply-templates/analytics
+     */
+    public function analytics(): JsonResponse
+    {
+        return response()->json($this->usageAnalytics());
+    }
+
+    private function usageAnalytics(): array
+    {
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $startOfLast30 = Carbon::now()->subDays(30)->startOfDay();
+
+        $topTemplates = ReplyTemplateUsage::query()
+            ->select('reply_template_id', DB::raw('count(*) as usage_count'))
+            ->with('replyTemplate:id,title')
+            ->groupBy('reply_template_id')
+            ->orderByDesc('usage_count')
+            ->limit(10)
+            ->get()
+            ->map(fn ($u) => [
+                'id' => $u->reply_template_id,
+                'title' => $u->replyTemplate?->title,
+                'count' => $u->usage_count,
+            ]);
+
+        $topUsers = ReplyTemplateUsage::query()
+            ->whereNotNull('user_id')
+            ->select('user_id', DB::raw('count(*) as usage_count'))
+            ->with('user:id,name')
+            ->groupBy('user_id')
+            ->orderByDesc('usage_count')
+            ->limit(10)
+            ->get()
+            ->map(fn ($u) => [
+                'id' => $u->user_id,
+                'name' => $u->user?->name,
+                'count' => $u->usage_count,
+            ]);
+
+        $last30Days = ReplyTemplateUsage::query()
+            ->where('created_at', '>=', $startOfLast30)
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->mapWithKeys(fn ($u) => [$u->date => $u->count]);
+
+        $dailySeries = collect(range(0, 29))
+            ->map(function ($daysAgo) use ($startOfLast30) {
+                $date = $startOfLast30->copy()->addDays($daysAgo)->format('Y-m-d');
+                return ['date' => $date, 'count' => 0];
+            })
+            ->map(function ($item) use ($last30Days) {
+                $item['count'] = $last30Days[$item['date']] ?? 0;
+                return $item;
+            })
+            ->values();
+
+        return [
+            'total_uses' => ReplyTemplateUsage::count(),
+            'uses_this_month' => ReplyTemplateUsage::where('created_at', '>=', $startOfMonth)->count(),
+            'uses_last_30_days' => ReplyTemplateUsage::where('created_at', '>=', $startOfLast30)->count(),
+            'top_templates' => $topTemplates,
+            'top_users' => $topUsers,
+            'daily_usage' => $dailySeries,
+        ];
     }
 
     /**

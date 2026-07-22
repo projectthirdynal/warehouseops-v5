@@ -906,7 +906,9 @@ export default function ShopConversation({
     source?: string;
   }) => {
     if (template.source === 'reply_templates') {
-      axiosWithCsrf.post(`/api/reply-templates/${template.id}/use`).catch(() => {});
+      axiosWithCsrf
+        .post(`/api/reply-templates/${template.id}/use`, { conversation_id: conversation.id })
+        .catch(() => {});
     }
     if (!template.variables || template.variables.length === 0) {
       setData('body', template.body);

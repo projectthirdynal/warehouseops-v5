@@ -8,6 +8,7 @@ use App\Domain\Shop\Models\FacebookPage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReplyTemplate extends Model
@@ -50,6 +51,11 @@ class ReplyTemplate extends Model
     public function favoritedBy(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'reply_template_favorites')->withTimestamps();
+    }
+
+    public function usages(): HasMany
+    {
+        return $this->hasMany(ReplyTemplateUsage::class);
     }
 
     public function isAccessibleBy(string $role): bool

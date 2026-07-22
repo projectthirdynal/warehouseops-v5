@@ -419,6 +419,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Reply Templates
     Route::get('/shop/reply-templates', [ReplyTemplateController::class, 'index'])->name('reply-templates.index');
     Route::get('/api/reply-templates', [ReplyTemplateController::class, 'list'])->name('reply-templates.list');
+    Route::get('/api/reply-templates/analytics', [ReplyTemplateController::class, 'analytics'])->name('reply-templates.analytics');
     Route::post('/api/reply-templates', [ReplyTemplateController::class, 'store'])->name('reply-templates.store');
     Route::put('/api/reply-templates/{id}', [ReplyTemplateController::class, 'update'])->name('reply-templates.update');
     Route::delete('/api/reply-templates/{id}', [ReplyTemplateController::class, 'destroy'])->name('reply-templates.destroy');

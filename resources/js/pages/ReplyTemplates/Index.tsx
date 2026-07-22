@@ -3,8 +3,20 @@ import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Pencil, Trash2, Power, MessageSquare, Copy, X, Star } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Power,
+  MessageSquare,
+  Copy,
+  X,
+  Star,
+  BarChart3,
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface FacebookPage {
   id: number;
@@ -68,12 +80,22 @@ interface PaginatedTemplates {
   links: { url: string | null; label: string; active: boolean }[];
 }
 
+interface UsageAnalytics {
+  total_uses: number;
+  uses_this_month: number;
+  uses_last_30_days: number;
+  top_templates: { id: number; title: string | null; count: number }[];
+  top_users: { id: number; name: string | null; count: number }[];
+  daily_usage: { date: string; count: number }[];
+}
+
 interface Props {
   templates: PaginatedTemplates;
   pages: FacebookPage[];
   categories: string[];
   intents: string[];
   roles: string[];
+  analytics: UsageAnalytics;
   filters: {
     search: string;
     page_id: string;
@@ -90,6 +112,7 @@ export default function ReplyTemplatesIndex({
   categories,
   intents,
   roles,
+  analytics,
   filters,
 }: Props) {
   const [search, setSearch] = useState(filters.search);
@@ -353,6 +376,136 @@ export default function ReplyTemplatesIndex({
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>{templates.total} total templates</span>
           <span>{templates.data.filter((t) => t.is_active).length} active on this page</span>
+        </div>
+
+        {/* Usage Analytics */}
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <BarChart3 className="h-5 w-5" />
+            Usage Analytics
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Uses
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.total_uses}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  This Month
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.uses_this_month}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Last 30 Days
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.uses_last_30_days}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Most Used Template
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.top_templates[0]?.count ?? 0}</div>
+                <p className="truncate text-xs text-muted-foreground">
+                  {analytics.top_templates[0]?.title ?? 'No usage yet'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Daily Usage (Last 30 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.daily_usage}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(value: string) =>
+                          new Date(value).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        }
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        formatter={(value: number) => [`${value} uses`, 'Uses']}
+                        labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+                      />
+                      <Bar dataKey="count" fill="currentColor" className="fill-primary" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Top Templates</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {analytics.top_templates.length > 0 ? (
+                    <ul className="space-y-2 text-sm">
+                      {analytics.top_templates.slice(0, 5).map((t) => (
+                        <li key={t.id} className="flex items-center justify-between">
+                          <span className="truncate pr-2" title={t.title ?? undefined}>
+                            {t.title ?? 'Untitled'}
+                          </span>
+                          <Badge variant="secondary">{t.count}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No usage data yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Top Users</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {analytics.top_users.length > 0 ? (
+                    <ul className="space-y-2 text-sm">
+                      {analytics.top_users.slice(0, 5).map((u) => (
+                        <li key={u.id} className="flex items-center justify-between">
+                          <span className="truncate pr-2">{u.name ?? 'Unknown'}</span>
+                          <Badge variant="secondary">{u.count}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No usage data yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
 
         {/* Template List */}
