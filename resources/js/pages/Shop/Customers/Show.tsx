@@ -52,6 +52,11 @@ interface Customer {
   phone: string;
   facebook_name: string | null;
   canonical_address: string | null;
+  landmark: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+  region: string | null;
   total_orders: number;
   total_revenue: number;
   average_order_value: number;
@@ -95,6 +100,26 @@ export default function CustomersShow({ customer }: Props) {
     payment_method: customer.payment_method ?? '',
   });
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: customer.name,
+    phone: customer.phone,
+  });
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      await axios.patch(`/shop/customers/${customer.id}`, profileForm);
+      setEditingProfile(false);
+      window.location.reload();
+    } catch {
+      alert('Failed to update profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const savePreferences = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,29 +234,80 @@ export default function CustomersShow({ customer }: Props) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Profile</CardTitle>
+              {!editingProfile ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setProfileForm({ name: customer.name, phone: customer.phone });
+                    setEditingProfile(true);
+                  }}
+                >
+                  Edit
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>
-              <strong>Phone:</strong> {customer.phone}
-            </p>
-            {customer.facebook_name && (
-              <p>
-                <strong>Facebook:</strong> {customer.facebook_name}
-              </p>
+            {editingProfile ? (
+              <form onSubmit={saveProfile} className="space-y-3">
+                <div>
+                  <Label htmlFor="profile_name">Name</Label>
+                  <Input
+                    id="profile_name"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile_phone">Phone</Label>
+                  <Input
+                    id="profile_phone"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={savingProfile}>
+                    {savingProfile ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setEditingProfile(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <p>
+                  <strong>Name:</strong> {customer.name}
+                </p>
+                <p>
+                  <strong>Phone:</strong> {customer.phone}
+                </p>
+                {customer.facebook_name && (
+                  <p>
+                    <strong>Facebook:</strong> {customer.facebook_name}
+                  </p>
+                )}
+                <p>
+                  <strong>Total orders:</strong> {customer.total_orders}
+                </p>
+                <p>
+                  <strong>Total revenue:</strong> ₱{customer.total_revenue.toLocaleString()}
+                </p>
+                <p>
+                  <strong>Average order value:</strong> ₱
+                  {customer.average_order_value.toLocaleString()}
+                </p>
+                <p>
+                  <strong>Current address:</strong> {customer.canonical_address ?? '-'}
+                </p>
+              </>
             )}
-            <p>
-              <strong>Total orders:</strong> {customer.total_orders}
-            </p>
-            <p>
-              <strong>Total revenue:</strong> ₱{customer.total_revenue.toLocaleString()}
-            </p>
-            <p>
-              <strong>Average order value:</strong> ₱{customer.average_order_value.toLocaleString()}
-            </p>
-            <p>
-              <strong>Current address:</strong> {customer.canonical_address ?? '-'}
-            </p>
           </CardContent>
         </Card>
 
