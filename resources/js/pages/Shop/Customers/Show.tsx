@@ -53,6 +53,17 @@ interface Activity {
   metadata: Record<string, unknown>;
 }
 
+interface MergeSuggestion {
+  id: number;
+  name: string;
+  phone: string;
+  total_orders: number;
+  successful_orders: number;
+  returned_orders: number;
+  risk_level: string;
+  created_at: string;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -91,6 +102,9 @@ export default function CustomersShow({ customer }: Props) {
   const [noteForm, setNoteForm] = useState({ body: '', tags: '' });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
+  const [loadingMergeSuggestions, setLoadingMergeSuggestions] = useState(true);
+  const [mergingId, setMergingId] = useState<number | null>(null);
   const [form, setForm] = useState({
     label: '',
     canonical_address: '',
@@ -231,6 +245,33 @@ export default function CustomersShow({ customer }: Props) {
       .catch(() => setActivities([]))
       .finally(() => setLoadingTimeline(false));
   }, [customer.id]);
+
+  useEffect(() => {
+    axios
+      .get(`/shop/customers/${customer.id}/merge-suggestions`)
+      .then(({ data }) => setMergeSuggestions(data.suggestions))
+      .catch(() => setMergeSuggestions([]))
+      .finally(() => setLoadingMergeSuggestions(false));
+  }, [customer.id]);
+
+  const mergeCustomer = async (sourceId: number) => {
+    if (
+      !confirm(
+        'Merge this customer into the current one? This will reassign all orders, identities, and conversations, then soft-delete the merged customer.'
+      )
+    ) {
+      return;
+    }
+    setMergingId(sourceId);
+    try {
+      await axios.post(`/shop/customers/${customer.id}/merge-suggestions/${sourceId}`);
+      window.location.reload();
+    } catch {
+      alert('Failed to merge customers.');
+    } finally {
+      setMergingId(null);
+    }
+  };
 
   const setDefault = async (addressId: number) => {
     try {
@@ -715,6 +756,65 @@ export default function CustomersShow({ customer }: Props) {
                       <p className="text-xs text-muted-foreground">
                         {new Date(activity.occurred_at).toLocaleString()}
                       </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Merge Duplicates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingMergeSuggestions ? (
+              <p className="text-sm text-muted-foreground">Checking for duplicates...</p>
+            ) : mergeSuggestions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No duplicate customers found. This customer has no other records sharing the same
+                normalized phone number.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {mergeSuggestions.length} customer{mergeSuggestions.length > 1 ? 's' : ''} share
+                  the same normalized phone number. Merging will reassign all orders, identities,
+                  and conversations to this customer, then soft-delete the duplicate.
+                </p>
+                {mergeSuggestions.map((suggestion) => (
+                  <div key={suggestion.id} className="rounded border p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{suggestion.name}</p>
+                          <Badge
+                            variant={
+                              suggestion.risk_level === 'BLACKLISTED' ? 'destructive' : 'secondary'
+                            }
+                          >
+                            {suggestion.risk_level}
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground">{suggestion.phone}</p>
+                        <div className="flex gap-3 text-xs text-muted-foreground">
+                          <span>Orders: {suggestion.total_orders}</span>
+                          <span>Successful: {suggestion.successful_orders}</span>
+                          <span>Returned: {suggestion.returned_orders}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Created: {new Date(suggestion.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={mergingId === suggestion.id}
+                        onClick={() => mergeCustomer(suggestion.id)}
+                      >
+                        {mergingId === suggestion.id ? 'Merging...' : 'Merge into this customer'}
+                      </Button>
                     </div>
                   </div>
                 ))}
