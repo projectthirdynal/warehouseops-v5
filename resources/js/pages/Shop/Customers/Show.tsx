@@ -99,7 +99,7 @@ export default function CustomersShow({ customer }: Props) {
   const [notes, setNotes] = useState<Note[]>(customer.notes);
   const [tags, setTags] = useState<string[]>(customer.tags ?? []);
   const [tagInput, setTagInput] = useState('');
-  const [noteForm, setNoteForm] = useState({ body: '', tags: '' });
+  const [noteForm, setNoteForm] = useState({ body: '', tags: '', note_type: 'agent_note' });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
@@ -196,10 +196,10 @@ export default function CustomersShow({ customer }: Props) {
     }
   };
 
-  const saveTags = async () => {
+  const saveTags = async (newTags: string[]) => {
     try {
-      await axios.patch(`/shop/customers/${customer.id}/tags`, { tags });
-    } catch (e) {
+      await axios.patch(`/shop/customers/${customer.id}/tags`, { tags: newTags });
+    } catch {
       alert('Failed to save tags.');
     }
   };
@@ -207,13 +207,17 @@ export default function CustomersShow({ customer }: Props) {
   const addTag = () => {
     const value = tagInput.trim().toLowerCase();
     if (value && !tags.includes(value)) {
-      setTags([...tags, value]);
+      const newTags = [...tags, value];
+      setTags(newTags);
+      saveTags(newTags);
     }
     setTagInput('');
   };
 
   const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
+    const newTags = tags.filter((t) => t !== tag);
+    setTags(newTags);
+    saveTags(newTags);
   };
 
   const submitNote = async (e: React.FormEvent) => {
@@ -227,10 +231,11 @@ export default function CustomersShow({ customer }: Props) {
       await axios.post(`/shop/customers/${customer.id}/notes`, {
         body: noteForm.body,
         tags: noteTags,
+        note_type: noteForm.note_type,
       });
       const { data } = await axios.get(`/shop/customers/${customer.id}/notes`);
       setNotes(data.notes);
-      setNoteForm({ body: '', tags: '' });
+      setNoteForm({ body: '', tags: '', note_type: 'agent_note' });
     } catch (e) {
       alert('Failed to add note.');
     } finally {
@@ -270,6 +275,16 @@ export default function CustomersShow({ customer }: Props) {
       alert('Failed to merge customers.');
     } finally {
       setMergingId(null);
+    }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    if (!confirm('Delete this note?')) return;
+    try {
+      await axios.delete(`/shop/customers/${customer.id}/notes/${noteId}`);
+      setNotes(notes.filter((n) => n.id !== noteId));
+    } catch {
+      alert('Failed to delete note.');
     }
   };
 
@@ -668,10 +683,10 @@ export default function CustomersShow({ customer }: Props) {
               <Button type="button" variant="outline" onClick={addTag}>
                 Add
               </Button>
-              <Button type="button" onClick={saveTags}>
-                Save tags
-              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Tags are saved automatically when added or removed.
+            </p>
           </CardContent>
         </Card>
 
@@ -687,10 +702,27 @@ export default function CustomersShow({ customer }: Props) {
                 {notes.map((note) => (
                   <div key={note.id} className="rounded border p-3 text-sm">
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="font-medium">{note.user?.name ?? 'System'}</span>
-                      <span className="text-muted-foreground">
-                        {new Date(note.created_at).toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{note.user?.name ?? 'System'}</span>
+                        {note.note_type && note.note_type !== 'agent_note' && (
+                          <Badge variant="outline">{note.note_type}</Badge>
+                        )}
+                        {note.pinned_until && new Date(note.pinned_until) > new Date() && (
+                          <Badge variant="default">Pinned</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          {new Date(note.created_at).toLocaleString()}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteNote(note.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                     <p className="whitespace-pre-wrap">{note.body}</p>
                     {note.tags && note.tags.length > 0 && (
@@ -718,13 +750,32 @@ export default function CustomersShow({ customer }: Props) {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="note_tags">Tags (comma separated)</Label>
-                <Input
-                  id="note_tags"
-                  value={noteForm.tags}
-                  onChange={(e) => setNoteForm({ ...noteForm, tags: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="note_type">Note type</Label>
+                  <Select
+                    value={noteForm.note_type}
+                    onValueChange={(value) => setNoteForm({ ...noteForm, note_type: value })}
+                  >
+                    <SelectTrigger id="note_type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agent_note">Agent Note</SelectItem>
+                      <SelectItem value="customer_feedback">Customer Feedback</SelectItem>
+                      <SelectItem value="internal">Internal</SelectItem>
+                      <SelectItem value="follow_up">Follow Up</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="note_tags">Tags (comma separated)</Label>
+                  <Input
+                    id="note_tags"
+                    value={noteForm.tags}
+                    onChange={(e) => setNoteForm({ ...noteForm, tags: e.target.value })}
+                  />
+                </div>
               </div>
               <Button type="submit" disabled={noteLoading}>
                 {noteLoading ? 'Saving...' : 'Add note'}

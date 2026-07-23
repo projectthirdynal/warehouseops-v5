@@ -508,6 +508,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/customers/{customer}/addresses/{address}/default', [ShopController::class, 'setDefaultCustomerAddress'])->name('shop.customers.addresses.default');
     Route::get('/shop/customers/{customer}/notes', [ShopController::class, 'customerNotes'])->name('shop.customers.notes.index');
     Route::post('/shop/customers/{customer}/notes', [ShopController::class, 'storeCustomerNote'])->name('shop.customers.notes.store');
+    Route::delete('/shop/customers/{customer}/notes/{note}', [ShopController::class, 'deleteCustomerNote'])->name('shop.customers.notes.destroy');
     Route::patch('/shop/customers/{customer}/tags', [ShopController::class, 'updateCustomerTags'])->name('shop.customers.tags.update');
     Route::patch('/shop/customers/{customer}/preferences', [ShopController::class, 'updateCustomerPreferences'])->name('shop.customers.preferences.update');
     Route::get('/shop/customers/{customer}/merge-suggestions', [ShopController::class, 'customerMergeSuggestions'])->name('shop.customers.merge-suggestions');

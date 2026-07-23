@@ -50,6 +50,7 @@ use App\Domain\Shop\Models\CartTemplate;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Models\CustomerNote;
 use App\Models\AgentProfile;
 use App\Models\ReplyTemplate;
 use App\Models\SiteSetting;
@@ -1701,6 +1702,15 @@ class ShopController extends Controller
         $this->customerNotes->setTags($customer, $validated['tags']);
 
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
+    }
+
+    public function deleteCustomerNote(Request $request, Customer $customer, CustomerNote $note): JsonResponse
+    {
+        abort_unless($note->customer_id === $customer->id, 403, 'Note does not belong to this customer.');
+
+        $note->delete();
+
+        return response()->json(['deleted' => true]);
     }
 
     public function updateCustomerPreferences(Request $request, Customer $customer): JsonResponse
