@@ -105,6 +105,11 @@ export default function CustomersShow({ customer }: Props) {
   const [profileForm, setProfileForm] = useState({
     name: customer.name,
     phone: customer.phone,
+    canonical_address: customer.canonical_address ?? '',
+    landmark: customer.landmark ?? '',
+    barangay: customer.barangay ?? '',
+    city_municipality: customer.city_municipality ?? '',
+    province: customer.province ?? '',
   });
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -241,7 +246,15 @@ export default function CustomersShow({ customer }: Props) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setProfileForm({ name: customer.name, phone: customer.phone });
+                    setProfileForm({
+                      name: customer.name,
+                      phone: customer.phone,
+                      canonical_address: customer.canonical_address ?? '',
+                      landmark: customer.landmark ?? '',
+                      barangay: customer.barangay ?? '',
+                      city_municipality: customer.city_municipality ?? '',
+                      province: customer.province ?? '',
+                    });
                     setEditingProfile(true);
                   }}
                 >
@@ -270,6 +283,66 @@ export default function CustomersShow({ customer }: Props) {
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                     required
                   />
+                </div>
+                <div className="border-t pt-3">
+                  <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                    Address
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="profile_address">Street Address</Label>
+                      <Input
+                        id="profile_address"
+                        value={profileForm.canonical_address}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, canonical_address: e.target.value })
+                        }
+                        placeholder="House no, street, subdivision"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="profile_landmark">Landmark</Label>
+                        <Input
+                          id="profile_landmark"
+                          value={profileForm.landmark}
+                          onChange={(e) =>
+                            setProfileForm({ ...profileForm, landmark: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="profile_barangay">Barangay</Label>
+                        <Input
+                          id="profile_barangay"
+                          value={profileForm.barangay}
+                          onChange={(e) =>
+                            setProfileForm({ ...profileForm, barangay: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="profile_city">City / Municipality</Label>
+                        <Input
+                          id="profile_city"
+                          value={profileForm.city_municipality}
+                          onChange={(e) =>
+                            setProfileForm({ ...profileForm, city_municipality: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="profile_province">Province</Label>
+                        <Input
+                          id="profile_province"
+                          value={profileForm.province}
+                          onChange={(e) =>
+                            setProfileForm({ ...profileForm, province: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" disabled={savingProfile}>
@@ -306,6 +379,24 @@ export default function CustomersShow({ customer }: Props) {
                 <p>
                   <strong>Current address:</strong> {customer.canonical_address ?? '-'}
                 </p>
+                {(customer.barangay ||
+                  customer.city_municipality ||
+                  customer.province ||
+                  customer.region) && (
+                  <p className="text-muted-foreground">
+                    {[
+                      customer.barangay,
+                      customer.city_municipality,
+                      customer.province,
+                      customer.region,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </p>
+                )}
+                {customer.landmark && (
+                  <p className="text-muted-foreground">Landmark: {customer.landmark}</p>
+                )}
               </>
             )}
           </CardContent>
