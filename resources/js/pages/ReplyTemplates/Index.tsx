@@ -19,6 +19,10 @@ import {
   RotateCcw,
   Check,
   XCircle,
+  FlaskConical,
+  Play,
+  Pause,
+  Trophy,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -138,6 +142,31 @@ interface PerformanceMetrics {
   };
 }
 
+interface AbTestVariant {
+  id: number;
+  label: string;
+  weight: number;
+  template_id: number;
+  template_title: string | null;
+  impressions: number;
+  uses: number;
+  conversations_resolved: number;
+  conversion_rate: number;
+  resolution_rate: number;
+}
+
+interface AbTest {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  created_by: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  winning_variant: { id: number; label: string } | null;
+  variants: AbTestVariant[];
+}
+
 interface Props {
   templates: PaginatedTemplates;
   pages: FacebookPage[];
@@ -147,6 +176,7 @@ interface Props {
   analytics: UsageAnalytics;
   performance: PerformanceMetrics;
   approval_statuses: string[];
+  ab_tests: AbTest[];
   filters: {
     search: string;
     page_id: string;
@@ -167,6 +197,7 @@ export default function ReplyTemplatesIndex({
   analytics,
   performance,
   approval_statuses,
+  ab_tests,
   filters,
 }: Props) {
   const [search, setSearch] = useState(filters.search);
@@ -213,6 +244,38 @@ export default function ReplyTemplatesIndex({
     created_at: string;
   } | null>(null);
   const [restoring, setRestoring] = useState(false);
+
+  const [showAbTestModal, setShowAbTestModal] = useState(false);
+  const [abTestForm, setAbTestForm] = useState({
+    name: '',
+    description: '',
+    template_ids: [] as number[],
+    weights: [] as number[],
+  });
+
+  const [abTestSaving, setAbTestSaving] = useState(false);
+  const [abTestResults, setAbTestResults] = useState<{
+    test: {
+      id: number;
+      name: string;
+      description: string | null;
+      status: string;
+      created_by: string | null;
+      start_at: string | null;
+      end_at: string | null;
+    };
+    variants: AbTestVariant[];
+    summary: {
+      total_impressions: number;
+      total_uses: number;
+      total_resolved: number;
+      overall_conversion_rate: number;
+      overall_resolution_rate: number;
+      best_variant: AbTestVariant | null;
+    };
+  } | null>(null);
+
+  const [abTestLoading, setAbTestLoading] = useState(false);
 
   const applyFilters = () => {
     router.get(
@@ -410,6 +473,73 @@ export default function ReplyTemplatesIndex({
     );
   };
 
+  // ─── A/B Test Handlers ───
+
+  const toggleAbTestTemplate = (templateId: number) => {
+    setAbTestForm((prev) => {
+      const ids = prev.template_ids.includes(templateId)
+        ? prev.template_ids.filter((id) => id !== templateId)
+        : [...prev.template_ids, templateId];
+      const weights = ids.map(() => Math.floor(100 / ids.length));
+      return { ...prev, template_ids: ids, weights };
+    });
+  };
+
+  const createAbTest = () => {
+    if (abTestForm.template_ids.length < 2 || !abTestForm.name.trim()) return;
+    setAbTestSaving(true);
+    router.post(
+      '/api/reply-templates/ab-tests',
+      {
+        name: abTestForm.name,
+        description: abTestForm.description || undefined,
+        template_ids: abTestForm.template_ids,
+        weights: abTestForm.weights,
+      },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setAbTestSaving(false);
+          setShowAbTestModal(false);
+          setAbTestForm({ name: '', description: '', template_ids: [], weights: [] });
+          router.reload({ only: ['ab_tests'] });
+        },
+        onError: () => setAbTestSaving(false),
+      }
+    );
+  };
+
+  const updateAbTestStatus = (testId: number, status: string) => {
+    router.patch(
+      `/api/reply-templates/ab-tests/${testId}/status`,
+      { status },
+      {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['ab_tests'] }),
+      }
+    );
+  };
+
+  const endAbTest = (testId: number) => {
+    router.post(
+      `/api/reply-templates/ab-tests/${testId}/end`,
+      {},
+      {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['ab_tests'] }),
+      }
+    );
+  };
+
+  const viewAbTestResults = (testId: number) => {
+    setAbTestLoading(true);
+    fetch(`/api/reply-templates/ab-tests/${testId}/results`)
+      .then((res) => res.json())
+      .then((data) => setAbTestResults(data))
+      .catch(() => setAbTestResults(null))
+      .finally(() => setAbTestLoading(false));
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 p-6">
@@ -433,6 +563,10 @@ export default function ReplyTemplatesIndex({
             <Button onClick={openCreate} size="sm">
               <Plus className="mr-1.5 h-4 w-4" />
               New Template
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAbTestModal(true)}>
+              <FlaskConical className="mr-1.5 h-4 w-4" />
+              New A/B Test
             </Button>
           </div>
         </div>
@@ -831,6 +965,317 @@ export default function ReplyTemplatesIndex({
             </div>
           </div>
         </div>
+
+        {/* A/B Testing */}
+        {ab_tests.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <FlaskConical className="h-5 w-5 text-primary" />
+              A/B Tests
+            </h2>
+            {ab_tests.map((test) => (
+              <Card key={test.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold">{test.name}</h3>
+                        <Badge
+                          className={
+                            test.status === 'active'
+                              ? 'bg-green-100 text-green-700 text-xs'
+                              : test.status === 'completed'
+                                ? 'bg-blue-100 text-blue-700 text-xs'
+                                : test.status === 'paused'
+                                  ? 'bg-amber-100 text-amber-700 text-xs'
+                                  : 'bg-muted text-muted-foreground text-xs'
+                          }
+                        >
+                          {test.status}
+                        </Badge>
+                        {test.winning_variant && (
+                          <Badge className="bg-violet-100 text-violet-700 text-xs">
+                            <Trophy className="mr-1 h-3 w-3" />
+                            Winner: {test.winning_variant.label}
+                          </Badge>
+                        )}
+                      </div>
+                      {test.description && (
+                        <p className="mt-1 text-xs text-muted-foreground">{test.description}</p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {test.variants.map((v) => (
+                          <div key={v.id} className="rounded-md border px-2.5 py-1.5 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold">{v.label}</span>
+                              <span className="text-muted-foreground">
+                                {v.template_title ?? '—'}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+                              <span>{v.uses} uses</span>
+                              <span>·</span>
+                              <span>{v.conversion_rate}% conv</span>
+                              <span>·</span>
+                              <span>{v.resolution_rate}% res</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => viewAbTestResults(test.id)}
+                        disabled={abTestLoading}
+                      >
+                        <BarChart3 className="mr-1 h-3.5 w-3.5" />
+                        Results
+                      </Button>
+                      {test.status !== 'completed' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              updateAbTestStatus(
+                                test.id,
+                                test.status === 'active' ? 'paused' : 'active'
+                              )
+                            }
+                          >
+                            {test.status === 'active' ? (
+                              <>
+                                <Pause className="mr-1 h-3.5 w-3.5" />
+                                Pause
+                              </>
+                            ) : (
+                              <>
+                                <Play className="mr-1 h-3.5 w-3.5" />
+                                Activate
+                              </>
+                            )}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => endAbTest(test.id)}>
+                            <Trophy className="mr-1 h-3.5 w-3.5" />
+                            End Test
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* A/B Test Results Modal */}
+        {abTestResults && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setAbTestResults(null)}
+          >
+            <div
+              className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">
+                  A/B Test Results: {abTestResults.test.name}
+                </h2>
+                <Button size="sm" variant="ghost" onClick={() => setAbTestResults(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-md border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Total Impressions</p>
+                  <p className="text-xl font-bold">{abTestResults.summary.total_impressions}</p>
+                </div>
+                <div className="rounded-md border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Total Uses</p>
+                  <p className="text-xl font-bold">{abTestResults.summary.total_uses}</p>
+                </div>
+                <div className="rounded-md border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Total Resolved</p>
+                  <p className="text-xl font-bold">{abTestResults.summary.total_resolved}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Overall Conversion Rate</p>
+                  <p className="text-xl font-bold">
+                    {abTestResults.summary.overall_conversion_rate}%
+                  </p>
+                </div>
+                <div className="rounded-md border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">Overall Resolution Rate</p>
+                  <p className="text-xl font-bold">
+                    {abTestResults.summary.overall_resolution_rate}%
+                  </p>
+                </div>
+              </div>
+
+              {abTestResults.summary.best_variant && (
+                <div className="mt-4 rounded-md border border-violet-200 bg-violet-50 p-3 dark:bg-violet-950/20">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Trophy className="h-4 w-4 text-violet-600" />
+                    Best Variant: {abTestResults.summary.best_variant.label} —{' '}
+                    {abTestResults.summary.best_variant.template_title}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Resolution rate: {abTestResults.summary.best_variant.resolution_rate}% ·
+                    Conversion rate: {abTestResults.summary.best_variant.conversion_rate}%
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="pb-2">Variant</th>
+                      <th className="pb-2">Template</th>
+                      <th className="pb-2 text-right">Impr.</th>
+                      <th className="pb-2 text-right">Uses</th>
+                      <th className="pb-2 text-right">Conv.</th>
+                      <th className="pb-2 text-right">Res.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {abTestResults.variants.map((v) => (
+                      <tr key={v.id} className="border-b">
+                        <td className="py-2 font-semibold">{v.label}</td>
+                        <td className="py-2 truncate">{v.template_title ?? '—'}</td>
+                        <td className="py-2 text-right">{v.impressions}</td>
+                        <td className="py-2 text-right">{v.uses}</td>
+                        <td className="py-2 text-right">{v.conversion_rate}%</td>
+                        <td className="py-2 text-right">{v.resolution_rate}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* A/B Test Create Modal */}
+        {showAbTestModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setShowAbTestModal(false)}
+          >
+            <div
+              className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Create A/B Test</h2>
+                <Button size="sm" variant="ghost" onClick={() => setShowAbTestModal(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Test Name</label>
+                  <input
+                    type="text"
+                    value={abTestForm.name}
+                    onChange={(e) => setAbTestForm((p) => ({ ...p, name: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                    placeholder="e.g. Greeting variants — July"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Description (optional)</label>
+                  <textarea
+                    value={abTestForm.description}
+                    onChange={(e) => setAbTestForm((p) => ({ ...p, description: e.target.value }))}
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                    rows={2}
+                    placeholder="What are you testing?"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">
+                    Select Templates ({abTestForm.template_ids.length} selected, min 2)
+                  </label>
+                  <div className="mt-1 max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+                    {templates.data.map((t) => (
+                      <label
+                        key={t.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={abTestForm.template_ids.includes(t.id)}
+                          onChange={() => toggleAbTestTemplate(t.id)}
+                        />
+                        <span className="truncate">{t.title}</span>
+                        {t.intent && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {t.intent.replace(/_/g, ' ')}
+                          </Badge>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {abTestForm.template_ids.length >= 2 && (
+                  <div>
+                    <label className="text-sm font-medium">Traffic Split</label>
+                    <div className="mt-1 space-y-1">
+                      {abTestForm.template_ids.map((tid, i) => {
+                        const t = templates.data.find((tp) => tp.id === tid);
+                        return (
+                          <div key={tid} className="flex items-center gap-2 text-sm">
+                            <span className="w-6 font-semibold">{String.fromCharCode(65 + i)}</span>
+                            <span className="flex-1 truncate">{t?.title ?? '—'}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={abTestForm.weights[i] ?? 50}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 1;
+                                setAbTestForm((prev) => {
+                                  const weights = [...prev.weights];
+                                  weights[i] = val;
+                                  return { ...prev, weights };
+                                });
+                              }}
+                              className="w-16 rounded-md border px-2 py-1 text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowAbTestModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={createAbTest}
+                    disabled={
+                      abTestSaving || abTestForm.template_ids.length < 2 || !abTestForm.name.trim()
+                    }
+                  >
+                    {abTestSaving ? 'Creating...' : 'Create Test'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Template List */}
         {templates.data.length > 0 ? (

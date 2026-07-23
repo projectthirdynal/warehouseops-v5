@@ -532,7 +532,9 @@ export default function ShopConversation({
         params: { conversation_id: conversation.id },
       })
       .then(({ data }) => {
-        setSuggestedTemplates(data.suggestions ?? []);
+        const scored = data.suggestions ?? [];
+        const abVariants = data.ab_test_variants ?? [];
+        setSuggestedTemplates([...abVariants, ...scored]);
       })
       .catch(() => setSuggestedTemplates([]))
       .finally(() => setSuggestionsLoading(false));

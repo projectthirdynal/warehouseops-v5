@@ -434,6 +434,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/api/reply-templates/{id}/versions/{versionId}', [ReplyTemplateController::class, 'showVersion'])->name('reply-templates.versions.show');
     Route::post('/api/reply-templates/{id}/versions/{versionId}/restore', [ReplyTemplateController::class, 'restoreVersion'])->name('reply-templates.versions.restore');
 
+    // Reply Template A/B Testing
+    Route::get('/api/reply-templates/ab-tests', [ReplyTemplateController::class, 'listAbTests'])->name('reply-templates.ab-tests.index');
+    Route::post('/api/reply-templates/ab-tests', [ReplyTemplateController::class, 'createAbTest'])->name('reply-templates.ab-tests.store');
+    Route::get('/api/reply-templates/ab-tests/serve', [ReplyTemplateController::class, 'serveAbTestVariant'])->name('reply-templates.ab-tests.serve');
+    Route::get('/api/reply-templates/ab-tests/{id}/results', [ReplyTemplateController::class, 'getAbTestResults'])->name('reply-templates.ab-tests.results');
+    Route::patch('/api/reply-templates/ab-tests/{id}/status', [ReplyTemplateController::class, 'updateAbTestStatus'])->name('reply-templates.ab-tests.status');
+    Route::post('/api/reply-templates/ab-tests/{id}/end', [ReplyTemplateController::class, 'endAbTest'])->name('reply-templates.ab-tests.end');
+    Route::post('/api/reply-templates/ab-tests/variants/{id}/track', [ReplyTemplateController::class, 'trackVariantUse'])->name('reply-templates.ab-tests.track');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');

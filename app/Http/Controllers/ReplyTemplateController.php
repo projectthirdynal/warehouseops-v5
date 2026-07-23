@@ -7,6 +7,8 @@ namespace App\Http\Controllers;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\Conversation;
 use App\Models\ReplyTemplate;
+use App\Models\ReplyTemplateAbTest;
+use App\Models\ReplyTemplateAbVariant;
 use App\Models\ReplyTemplateUsage;
 use App\Models\ReplyTemplateVersion;
 use Carbon\Carbon;
@@ -104,6 +106,36 @@ class ReplyTemplateController extends Controller
             'analytics' => $this->usageAnalytics(),
             'performance' => $this->performanceAnalytics(),
             'approval_statuses' => ReplyTemplate::APPROVAL_STATUSES,
+            'ab_tests' => ReplyTemplateAbTest::query()
+                ->with(['variants.replyTemplate:id,title', 'creator:id,name', 'winningVariant:id,variant_label'])
+                ->orderByDesc('created_at')
+                ->limit(20)
+                ->get()
+                ->map(fn (ReplyTemplateAbTest $test) => [
+                    'id' => $test->id,
+                    'name' => $test->name,
+                    'description' => $test->description,
+                    'status' => $test->status,
+                    'created_by' => $test->creator?->name,
+                    'start_at' => $test->start_at?->toIso8601String(),
+                    'end_at' => $test->end_at?->toIso8601String(),
+                    'winning_variant' => $test->winningVariant ? [
+                        'id' => $test->winningVariant->id,
+                        'label' => $test->winningVariant->variant_label,
+                    ] : null,
+                    'variants' => $test->variants->map(fn (ReplyTemplateAbVariant $v) => [
+                        'id' => $v->id,
+                        'label' => $v->variant_label,
+                        'weight' => $v->weight,
+                        'template_id' => $v->reply_template_id,
+                        'template_title' => $v->replyTemplate?->title,
+                        'impressions' => $v->impressions,
+                        'uses' => $v->uses,
+                        'conversations_resolved' => $v->conversations_resolved,
+                        'conversion_rate' => $v->conversionRate(),
+                        'resolution_rate' => $v->resolutionRate(),
+                    ]),
+                ]),
             'filters' => [
                 'search' => $request->query('search', ''),
                 'page_id' => $request->query('page_id', ''),
@@ -726,8 +758,71 @@ class ReplyTemplateController extends Controller
         ->take(5)
         ->values();
 
+        // Check for active A/B tests — serve variants alongside scored suggestions
+        $abTestVariants = [];
+        $activeTests = ReplyTemplateAbTest::where('status', ReplyTemplateAbTest::STATUS_ACTIVE)
+            ->where(function ($q) {
+                $q->whereNull('start_at')->orWhere('start_at', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('end_at')->orWhere('end_at', '>=', now());
+            })
+            ->with(['variants.replyTemplate'])
+            ->get();
+
+        foreach ($activeTests as $test) {
+            $variant = $test->selectVariant();
+            if (!$variant || !$variant->replyTemplate) {
+                continue;
+            }
+
+            $template = $variant->replyTemplate;
+            if (!$template->is_active) {
+                continue;
+            }
+            if ($template->approval_status && $template->approval_status !== ReplyTemplate::APPROVAL_APPROVED) {
+                continue;
+            }
+
+            $availableForPage = $template->facebook_page_id === $pageId
+                || $template->facebook_page_id === null
+                || $template->sharedPages()->where('facebook_page_id', $pageId)->exists();
+            if (!$availableForPage) {
+                continue;
+            }
+
+            if ($userRole && $userRole !== 'superadmin' && $userRole !== 'admin') {
+                $allowed = $template->allowed_roles;
+                if ($allowed !== null && !in_array($userRole, $allowed)) {
+                    continue;
+                }
+            }
+
+            $variant->increment('impressions');
+
+            $abTestVariants[] = [
+                'ab_test_id' => $test->id,
+                'ab_test_name' => $test->name,
+                'variant_id' => $variant->id,
+                'variant_label' => $variant->variant_label,
+                'id' => $template->id,
+                'title' => $template->title,
+                'content' => $template->content,
+                'shortcut' => $template->shortcut,
+                'category' => $template->category,
+                'intent' => $template->intent,
+                'usage_count' => $template->usage_count,
+                'variables' => $template->variables,
+                'is_favorited' => $template->is_favorited ?? false,
+                'source' => 'reply_templates',
+                'suggestion_score' => 0,
+                'suggestion_reasons' => ["A/B test variant {$variant->variant_label}"],
+            ];
+        }
+
         return response()->json([
             'suggestions' => $scored,
+            'ab_test_variants' => $abTestVariants,
             'conversation_status' => $convStatus,
             'detected_intents' => array_keys($detectedIntents),
         ]);
@@ -924,6 +1019,320 @@ class ReplyTemplateController extends Controller
             'is_active' => $template->is_active,
             'shared_page_ids' => $template->sharedPages()->pluck('facebook_pages.id')->toArray(),
             'change_summary' => $changeSummary,
+        ]);
+    }
+
+    // ─── A/B Testing ───
+
+    /**
+     * List all A/B tests with variants.
+     *
+     * GET /api/reply-templates/ab-tests
+     */
+    public function listAbTests(): JsonResponse
+    {
+        $tests = ReplyTemplateAbTest::query()
+            ->with(['variants.replyTemplate:id,title', 'creator:id,name', 'winningVariant:id,variant_label'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (ReplyTemplateAbTest $test) => [
+                'id' => $test->id,
+                'name' => $test->name,
+                'description' => $test->description,
+                'status' => $test->status,
+                'created_by' => $test->creator?->name,
+                'start_at' => $test->start_at?->toIso8601String(),
+                'end_at' => $test->end_at?->toIso8601String(),
+                'winning_variant' => $test->winningVariant ? [
+                    'id' => $test->winningVariant->id,
+                    'label' => $test->winningVariant->variant_label,
+                ] : null,
+                'variants' => $test->variants->map(fn (ReplyTemplateAbVariant $v) => [
+                    'id' => $v->id,
+                    'label' => $v->variant_label,
+                    'weight' => $v->weight,
+                    'template_id' => $v->reply_template_id,
+                    'template_title' => $v->replyTemplate?->title,
+                    'impressions' => $v->impressions,
+                    'uses' => $v->uses,
+                    'conversations_resolved' => $v->conversations_resolved,
+                    'conversion_rate' => $v->conversionRate(),
+                    'resolution_rate' => $v->resolutionRate(),
+                ]),
+            ]);
+
+        return response()->json(['tests' => $tests]);
+    }
+
+    /**
+     * Create a new A/B test with variants.
+     *
+     * POST /api/reply-templates/ab-tests
+     */
+    public function createAbTest(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:200',
+            'description' => 'nullable|string|max:1000',
+            'template_ids' => 'required|array|min:2|max:4',
+            'template_ids.*' => 'required|integer|exists:reply_templates,id',
+            'weights' => 'nullable|array|size:' . count($request->input('template_ids', [])),
+            'weights.*' => 'nullable|integer|min:1|max:100',
+            'start_at' => 'nullable|date',
+            'end_at' => 'nullable|date|after_or_equal:start_at',
+        ]);
+
+        $test = DB::transaction(function () use ($validated, $request) {
+            $test = ReplyTemplateAbTest::create([
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'status' => ReplyTemplateAbTest::STATUS_DRAFT,
+                'created_by' => $request->user()?->id,
+                'start_at' => $validated['start_at'] ?? null,
+                'end_at' => $validated['end_at'] ?? null,
+            ]);
+
+            $labels = ['A', 'B', 'C', 'D'];
+            $defaultWeight = (int) floor(100 / count($validated['template_ids']));
+            foreach ($validated['template_ids'] as $i => $templateId) {
+                ReplyTemplateAbVariant::create([
+                    'ab_test_id' => $test->id,
+                    'reply_template_id' => $templateId,
+                    'variant_label' => $labels[$i],
+                    'weight' => $validated['weights'][$i] ?? $defaultWeight,
+                ]);
+            }
+
+            return $test;
+        });
+
+        return response()->json([
+            'success' => true,
+            'test_id' => $test->id,
+        ], 201);
+    }
+
+    /**
+     * Update A/B test status (activate, pause, complete).
+     *
+     * PATCH /api/reply-templates/ab-tests/{id}/status
+     */
+    public function updateAbTestStatus(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:draft,active,paused,completed',
+            'winning_variant_id' => 'nullable|integer|exists:reply_template_ab_variants,id',
+        ]);
+
+        $test = ReplyTemplateAbTest::findOrFail($id);
+        $test->status = $validated['status'];
+
+        if ($validated['status'] === ReplyTemplateAbTest::STATUS_ACTIVE && !$test->start_at) {
+            $test->start_at = now();
+        }
+
+        if ($validated['status'] === ReplyTemplateAbTest::STATUS_COMPLETED) {
+            $test->end_at = now();
+            if (isset($validated['winning_variant_id'])) {
+                $test->winning_variant_id = $validated['winning_variant_id'];
+            }
+        }
+
+        $test->save();
+
+        return response()->json(['success' => true, 'status' => $test->status]);
+    }
+
+    /**
+     * Get detailed A/B test results with variant comparison.
+     *
+     * GET /api/reply-templates/ab-tests/{id}/results
+     */
+    public function getAbTestResults(int $id): JsonResponse
+    {
+        $test = ReplyTemplateAbTest::with(['variants.replyTemplate:id,title', 'creator:id,name'])
+            ->findOrFail($id);
+
+        $variants = $test->variants->map(function (ReplyTemplateAbVariant $v) {
+            return [
+                'id' => $v->id,
+                'label' => $v->variant_label,
+                'weight' => $v->weight,
+                'template_id' => $v->reply_template_id,
+                'template_title' => $v->replyTemplate?->title,
+                'impressions' => $v->impressions,
+                'uses' => $v->uses,
+                'conversations_resolved' => $v->conversations_resolved,
+                'conversion_rate' => $v->conversionRate(),
+                'resolution_rate' => $v->resolutionRate(),
+            ];
+        });
+
+        $totalImpressions = $variants->sum('impressions');
+        $totalUses = $variants->sum('uses');
+        $totalResolved = $variants->sum('conversations_resolved');
+
+        $bestVariant = $variants->sortByDesc('resolution_rate')->first();
+
+        return response()->json([
+            'test' => [
+                'id' => $test->id,
+                'name' => $test->name,
+                'description' => $test->description,
+                'status' => $test->status,
+                'created_by' => $test->creator?->name,
+                'start_at' => $test->start_at?->toIso8601String(),
+                'end_at' => $test->end_at?->toIso8601String(),
+            ],
+            'variants' => $variants,
+            'summary' => [
+                'total_impressions' => $totalImpressions,
+                'total_uses' => $totalUses,
+                'total_resolved' => $totalResolved,
+                'overall_conversion_rate' => $totalImpressions > 0
+                    ? round(($totalUses / $totalImpressions) * 100, 1)
+                    : 0,
+                'overall_resolution_rate' => $totalUses > 0
+                    ? round(($totalResolved / $totalUses) * 100, 1)
+                    : 0,
+                'best_variant' => $bestVariant,
+            ],
+        ]);
+    }
+
+    /**
+     * Track a variant use (called when agent inserts the template).
+     *
+     * POST /api/reply-templates/ab-tests/variants/{id}/track
+     */
+    public function trackVariantUse(Request $request, int $id): JsonResponse
+    {
+        $variant = ReplyTemplateAbVariant::findOrFail($id);
+
+        $validated = $request->validate([
+            'conversation_id' => 'nullable|integer|exists:conversations,id',
+            'resolved' => 'nullable|boolean',
+        ]);
+
+        $variant->increment('uses');
+
+        if (!empty($validated['resolved'])) {
+            $variant->increment('conversations_resolved');
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Select a variant for a conversation from an active A/B test.
+     * Called by suggestTemplates to serve a variant instead of the base template.
+     *
+     * GET /api/reply-templates/ab-tests/serve?conversation_id={id}
+     */
+    public function serveAbTestVariant(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'conversation_id' => 'required|integer|exists:conversations,id',
+        ]);
+
+        $conversation = Conversation::findOrFail($validated['conversation_id']);
+        $pageId = $conversation->facebook_page_id;
+        $userRole = $request->user()?->role;
+        $userId = $request->user()?->id;
+
+        $activeTests = ReplyTemplateAbTest::where('status', ReplyTemplateAbTest::STATUS_ACTIVE)
+            ->where(function ($q) {
+                $q->whereNull('start_at')->orWhere('start_at', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('end_at')->orWhere('end_at', '>=', now());
+            })
+            ->with(['variants.replyTemplate'])
+            ->get();
+
+        $servedVariants = [];
+        foreach ($activeTests as $test) {
+            $variant = $test->selectVariant();
+            if (!$variant || !$variant->replyTemplate) {
+                continue;
+            }
+
+            $template = $variant->replyTemplate;
+            if (!$template->is_active) {
+                continue;
+            }
+
+            if ($template->approval_status && $template->approval_status !== ReplyTemplate::APPROVAL_APPROVED) {
+                continue;
+            }
+
+            $availableForPage = $template->facebook_page_id === $pageId
+                || $template->facebook_page_id === null
+                || $template->sharedPages()->where('facebook_page_id', $pageId)->exists();
+            if (!$availableForPage) {
+                continue;
+            }
+
+            if ($userRole && $userRole !== 'superadmin' && $userRole !== 'admin') {
+                $allowed = $template->allowed_roles;
+                if ($allowed !== null && !in_array($userRole, $allowed)) {
+                    continue;
+                }
+            }
+
+            $variant->increment('impressions');
+
+            $servedVariants[] = [
+                'ab_test_id' => $test->id,
+                'ab_test_name' => $test->name,
+                'variant_id' => $variant->id,
+                'variant_label' => $variant->variant_label,
+                'template' => [
+                    'id' => $template->id,
+                    'title' => $template->title,
+                    'content' => $template->content,
+                    'shortcut' => $template->shortcut,
+                    'category' => $template->category,
+                    'intent' => $template->intent,
+                    'usage_count' => $template->usage_count,
+                    'variables' => $template->variables,
+                    'source' => 'reply_templates',
+                ],
+            ];
+        }
+
+        return response()->json(['served_variants' => $servedVariants]);
+    }
+
+    /**
+     * End an A/B test and optionally declare a winner.
+     *
+     * POST /api/reply-templates/ab-tests/{id}/end
+     */
+    public function endAbTest(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'winning_variant_id' => 'nullable|integer|exists:reply_template_ab_variants,id',
+        ]);
+
+        $test = ReplyTemplateAbTest::with('variants')->findOrFail($id);
+
+        $winningVariantId = $validated['winning_variant_id'] ?? null;
+        if (!$winningVariantId) {
+            $best = $test->variants->sortByDesc(fn ($v) => $v->resolutionRate())->first();
+            $winningVariantId = $best?->id;
+        }
+
+        $test->update([
+            'status' => ReplyTemplateAbTest::STATUS_COMPLETED,
+            'end_at' => now(),
+            'winning_variant_id' => $winningVariantId,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'winning_variant_id' => $winningVariantId,
         ]);
     }
 }
