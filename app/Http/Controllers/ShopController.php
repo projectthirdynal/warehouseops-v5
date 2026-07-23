@@ -1502,10 +1502,14 @@ class ShopController extends Controller
             'address' => $validated['canonical_address'] ?? '',
         ]);
 
+        $phoneChanged = $customer->phone !== $validated['phone'];
+        $oldPhone = $customer->phone;
+        $newNormalized = $this->phones->normalize($validated['phone']);
+
         $customer->forceFill([
             'name' => $validated['name'],
             'phone' => $validated['phone'],
-            'normalized_phone' => $this->phones->normalize($validated['phone']),
+            'normalized_phone' => $newNormalized,
             'canonical_address' => $validated['canonical_address'] ?? null,
             'landmark' => $validated['landmark'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
@@ -1515,6 +1519,16 @@ class ShopController extends Controller
             'preferred_courier' => $validated['preferred_courier'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
         ])->save();
+
+        if ($phoneChanged) {
+            $customer->orders()
+                ->where('receiver_phone', $oldPhone)
+                ->update(['receiver_phone' => $validated['phone']]);
+
+            $customer->identities()
+                ->where('phone_detected', $oldPhone)
+                ->update(['phone_detected' => $validated['phone']]);
+        }
 
         if (! empty($validated['canonical_address'])) {
             $this->customerAddresses->record($customer, [

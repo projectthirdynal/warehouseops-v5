@@ -283,6 +283,12 @@ export default function CustomersShow({ customer }: Props) {
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                     required
                   />
+                  {profileForm.phone !== customer.phone && profileForm.phone.trim() && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Normalized phone will be updated on save. Linked orders and identities with
+                      the old phone will be synced.
+                    </p>
+                  )}
                 </div>
                 <div className="border-t pt-3">
                   <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
