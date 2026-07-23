@@ -84,4 +84,9 @@ class Customer extends Model
     {
         return $this->hasMany(CustomerNote::class)->latest('created_at');
     }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(CustomerAuditLog::class)->latest('created_at');
+    }
 }

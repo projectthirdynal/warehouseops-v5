@@ -27,6 +27,7 @@ use App\Domain\Shop\Services\AddressFormatService;
 use App\Domain\Shop\Services\CourierExportService;
 use App\Domain\Shop\Services\GeocodingService;
 use App\Domain\Shop\Services\CustomerAddressService;
+use App\Domain\Shop\Services\CustomerAuditService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
@@ -93,6 +94,7 @@ class ShopController extends Controller
         private readonly AddressFormatService $addressFormatter,
         private readonly DuplicateDetectionService $duplicateDetection,
         private readonly CustomerRiskService $customerRisk,
+        private readonly CustomerAuditService $customerAudit,
     ) {}
 
     public function index(): Response
@@ -1515,6 +1517,8 @@ class ShopController extends Controller
         $oldPhone = $customer->phone;
         $newNormalized = $this->phones->normalize($validated['phone']);
 
+        $auditBefore = $customer->only(['name', 'phone', 'normalized_phone', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region', 'preferred_courier', 'payment_method']);
+
         $customer->forceFill([
             'name' => $validated['name'],
             'phone' => $validated['phone'],
@@ -1528,6 +1532,8 @@ class ShopController extends Controller
             'preferred_courier' => $validated['preferred_courier'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
         ])->save();
+
+        $this->customerAudit->logChange($customer, 'profile_update', $auditBefore, $customer->only(['name', 'phone', 'normalized_phone', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region', 'preferred_courier', 'payment_method']));
 
         if ($phoneChanged) {
             $customer->orders()
@@ -1576,6 +1582,8 @@ class ShopController extends Controller
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $before = $customer->only(['is_blacklisted', 'blacklist_reason', 'risk_level']);
+
         if ($validated['blacklist']) {
             $this->customerRisk->blacklist($customer, $validated['reason'] ?? 'Manually blacklisted');
             $message = 'Customer blacklisted successfully.';
@@ -1583,6 +1591,8 @@ class ShopController extends Controller
             $this->customerRisk->unblacklist($customer);
             $message = 'Customer removed from blacklist.';
         }
+
+        $this->customerAudit->logChange($customer, 'blacklist_toggle', $before, $customer->only(['is_blacklisted', 'blacklist_reason', 'risk_level']));
 
         return back()->with('success', $message);
     }
@@ -1593,7 +1603,11 @@ class ShopController extends Controller
             'risk_level' => ['required', 'string', 'in:LOW,MEDIUM,HIGH'],
         ]);
 
+        $before = ['risk_level' => $customer->risk_level];
+
         $this->customerRisk->overrideRiskLevel($customer, $validated['risk_level']);
+
+        $this->customerAudit->logChange($customer, 'risk_level_override', $before, ['risk_level' => $customer->risk_level], 'risk_level');
 
         return back()->with('success', 'Risk level updated.');
     }
@@ -1701,12 +1715,16 @@ class ShopController extends Controller
 
         $this->customerNotes->setTags($customer, $validated['tags']);
 
+        $this->customerAudit->logAction($customer, 'tags_update', 'Tags updated to: ' . implode(', ', $validated['tags']));
+
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
     }
 
     public function deleteCustomerNote(Request $request, Customer $customer, CustomerNote $note): JsonResponse
     {
         abort_unless($note->customer_id === $customer->id, 403, 'Note does not belong to this customer.');
+
+        $this->customerAudit->logAction($customer, 'note_delete', "Deleted note: {$note->body}");
 
         $note->delete();
 
@@ -1724,6 +1742,8 @@ class ShopController extends Controller
             'language_preference' => ['nullable', 'string', 'max:10'],
         ]);
 
+        $before = $customer->only(['preferred_courier', 'payment_method', 'preferred_contact_method', 'preferred_contact_time', 'marketing_opt_out', 'language_preference']);
+
         $customer->forceFill([
             'preferred_courier' => $validated['preferred_courier'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
@@ -1732,6 +1752,8 @@ class ShopController extends Controller
             'marketing_opt_out' => $validated['marketing_opt_out'] ?? false,
             'language_preference' => $validated['language_preference'] ?? null,
         ])->save();
+
+        $this->customerAudit->logChange($customer, 'preferences_update', $before, $customer->only(['preferred_courier', 'payment_method', 'preferred_contact_method', 'preferred_contact_time', 'marketing_opt_out', 'language_preference']));
 
         return response()->json([
             'customer' => $customer->only([
@@ -1755,6 +1777,17 @@ class ShopController extends Controller
         $activities = $this->customerTimeline->build($customer, $validated['limit'] ?? 50);
 
         return response()->json(['activities' => $activities]);
+    }
+
+    public function customerAuditLogs(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $logs = $this->customerAudit->getLogs($customer, $validated['limit'] ?? 50);
+
+        return response()->json(['logs' => $logs]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse

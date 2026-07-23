@@ -64,6 +64,16 @@ interface MergeSuggestion {
   created_at: string;
 }
 
+interface AuditLogEntry {
+  id: number;
+  action: string;
+  field: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  created_at: string;
+  user: { id: number; name: string } | null;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -109,6 +119,8 @@ export default function CustomersShow({ customer }: Props) {
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
   const [loadingMergeSuggestions, setLoadingMergeSuggestions] = useState(true);
   const [mergingId, setMergingId] = useState<number | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(true);
   const [form, setForm] = useState({
     label: '',
     canonical_address: '',
@@ -265,6 +277,14 @@ export default function CustomersShow({ customer }: Props) {
       .then(({ data }) => setMergeSuggestions(data.suggestions))
       .catch(() => setMergeSuggestions([]))
       .finally(() => setLoadingMergeSuggestions(false));
+  }, [customer.id]);
+
+  useEffect(() => {
+    axios
+      .get(`/shop/customers/${customer.id}/audit-logs`)
+      .then(({ data }) => setAuditLogs(data.logs))
+      .catch(() => setAuditLogs([]))
+      .finally(() => setLoadingAuditLogs(false));
   }, [customer.id]);
 
   const mergeCustomer = async (sourceId: number) => {
@@ -908,6 +928,63 @@ export default function CustomersShow({ customer }: Props) {
                         {new Date(activity.occurred_at).toLocaleString()}
                       </p>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Change Audit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingAuditLogs ? (
+              <p className="text-sm text-muted-foreground">Loading audit log...</p>
+            ) : auditLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No profile changes recorded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="rounded border p-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{log.action}</Badge>
+                        {log.field && (
+                          <span className="text-xs text-muted-foreground">{log.field}</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {log.user && (
+                      <p className="mt-1 text-xs text-muted-foreground">by {log.user.name}</p>
+                    )}
+                    {log.before_state && log.after_state && (
+                      <div className="mt-1 text-xs">
+                        {Object.keys(log.after_state).map((key) => {
+                          const beforeVal = log.before_state?.[key];
+                          const afterVal = log.after_state?.[key];
+                          if (JSON.stringify(beforeVal) === JSON.stringify(afterVal)) return null;
+                          return (
+                            <p key={key} className="text-muted-foreground">
+                              <span className="font-medium">{key}:</span>{' '}
+                              <span className="line-through">{String(beforeVal ?? '—')}</span> →{' '}
+                              <span className="font-medium text-foreground">
+                                {String(afterVal ?? '—')}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {'note' in (log.after_state ?? {}) && log.after_state?.note != null && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {String(log.after_state.note)}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
