@@ -1503,6 +1503,12 @@ class ShopController extends Controller
         ]);
 
         $phoneChanged = $customer->phone !== $validated['phone'];
+        $nameChanged = $customer->name !== $validated['name'];
+        $addressChanged = $customer->canonical_address !== ($validated['canonical_address'] ?? null)
+            || $customer->barangay !== ($validated['barangay'] ?? null)
+            || $customer->city_municipality !== ($validated['city_municipality'] ?? null)
+            || $customer->province !== ($validated['province'] ?? null)
+            || $customer->landmark !== ($validated['landmark'] ?? null);
         $oldPhone = $customer->phone;
         $newNormalized = $this->phones->normalize($validated['phone']);
 
@@ -1528,6 +1534,21 @@ class ShopController extends Controller
             $customer->identities()
                 ->where('phone_detected', $oldPhone)
                 ->update(['phone_detected' => $validated['phone']]);
+        }
+
+        if ($nameChanged || $addressChanged) {
+            $orderUpdates = [];
+            if ($nameChanged) {
+                $orderUpdates['receiver_name'] = $validated['name'];
+            }
+            if ($addressChanged) {
+                $orderUpdates['receiver_address'] = $validated['canonical_address'] ?? null;
+                $orderUpdates['barangay'] = $validated['barangay'] ?? null;
+                $orderUpdates['city'] = $validated['city_municipality'] ?? null;
+                $orderUpdates['state'] = $validated['province'] ?? null;
+                $orderUpdates['landmark'] = $validated['landmark'] ?? null;
+            }
+            $customer->orders()->update($orderUpdates);
         }
 
         if (! empty($validated['canonical_address'])) {

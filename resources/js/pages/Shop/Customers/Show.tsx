@@ -358,6 +358,17 @@ export default function CustomersShow({ customer }: Props) {
                     Cancel
                   </Button>
                 </div>
+                {(profileForm.name !== customer.name ||
+                  profileForm.phone !== customer.phone ||
+                  profileForm.canonical_address !== (customer.canonical_address ?? '') ||
+                  profileForm.barangay !== (customer.barangay ?? '') ||
+                  profileForm.city_municipality !== (customer.city_municipality ?? '') ||
+                  profileForm.province !== (customer.province ?? '') ||
+                  profileForm.landmark !== (customer.landmark ?? '')) && (
+                  <p className="text-xs text-muted-foreground">
+                    Linked orders will be updated with the new name, phone, and address details.
+                  </p>
+                )}
               </form>
             ) : (
               <>
