@@ -7,6 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import axios from 'axios';
 
 interface Address {
@@ -108,6 +115,8 @@ export default function CustomersShow({ customer }: Props) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [blacklistReason, setBlacklistReason] = useState('');
   const [savingBlacklist, setSavingBlacklist] = useState(false);
+  const [riskLevel, setRiskLevel] = useState(customer.risk_level ?? 'LOW');
+  const [savingRiskLevel, setSavingRiskLevel] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: customer.name,
     phone: customer.phone,
@@ -142,6 +151,18 @@ export default function CustomersShow({ customer }: Props) {
       alert('Failed to save preferences.');
     } finally {
       setSavingPreferences(false);
+    }
+  };
+
+  const saveRiskLevel = async () => {
+    setSavingRiskLevel(true);
+    try {
+      await axios.patch(`/shop/customers/${customer.id}/risk-level`, { risk_level: riskLevel });
+      window.location.reload();
+    } catch {
+      alert('Failed to update risk level.');
+    } finally {
+      setSavingRiskLevel(false);
     }
   };
 
@@ -525,6 +546,51 @@ export default function CustomersShow({ customer }: Props) {
                   onClick={() => toggleBlacklist(true)}
                 >
                   {savingBlacklist ? 'Processing...' : 'Blacklist customer'}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Risk Level</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant={customer.is_blacklisted ? 'destructive' : 'secondary'}>
+                {customer.risk_level}
+              </Badge>
+              {customer.is_blacklisted && (
+                <span className="text-xs text-muted-foreground">
+                  Risk level is locked while blacklisted. Remove from blacklist to edit.
+                </span>
+              )}
+            </div>
+            {!customer.is_blacklisted && (
+              <>
+                <div>
+                  <Label htmlFor="risk_level">Override risk level</Label>
+                  <Select value={riskLevel} onValueChange={setRiskLevel}>
+                    <SelectTrigger id="risk_level">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOW">Low</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HIGH">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Manually override the auto-calculated risk level. This will remain until the
+                    next automatic recalculation.
+                  </p>
+                </div>
+                <Button
+                  disabled={savingRiskLevel || riskLevel === customer.risk_level}
+                  onClick={saveRiskLevel}
+                >
+                  {savingRiskLevel ? 'Saving...' : 'Save risk level'}
                 </Button>
               </>
             )}

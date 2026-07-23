@@ -1586,6 +1586,17 @@ class ShopController extends Controller
         return back()->with('success', $message);
     }
 
+    public function overrideRiskLevel(Request $request, Customer $customer): RedirectResponse
+    {
+        $validated = $request->validate([
+            'risk_level' => ['required', 'string', 'in:LOW,MEDIUM,HIGH'],
+        ]);
+
+        $this->customerRisk->overrideRiskLevel($customer, $validated['risk_level']);
+
+        return back()->with('success', 'Risk level updated.');
+    }
+
     public function customerAddresses(Request $request, Customer $customer): JsonResponse
     {
         $addresses = $customer->addresses()->get([
