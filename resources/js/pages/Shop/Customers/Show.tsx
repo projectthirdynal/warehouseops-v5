@@ -736,14 +736,11 @@ export default function CustomersShow({ customer }: Props) {
                   <div key={address.id} className="rounded border p-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1 text-sm">
-                        <p className="font-medium">
-                          {address.label ?? 'Address'}
-                          {address.is_default && (
-                            <Badge className="ml-2" variant="default">
-                              Default
-                            </Badge>
-                          )}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{address.label ?? 'Address'}</p>
+                          {address.is_default && <Badge variant="default">Default</Badge>}
+                          {address.source && <Badge variant="outline">{address.source}</Badge>}
+                        </div>
                         <p>{address.canonical_address}</p>
                         <p className="text-muted-foreground">
                           {[
@@ -755,11 +752,24 @@ export default function CustomersShow({ customer }: Props) {
                             .filter(Boolean)
                             .join(', ')}
                         </p>
+                        {address.landmark && (
+                          <p className="text-muted-foreground">Landmark: {address.landmark}</p>
+                        )}
                         {address.contact_name && (
                           <p>
                             Contact: {address.contact_name} {address.contact_phone}
                           </p>
                         )}
+                        <div className="flex gap-3 text-xs text-muted-foreground">
+                          {address.created_at && (
+                            <span>
+                              Recorded: {new Date(address.created_at).toLocaleDateString()}
+                            </span>
+                          )}
+                          {address.used_at && (
+                            <span>Last used: {new Date(address.used_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
                       </div>
                       {!address.is_default && (
                         <Button size="sm" variant="outline" onClick={() => setDefault(address.id)}>
