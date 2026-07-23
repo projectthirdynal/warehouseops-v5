@@ -62,6 +62,10 @@ interface Customer {
   average_order_value: number;
   preferred_courier: string | null;
   payment_method: string | null;
+  risk_level: string;
+  is_blacklisted: boolean;
+  blacklist_reason: string | null;
+  blacklisted_at: string | null;
   tags: string[] | null;
   addresses: Address[];
   default_address: Address | null;
@@ -102,6 +106,8 @@ export default function CustomersShow({ customer }: Props) {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [blacklistReason, setBlacklistReason] = useState('');
+  const [savingBlacklist, setSavingBlacklist] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: customer.name,
     phone: customer.phone,
@@ -136,6 +142,22 @@ export default function CustomersShow({ customer }: Props) {
       alert('Failed to save preferences.');
     } finally {
       setSavingPreferences(false);
+    }
+  };
+
+  const toggleBlacklist = async (blacklist: boolean) => {
+    setSavingBlacklist(true);
+    try {
+      await axios.patch(`/shop/customers/${customer.id}/blacklist`, {
+        blacklist,
+        reason: blacklist ? blacklistReason : undefined,
+      });
+      setBlacklistReason('');
+      window.location.reload();
+    } catch {
+      alert('Failed to update blacklist status.');
+    } finally {
+      setSavingBlacklist(false);
     }
   };
 
@@ -451,6 +473,61 @@ export default function CustomersShow({ customer }: Props) {
                 {savingPreferences ? 'Saving...' : 'Save preferences'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Blacklist</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {customer.is_blacklisted ? (
+              <>
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+                  <p className="font-medium text-destructive">Customer is blacklisted</p>
+                  {customer.blacklist_reason && (
+                    <p className="mt-1 text-muted-foreground">
+                      Reason: {customer.blacklist_reason}
+                    </p>
+                  )}
+                  {customer.blacklisted_at && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Since: {new Date(customer.blacklisted_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={savingBlacklist}
+                  onClick={() => toggleBlacklist(false)}
+                >
+                  {savingBlacklist ? 'Processing...' : 'Remove from blacklist'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  This customer is not blacklisted. Blacklisting will block them from placing new
+                  orders.
+                </p>
+                <div>
+                  <Label htmlFor="blacklist_reason">Reason (optional)</Label>
+                  <Input
+                    id="blacklist_reason"
+                    value={blacklistReason}
+                    onChange={(e) => setBlacklistReason(e.target.value)}
+                    placeholder="Reason for blacklisting"
+                  />
+                </div>
+                <Button
+                  variant="destructive"
+                  disabled={savingBlacklist}
+                  onClick={() => toggleBlacklist(true)}
+                >
+                  {savingBlacklist ? 'Processing...' : 'Blacklist customer'}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
 

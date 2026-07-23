@@ -30,6 +30,7 @@ use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
@@ -90,6 +91,7 @@ class ShopController extends Controller
         private readonly GeocodingService $geocoder,
         private readonly AddressFormatService $addressFormatter,
         private readonly DuplicateDetectionService $duplicateDetection,
+        private readonly CustomerRiskService $customerRisk,
     ) {}
 
     public function index(): Response
@@ -1564,6 +1566,24 @@ class ShopController extends Controller
         }
 
         return back()->with('success', 'Customer profile updated.');
+    }
+
+    public function toggleBlacklist(Request $request, Customer $customer): RedirectResponse
+    {
+        $validated = $request->validate([
+            'blacklist' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($validated['blacklist']) {
+            $this->customerRisk->blacklist($customer, $validated['reason'] ?? 'Manually blacklisted');
+            $message = 'Customer blacklisted successfully.';
+        } else {
+            $this->customerRisk->unblacklist($customer);
+            $message = 'Customer removed from blacklist.';
+        }
+
+        return back()->with('success', $message);
     }
 
     public function customerAddresses(Request $request, Customer $customer): JsonResponse
