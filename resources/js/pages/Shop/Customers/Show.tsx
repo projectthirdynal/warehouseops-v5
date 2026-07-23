@@ -409,9 +409,18 @@ export default function CustomersShow({ customer }: Props) {
             </div>
             <h1 className="text-xl font-bold">{customer.name}</h1>
           </div>
-          <Button variant="outline" asChild>
-            <Link href="/shop/customers">Back to customers</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => (window.location.href = `/shop/customers/${customer.id}/export`)}
+            >
+              Export
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/shop/customers">Back to customers</Link>
+            </Button>
+          </div>
         </div>
 
         <Card>

@@ -1337,7 +1337,10 @@ class ShopController extends Controller
         $customer->load([
             'addresses',
             'notes.user:id,name',
+            'auditLogs.user:id,name',
         ]);
+
+        $this->customerAudit->logAction($customer, 'profile_export', 'Profile exported');
 
         $orders = Order::query()
             ->with('shopItems:id,order_id,product_name,quantity,line_total')
@@ -1367,6 +1370,7 @@ class ShopController extends Controller
             fputcsv($handle, ['Normalized Phone', $customer->normalized_phone]);
             fputcsv($handle, ['Facebook Name', $customer->facebook_name ?? '']);
             fputcsv($handle, ['Address', $customer->canonical_address ?? '']);
+            fputcsv($handle, ['Landmark', $customer->landmark ?? '']);
             fputcsv($handle, ['Barangay', $customer->barangay ?? '']);
             fputcsv($handle, ['City/Municipality', $customer->city_municipality ?? '']);
             fputcsv($handle, ['Province', $customer->province ?? '']);
@@ -1381,21 +1385,31 @@ class ShopController extends Controller
             fputcsv($handle, ['Payment Method', $customer->payment_method ?? '']);
             fputcsv($handle, ['Risk Level', $customer->risk_level]);
             fputcsv($handle, ['Blacklisted', $customer->is_blacklisted ? 'yes' : 'no']);
+            fputcsv($handle, ['Blacklist Reason', $customer->blacklist_reason ?? '']);
             fputcsv($handle, ['Tags', is_array($customer->tags) ? implode(';', $customer->tags) : '']);
+            fputcsv($handle, ['Preferred Contact Method', $customer->preferred_contact_method ?? '']);
+            fputcsv($handle, ['Preferred Contact Time', $customer->preferred_contact_time ?? '']);
+            fputcsv($handle, ['Marketing Opt-Out', $customer->marketing_opt_out ? 'yes' : 'no']);
+            fputcsv($handle, ['Language Preference', $customer->language_preference ?? '']);
             fputcsv($handle, ['Last Order Date', $customer->last_order_date ?? '']);
             fputcsv($handle, ['Created At', $customer->created_at]);
 
             fputcsv($handle, []);
             fputcsv($handle, ['Saved Addresses']);
-            fputcsv($handle, ['Label', 'Address', 'Barangay', 'City', 'Province', 'Is Default']);
+            fputcsv($handle, ['Label', 'Address', 'Landmark', 'Barangay', 'City', 'Province', 'Region', 'Is Default', 'Source', 'Used At', 'Created At']);
             foreach ($customer->addresses as $address) {
                 fputcsv($handle, [
                     $address->label ?? '',
                     $address->canonical_address ?? '',
+                    $address->landmark ?? '',
                     $address->barangay ?? '',
                     $address->city_municipality ?? '',
                     $address->province ?? '',
+                    $address->region ?? '',
                     $address->is_default ? 'yes' : 'no',
+                    $address->source ?? '',
+                    $address->used_at ?? '',
+                    $address->created_at ?? '',
                 ]);
             }
 
@@ -1427,6 +1441,20 @@ class ShopController extends Controller
                     $order->created_at,
                     $order->delivered_at ?? '',
                     $items,
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Audit Log']);
+            fputcsv($handle, ['Action', 'Field', 'Before', 'After', 'User', 'Created At']);
+            foreach ($customer->auditLogs as $log) {
+                fputcsv($handle, [
+                    $log->action,
+                    $log->field ?? '',
+                    json_encode($log->before_state),
+                    json_encode($log->after_state),
+                    $log->user?->name ?? 'System',
+                    $log->created_at ?? '',
                 ]);
             }
 
