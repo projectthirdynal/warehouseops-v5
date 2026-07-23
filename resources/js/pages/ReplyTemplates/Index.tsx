@@ -54,6 +54,7 @@ interface ReplyTemplate {
   approved_at?: string | null;
   rejection_reason?: string | null;
   approver?: { id: number; name: string } | null;
+  language?: string | null;
 }
 
 const INTENT_OPTIONS = [
@@ -176,6 +177,7 @@ interface Props {
   analytics: UsageAnalytics;
   performance: PerformanceMetrics;
   approval_statuses: string[];
+  languages: Record<string, string>;
   ab_tests: AbTest[];
   filters: {
     search: string;
@@ -183,6 +185,7 @@ interface Props {
     category: string;
     intent: string;
     approval_status: string;
+    language: string;
     favorites_only: boolean;
     active_only: boolean;
   };
@@ -197,6 +200,7 @@ export default function ReplyTemplatesIndex({
   analytics,
   performance,
   approval_statuses,
+  languages,
   ab_tests,
   filters,
 }: Props) {
@@ -205,6 +209,7 @@ export default function ReplyTemplatesIndex({
   const [categoryFilter, setCategoryFilter] = useState(filters.category);
   const [intentFilter, setIntentFilter] = useState(filters.intent);
   const [approvalFilter, setApprovalFilter] = useState(filters.approval_status);
+  const [languageFilter, setLanguageFilter] = useState(filters.language);
   const [favoritesOnly, setFavoritesOnly] = useState(filters.favorites_only);
   const [activeOnly, setActiveOnly] = useState(filters.active_only);
   const [showModal, setShowModal] = useState(false);
@@ -219,6 +224,7 @@ export default function ReplyTemplatesIndex({
     facebook_page_id: '',
     shared_page_ids: [] as number[],
     is_active: true,
+    language: 'en',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -286,6 +292,7 @@ export default function ReplyTemplatesIndex({
         category: categoryFilter || undefined,
         intent: intentFilter || undefined,
         approval_status: approvalFilter || undefined,
+        language: languageFilter || undefined,
         favorites_only: favoritesOnly,
         active_only: activeOnly,
       },
@@ -305,6 +312,7 @@ export default function ReplyTemplatesIndex({
       facebook_page_id: '',
       shared_page_ids: [] as number[],
       is_active: true,
+      language: 'en',
     });
     setError(null);
     setShowModal(true);
@@ -322,6 +330,7 @@ export default function ReplyTemplatesIndex({
       facebook_page_id: template.facebook_page_id?.toString() ?? '',
       shared_page_ids: (template.shared_pages ?? []).map((p) => p.id),
       is_active: template.is_active,
+      language: template.language ?? 'en',
     });
     setError(null);
     setShowModal(true);
@@ -341,6 +350,7 @@ export default function ReplyTemplatesIndex({
       facebook_page_id: form.facebook_page_id || null,
       shared_page_ids: form.shared_page_ids.length > 0 ? form.shared_page_ids : [],
       is_active: form.is_active,
+      language: form.language || 'en',
     };
 
     if (editing) {
@@ -632,6 +642,18 @@ export default function ReplyTemplatesIndex({
             {approval_statuses.map((s) => (
               <option key={s} value={s}>
                 {s.charAt(0).toUpperCase() + s.slice(1)}
+              </option>
+            ))}
+          </select>
+          <select
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value)}
+            className="rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">All Languages</option>
+            {Object.entries(languages).map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
               </option>
             ))}
           </select>
@@ -1311,6 +1333,11 @@ export default function ReplyTemplatesIndex({
                               template.intent}
                           </Badge>
                         )}
+                        {template.language && template.language !== 'en' && (
+                          <Badge variant="outline" className="text-xs text-primary">
+                            {languages[template.language] ?? template.language}
+                          </Badge>
+                        )}
                         {template.allowed_roles && template.allowed_roles.length > 0 && (
                           <Badge variant="outline" className="text-xs text-destructive">
                             {template.allowed_roles.join(', ')}
@@ -1623,6 +1650,23 @@ export default function ReplyTemplatesIndex({
                     </select>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Classify the purpose of this template
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">Language</label>
+                    <select
+                      value={form.language}
+                      onChange={(e) => setForm({ ...form, language: e.target.value })}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    >
+                      {Object.entries(languages).map(([code, label]) => (
+                        <option key={code} value={code}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Template language for multi-language support
                     </p>
                   </div>
                 </div>

@@ -169,6 +169,7 @@ interface Props {
     name: string;
     category?: string | null;
     intent?: string | null;
+    language?: string | null;
     body: string;
     variables?: string[];
     shortcut?: string | null;
@@ -182,6 +183,7 @@ interface Props {
     shortcut: string | null;
     category: string | null;
     intent: string | null;
+    language?: string | null;
     usage_count: number;
     variables?: string[];
     is_favorited: boolean;
@@ -1388,6 +1390,14 @@ export default function ShopConversation({
                                     {s.intent.replace(/_/g, ' ')}
                                   </Badge>
                                 )}
+                                {s.language && s.language !== 'en' && (
+                                  <Badge
+                                    variant="outline"
+                                    className="shrink-0 text-[10px] uppercase text-primary"
+                                  >
+                                    {s.language}
+                                  </Badge>
+                                )}
                               </div>
                               {s.suggestion_reasons.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
@@ -1506,6 +1516,11 @@ export default function ShopConversation({
                           {template.variables && template.variables.length > 0 && (
                             <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">
                               {template.variables.length} var
+                            </span>
+                          )}
+                          {template.language && template.language !== 'en' && (
+                            <span className="rounded bg-primary/20 px-1 text-[10px] uppercase">
+                              {template.language}
                             </span>
                           )}
                         </Button>

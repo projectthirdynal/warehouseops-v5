@@ -62,6 +62,9 @@ class ReplyTemplateController extends Controller
             ->when($request->query('intent'), function ($q, $intent) {
                 $q->where('intent', $intent);
             })
+            ->when($request->query('language'), function ($q, $language) {
+                $q->where('language', $language);
+            })
             ->when($request->query('approval_status'), function ($q, $status) {
                 if ($status === 'null') {
                     $q->whereNull('approval_status');
@@ -106,6 +109,7 @@ class ReplyTemplateController extends Controller
             'analytics' => $this->usageAnalytics(),
             'performance' => $this->performanceAnalytics(),
             'approval_statuses' => ReplyTemplate::APPROVAL_STATUSES,
+            'languages' => ReplyTemplate::LANGUAGES,
             'ab_tests' => ReplyTemplateAbTest::query()
                 ->with(['variants.replyTemplate:id,title', 'creator:id,name', 'winningVariant:id,variant_label'])
                 ->orderByDesc('created_at')
@@ -142,6 +146,7 @@ class ReplyTemplateController extends Controller
                 'category' => $request->query('category', ''),
                 'intent' => $request->query('intent', ''),
                 'approval_status' => $request->query('approval_status', ''),
+                'language' => $request->query('language', ''),
                 'favorites_only' => $request->boolean('favorites_only'),
                 'active_only' => $request->boolean('active_only', true),
             ],
@@ -167,9 +172,11 @@ class ReplyTemplateController extends Controller
             'shared_page_ids' => 'nullable|array',
             'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'boolean',
+            'language' => 'nullable|string|max:8|in:' . implode(',', array_keys(ReplyTemplate::LANGUAGES)),
         ]);
 
         $validated['created_by'] = $request->user()->id;
+        $validated['language'] = $validated['language'] ?? ReplyTemplate::LANG_EN;
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         // Auto-approve if creator is admin/superadmin; otherwise pending
@@ -222,6 +229,7 @@ class ReplyTemplateController extends Controller
             'shared_page_ids' => 'sometimes|nullable|array',
             'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'sometimes|boolean',
+            'language' => 'sometimes|nullable|string|max:8|in:' . implode(',', array_keys(ReplyTemplate::LANGUAGES)),
         ]);
 
         $sharedPageIds = null;
@@ -346,6 +354,9 @@ class ReplyTemplateController extends Controller
             ->when($request->query('intent'), function ($q, $intent) {
                 $q->where('intent', $intent);
             })
+            ->when($request->query('language'), function ($q, $language) {
+                $q->where('language', $language);
+            })
             ->when($request->boolean('favorites_only'), function ($q) use ($userId) {
                 $q->whereHas('favoritedBy', fn ($sub) => $sub->where('user_id', $userId));
             })
@@ -354,7 +365,7 @@ class ReplyTemplateController extends Controller
             ->limit(50);
 
         return response()->json([
-            'templates' => $query->get(['id', 'title', 'content', 'shortcut', 'category', 'intent', 'facebook_page_id', 'usage_count']),
+            'templates' => $query->get(['id', 'title', 'content', 'shortcut', 'category', 'intent', 'language', 'facebook_page_id', 'usage_count']),
         ]);
     }
 
@@ -745,6 +756,7 @@ class ReplyTemplateController extends Controller
                 'shortcut' => $template->shortcut,
                 'category' => $template->category,
                 'intent' => $template->intent,
+                'language' => $template->language,
                 'usage_count' => $template->usage_count,
                 'variables' => $template->variables,
                 'is_favorited' => $template->is_favorited ?? false,

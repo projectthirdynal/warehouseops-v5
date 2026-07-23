@@ -33,6 +33,7 @@ class ReplyTemplate extends Model
         'approved_by',
         'approved_at',
         'rejection_reason',
+        'language',
     ];
 
     protected $casts = [
@@ -51,6 +52,20 @@ class ReplyTemplate extends Model
         self::APPROVAL_PENDING,
         self::APPROVAL_APPROVED,
         self::APPROVAL_REJECTED,
+    ];
+
+    public const LANG_EN = 'en';
+    public const LANG_FIL = 'fil';
+    public const LANG_CE = 'ceb';
+    public const LANG_HI = 'hil';
+    public const LANG_ILO = 'ilo';
+
+    public const LANGUAGES = [
+        self::LANG_EN => 'English',
+        self::LANG_FIL => 'Filipino',
+        self::LANG_CE => 'Cebuano',
+        self::LANG_HI => 'Hiligaynon',
+        self::LANG_ILO => 'Ilocano',
     ];
 
     public function facebookPage(): BelongsTo

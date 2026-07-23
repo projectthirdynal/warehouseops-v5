@@ -6957,7 +6957,7 @@ class ShopController extends Controller
                 ->orderByDesc('usage_count')
                 ->orderBy('title')
                 ->limit(50)
-                ->get(['id', 'title', 'content', 'variables', 'category', 'intent', 'shortcut', 'facebook_page_id', 'usage_count'])
+                ->get(['id', 'title', 'content', 'variables', 'category', 'intent', 'language', 'shortcut', 'facebook_page_id', 'usage_count'])
                 ->map(fn (ReplyTemplate $template) => [
                     'id' => $template->id,
                     'name' => $template->title,
@@ -6968,6 +6968,7 @@ class ShopController extends Controller
                     'shortcut' => $template->shortcut,
                     'source' => 'reply_templates',
                     'intent' => $template->intent,
+                    'language' => $template->language,
                     'is_favorited' => $template->is_favorited ?? false,
                 ])
                 ->all();
