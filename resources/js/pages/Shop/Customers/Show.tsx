@@ -80,6 +80,10 @@ interface Customer {
   average_order_value: number;
   preferred_courier: string | null;
   payment_method: string | null;
+  preferred_contact_method: string | null;
+  preferred_contact_time: string | null;
+  marketing_opt_out: boolean;
+  language_preference: string | null;
   risk_level: string;
   is_blacklisted: boolean;
   blacklist_reason: string | null;
@@ -123,6 +127,10 @@ export default function CustomersShow({ customer }: Props) {
   const [preferences, setPreferences] = useState({
     preferred_courier: customer.preferred_courier ?? '',
     payment_method: customer.payment_method ?? '',
+    preferred_contact_method: customer.preferred_contact_method ?? '',
+    preferred_contact_time: customer.preferred_contact_time ?? '',
+    marketing_opt_out: customer.marketing_opt_out ?? false,
+    language_preference: customer.language_preference ?? '',
   });
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -159,9 +167,9 @@ export default function CustomersShow({ customer }: Props) {
     e.preventDefault();
     setSavingPreferences(true);
     try {
-      await axios.patch(`/shop/customers/${customer.id}`, preferences);
+      await axios.patch(`/shop/customers/${customer.id}/preferences`, preferences);
       alert('Preferences saved.');
-    } catch (e) {
+    } catch {
       alert('Failed to save preferences.');
     } finally {
       setSavingPreferences(false);
@@ -545,6 +553,98 @@ export default function CustomersShow({ customer }: Props) {
                   }
                   placeholder="e.g. COD, GCash"
                 />
+              </div>
+              <div className="border-t pt-3">
+                <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                  Communication
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="preferred_contact_method">Preferred contact method</Label>
+                    <Select
+                      value={preferences.preferred_contact_method || 'none'}
+                      onValueChange={(value) =>
+                        setPreferences({
+                          ...preferences,
+                          preferred_contact_method: value === 'none' ? '' : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="preferred_contact_method">
+                        <SelectValue placeholder="No preference" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No preference</SelectItem>
+                        <SelectItem value="messenger">Facebook Messenger</SelectItem>
+                        <SelectItem value="sms">SMS</SelectItem>
+                        <SelectItem value="phone">Phone Call</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="preferred_contact_time">Preferred contact time</Label>
+                    <Select
+                      value={preferences.preferred_contact_time || 'none'}
+                      onValueChange={(value) =>
+                        setPreferences({
+                          ...preferences,
+                          preferred_contact_time: value === 'none' ? '' : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="preferred_contact_time">
+                        <SelectValue placeholder="Anytime" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No preference</SelectItem>
+                        <SelectItem value="morning">Morning (8AM–12PM)</SelectItem>
+                        <SelectItem value="afternoon">Afternoon (12PM–5PM)</SelectItem>
+                        <SelectItem value="evening">Evening (5PM–9PM)</SelectItem>
+                        <SelectItem value="anytime">Anytime</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="language_preference">Language preference</Label>
+                    <Select
+                      value={preferences.language_preference || 'none'}
+                      onValueChange={(value) =>
+                        setPreferences({
+                          ...preferences,
+                          language_preference: value === 'none' ? '' : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="language_preference">
+                        <SelectValue placeholder="No preference" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No preference</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="fil">Filipino</SelectItem>
+                        <SelectItem value="ceb">Cebuano</SelectItem>
+                        <SelectItem value="hil">Hiligaynon</SelectItem>
+                        <SelectItem value="ilo">Ilocano</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="marketing_opt_out"
+                      checked={preferences.marketing_opt_out}
+                      onCheckedChange={(checked) =>
+                        setPreferences({
+                          ...preferences,
+                          marketing_opt_out: checked === true,
+                        })
+                      }
+                    />
+                    <Label htmlFor="marketing_opt_out" className="text-sm font-normal">
+                      Opt out of marketing messages
+                    </Label>
+                  </div>
+                </div>
               </div>
               <Button type="submit" disabled={savingPreferences}>
                 {savingPreferences ? 'Saving...' : 'Save preferences'}

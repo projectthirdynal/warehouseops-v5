@@ -1718,15 +1718,31 @@ class ShopController extends Controller
         $validated = $request->validate([
             'preferred_courier' => ['nullable', 'string', 'max:50'],
             'payment_method' => ['nullable', 'string', 'max:50'],
+            'preferred_contact_method' => ['nullable', 'string', 'in:messenger,sms,phone,email'],
+            'preferred_contact_time' => ['nullable', 'string', 'in:morning,afternoon,evening,anytime'],
+            'marketing_opt_out' => ['boolean'],
+            'language_preference' => ['nullable', 'string', 'max:10'],
         ]);
 
         $customer->forceFill([
             'preferred_courier' => $validated['preferred_courier'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
+            'preferred_contact_method' => $validated['preferred_contact_method'] ?? null,
+            'preferred_contact_time' => $validated['preferred_contact_time'] ?? null,
+            'marketing_opt_out' => $validated['marketing_opt_out'] ?? false,
+            'language_preference' => $validated['language_preference'] ?? null,
         ])->save();
 
         return response()->json([
-            'customer' => $customer->only(['id', 'preferred_courier', 'payment_method']),
+            'customer' => $customer->only([
+                'id',
+                'preferred_courier',
+                'payment_method',
+                'preferred_contact_method',
+                'preferred_contact_time',
+                'marketing_opt_out',
+                'language_preference',
+            ]),
         ]);
     }
 
