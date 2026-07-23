@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +79,7 @@ interface Customer {
   name: string;
   phone: string;
   facebook_name: string | null;
+  profile_image_path: string | null;
   canonical_address: string | null;
   landmark: string | null;
   barangay: string | null;
@@ -121,6 +122,11 @@ export default function CustomersShow({ customer }: Props) {
   const [mergingId, setMergingId] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(true);
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    customer.profile_image_path ? `/storage/${customer.profile_image_path}` : null
+  );
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     label: '',
     canonical_address: '',
@@ -287,6 +293,35 @@ export default function CustomersShow({ customer }: Props) {
       .finally(() => setLoadingAuditLogs(false));
   }, [customer.id]);
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const { data } = await axios.post(`/shop/customers/${customer.id}/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImageUrl(data.profile_image_url);
+    } catch {
+      alert('Failed to upload image.');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const deleteImage = async () => {
+    if (!confirm('Remove profile image?')) return;
+    try {
+      await axios.delete(`/shop/customers/${customer.id}/image`);
+      setImageUrl(null);
+    } catch {
+      alert('Failed to remove image.');
+    }
+  };
+
   const mergeCustomer = async (sourceId: number) => {
     if (
       !confirm(
@@ -358,7 +393,22 @@ export default function CustomersShow({ customer }: Props) {
       <Head title={`Customer - ${customer.name}`} />
       <div className="space-y-6 p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">{customer.name}</h1>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={customer.name}
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-lg font-semibold text-muted-foreground">
+                  {customer.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <h1 className="text-xl font-bold">{customer.name}</h1>
+          </div>
           <Button variant="outline" asChild>
             <Link href="/shop/customers">Back to customers</Link>
           </Button>
@@ -368,26 +418,48 @@ export default function CustomersShow({ customer }: Props) {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Profile</CardTitle>
-              {!editingProfile ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setProfileForm({
-                      name: customer.name,
-                      phone: customer.phone,
-                      canonical_address: customer.canonical_address ?? '',
-                      landmark: customer.landmark ?? '',
-                      barangay: customer.barangay ?? '',
-                      city_municipality: customer.city_municipality ?? '',
-                      province: customer.province ?? '',
-                    });
-                    setEditingProfile(true);
-                  }}
+                  disabled={uploadingImage}
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  Edit
+                  {uploadingImage ? 'Uploading...' : imageUrl ? 'Change Photo' : 'Upload Photo'}
                 </Button>
-              ) : null}
+                {imageUrl && (
+                  <Button variant="outline" size="sm" onClick={deleteImage}>
+                    Remove
+                  </Button>
+                )}
+                {!editingProfile ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setProfileForm({
+                        name: customer.name,
+                        phone: customer.phone,
+                        canonical_address: customer.canonical_address ?? '',
+                        landmark: customer.landmark ?? '',
+                        barangay: customer.barangay ?? '',
+                        city_municipality: customer.city_municipality ?? '',
+                        province: customer.province ?? '',
+                      });
+                      setEditingProfile(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">

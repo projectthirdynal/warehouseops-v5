@@ -1790,6 +1790,43 @@ class ShopController extends Controller
         return response()->json(['logs' => $logs]);
     }
 
+    public function uploadCustomerImage(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+        ]);
+
+        $oldPath = $customer->profile_image_path;
+
+        $path = $request->file('image')->store('customer-images', 'public');
+
+        $customer->forceFill(['profile_image_path' => $path])->save();
+
+        if ($oldPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $this->customerAudit->logAction($customer, 'image_upload', "Profile image uploaded: {$path}");
+
+        return response()->json([
+            'profile_image_path' => $path,
+            'profile_image_url' => Storage::disk('public')->url($path),
+        ]);
+    }
+
+    public function deleteCustomerImage(Request $request, Customer $customer): JsonResponse
+    {
+        $path = $customer->profile_image_path;
+
+        if ($path) {
+            Storage::disk('public')->delete($path);
+            $customer->forceFill(['profile_image_path' => null])->save();
+            $this->customerAudit->logAction($customer, 'image_delete', 'Profile image removed');
+        }
+
+        return response()->json(['deleted' => true]);
+    }
+
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([

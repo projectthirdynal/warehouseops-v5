@@ -17,6 +17,7 @@ class Customer extends Model
         'normalized_phone',
         'name',
         'facebook_name',
+        'profile_image_path',
         'tags',
         'canonical_address',
         'landmark',
