@@ -88,6 +88,17 @@ class CustomerRiskService
     }
 
     /**
+     * Manually override a customer's risk level.
+     */
+    public function overrideRiskLevel(Customer $customer, string $level): Customer
+    {
+        $customer->risk_level = $level;
+        $customer->save();
+
+        return $customer;
+    }
+
+    /**
      * Check if a customer should be blocked from ordering.
      */
     public function isBlocked(Customer $customer): bool

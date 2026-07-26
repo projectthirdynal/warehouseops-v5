@@ -4,6 +4,8 @@ use App\Http\Controllers\ApprovalsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SalesDashboardController;
+use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillImportController;
@@ -42,6 +44,7 @@ use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ReplyTemplateController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\DeadStockController;
@@ -68,6 +71,7 @@ Route::get('/meta/terms', [MetaComplianceController::class, 'terms'])->name('met
 Route::get('/meta/data-deletion', [MetaComplianceController::class, 'dataDeletionInfo'])->name('meta.data-deletion.info');
 Route::post('/meta/data-deletion', [MetaComplianceController::class, 'handleDataDeletion'])->name('meta.data-deletion.handle');
 Route::get('/meta/data-deletion/status/{confirmationCode}', [MetaComplianceController::class, 'dataDeletionStatus'])->name('meta.data-deletion.status');
+Route::get('/shared/exports/{token}', [ShopController::class, 'downloadSharedExport'])->name('shop.exports.shared-download');
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
@@ -306,6 +310,139 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
 
 // ── OPS / ADMIN: supervisors, admins — sales, leads, shop, waybills ──────────
 Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function () {
+    // Sales Dashboard
+    Route::get('/sales-dashboard', [SalesDashboardController::class, 'index'])->name('sales-dashboard.index');
+    Route::get('/api/sales-dashboard/order-counts', [SalesDashboardController::class, 'apiOrderCounts'])->name('sales-dashboard.order-counts');
+    Route::get('/api/sales-dashboard/revenue-totals', [SalesDashboardController::class, 'apiRevenueTotals'])->name('sales-dashboard.revenue-totals');
+    Route::get('/api/sales-dashboard/status-breakdown', [SalesDashboardController::class, 'apiStatusBreakdown'])->name('sales-dashboard.status-breakdown');
+    Route::get('/api/sales-dashboard/top-products', [SalesDashboardController::class, 'apiTopProducts'])->name('sales-dashboard.top-products');
+    Route::get('/api/sales-dashboard/sales-trends', [SalesDashboardController::class, 'apiSalesTrends'])->name('sales-dashboard.sales-trends');
+    Route::get('/api/sales-dashboard/revenue-by-source', [SalesDashboardController::class, 'apiRevenueBySource'])->name('sales-dashboard.revenue-by-source');
+    Route::get('/api/sales-dashboard/revenue-by-payment-method', [SalesDashboardController::class, 'apiRevenueByPaymentMethod'])->name('sales-dashboard.revenue-by-payment-method');
+    Route::get('/api/sales-dashboard/agent-leaderboard', [SalesDashboardController::class, 'apiAgentLeaderboard'])->name('sales-dashboard.agent-leaderboard');
+    Route::get('/api/sales-dashboard/cohort-retention', [SalesDashboardController::class, 'apiCohortRetention'])->name('sales-dashboard.cohort-retention');
+    Route::get('/api/sales-dashboard/average-order-value', [SalesDashboardController::class, 'apiAverageOrderValue'])->name('sales-dashboard.average-order-value');
+    Route::get('/api/sales-dashboard/return-refund-rate', [SalesDashboardController::class, 'apiReturnRefundRate'])->name('sales-dashboard.return-refund-rate');
+    Route::get('/api/sales-dashboard/sales-report', [SalesDashboardController::class, 'apiSalesReport'])->name('sales-dashboard.sales-report');
+    Route::get('/api/sales-dashboard/sales-report/download', [SalesDashboardController::class, 'downloadSalesReport'])->name('sales-dashboard.sales-report.download');
+    Route::get('/api/sales-dashboard/predictive-insights', [SalesDashboardController::class, 'apiPredictiveInsights'])->name('sales-dashboard.predictive-insights');
+    Route::get('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiWidgetConfig'])->name('sales-dashboard.widgets');
+    Route::post('/api/sales-dashboard/widgets', [SalesDashboardController::class, 'apiSaveWidgetConfig'])->name('sales-dashboard.widgets.save');
+    Route::post('/api/sales-dashboard/widgets/reset', [SalesDashboardController::class, 'apiResetWidgetConfig'])->name('sales-dashboard.widgets.reset');
+    Route::get('/api/sales-dashboard/scheduled-reports', [SalesDashboardController::class, 'apiListScheduledReports'])->name('sales-dashboard.scheduled-reports.index');
+    Route::post('/api/sales-dashboard/scheduled-reports', [SalesDashboardController::class, 'apiCreateScheduledReport'])->name('sales-dashboard.scheduled-reports.store');
+    Route::put('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiUpdateScheduledReport'])->name('sales-dashboard.scheduled-reports.update');
+    Route::delete('/api/sales-dashboard/scheduled-reports/{id}', [SalesDashboardController::class, 'apiDeleteScheduledReport'])->name('sales-dashboard.scheduled-reports.destroy');
+
+    // Duplicate Detection
+    Route::get('/api/duplicate-check/orders', [DuplicateDetectionController::class, 'checkOrders'])->name('duplicate-check.orders');
+    Route::get('/api/duplicate-check/recent', [DuplicateDetectionController::class, 'checkRecent'])->name('duplicate-check.recent');
+    Route::get('/api/duplicate-check/conversations', [DuplicateDetectionController::class, 'checkConversations'])->name('duplicate-check.conversations');
+    Route::get('/api/duplicate-check/customers', [DuplicateDetectionController::class, 'checkCustomers'])->name('duplicate-check.customers');
+    Route::get('/api/duplicate-check/fuzzy-customers', [DuplicateDetectionController::class, 'checkFuzzyCustomers'])->name('duplicate-check.fuzzy-customers');
+    Route::get('/api/duplicate-check/merge-preview', [DuplicateDetectionController::class, 'mergePreview'])->name('duplicate-check.merge-preview');
+    Route::post('/api/duplicate-check/merge', [DuplicateDetectionController::class, 'mergeCustomers'])->name('duplicate-check.merge');
+
+    // Duplicate Review Queue
+    Route::get('/shop/duplicate-review', [DuplicateDetectionController::class, 'reviewQueuePage'])->name('duplicate-review.index');
+    Route::post('/api/duplicate-check/scan', [DuplicateDetectionController::class, 'scanQueue'])->name('duplicate-check.scan');
+    Route::get('/api/duplicate-check/review-queue', [DuplicateDetectionController::class, 'listQueue'])->name('duplicate-check.review-queue');
+    Route::post('/api/duplicate-check/review-queue/{id}/resolve', [DuplicateDetectionController::class, 'resolveQueueItem'])->name('duplicate-check.review-queue.resolve');
+    Route::get('/api/duplicate-check/review-queue/stats', [DuplicateDetectionController::class, 'queueStats'])->name('duplicate-check.review-queue.stats');
+
+    // Duplicate Detection Rules
+    Route::get('/shop/duplicate-review/rules', [DuplicateDetectionController::class, 'rulesPage'])->name('duplicate-review.rules');
+    Route::get('/api/duplicate-check/rules', [DuplicateDetectionController::class, 'listRules'])->name('duplicate-check.rules.list');
+    Route::post('/api/duplicate-check/rules', [DuplicateDetectionController::class, 'createRule'])->name('duplicate-check.rules.create');
+    Route::put('/api/duplicate-check/rules/{id}', [DuplicateDetectionController::class, 'updateRule'])->name('duplicate-check.rules.update');
+    Route::delete('/api/duplicate-check/rules/{id}', [DuplicateDetectionController::class, 'deleteRule'])->name('duplicate-check.rules.delete');
+    Route::post('/api/duplicate-check/rules/{id}/toggle', [DuplicateDetectionController::class, 'toggleRule'])->name('duplicate-check.rules.toggle');
+
+    // Duplicate Analytics
+    Route::get('/shop/duplicate-review/analytics', [DuplicateDetectionController::class, 'analyticsPage'])->name('duplicate-review.analytics');
+    Route::get('/api/duplicate-check/analytics/overview', [DuplicateDetectionController::class, 'analyticsOverview'])->name('duplicate-check.analytics.overview');
+    Route::get('/api/duplicate-check/analytics/trend', [DuplicateDetectionController::class, 'analyticsTrend'])->name('duplicate-check.analytics.trend');
+    Route::get('/api/duplicate-check/analytics/breakdown', [DuplicateDetectionController::class, 'analyticsBreakdown'])->name('duplicate-check.analytics.breakdown');
+
+    // Auto-Merge Suggestions
+    Route::get('/shop/duplicate-review/auto-merge', [DuplicateDetectionController::class, 'autoMergePage'])->name('duplicate-review.auto-merge');
+    Route::post('/api/duplicate-check/auto-merge/scan', [DuplicateDetectionController::class, 'scanAutoMerge'])->name('duplicate-check.auto-merge.scan');
+    Route::get('/api/duplicate-check/auto-merge', [DuplicateDetectionController::class, 'listAutoMerge'])->name('duplicate-check.auto-merge.list');
+    Route::post('/api/duplicate-check/auto-merge/{id}/approve', [DuplicateDetectionController::class, 'approveAutoMerge'])->name('duplicate-check.auto-merge.approve');
+    Route::post('/api/duplicate-check/auto-merge/{id}/reject', [DuplicateDetectionController::class, 'rejectAutoMerge'])->name('duplicate-check.auto-merge.reject');
+    Route::get('/api/duplicate-check/auto-merge/stats', [DuplicateDetectionController::class, 'autoMergeStats'])->name('duplicate-check.auto-merge.stats');
+
+    // Duplicate Family Grouping
+    Route::get('/shop/duplicate-review/families', [DuplicateDetectionController::class, 'familiesPage'])->name('duplicate-review.families');
+    Route::post('/api/duplicate-check/families/build', [DuplicateDetectionController::class, 'buildFamilies'])->name('duplicate-check.families.build');
+    Route::get('/api/duplicate-check/families', [DuplicateDetectionController::class, 'listFamilies'])->name('duplicate-check.families.list');
+    Route::get('/api/duplicate-check/families/{id}', [DuplicateDetectionController::class, 'familyDetail'])->name('duplicate-check.families.detail');
+    Route::post('/api/duplicate-check/families/{id}/merge', [DuplicateDetectionController::class, 'mergeFamily'])->name('duplicate-check.families.merge');
+    Route::post('/api/duplicate-check/families/{id}/dismiss', [DuplicateDetectionController::class, 'dismissFamily'])->name('duplicate-check.families.dismiss');
+    Route::get('/api/duplicate-check/families/stats', [DuplicateDetectionController::class, 'familyStats'])->name('duplicate-check.families.stats');
+
+    // Duplicate Notifications
+    Route::get('/shop/duplicate-review/notifications', [DuplicateDetectionController::class, 'notificationsPage'])->name('duplicate-review.notifications');
+    Route::post('/api/duplicate-check/notifications/generate', [DuplicateDetectionController::class, 'generateNotifications'])->name('duplicate-check.notifications.generate');
+    Route::get('/api/duplicate-check/notifications', [DuplicateDetectionController::class, 'listNotifications'])->name('duplicate-check.notifications.list');
+    Route::post('/api/duplicate-check/notifications/{id}/read', [DuplicateDetectionController::class, 'markNotificationRead'])->name('duplicate-check.notifications.read');
+    Route::post('/api/duplicate-check/notifications/mark-all-read', [DuplicateDetectionController::class, 'markAllNotificationsRead'])->name('duplicate-check.notifications.mark-all-read');
+    Route::get('/api/duplicate-check/notifications/stats', [DuplicateDetectionController::class, 'notificationStats'])->name('duplicate-check.notifications.stats');
+
+    // Duplicate Audit Log
+    Route::get('/shop/duplicate-review/audit-log', [DuplicateDetectionController::class, 'auditLogPage'])->name('duplicate-review.audit-log');
+    Route::get('/api/duplicate-check/audit-log', [DuplicateDetectionController::class, 'listAuditLogs'])->name('duplicate-check.audit-log.list');
+    Route::get('/api/duplicate-check/audit-log/stats', [DuplicateDetectionController::class, 'auditLogStats'])->name('duplicate-check.audit-log.stats');
+    Route::get('/api/duplicate-check/audit-log/export', [DuplicateDetectionController::class, 'exportAuditLogs'])->name('duplicate-check.audit-log.export');
+
+    // Cross-Page Duplicate Detection
+    Route::get('/shop/duplicate-review/cross-page', [DuplicateDetectionController::class, 'crossPagePage'])->name('duplicate-review.cross-page');
+    Route::get('/api/duplicate-check/cross-page/detect', [DuplicateDetectionController::class, 'detectCrossPage'])->name('duplicate-check.cross-page.detect');
+    Route::post('/api/duplicate-check/cross-page/scan', [DuplicateDetectionController::class, 'scanCrossPage'])->name('duplicate-check.cross-page.scan');
+    Route::get('/api/duplicate-check/cross-page/stats', [DuplicateDetectionController::class, 'crossPageStats'])->name('duplicate-check.cross-page.stats');
+
+    // Duplicate Export
+    Route::get('/shop/duplicate-review/export', [DuplicateDetectionController::class, 'exportPage'])->name('duplicate-review.export');
+    Route::get('/api/duplicate-check/export/review-queue', [DuplicateDetectionController::class, 'exportReviewQueue'])->name('duplicate-check.export.review-queue');
+    Route::get('/api/duplicate-check/export/auto-merge', [DuplicateDetectionController::class, 'exportAutoMerge'])->name('duplicate-check.export.auto-merge');
+    Route::get('/api/duplicate-check/export/families', [DuplicateDetectionController::class, 'exportFamilies'])->name('duplicate-check.export.families');
+    Route::get('/api/duplicate-check/export/cross-page', [DuplicateDetectionController::class, 'exportCrossPage'])->name('duplicate-check.export.cross-page');
+    Route::get('/api/duplicate-check/export/all', [DuplicateDetectionController::class, 'exportAll'])->name('duplicate-check.export.all');
+
+    // ML-Based Duplicate Scoring
+    Route::get('/shop/duplicate-review/ml-scoring', [DuplicateDetectionController::class, 'mlScoringPage'])->name('duplicate-review.ml-scoring');
+    Route::get('/api/duplicate-check/ml/score', [DuplicateDetectionController::class, 'scorePair'])->name('duplicate-check.ml.score');
+    Route::post('/api/duplicate-check/ml/scan', [DuplicateDetectionController::class, 'scanMl'])->name('duplicate-check.ml.scan');
+    Route::post('/api/duplicate-check/ml/train', [DuplicateDetectionController::class, 'trainMlModel'])->name('duplicate-check.ml.train');
+    Route::get('/api/duplicate-check/ml/stats', [DuplicateDetectionController::class, 'mlModelStats'])->name('duplicate-check.ml.stats');
+
+    // Reply Templates
+    Route::get('/shop/reply-templates', [ReplyTemplateController::class, 'index'])->name('reply-templates.index');
+    Route::get('/api/reply-templates', [ReplyTemplateController::class, 'list'])->name('reply-templates.list');
+    Route::get('/api/reply-templates/analytics', [ReplyTemplateController::class, 'analytics'])->name('reply-templates.analytics');
+    Route::get('/api/reply-templates/performance', [ReplyTemplateController::class, 'performanceMetrics'])->name('reply-templates.performance');
+    Route::get('/api/reply-templates/suggest', [ReplyTemplateController::class, 'suggestTemplates'])->name('reply-templates.suggest');
+    Route::post('/api/reply-templates', [ReplyTemplateController::class, 'store'])->name('reply-templates.store');
+    Route::put('/api/reply-templates/{id}', [ReplyTemplateController::class, 'update'])->name('reply-templates.update');
+    Route::delete('/api/reply-templates/{id}', [ReplyTemplateController::class, 'destroy'])->name('reply-templates.destroy');
+    Route::post('/api/reply-templates/{id}/toggle', [ReplyTemplateController::class, 'toggle'])->name('reply-templates.toggle');
+    Route::post('/api/reply-templates/{id}/use', [ReplyTemplateController::class, 'incrementUsage'])->name('reply-templates.use');
+    Route::post('/api/reply-templates/{id}/favorite', [ReplyTemplateController::class, 'toggleFavorite'])->name('reply-templates.favorite');
+    Route::post('/api/reply-templates/{id}/approve', [ReplyTemplateController::class, 'approve'])->name('reply-templates.approve');
+    Route::post('/api/reply-templates/{id}/reject', [ReplyTemplateController::class, 'reject'])->name('reply-templates.reject');
+    Route::get('/api/reply-templates/{id}/versions', [ReplyTemplateController::class, 'versions'])->name('reply-templates.versions');
+    Route::get('/api/reply-templates/{id}/versions/{versionId}', [ReplyTemplateController::class, 'showVersion'])->name('reply-templates.versions.show');
+    Route::post('/api/reply-templates/{id}/versions/{versionId}/restore', [ReplyTemplateController::class, 'restoreVersion'])->name('reply-templates.versions.restore');
+
+    // Reply Template A/B Testing
+    Route::get('/api/reply-templates/ab-tests', [ReplyTemplateController::class, 'listAbTests'])->name('reply-templates.ab-tests.index');
+    Route::post('/api/reply-templates/ab-tests', [ReplyTemplateController::class, 'createAbTest'])->name('reply-templates.ab-tests.store');
+    Route::get('/api/reply-templates/ab-tests/serve', [ReplyTemplateController::class, 'serveAbTestVariant'])->name('reply-templates.ab-tests.serve');
+    Route::get('/api/reply-templates/ab-tests/{id}/results', [ReplyTemplateController::class, 'getAbTestResults'])->name('reply-templates.ab-tests.results');
+    Route::patch('/api/reply-templates/ab-tests/{id}/status', [ReplyTemplateController::class, 'updateAbTestStatus'])->name('reply-templates.ab-tests.status');
+    Route::post('/api/reply-templates/ab-tests/{id}/end', [ReplyTemplateController::class, 'endAbTest'])->name('reply-templates.ab-tests.end');
+    Route::post('/api/reply-templates/ab-tests/variants/{id}/track', [ReplyTemplateController::class, 'trackVariantUse'])->name('reply-templates.ab-tests.track');
+
     // Shop / Facebook POS
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');
@@ -360,16 +497,28 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/conversation-tags', [ShopController::class, 'storeTag'])->name('shop.conversation-tags.store');
     Route::get('/shop/customers', [ShopController::class, 'customers'])->name('shop.customers.index');
     Route::get('/shop/customers/export', [ShopController::class, 'exportCustomers'])->name('shop.customers.export');
+    Route::get('/shop/customers/{customer}/export', [ShopController::class, 'exportCustomerProfile'])->name('shop.customers.export.profile');
     Route::get('/shop/customers/search', [ShopController::class, 'searchCustomers'])->name('shop.customers.search');
     Route::get('/shop/customers/{customer}', [ShopController::class, 'showCustomer'])->name('shop.customers.show');
     Route::patch('/shop/customers/{customer}', [ShopController::class, 'updateCustomer'])->name('shop.customers.update');
+    Route::patch('/shop/customers/{customer}/blacklist', [ShopController::class, 'toggleBlacklist'])->name('shop.customers.blacklist');
+    Route::patch('/shop/customers/{customer}/risk-level', [ShopController::class, 'overrideRiskLevel'])->name('shop.customers.risk-level');
     Route::get('/shop/customers/{customer}/addresses', [ShopController::class, 'customerAddresses'])->name('shop.customers.addresses.index');
     Route::post('/shop/customers/{customer}/addresses', [ShopController::class, 'storeCustomerAddress'])->name('shop.customers.addresses.store');
     Route::patch('/shop/customers/{customer}/addresses/{address}/default', [ShopController::class, 'setDefaultCustomerAddress'])->name('shop.customers.addresses.default');
     Route::get('/shop/customers/{customer}/notes', [ShopController::class, 'customerNotes'])->name('shop.customers.notes.index');
     Route::post('/shop/customers/{customer}/notes', [ShopController::class, 'storeCustomerNote'])->name('shop.customers.notes.store');
+    Route::delete('/shop/customers/{customer}/notes/{note}', [ShopController::class, 'deleteCustomerNote'])->name('shop.customers.notes.destroy');
     Route::patch('/shop/customers/{customer}/tags', [ShopController::class, 'updateCustomerTags'])->name('shop.customers.tags.update');
+    Route::patch('/shop/customers/{customer}/preferences', [ShopController::class, 'updateCustomerPreferences'])->name('shop.customers.preferences.update');
+    Route::get('/shop/customers/{customer}/merge-suggestions', [ShopController::class, 'customerMergeSuggestions'])->name('shop.customers.merge-suggestions');
+    Route::post('/shop/customers/{customer}/merge-suggestions/{source}', [ShopController::class, 'mergeCustomerSuggestion'])->name('shop.customers.merge-suggestions.merge');
     Route::get('/shop/customers/{customer}/timeline', [ShopController::class, 'customerTimeline'])->name('shop.customers.timeline');
+    Route::get('/shop/customers/{customer}/audit-logs', [ShopController::class, 'customerAuditLogs'])->name('shop.customers.audit-logs');
+    Route::post('/shop/customers/{customer}/image', [ShopController::class, 'uploadCustomerImage'])->name('shop.customers.image.upload');
+    Route::delete('/shop/customers/{customer}/image', [ShopController::class, 'deleteCustomerImage'])->name('shop.customers.image.delete');
+    Route::get('/shop/customers/{customer}/export', [ShopController::class, 'exportCustomerProfile'])->name('shop.customers.export');
+    Route::get('/shop/customers/{customer}/orders', [ShopController::class, 'customerOrderHistory'])->name('shop.customers.orders');
     Route::get('/shop/orders', [ShopController::class, 'orders'])->name('shop.orders.index');
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');
@@ -381,28 +530,92 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/encoder', [ShopController::class, 'encoder'])->name('shop.encoder');
     Route::patch('/shop/encoder/orders/{order}/address', [ShopController::class, 'updateOrderAddress'])->name('shop.encoder.address');
     Route::post('/shop/encoder/orders/{order}/encoded', [ShopController::class, 'markEncoded'])->name('shop.encoder.encoded');
+    Route::post('/shop/encoder/validate-address', [ShopController::class, 'validateAddress'])->name('shop.encoder.validate-address');
+    Route::get('/shop/encoder/autocomplete', [ShopController::class, 'autocompleteAddress'])->name('shop.encoder.autocomplete');
+    Route::get('/shop/encoder/suggest-correction', [ShopController::class, 'suggestCorrection'])->name('shop.encoder.suggest-correction');
+    Route::get('/shop/encoder/validation-report', [ShopController::class, 'addressValidationReport'])->name('shop.encoder.validation-report');
+    Route::get('/shop/encoder/orders/{order}/correction-history', [ShopController::class, 'addressCorrectionHistory'])->name('shop.encoder.correction-history');
+    Route::post('/shop/encoder/bulk-address-update', [ShopController::class, 'bulkAddressUpdate'])->name('shop.encoder.bulk-address-update');
+    Route::post('/shop/encoder/orders/{order}/geocode', [ShopController::class, 'geocodeAddress'])->name('shop.encoder.geocode');
+    Route::get('/shop/encoder/orders/{order}/suggest-address', [ShopController::class, 'suggestPreviousAddress'])->name('shop.encoder.suggest-address');
+    Route::get('/shop/encoder/orders/{order}/format-address', [ShopController::class, 'formatAddressByCourier'])->name('shop.encoder.format-address');
+    Route::get('/shop/encoder/address-analytics', [ShopController::class, 'addressValidationAnalytics'])->name('shop.encoder.address-analytics');
+    Route::post('/shop/encoder/bulk-status-update', [ShopController::class, 'bulkStatusUpdate'])->name('shop.encoder.bulk-status-update');
+    Route::post('/shop/encoder/bulk-assign-encoder', [ShopController::class, 'bulkAssignEncoder'])->name('shop.encoder.bulk-assign-encoder');
+    Route::post('/shop/encoder/bulk-print-labels', [ShopController::class, 'bulkPrintLabels'])->name('shop.encoder.bulk-print-labels');
+    Route::post('/shop/encoder/bulk-cod-verify', [ShopController::class, 'bulkCodVerify'])->name('shop.encoder.bulk-cod-verify');
+    Route::post('/shop/encoder/bulk-cod-update', [ShopController::class, 'bulkCodUpdate'])->name('shop.encoder.bulk-cod-update');
+    Route::post('/shop/encoder/bulk-duplicate-detect', [ShopController::class, 'bulkDuplicateDetect'])->name('shop.encoder.bulk-duplicate-detect');
+    Route::post('/shop/encoder/bulk-hold-release', [ShopController::class, 'bulkHoldRelease'])->name('shop.encoder.bulk-hold-release');
+    Route::post('/shop/encoder/bulk-tag-update', [ShopController::class, 'bulkTagUpdate'])->name('shop.encoder.bulk-tag-update');
+    Route::post('/shop/encoder/bulk-split-by-region', [ShopController::class, 'bulkSplitByRegion'])->name('shop.encoder.bulk-split-by-region');
+    Route::post('/shop/encoder/bulk-reschedule-delivery', [ShopController::class, 'bulkRescheduleDelivery'])->name('shop.encoder.bulk-reschedule-delivery');
+    Route::post('/shop/encoder/bulk-archive', [ShopController::class, 'bulkArchive'])->name('shop.encoder.bulk-archive');
+    Route::post('/shop/exports/validate-batch-items', [ShopController::class, 'validateBatchItems'])->name('shop.exports.validate-batch-items');
+    Route::post('/shop/exports/validate-columns', [ShopController::class, 'validateExportColumns'])->name('shop.exports.validate-columns');
+    Route::post('/shop/exports/validate-phone-number', [ShopController::class, 'validatePhoneNumber'])->name('shop.exports.validate-phone-number');
+    Route::post('/shop/exports/validate-cod-amount', [ShopController::class, 'validateCodAmount'])->name('shop.exports.validate-cod-amount');
+    Route::post('/shop/exports/validate-address', [ShopController::class, 'validateCourierAddress'])->name('shop.exports.validate-address');
+    Route::post('/shop/exports/validate-weight', [ShopController::class, 'validateWeight'])->name('shop.exports.validate-weight');
+    Route::get('/shop/exports/validation-rules', [ShopController::class, 'getValidationRules'])->name('shop.exports.validation-rules');
+    Route::post('/shop/exports/validation-rules', [ShopController::class, 'updateValidationRules'])->name('shop.exports.validation-rules.update');
+    Route::get('/shop/exports/validation-analytics', [ShopController::class, 'validationAnalytics'])->name('shop.exports.validation-analytics');
+    Route::get('/shop/exports/validation-error-logs', [ShopController::class, 'validationErrorLogs'])->name('shop.exports.validation-error-logs');
+    Route::post('/shop/exports/suggest-corrections', [ShopController::class, 'suggestCorrections'])->name('shop.exports.suggest-corrections');
+    Route::post('/shop/exports/check-encoding', [ShopController::class, 'checkCsvEncoding'])->name('shop.exports.check-encoding');
+    Route::get('/shop/csv-templates', [ShopController::class, 'listCsvTemplates'])->name('shop.csv-templates.index');
+    Route::get('/shop/csv-templates/fields', [ShopController::class, 'availableTemplateFields'])->name('shop.csv-templates.fields');
+    Route::post('/shop/csv-templates', [ShopController::class, 'createCsvTemplate'])->name('shop.csv-templates.store');
+    Route::put('/shop/csv-templates/{id}', [ShopController::class, 'updateCsvTemplate'])->name('shop.csv-templates.update');
+    Route::delete('/shop/csv-templates/{id}', [ShopController::class, 'deleteCsvTemplate'])->name('shop.csv-templates.destroy');
+    Route::post('/shop/csv-templates/preview', [ShopController::class, 'previewCsvTemplate'])->name('shop.csv-templates.preview');
+    Route::post('/shop/exports/test-orders', [ShopController::class, 'validationTestOrders'])->name('shop.exports.test-orders');
+    Route::post('/shop/exports/test-csv', [ShopController::class, 'validationTestCsv'])->name('shop.exports.test-csv');
+    Route::post('/shop/exports/test-csv-upload', [ShopController::class, 'validationTestCsvUpload'])->name('shop.exports.test-csv-upload');
+    Route::post('/shop/exports/verify-upload', [ShopController::class, 'verifyCsvUpload'])->name('shop.exports.verify-upload');
+    Route::post('/shop/exports/{batch}/verify-batch', [ShopController::class, 'verifyCsvAgainstBatch'])->name('shop.exports.verify-batch');
+    Route::post('/shop/exports/{batch}/validate-rows', [ShopController::class, 'validateExportRows'])->name('shop.exports.validate-rows');
+    Route::post('/shop/exports/preview-csv-format', [ShopController::class, 'previewCsvFormat'])->name('shop.exports.preview-csv-format');
+    Route::get('/shop/courier-schemas', [ShopController::class, 'listCourierSchemas'])->name('shop.courier-schemas');
+    Route::get('/shop/exports/{batch}/file-info', [ShopController::class, 'batchFileInfo'])->name('shop.exports.file-info');
+    Route::get('/shop/exports/{batch}/error-logs', [ShopController::class, 'batchErrorLogs'])->name('shop.exports.error-logs');
     Route::post('/shop/exports', [ShopController::class, 'exportCourier'])->name('shop.exports.store');
     Route::post('/shop/exports/multi', [ShopController::class, 'exportMultipleCouriers'])->name('shop.exports.multi');
     Route::get('/shop/exports/{batch}/download', [ShopController::class, 'downloadExport'])->name('shop.exports.download');
     Route::post('/shop/exports/{batch}/archive', [ShopController::class, 'archiveCourierBatch'])->name('shop.exports.archive');
     Route::delete('/shop/exports/{batch}', [ShopController::class, 'deleteCourierBatch'])->name('shop.exports.destroy');
     Route::post('/shop/exports/{batch}/retry', [ShopController::class, 'retryCourierBatch'])->name('shop.exports.retry');
+    Route::post('/shop/exports/{batch}/shares', [ShopController::class, 'createBatchShare'])->name('shop.exports.shares.store');
+    Route::post('/shop/exports/{batch}/email', [ShopController::class, 'sendBatchEmail'])->name('shop.exports.email');
     Route::patch('/shop/exports/{batch}/notes', [ShopController::class, 'updateBatchNotes'])->name('shop.exports.notes');
     Route::get('/shop/exports/{batch}/preview', [ShopController::class, 'previewBatch'])->name('shop.exports.preview');
+    Route::get('/shop/exports/{batch}/compare', [ShopController::class, 'compareBatch'])->name('shop.exports.compare');
+    Route::get('/shop/exports/{batch}/status-history', [ShopController::class, 'batchStatusHistory'])->name('shop.exports.status-history');
+    Route::post('/shop/exports/{batch}/transition', [ShopController::class, 'transitionBatchStatus'])->name('shop.exports.transition');
     Route::get('/shop/exports/analytics', [ShopController::class, 'batchAnalytics'])->name('shop.exports.analytics');
     Route::get('/shop/orders/create', [ShopController::class, 'createOrder'])->name('shop.orders.create');
+    Route::get('/shop/orders/{order}/edit', [ShopController::class, 'editOrder'])->name('shop.orders.edit')->whereNumber('order');
     Route::post('/shop/orders', [ShopController::class, 'storeOrder'])->name('shop.orders.store');
     Route::post('/shop/orders/check-duplicates', [ShopController::class, 'checkDuplicates'])->name('shop.orders.check-duplicates');
     Route::post('/shop/orders/recommendations', [ShopController::class, 'recommendProducts'])->name('shop.orders.recommendations');
-    Route::get('/shop/templates', [ShopController::class, 'listCartTemplates'])->name('shop.templates.index');
-    Route::post('/shop/templates', [ShopController::class, 'storeCartTemplate'])->name('shop.templates.store');
-    Route::delete('/shop/templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.templates.destroy')->whereNumber('template');
+    Route::get('/shop/cart-templates', [ShopController::class, 'listCartTemplates'])->name('shop.cart-templates.index');
+    Route::post('/shop/cart-templates', [ShopController::class, 'storeCartTemplate'])->name('shop.cart-templates.store');
+    Route::delete('/shop/cart-templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.cart-templates.destroy')->whereNumber('template');
     Route::post('/shop/orders/calculate-shipping', [ShopController::class, 'calculateShipping'])->name('shop.orders.shipping');
     Route::post('/shop/orders/draft', [ShopController::class, 'storeDraft'])->name('shop.orders.draft.store');
     Route::get('/shop/orders/{order}/draft', [ShopController::class, 'loadDraft'])->name('shop.orders.draft.load')->whereNumber('order');
     Route::delete('/shop/orders/{order}/draft', [ShopController::class, 'deleteDraft'])->name('shop.orders.draft.delete')->whereNumber('order');
     Route::get('/shop/orders/{order}', [ShopController::class, 'order'])->name('shop.orders.show')->whereNumber('order');
     Route::patch('/shop/orders/{order}', [ShopController::class, 'updateOrder'])->name('shop.orders.update')->whereNumber('order');
+    Route::post('/shop/orders/{order}/follow-up', [ShopController::class, 'manualFollowUp'])->name('shop.orders.follow-up')->whereNumber('order');
+    Route::post('/shop/orders/{order}/split', [ShopController::class, 'splitOrder'])->name('shop.orders.split')->whereNumber('order');
+    Route::post('/shop/orders/{order}/remarks', [ShopController::class, 'storeOrderRemark'])->name('shop.orders.remarks.store')->whereNumber('order');
+    Route::patch('/shop/orders/{order}/remarks/{remark}', [ShopController::class, 'updateOrderRemark'])->name('shop.orders.remarks.update')->whereNumber(['order', 'remark']);
+    Route::delete('/shop/orders/{order}/remarks/{remark}', [ShopController::class, 'destroyOrderRemark'])->name('shop.orders.remarks.destroy')->whereNumber(['order', 'remark']);
+    Route::post('/shop/orders/{order}/remarks/{remark}/pin', [ShopController::class, 'togglePinOrderRemark'])->name('shop.orders.remarks.pin')->whereNumber(['order', 'remark']);
+    Route::get('/shop/remarks/export', [ShopController::class, 'exportOrderRemarks'])->name('shop.remarks.export');
+    Route::post('/shop/remark-templates', [ShopController::class, 'storeRemarkTemplate'])->name('shop.remark-templates.store');
+    Route::delete('/shop/remark-templates/{remarkTemplate}', [ShopController::class, 'destroyRemarkTemplate'])->name('shop.remark-templates.destroy')->whereNumber('remarkTemplate');
     Route::get('/shop/facebook/connect', [ShopController::class, 'connectFacebook'])->name('shop.facebook.connect');
     Route::get('/shop/facebook/callback', [ShopController::class, 'facebookCallback'])->name('shop.facebook.callback');
     Route::post('/shop/facebook/pages/manual', [ShopController::class, 'storeManualFacebookPage'])->name('shop.facebook.pages.manual');

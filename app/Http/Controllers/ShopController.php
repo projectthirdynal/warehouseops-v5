@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Services\OrderFulfillmentService;
+use App\Domain\Order\Services\DuplicateDetectionService;
 use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
+use App\Domain\Shop\Models\AddressCorrectionHistory;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\CourierExportBatch;
+use App\Domain\Shop\Models\CourierExportBatchShare;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
@@ -19,10 +23,15 @@ use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Services\AddressFormatService;
 use App\Domain\Shop\Services\CourierExportService;
+use App\Domain\Shop\Services\GeocodingService;
 use App\Domain\Shop\Services\CustomerAddressService;
+use App\Domain\Shop\Services\CustomerAuditService;
 use App\Domain\Shop\Services\CustomerIdentityService;
+use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
@@ -35,23 +44,31 @@ use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\RemarkTemplate;
 use App\Domain\Shop\Models\ShopReplyTemplate;
 use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\CartTemplate;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
+use App\Models\CustomerNote;
 use App\Models\AgentProfile;
+use App\Models\ReplyTemplate;
+use App\Models\SiteSetting;
 use App\Models\User;
+use App\Notifications\RemarkMentionedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Mail\CourierExportBatchEmail;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Exports\OrderRemarksExport;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShopController extends Controller
@@ -59,6 +76,7 @@ class ShopController extends Controller
     public function __construct(
         private readonly PhoneDetectionService $phones,
         private readonly CustomerIdentityService $customerIdentities,
+        private readonly CustomerMergeService $customerMerge,
         private readonly AddressMappingService $addressMappings,
         private readonly FacebookConnectorService $facebookConnector,
         private readonly CourierExportService $courierExports,
@@ -71,6 +89,12 @@ class ShopController extends Controller
         private readonly ConversationExportService $conversationExports,
         private readonly MessageTranslationService $translator,
         private readonly ShippingRateService $shippingRates,
+        private readonly OrderFulfillmentService $fulfillment,
+        private readonly GeocodingService $geocoder,
+        private readonly AddressFormatService $addressFormatter,
+        private readonly DuplicateDetectionService $duplicateDetection,
+        private readonly CustomerRiskService $customerRisk,
+        private readonly CustomerAuditService $customerAudit,
     ) {}
 
     public function index(): Response
@@ -1093,14 +1117,14 @@ class ShopController extends Controller
             'total_message_count' => $totalMessages,
             'recent_orders' => $conversation->customer_id
                 ? Order::query()
-                    ->with('product:id,name,sku')
+                    ->with('product:id,name,sku', 'shopItems:id,order_id,product_name,quantity,line_total')
                     ->where('customer_id', $conversation->customer_id)
                     ->latest()
                     ->limit(5)
                     ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'receiver_address', 'created_at'])
                 : [],
             'quick_replies' => $this->quickRepliesForConversation($conversation),
-            'saved_templates' => $this->savedTemplatesForConversation($conversation),
+            'saved_templates' => $this->savedTemplatesForConversation($conversation, $request->user()?->id, $request->user()?->role),
             'agents' => $this->shopAgents(),
             'user_role' => $request->user()->role,
             'statuses' => $this->conversationStatuses(),
@@ -1199,6 +1223,66 @@ class ShopController extends Controller
         ]);
     }
 
+    public function customerMergeSuggestions(Customer $customer): JsonResponse
+    {
+        if (empty($customer->normalized_phone)) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $suggestions = Customer::query()
+            ->where('normalized_phone', $customer->normalized_phone)
+            ->whereKeyNot($customer->id)
+            ->orderByDesc('total_orders')
+            ->limit(10)
+            ->get([
+                'id',
+                'name',
+                'phone',
+                'normalized_phone',
+                'total_orders',
+                'successful_orders',
+                'returned_orders',
+                'risk_level',
+                'created_at',
+            ]);
+
+        return response()->json(['suggestions' => $suggestions]);
+    }
+
+    public function mergeCustomerSuggestion(Customer $customer, Customer $source): JsonResponse
+    {
+        abort_if(
+            empty($customer->normalized_phone) || $customer->normalized_phone !== $source->normalized_phone,
+            422,
+            'Customers must share the same normalized phone number before they can be merged.'
+        );
+
+        $mergedCustomer = $this->customerMerge->merge($customer, $source);
+
+        return response()->json(['customer' => $mergedCustomer]);
+    }
+
+    public function customerOrderHistory(Request $request, Customer $customer): JsonResponse
+    {
+        $orders = Order::query()
+            ->with('shopItems:id,order_id,product_name,quantity,line_total')
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->limit(10)
+            ->get([
+                'id',
+                'order_number',
+                'status',
+                'total_amount',
+                'cod_amount',
+                'receiver_address',
+                'created_at',
+                'delivered_at',
+            ]);
+
+        return response()->json(['orders' => $orders]);
+    }
+
     public function exportCustomers(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $query = Customer::query()
@@ -1248,6 +1332,136 @@ class ShopController extends Controller
         }, 200, $headers);
     }
 
+    public function exportCustomerProfile(Request $request, Customer $customer): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $customer->load([
+            'addresses',
+            'notes.user:id,name',
+            'auditLogs.user:id,name',
+        ]);
+
+        $this->customerAudit->logAction($customer, 'profile_export', 'Profile exported');
+
+        $orders = Order::query()
+            ->with('shopItems:id,order_id,product_name,quantity,line_total')
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->limit(50)
+            ->get([
+                'id', 'order_number', 'status', 'total_amount', 'cod_amount',
+                'receiver_address', 'created_at', 'delivered_at',
+            ]);
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="customer-' . $customer->id . '-' . date('Y-m-d') . '.csv"',
+        ];
+
+        return response()->stream(function () use ($customer, $orders) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, ['Customer Profile Export']);
+            fputcsv($handle, []);
+
+            fputcsv($handle, ['Field', 'Value']);
+            fputcsv($handle, ['ID', $customer->id]);
+            fputcsv($handle, ['Name', $customer->name]);
+            fputcsv($handle, ['Phone', $customer->phone]);
+            fputcsv($handle, ['Normalized Phone', $customer->normalized_phone]);
+            fputcsv($handle, ['Facebook Name', $customer->facebook_name ?? '']);
+            fputcsv($handle, ['Address', $customer->canonical_address ?? '']);
+            fputcsv($handle, ['Landmark', $customer->landmark ?? '']);
+            fputcsv($handle, ['Barangay', $customer->barangay ?? '']);
+            fputcsv($handle, ['City/Municipality', $customer->city_municipality ?? '']);
+            fputcsv($handle, ['Province', $customer->province ?? '']);
+            fputcsv($handle, ['Region', $customer->region ?? '']);
+            fputcsv($handle, ['Total Orders', $customer->total_orders]);
+            fputcsv($handle, ['Successful Orders', $customer->successful_orders]);
+            fputcsv($handle, ['Returned Orders', $customer->returned_orders]);
+            fputcsv($handle, ['Success Rate', $customer->success_rate]);
+            fputcsv($handle, ['Total Revenue', $customer->total_revenue]);
+            fputcsv($handle, ['Average Order Value', $customer->average_order_value]);
+            fputcsv($handle, ['Preferred Courier', $customer->preferred_courier ?? '']);
+            fputcsv($handle, ['Payment Method', $customer->payment_method ?? '']);
+            fputcsv($handle, ['Risk Level', $customer->risk_level]);
+            fputcsv($handle, ['Blacklisted', $customer->is_blacklisted ? 'yes' : 'no']);
+            fputcsv($handle, ['Blacklist Reason', $customer->blacklist_reason ?? '']);
+            fputcsv($handle, ['Tags', is_array($customer->tags) ? implode(';', $customer->tags) : '']);
+            fputcsv($handle, ['Preferred Contact Method', $customer->preferred_contact_method ?? '']);
+            fputcsv($handle, ['Preferred Contact Time', $customer->preferred_contact_time ?? '']);
+            fputcsv($handle, ['Marketing Opt-Out', $customer->marketing_opt_out ? 'yes' : 'no']);
+            fputcsv($handle, ['Language Preference', $customer->language_preference ?? '']);
+            fputcsv($handle, ['Last Order Date', $customer->last_order_date ?? '']);
+            fputcsv($handle, ['Created At', $customer->created_at]);
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Saved Addresses']);
+            fputcsv($handle, ['Label', 'Address', 'Landmark', 'Barangay', 'City', 'Province', 'Region', 'Is Default', 'Source', 'Used At', 'Created At']);
+            foreach ($customer->addresses as $address) {
+                fputcsv($handle, [
+                    $address->label ?? '',
+                    $address->canonical_address ?? '',
+                    $address->landmark ?? '',
+                    $address->barangay ?? '',
+                    $address->city_municipality ?? '',
+                    $address->province ?? '',
+                    $address->region ?? '',
+                    $address->is_default ? 'yes' : 'no',
+                    $address->source ?? '',
+                    $address->used_at ?? '',
+                    $address->created_at ?? '',
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Notes']);
+            fputcsv($handle, ['Date', 'Author', 'Type', 'Body']);
+            foreach ($customer->notes as $note) {
+                fputcsv($handle, [
+                    $note->created_at,
+                    $note->user?->name ?? '',
+                    $note->note_type ?? '',
+                    $note->body,
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Recent Orders (last 50)']);
+            fputcsv($handle, ['Order #', 'Status', 'Total', 'COD Amount', 'Address', 'Created At', 'Delivered At', 'Items']);
+            foreach ($orders as $order) {
+                $items = $order->shopItems
+                    ->map(fn ($item) => "{$item->product_name} x{$item->quantity}")
+                    ->join('; ');
+                fputcsv($handle, [
+                    $order->order_number,
+                    $order->status,
+                    $order->total_amount,
+                    $order->cod_amount,
+                    $order->receiver_address,
+                    $order->created_at,
+                    $order->delivered_at ?? '',
+                    $items,
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, ['Audit Log']);
+            fputcsv($handle, ['Action', 'Field', 'Before', 'After', 'User', 'Created At']);
+            foreach ($customer->auditLogs as $log) {
+                fputcsv($handle, [
+                    $log->action,
+                    $log->field ?? '',
+                    json_encode($log->before_state),
+                    json_encode($log->after_state),
+                    $log->user?->name ?? 'System',
+                    $log->created_at ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function searchCustomers(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -1267,6 +1481,10 @@ class ShopController extends Controller
                 'normalized_phone',
                 'facebook_name',
                 'canonical_address',
+                'landmark',
+                'barangay',
+                'city_municipality',
+                'province',
                 'risk_level',
                 'is_blacklisted',
                 'total_orders',
@@ -1317,10 +1535,22 @@ class ShopController extends Controller
             'address' => $validated['canonical_address'] ?? '',
         ]);
 
+        $phoneChanged = $customer->phone !== $validated['phone'];
+        $nameChanged = $customer->name !== $validated['name'];
+        $addressChanged = $customer->canonical_address !== ($validated['canonical_address'] ?? null)
+            || $customer->barangay !== ($validated['barangay'] ?? null)
+            || $customer->city_municipality !== ($validated['city_municipality'] ?? null)
+            || $customer->province !== ($validated['province'] ?? null)
+            || $customer->landmark !== ($validated['landmark'] ?? null);
+        $oldPhone = $customer->phone;
+        $newNormalized = $this->phones->normalize($validated['phone']);
+
+        $auditBefore = $customer->only(['name', 'phone', 'normalized_phone', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region', 'preferred_courier', 'payment_method']);
+
         $customer->forceFill([
             'name' => $validated['name'],
             'phone' => $validated['phone'],
-            'normalized_phone' => $this->phones->normalize($validated['phone']),
+            'normalized_phone' => $newNormalized,
             'canonical_address' => $validated['canonical_address'] ?? null,
             'landmark' => $validated['landmark'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
@@ -1330,6 +1560,33 @@ class ShopController extends Controller
             'preferred_courier' => $validated['preferred_courier'] ?? null,
             'payment_method' => $validated['payment_method'] ?? null,
         ])->save();
+
+        $this->customerAudit->logChange($customer, 'profile_update', $auditBefore, $customer->only(['name', 'phone', 'normalized_phone', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region', 'preferred_courier', 'payment_method']));
+
+        if ($phoneChanged) {
+            $customer->orders()
+                ->where('receiver_phone', $oldPhone)
+                ->update(['receiver_phone' => $validated['phone']]);
+
+            $customer->identities()
+                ->where('phone_detected', $oldPhone)
+                ->update(['phone_detected' => $validated['phone']]);
+        }
+
+        if ($nameChanged || $addressChanged) {
+            $orderUpdates = [];
+            if ($nameChanged) {
+                $orderUpdates['receiver_name'] = $validated['name'];
+            }
+            if ($addressChanged) {
+                $orderUpdates['receiver_address'] = $validated['canonical_address'] ?? null;
+                $orderUpdates['barangay'] = $validated['barangay'] ?? null;
+                $orderUpdates['city'] = $validated['city_municipality'] ?? null;
+                $orderUpdates['state'] = $validated['province'] ?? null;
+                $orderUpdates['landmark'] = $validated['landmark'] ?? null;
+            }
+            $customer->orders()->update($orderUpdates);
+        }
 
         if (! empty($validated['canonical_address'])) {
             $this->customerAddresses->record($customer, [
@@ -1344,6 +1601,43 @@ class ShopController extends Controller
         }
 
         return back()->with('success', 'Customer profile updated.');
+    }
+
+    public function toggleBlacklist(Request $request, Customer $customer): RedirectResponse
+    {
+        $validated = $request->validate([
+            'blacklist' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $before = $customer->only(['is_blacklisted', 'blacklist_reason', 'risk_level']);
+
+        if ($validated['blacklist']) {
+            $this->customerRisk->blacklist($customer, $validated['reason'] ?? 'Manually blacklisted');
+            $message = 'Customer blacklisted successfully.';
+        } else {
+            $this->customerRisk->unblacklist($customer);
+            $message = 'Customer removed from blacklist.';
+        }
+
+        $this->customerAudit->logChange($customer, 'blacklist_toggle', $before, $customer->only(['is_blacklisted', 'blacklist_reason', 'risk_level']));
+
+        return back()->with('success', $message);
+    }
+
+    public function overrideRiskLevel(Request $request, Customer $customer): RedirectResponse
+    {
+        $validated = $request->validate([
+            'risk_level' => ['required', 'string', 'in:LOW,MEDIUM,HIGH'],
+        ]);
+
+        $before = ['risk_level' => $customer->risk_level];
+
+        $this->customerRisk->overrideRiskLevel($customer, $validated['risk_level']);
+
+        $this->customerAudit->logChange($customer, 'risk_level_override', $before, ['risk_level' => $customer->risk_level], 'risk_level');
+
+        return back()->with('success', 'Risk level updated.');
     }
 
     public function customerAddresses(Request $request, Customer $customer): JsonResponse
@@ -1417,7 +1711,12 @@ class ShopController extends Controller
             'created_at',
         ]);
 
-        return response()->json(['notes' => $notes]);
+        return response()->json([
+            'notes' => $notes,
+            'customer_tags' => $customer->tags ?? [],
+            'preferred_courier' => $customer->preferred_courier,
+            'payment_method' => $customer->payment_method,
+        ]);
     }
 
     public function storeCustomerNote(Request $request, Customer $customer): JsonResponse
@@ -1444,7 +1743,57 @@ class ShopController extends Controller
 
         $this->customerNotes->setTags($customer, $validated['tags']);
 
+        $this->customerAudit->logAction($customer, 'tags_update', 'Tags updated to: ' . implode(', ', $validated['tags']));
+
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
+    }
+
+    public function deleteCustomerNote(Request $request, Customer $customer, CustomerNote $note): JsonResponse
+    {
+        abort_unless($note->customer_id === $customer->id, 403, 'Note does not belong to this customer.');
+
+        $this->customerAudit->logAction($customer, 'note_delete', "Deleted note: {$note->body}");
+
+        $note->delete();
+
+        return response()->json(['deleted' => true]);
+    }
+
+    public function updateCustomerPreferences(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'preferred_courier' => ['nullable', 'string', 'max:50'],
+            'payment_method' => ['nullable', 'string', 'max:50'],
+            'preferred_contact_method' => ['nullable', 'string', 'in:messenger,sms,phone,email'],
+            'preferred_contact_time' => ['nullable', 'string', 'in:morning,afternoon,evening,anytime'],
+            'marketing_opt_out' => ['boolean'],
+            'language_preference' => ['nullable', 'string', 'max:10'],
+        ]);
+
+        $before = $customer->only(['preferred_courier', 'payment_method', 'preferred_contact_method', 'preferred_contact_time', 'marketing_opt_out', 'language_preference']);
+
+        $customer->forceFill([
+            'preferred_courier' => $validated['preferred_courier'] ?? null,
+            'payment_method' => $validated['payment_method'] ?? null,
+            'preferred_contact_method' => $validated['preferred_contact_method'] ?? null,
+            'preferred_contact_time' => $validated['preferred_contact_time'] ?? null,
+            'marketing_opt_out' => $validated['marketing_opt_out'] ?? false,
+            'language_preference' => $validated['language_preference'] ?? null,
+        ])->save();
+
+        $this->customerAudit->logChange($customer, 'preferences_update', $before, $customer->only(['preferred_courier', 'payment_method', 'preferred_contact_method', 'preferred_contact_time', 'marketing_opt_out', 'language_preference']));
+
+        return response()->json([
+            'customer' => $customer->only([
+                'id',
+                'preferred_courier',
+                'payment_method',
+                'preferred_contact_method',
+                'preferred_contact_time',
+                'marketing_opt_out',
+                'language_preference',
+            ]),
+        ]);
     }
 
     public function customerTimeline(Request $request, Customer $customer): JsonResponse
@@ -1456,6 +1805,54 @@ class ShopController extends Controller
         $activities = $this->customerTimeline->build($customer, $validated['limit'] ?? 50);
 
         return response()->json(['activities' => $activities]);
+    }
+
+    public function customerAuditLogs(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $logs = $this->customerAudit->getLogs($customer, $validated['limit'] ?? 50);
+
+        return response()->json(['logs' => $logs]);
+    }
+
+    public function uploadCustomerImage(Request $request, Customer $customer): JsonResponse
+    {
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+        ]);
+
+        $oldPath = $customer->profile_image_path;
+
+        $path = $request->file('image')->store('customer-images', 'public');
+
+        $customer->forceFill(['profile_image_path' => $path])->save();
+
+        if ($oldPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $this->customerAudit->logAction($customer, 'image_upload', "Profile image uploaded: {$path}");
+
+        return response()->json([
+            'profile_image_path' => $path,
+            'profile_image_url' => Storage::disk('public')->url($path),
+        ]);
+    }
+
+    public function deleteCustomerImage(Request $request, Customer $customer): JsonResponse
+    {
+        $path = $customer->profile_image_path;
+
+        if ($path) {
+            Storage::disk('public')->delete($path);
+            $customer->forceFill(['profile_image_path' => null])->save();
+            $this->customerAudit->logAction($customer, 'image_delete', 'Profile image removed');
+        }
+
+        return response()->json(['deleted' => true]);
     }
 
     public function updateConversationAssignment(Request $request, Conversation $conversation): RedirectResponse
@@ -2453,27 +2850,889 @@ class ShopController extends Controller
         ]);
     }
 
-    public function encoder(): Response
+    public function encoder(Request $request): Response
     {
+        $orders = Order::query()
+            ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->when($request->boolean('needs_review'), function ($q) {
+                $q->where(function ($sub) {
+                    $sub->whereNull('receiver_address')
+                        ->orWhere('receiver_address', '')
+                        ->orWhereNull('state')
+                        ->orWhere('state', '')
+                        ->orWhereNull('city')
+                        ->orWhere('city', '')
+                        ->orWhere('address_confidence', '<', 90)
+                        ->orWhereNull('address_mapping_id');
+                });
+            })
+            ->latest()
+            ->paginate(25)
+            ->withQueryString();
+
+        $orders->getCollection()->each(function (Order $order) {
+            $flags = [];
+            if (empty($order->receiver_address)) {
+                $flags[] = 'missing_address';
+            }
+            if (empty($order->barangay)) {
+                $flags[] = 'missing_barangay';
+            }
+            if (empty($order->city)) {
+                $flags[] = 'missing_city';
+            }
+            if (empty($order->state)) {
+                $flags[] = 'missing_province';
+            }
+            if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+                $flags[] = 'low_confidence';
+            }
+            if (empty($order->address_mapping_id)) {
+                $flags[] = 'unmapped';
+            }
+            $order->setAttribute('address_flags', $flags);
+        });
+
         return Inertia::render('Shop/Encoder', [
-            'orders' => Order::query()
-                ->with(['customer:id,name,phone,normalized_phone', 'product:id,name,sku', 'shopItems:id,order_id,product_name,quantity'])
-                ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
-                ->whereNull('encoded_at')
-                ->latest()
-                ->paginate(25),
+            'orders' => $orders,
             'recent_batches' => CourierExportBatch::query()
                 ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
                 ->with(['creator:id,name'])
                 ->latest()
                 ->limit(10)
                 ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']),
+            'grouped_batches' => (function () {
+                $courierLabels = ['JNT' => 'J&T Express', 'FLASH' => 'Flash Express', 'GENERIC' => 'Generic CSV'];
+                $batches = CourierExportBatch::query()
+                    ->withCount(['rows as failed_row_count' => fn ($q) => $q->where('status', 'failed')])
+                    ->with(['creator:id,name'])
+                    ->latest()
+                    ->limit(50)
+                    ->get(['id', 'batch_number', 'courier_code', 'region', 'status', 'row_count', 'file_path', 'exported_at', 'downloaded_at', 'archived_at', 'notes', 'created_by', 'created_at']);
+
+                return $batches->groupBy('courier_code')->map(function ($group, $courierCode) use ($courierLabels) {
+                    return [
+                        'courier_code'  => $courierCode,
+                        'courier_label' => $courierLabels[strtoupper($courierCode)] ?? ucfirst($courierCode),
+                        'batch_count'   => $group->count(),
+                        'total_rows'    => $group->sum('row_count'),
+                        'batches'       => $group->values(),
+                    ];
+                })->sortBy('courier_code')->values();
+            })(),
             'couriers' => [
                 ['value' => 'JNT', 'label' => 'J&T Express'],
                 ['value' => 'FLASH', 'label' => 'Flash Express'],
                 ['value' => 'GENERIC', 'label' => 'Generic CSV'],
             ],
+            'filters' => $request->only(['needs_review']),
+            'encoders' => \App\Models\User::query()
+                ->where('is_active', true)
+                ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'tags' => \App\Domain\Shop\Models\Tag::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'color']),
         ]);
+    }
+
+    public function validateBatchItems(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['required', 'array', 'min:1'],
+            'order_ids.*'  => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->whereIn('id', $validated['order_ids'])
+            ->get();
+
+        $result = $this->courierExports->validateBatchItems($orders, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($result, $validated['courier_code'], null, 'validate-batch-items');
+
+        return response()->json($result);
+    }
+
+    public function validateExportColumns(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['nullable', 'array'],
+            'order_ids.*'  => ['integer', 'exists:orders,id'],
+        ]);
+
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+
+        $schema = $registry->resolve($validated['courier_code']);
+        $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->get();
+
+        $validation = $validator->validateOrders($orders, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($validation, $validated['courier_code'], null, 'validate-columns');
+
+        return response()->json([
+            'courier_code' => $schema->courierCode,
+            'schema_name' => $schema->name,
+            'columns' => array_map(fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => [
+                'header' => $col->header,
+                'field' => $col->field,
+                'required' => $col->required,
+            ], $schema->columns),
+            'required_columns' => $schema->requiredFieldLabels(),
+            'column_count' => $schema->columnCount(),
+            'schema_integrity' => $integrity,
+            'validation' => $validation,
+            'can_export' => $validation['valid'] && $integrity['valid'],
+        ]);
+    }
+
+    public function validatePhoneNumber(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone_number' => ['required', 'string', 'max:50'],
+        ]);
+
+        $phoneValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator::class);
+        $result = $phoneValidator->validate($validated['phone_number']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'normalized' => $result['normalized'],
+            'error' => $result['error'],
+            'original' => $validated['phone_number'],
+        ]);
+    }
+
+    public function validateCodAmount(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $order = Order::query()
+            ->with([
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->findOrFail($validated['order_id']);
+
+        $codValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvCodValidator::class);
+        $result = $codValidator->validateOrder($order, $validated['courier_code']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'expected' => $result['expected'],
+            'actual' => $result['actual'],
+            'error' => $result['error'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
+        ]);
+    }
+
+    public function validateExportRows(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $rows = $batch->rows()
+            ->with([
+                'order' => fn ($q) => $q->with([
+                    'shopItems' => fn ($q2) => $q2->with([
+                        'product:id,weight_grams',
+                        'variant:id,weight_grams',
+                    ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+                ]),
+            ])
+            ->get();
+
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+
+        $result = $validator->validateRows($rows, $validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($result, $validated['courier_code'], $batch->id, 'validate-rows');
+
+        return response()->json($result);
+    }
+
+    public function validateCourierAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $order = Order::query()->findOrFail($validated['order_id']);
+
+        $addressValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvAddressValidator::class);
+        $result = $addressValidator->validateOrder($order, $validated['courier_code']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'errors' => $result['errors'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
+        ]);
+    }
+
+    public function validateWeight(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $order = Order::query()
+            ->with(['shopItems' => fn ($q) => $q->with(['product:id,weight_grams', 'variant:id,weight_grams'])->select(['id', 'order_id', 'product_id', 'variant_id', 'quantity'])])
+            ->findOrFail($validated['order_id']);
+
+        $weightValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator::class);
+        $result = $weightValidator->validateOrder($order, $validated['courier_code']);
+
+        return response()->json([
+            'valid' => $result['valid'],
+            'weight_kg' => $result['weight_kg'],
+            'max_weight_kg' => $result['max_weight_kg'],
+            'errors' => $result['errors'],
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'courier_code' => $validated['courier_code'],
+        ]);
+    }
+
+    public function previewCsvFormat(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids'    => ['nullable', 'array'],
+            'order_ids.*'  => ['integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(10)
+            ->get();
+
+        $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
+        $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
+
+        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $validation = $validator->validateOrders($orders, $validated['courier_code']);
+        $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
+
+        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+            ->record($validation, $validated['courier_code'], null, 'preview-csv-format');
+
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+        $sampleCsv = $this->buildSampleCsvString($formatInfo['headers'], $preview['rows']);
+        $encoding = $encodingChecker->check($sampleCsv);
+
+        return response()->json([
+            'format'      => $formatInfo['format'],
+            'headers'     => $formatInfo['headers'],
+            'field_count' => $formatInfo['field_count'],
+            'rows'        => $preview['rows'],
+            'row_count'   => $preview['row_count'],
+            'total_available' => $orders->count(),
+            'validation'  => $validation,
+            'encoding'    => $encoding,
+            'can_export'  => $validation['valid'] && $integrity['valid'] && $encoding['valid'],
+        ]);
+    }
+
+    /**
+     * @param array<int, string> $headers
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function buildSampleCsvString(array $headers, array $rows): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $headers);
+
+        foreach ($rows as $row) {
+            $values = is_array($row) ? array_map(
+                fn ($v) => is_string($v) || is_numeric($v) ? (string) $v : '',
+                array_values($row),
+            ) : [];
+            fputcsv($handle, $values);
+        }
+
+        rewind($handle);
+
+        return stream_get_contents($handle) ?: '';
+    }
+
+    public function checkCsvEncoding(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
+        ]);
+
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+
+        if (! empty($validated['batch_id'])) {
+            $batch = CourierExportBatch::query()->findOrFail($validated['batch_id']);
+
+            if ($batch->file_path && Storage::disk()->exists($batch->file_path)) {
+                return response()->json([
+                    'courier_code' => strtoupper($validated['courier_code']),
+                    'batch_id' => $batch->id,
+                    'encoding' => $encodingChecker->checkFile(Storage::disk()->path($batch->file_path)),
+                ]);
+            }
+
+            $rows = $batch->rows()->get();
+            $csv = $this->courierExports->csv($rows, $validated['courier_code']);
+
+            return response()->json([
+                'courier_code' => strtoupper($validated['courier_code']),
+                'batch_id' => $batch->id,
+                'encoding' => $encodingChecker->check($csv),
+            ]);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(50)
+            ->get();
+
+        $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
+        $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
+        $sampleCsv = $this->buildSampleCsvString($formatInfo['headers'], $preview['rows']);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'encoding' => $encodingChecker->check($sampleCsv),
+        ]);
+    }
+
+    public function listCsvTemplates(Request $request): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $courierCode = $request->query('courier_code');
+        $activeOnly = (bool) $request->query('active_only', true);
+
+        $templates = $builder->list($courierCode, $activeOnly);
+
+        return response()->json([
+            'templates' => $templates->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'courier_code' => $t->courier_code,
+                'columns' => $t->columns,
+                'is_active' => $t->is_active,
+                'created_by' => $t->creator?->name,
+                'created_at' => $t->created_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    public function availableTemplateFields(): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        return response()->json([
+            'fields' => $builder->availableFields(),
+        ]);
+    }
+
+    public function createCsvTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'courier_code' => ['required', 'string', 'max:30'],
+            'columns' => ['required', 'array', 'min:1'],
+            'columns.*.header' => ['required', 'string', 'max:100'],
+            'columns.*.field' => ['required', 'string', 'max:50'],
+            'columns.*.required' => ['boolean'],
+            'columns.*.label' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        try {
+            $template = $builder->create(
+                $validated['name'],
+                $validated['courier_code'],
+                $validated['columns'],
+                $request->user()?->id,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Template created.',
+            'template' => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'courier_code' => $template->courier_code,
+                'columns' => $template->columns,
+                'is_active' => $template->is_active,
+            ],
+        ], 201);
+    }
+
+    public function updateCsvTemplate(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'columns' => ['required', 'array', 'min:1'],
+            'columns.*.header' => ['required', 'string', 'max:100'],
+            'columns.*.field' => ['required', 'string', 'max:50'],
+            'columns.*.required' => ['boolean'],
+            'columns.*.label' => ['nullable', 'string', 'max:100'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        try {
+            $template = $builder->update(
+                $id,
+                $validated['name'],
+                $validated['columns'],
+                $validated['is_active'] ?? null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        if ($template === null) {
+            return response()->json(['message' => 'Template not found.'], 404);
+        }
+
+        return response()->json([
+            'message' => 'Template updated.',
+            'template' => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'courier_code' => $template->courier_code,
+                'columns' => $template->columns,
+                'is_active' => $template->is_active,
+            ],
+        ]);
+    }
+
+    public function deleteCsvTemplate(int $id): JsonResponse
+    {
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+
+        if (! $builder->delete($id)) {
+            return response()->json(['message' => 'Template not found.'], 404);
+        }
+
+        return response()->json(['message' => 'Template deleted.']);
+    }
+
+    public function previewCsvTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+        ]);
+
+        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $schema = $builder->resolveSchema($validated['courier_code']);
+
+        if ($schema === null) {
+            return response()->json(['message' => 'No active custom template for this courier.'], 404);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit(10)
+            ->get();
+
+        $headers = $schema->headers();
+        $rows = [];
+        foreach ($orders as $order) {
+            $rows[] = $this->courierExports->orderToCsvRow($order, $schema);
+        }
+
+        $sampleCsv = $this->buildSampleCsvString($headers, $rows);
+
+        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+
+        return response()->json([
+            'template_name' => $schema->name,
+            'courier_code' => $schema->courierCode,
+            'headers' => $headers,
+            'rows' => $rows,
+            'row_count' => count($rows),
+            'schema' => $schema->toArray(),
+            'encoding' => $encodingChecker->check($sampleCsv),
+        ]);
+    }
+
+    public function validationTestOrders(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::PENDING, OrderStatus::ON_HOLD])
+            ->limit($validated['limit'] ?? 50)
+            ->get();
+
+        return response()->json(
+            $testMode->testOrders($orders, $validated['courier_code']),
+        );
+    }
+
+    public function validationTestCsv(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'csv_content' => ['required', 'string'],
+        ]);
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        return response()->json(
+            $testMode->testCsvContent($validated['csv_content'], $validated['courier_code']),
+        );
+    }
+
+    public function validationTestCsvUpload(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $file = $request->file('file');
+        $content = $file->getContents();
+
+        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+
+        return response()->json(
+            $testMode->testCsvContent($content, $validated['courier_code']),
+        );
+    }
+
+    public function verifyCsvUpload(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $content = $request->file('file')->getContents();
+
+        return response()->json(
+            $verifier->verify($content, $validated['courier_code']),
+        );
+    }
+
+    public function verifyCsvAgainstBatch(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $content = $request->file('file')->getContents();
+
+        return response()->json(
+            $verifier->verifyAgainstBatch($content, $batch),
+        );
+    }
+
+    public function listCourierSchemas(): JsonResponse
+    {
+        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+
+        $schemas = array_map(
+            fn (\App\Domain\Shop\CourierCsv\CourierCsvSchema $schema) => $schema->toArray(),
+            $registry->all(),
+        );
+
+        return response()->json([
+            'schemas' => array_values($schemas),
+        ]);
+    }
+
+    public function getValidationRules(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+        ]);
+
+        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'rules' => $config->get($validated['courier_code']),
+        ]);
+    }
+
+    public function updateValidationRules(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'rules' => ['required', 'array'],
+        ]);
+
+        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+        $config->set($validated['courier_code'], $validated['rules']);
+
+        return response()->json([
+            'courier_code' => strtoupper($validated['courier_code']),
+            'rules' => $config->get($validated['courier_code']),
+        ]);
+    }
+
+    public function validationAnalytics(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'group_by' => ['nullable', 'string', 'in:error_type,courier'],
+        ]);
+
+        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
+        $to = isset($validated['to']) ? \Carbon\Carbon::parse($validated['to'])->endOfDay() : null;
+
+        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+
+        return response()->json(
+            $analytics->summary(
+                $validated['courier_code'] ?? null,
+                $from,
+                $to,
+                $validated['group_by'] ?? 'error_type',
+            )
+        );
+    }
+
+    public function validationErrorLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'error_type' => ['nullable', 'string', 'max:50'],
+            'from' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
+
+        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+        $logs = $analytics->recent(
+            $validated['courier_code'] ?? null,
+            $validated['error_type'] ?? null,
+            $from,
+            $validated['limit'] ?? 50,
+        );
+
+        return response()->json([
+            'logs' => $logs->map(fn ($log) => [
+                'id' => $log->id,
+                'courier_code' => $log->courier_code,
+                'order_id' => $log->order_id,
+                'order_number' => $log->order?->order_number,
+                'error_type' => $log->error_type,
+                'error_message' => $log->error_message,
+                'source' => $log->source,
+                'context' => $log->context,
+                'created_at' => $log->created_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    public function suggestCorrections(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier_code' => ['required', 'string', 'max:30'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
+            'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
+        ]);
+
+        $suggester = app(\App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester::class);
+        $courierCode = $validated['courier_code'];
+
+        if (! empty($validated['batch_id'])) {
+            $batch = CourierExportBatch::query()->findOrFail($validated['batch_id']);
+            $rows = $batch->rows()
+                ->with([
+                    'order' => fn ($q) => $q->with([
+                        'shopItems' => fn ($q2) => $q2->with([
+                            'product:id,weight_grams',
+                            'variant:id,weight_grams',
+                        ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+                    ]),
+                ])
+                ->get();
+
+            return response()->json([
+                'courier_code' => strtoupper($courierCode),
+                'batch_id' => $batch->id,
+                'suggestions' => $suggester->suggestBatch($rows, $courierCode),
+            ]);
+        }
+
+        $orders = Order::query()
+            ->with([
+                'product:id,name,sku',
+                'shopItems' => fn ($q) => $q->with([
+                    'product:id,weight_grams',
+                    'variant:id,weight_grams',
+                ])->select(['id', 'order_id', 'product_id', 'variant_id', 'product_name', 'quantity', 'unit_price', 'line_total']),
+            ])
+            ->when(! empty($validated['order_ids']), fn ($q) => $q->whereIn('id', $validated['order_ids']))
+            ->limit(100)
+            ->get();
+
+        return response()->json([
+            'courier_code' => strtoupper($courierCode),
+            'suggestions' => $suggester->suggestBatch($orders, $courierCode),
+        ]);
+    }
+
+    public function batchFileInfo(CourierExportBatch $batch): JsonResponse
+    {
+        $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);
+
+        return response()->json([
+            'id'                => $batch->id,
+            'batch_number'      => $batch->batch_number,
+            'file_path'         => $batch->file_path,
+            'file_exists'       => $exists,
+            'file_size'         => $batch->file_size,
+            'file_size_human'   => $batch->file_size ? $this->formatBytes($batch->file_size) : null,
+            'file_hash'         => $batch->file_hash,
+            'file_generated_at' => $batch->file_generated_at?->toIso8601String(),
+            'courier_code'      => $batch->courier_code,
+            'format'            => $batch->metadata['format'] ?? null,
+            'row_count'         => $batch->row_count,
+            'status'            => $batch->status,
+        ]);
+    }
+
+    public function batchErrorLogs(CourierExportBatch $batch): JsonResponse
+    {
+        $logs = $batch->errorLogs()
+            ->with(['row:id,row_number,receiver_name,order_id', 'resolver:id,name'])
+            ->get()
+            ->map(fn ($log) => [
+                'id'             => $log->id,
+                'row_number'     => $log->row?->row_number,
+                'receiver_name'  => $log->row?->receiver_name,
+                'order_id'       => $log->order_id,
+                'error_type'     => $log->error_type,
+                'error_message'  => $log->error_message,
+                'severity'       => $log->severity,
+                'resolution'     => $log->resolution,
+                'resolved_at'    => $log->resolved_at?->toIso8601String(),
+                'resolved_by'    => $log->resolver?->name,
+                'created_at'     => $log->created_at?->toIso8601String(),
+            ]);
+
+        $summary = [
+            'total'     => $logs->count(),
+            'unresolved' => $logs->whereNull('resolved_at')->count(),
+            'errors'    => $logs->where('severity', 'error')->count(),
+            'warnings'  => $logs->where('severity', 'warning')->count(),
+        ];
+
+        return response()->json([
+            'batch' => [
+                'id'           => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'status'       => $batch->status,
+            ],
+            'summary' => $summary,
+            'logs'    => $logs,
+        ]);
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $i = 0;
+        while ($bytes >= 1024 && $i < count($units) - 1) {
+            $bytes /= 1024;
+            $i++;
+        }
+        return round($bytes, 2) . ' ' . $units[$i];
     }
 
     public function exportCourier(Request $request): RedirectResponse
@@ -2497,6 +3756,16 @@ class ShopController extends Controller
             return back()->with('error', 'No encoder-ready orders found for export.');
         }
 
+        $validOrders = $orders->filter(fn (Order $o) => empty($this->getAddressIssues($o)));
+        $skippedCount = $orders->count() - $validOrders->count();
+
+        if ($validOrders->isEmpty()) {
+            return back()->with('error', "All {$orders->count()} order(s) have unresolved address issues. Please correct addresses before exporting.");
+        }
+
+        $orders = $validOrders;
+        $skipWarning = $skippedCount > 0 ? " ({$skippedCount} skipped due to address issues)" : '';
+
         if (! empty($validated['group_by_region'])) {
             $batches = $this->courierExports->createBatchesByRegion($orders, $validated['courier_code'], auth()->id());
             $count = $batches->count();
@@ -2504,14 +3773,14 @@ class ShopController extends Controller
 
             return redirect()
                 ->route('shop.encoder')
-                ->with('success', "Created {$count} batch(es) by region: {$regions}");
+                ->with('success', "Created {$count} batch(es) by region: {$regions}{$skipWarning}");
         }
 
         $batch = $this->courierExports->createBatch($orders, $validated['courier_code'], auth()->id());
 
         return redirect()
             ->route('shop.encoder')
-            ->with('success', "Export batch {$batch->batch_number} created.");
+            ->with('success', "Export batch {$batch->batch_number} created.{$skipWarning}");
     }
 
     public function exportMultipleCouriers(Request $request): RedirectResponse
@@ -2535,6 +3804,16 @@ class ShopController extends Controller
             return back()->with('error', 'No encoder-ready orders found for export.');
         }
 
+        $validOrders = $orders->filter(fn (Order $o) => empty($this->getAddressIssues($o)));
+        $skippedCount = $orders->count() - $validOrders->count();
+
+        if ($validOrders->isEmpty()) {
+            return back()->with('error', "All {$orders->count()} order(s) have unresolved address issues. Please correct addresses before exporting.");
+        }
+
+        $orders = $validOrders;
+        $skipWarning = $skippedCount > 0 ? " ({$skippedCount} skipped due to address issues)" : '';
+
         $batches = $this->courierExports->createBatchesForCouriers($orders, $validated['courier_codes'], auth()->id());
 
         $count = $batches->count();
@@ -2542,19 +3821,20 @@ class ShopController extends Controller
 
         return redirect()
             ->route('shop.encoder')
-            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}");
+            ->with('success', "Created {$count} batch(es) for couriers: {$couriers}{$skipWarning}");
     }
 
     public function archiveCourierBatch(CourierExportBatch $batch): RedirectResponse
     {
-        if (! in_array($batch->status, [CourierExportBatch::STATUS_DOWNLOADED, CourierExportBatch::STATUS_READY])) {
-            return back()->with('error', 'Only ready or downloaded batches can be archived.');
+        if (! $batch->canTransitionTo(CourierExportBatch::STATUS_ARCHIVED)) {
+            return back()->with('error', 'Batch in current status cannot be archived.');
         }
 
-        $batch->forceFill([
-            'status' => CourierExportBatch::STATUS_ARCHIVED,
-            'archived_at' => now(),
-        ])->save();
+        $batch->transitionTo(
+            CourierExportBatch::STATUS_ARCHIVED,
+            'Archived via encoder export',
+            auth()->id(),
+        );
 
         return back()->with('success', "Batch {$batch->batch_number} archived.");
     }
@@ -2586,6 +3866,67 @@ class ShopController extends Controller
         return back()->with('success', "Notes updated for batch {$batch->batch_number}.");
     }
 
+    public function createBatchShare(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $validated = $request->validate([
+            'expires_in_days' => ['required', 'integer', 'in:1,7,30'],
+        ]);
+
+        $share = CourierExportBatchShare::query()->create([
+            'courier_export_batch_id' => $batch->id,
+            'token' => Str::random(64),
+            'created_by' => $request->user()?->id,
+            'expires_at' => now()->addDays($validated['expires_in_days']),
+        ]);
+
+        return response()->json([
+            'url' => route('shop.exports.shared-download', ['token' => $share->token]),
+            'expires_at' => $share->expires_at->toIso8601String(),
+        ], 201);
+    }
+
+    public function sendBatchEmail(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $validated = $request->validate([
+            'recipient_email' => ['required', 'email:rfc'],
+            'custom_message' => ['nullable', 'string', 'max:2000'],
+            'include_share_link' => ['boolean'],
+            'share_expires_in_days' => ['nullable', 'integer', 'in:1,7,30'],
+        ]);
+
+        $shareUrl = null;
+
+        if (! empty($validated['include_share_link'])) {
+            $days = $validated['share_expires_in_days'] ?? 7;
+            $share = CourierExportBatchShare::query()->create([
+                'courier_export_batch_id' => $batch->id,
+                'token' => Str::random(64),
+                'created_by' => $request->user()?->id,
+                'expires_at' => now()->addDays($days),
+            ]);
+            $shareUrl = route('shop.exports.shared-download', ['token' => $share->token]);
+        }
+
+        $senderName = $request->user()?->name ?? 'WarehouseOps System';
+
+        Mail::to($validated['recipient_email'])->send(
+            new CourierExportBatchEmail($batch, $shareUrl, $validated['custom_message'] ?? null, $senderName),
+        );
+
+        return response()->json([
+            'message' => "Batch details emailed to {$validated['recipient_email']}.",
+            'share_url' => $shareUrl,
+        ], 200);
+    }
+
     public function previewBatch(CourierExportBatch $batch): JsonResponse
     {
         $rows = $batch->rows()
@@ -2603,6 +3944,188 @@ class ShopController extends Controller
                 'row_count' => $batch->row_count,
             ],
             'rows' => $rows,
+        ]);
+    }
+
+    public function compareBatch(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $previousBatch = CourierExportBatch::query()
+            ->where('courier_code', $batch->courier_code)
+            ->where('id', '!=', $batch->id)
+            ->where('created_at', '<', $batch->created_at)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $previousBatch) {
+            return response()->json([
+                'current_batch' => [
+                    'id' => $batch->id,
+                    'batch_number' => $batch->batch_number,
+                    'courier_code' => $batch->courier_code,
+                    'row_count' => $batch->row_count,
+                    'created_at' => $batch->created_at?->toIso8601String(),
+                ],
+                'previous_batch' => null,
+                'summary' => ['added' => 0, 'removed' => 0, 'changed' => 0, 'unchanged' => 0],
+                'added' => [],
+                'removed' => [],
+                'changed' => [],
+            ]);
+        }
+
+        $compareFields = [
+            'receiver_name', 'phone_number', 'complete_address',
+            'province', 'city', 'barangay', 'product_name',
+            'cod_amount', 'quantity', 'remarks',
+        ];
+
+        $currentRows = $batch->rows()->orderBy('row_number')->get();
+        $previousRows = $previousBatch->rows()->orderBy('row_number')->get();
+
+        $currentByOrder = $currentRows->keyBy('order_id');
+        $previousByOrder = $previousRows->keyBy('order_id');
+
+        $added = [];
+        $removed = [];
+        $changed = [];
+        $unchanged = 0;
+
+        foreach ($currentByOrder as $orderId => $row) {
+            if (! $previousByOrder->has($orderId)) {
+                $added[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'phone_number' => $row->phone_number,
+                    'complete_address' => $row->complete_address,
+                    'city' => $row->city,
+                    'product_name' => $row->product_name,
+                    'cod_amount' => (string) $row->cod_amount,
+                    'quantity' => $row->quantity,
+                ];
+                continue;
+            }
+
+            $prevRow = $previousByOrder->get($orderId);
+            $changes = [];
+
+            foreach ($compareFields as $field) {
+                $currentVal = (string) ($row->{$field} ?? '');
+                $previousVal = (string) ($prevRow->{$field} ?? '');
+
+                if ($currentVal !== $previousVal) {
+                    $changes[$field] = ['from' => $previousVal, 'to' => $currentVal];
+                }
+            }
+
+            if (! empty($changes)) {
+                $changed[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'changes' => $changes,
+                ];
+            } else {
+                $unchanged++;
+            }
+        }
+
+        foreach ($previousByOrder as $orderId => $row) {
+            if (! $currentByOrder->has($orderId)) {
+                $removed[] = [
+                    'order_id' => $row->order_id,
+                    'row_number' => $row->row_number,
+                    'receiver_name' => $row->receiver_name,
+                    'phone_number' => $row->phone_number,
+                    'complete_address' => $row->complete_address,
+                    'city' => $row->city,
+                    'product_name' => $row->product_name,
+                    'cod_amount' => (string) $row->cod_amount,
+                    'quantity' => $row->quantity,
+                ];
+            }
+        }
+
+        return response()->json([
+            'current_batch' => [
+                'id' => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'courier_code' => $batch->courier_code,
+                'row_count' => $batch->row_count,
+                'created_at' => $batch->created_at?->toIso8601String(),
+            ],
+            'previous_batch' => [
+                'id' => $previousBatch->id,
+                'batch_number' => $previousBatch->batch_number,
+                'courier_code' => $previousBatch->courier_code,
+                'row_count' => $previousBatch->row_count,
+                'created_at' => $previousBatch->created_at?->toIso8601String(),
+            ],
+            'summary' => [
+                'added' => count($added),
+                'removed' => count($removed),
+                'changed' => count($changed),
+                'unchanged' => $unchanged,
+            ],
+            'added' => $added,
+            'removed' => $removed,
+            'changed' => $changed,
+        ]);
+    }
+
+    public function batchStatusHistory(CourierExportBatch $batch): JsonResponse
+    {
+        $history = $batch->statusHistory()
+            ->with('changer:id,name')
+            ->get(['id', 'from_status', 'to_status', 'changed_by', 'notes', 'created_at'])
+            ->map(fn ($h) => [
+                'id'          => $h->id,
+                'from_status' => $h->from_status,
+                'to_status'   => $h->to_status,
+                'from_label'  => CourierExportBatch::STATUS_LABELS[$h->from_status] ?? $h->from_status,
+                'to_label'    => CourierExportBatch::STATUS_LABELS[$h->to_status] ?? $h->to_status,
+                'changed_by'  => $h->changer?->name,
+                'notes'       => $h->notes,
+                'created_at'  => $h->created_at?->toIso8601String(),
+            ]);
+
+        $availableTransitions = CourierExportBatch::STATUS_TRANSITIONS[$batch->status] ?? [];
+
+        return response()->json([
+            'batch' => [
+                'id'           => $batch->id,
+                'batch_number' => $batch->batch_number,
+                'status'       => $batch->status,
+                'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
+            ],
+            'history'               => $history,
+            'available_transitions' => $availableTransitions,
+            'transition_labels'     => collect($availableTransitions)
+                ->mapWithKeys(fn ($s) => [$s => CourierExportBatch::STATUS_LABELS[$s] ?? $s])
+                ->toArray(),
+        ]);
+    }
+
+    public function transitionBatchStatus(Request $request, CourierExportBatch $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'to_status' => ['required', 'string', 'in:' . implode(',', CourierExportBatch::STATUSES)],
+            'notes'     => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if (! $batch->canTransitionTo($validated['to_status'])) {
+            return response()->json([
+                'message' => "Cannot transition from {$batch->status} to {$validated['to_status']}.",
+                'allowed' => CourierExportBatch::STATUS_TRANSITIONS[$batch->status] ?? [],
+            ], 422);
+        }
+
+        $batch->transitionTo($validated['to_status'], $validated['notes'] ?? null);
+
+        return response()->json([
+            'batch_number' => $batch->batch_number,
+            'status'       => $batch->status,
+            'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
         ]);
     }
 
@@ -2658,8 +4181,29 @@ class ShopController extends Controller
         ]);
     }
 
-    public function retryCourierBatch(CourierExportBatch $batch): RedirectResponse
+    public function retryCourierBatch(Request $request, CourierExportBatch $batch): RedirectResponse
     {
+        $mode = $request->input('mode', 'failed');
+
+        if ($mode === 'full') {
+            $totalRows = $batch->rows()->count();
+
+            if ($totalRows === 0) {
+                return back()->with('error', 'No rows to rebuild in this batch.');
+            }
+
+            $this->courierExports->rebuildBatchFull($batch);
+
+            $stillFailed = $batch->fresh()->rows()->where('status', 'failed')->count();
+
+            return back()->with(
+                $stillFailed > 0 ? 'warning' : 'success',
+                $stillFailed > 0
+                    ? 'Full rebuild of ' . $batch->batch_number . ': ' . ($totalRows - $stillFailed) . ' rows OK, ' . $stillFailed . ' still failing.'
+                    : 'Full rebuild of ' . $batch->batch_number . ': all ' . $totalRows . ' rows refreshed successfully.'
+            );
+        }
+
         $failedCount = $batch->rows()->where('status', 'failed')->count();
 
         if ($failedCount === 0) {
@@ -2686,8 +4230,21 @@ class ShopController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'postal_code' => ['nullable', 'string', 'max:30'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'nearest_landmark' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $before = [
+            'receiver_address' => $order->receiver_address,
+            'barangay' => $order->barangay,
+            'city' => $order->city,
+            'state' => $order->state,
+            'postal_code' => $order->postal_code,
+            'landmark' => $order->landmark,
+            'nearest_landmark' => $order->nearest_landmark,
+        ];
+        $confidenceBefore = floatval($order->address_confidence ?? 0);
 
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['state'] ?? null,
@@ -2702,22 +4259,1010 @@ class ShopController extends Controller
             'city' => $validated['city'] ?? null,
             'state' => $validated['state'] ?? null,
             'postal_code' => $validated['postal_code'] ?? null,
+            'landmark' => $validated['landmark'] ?? null,
+            'nearest_landmark' => $validated['nearest_landmark'] ?? null,
             'notes' => $validated['notes'] ?? $order->notes,
             'address_mapping_id' => $addressMatch['mapping']?->id,
             'address_confidence' => $addressMatch['confidence'],
         ])->save();
+
+        AddressCorrectionHistory::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()?->id,
+            'before' => $before,
+            'after' => [
+                'receiver_address' => $order->receiver_address,
+                'barangay' => $order->barangay,
+                'city' => $order->city,
+                'state' => $order->state,
+                'postal_code' => $order->postal_code,
+                'landmark' => $order->landmark,
+                'nearest_landmark' => $order->nearest_landmark,
+            ],
+            'confidence_before' => $confidenceBefore,
+            'confidence_after' => floatval($addressMatch['confidence']),
+            'action' => 'manual_edit',
+        ]);
 
         return back()->with('success', "Address updated for {$order->order_number}.");
     }
 
     public function markEncoded(Order $order): RedirectResponse
     {
+        $issues = $this->getAddressIssues($order);
+
+        if (!empty($issues)) {
+            return back()->with('error', "Cannot encode {$order->order_number}: " . implode(', ', $issues));
+        }
+
         $order->forceFill([
             'encoded_at' => now(),
             'export_status' => 'ready',
         ])->save();
 
         return back()->with('success', "{$order->order_number} marked encoded.");
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getAddressIssues(Order $order): array
+    {
+        $issues = [];
+        if (empty($order->receiver_address)) {
+            $issues[] = 'missing address';
+        }
+        if (empty($order->barangay)) {
+            $issues[] = 'missing barangay';
+        }
+        if (empty($order->city)) {
+            $issues[] = 'missing city';
+        }
+        if (empty($order->state)) {
+            $issues[] = 'missing province';
+        }
+        if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+            $issues[] = 'low address confidence';
+        }
+        if (empty($order->address_mapping_id)) {
+            $issues[] = 'unmapped address';
+        }
+        return $issues;
+    }
+
+    public function validateAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(
+            $this->addressMappings->validate($validated)
+        );
+    }
+
+    public function autocompleteAddress(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'field' => ['required', 'string', 'in:province,city_municipality,barangay'],
+            'q' => ['required', 'string', 'min:1', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(
+            $this->addressMappings->autocomplete($validated)
+        );
+    }
+
+    public function suggestCorrection(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'field' => ['required', 'string', 'in:province,city_municipality,barangay'],
+            'q' => ['required', 'string', 'min:2', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(
+            $this->addressMappings->suggestCorrections($validated)
+        );
+    }
+
+    public function addressValidationReport(): JsonResponse
+    {
+        $orders = Order::query()
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED])
+            ->whereNull('encoded_at')
+            ->limit(500)
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_address', 'barangay', 'city', 'state', 'address_confidence', 'address_mapping_id']);
+
+        $issueCounts = [
+            'missing_address' => 0,
+            'missing_barangay' => 0,
+            'missing_city' => 0,
+            'missing_province' => 0,
+            'low_confidence' => 0,
+            'unmapped' => 0,
+        ];
+
+        $ordersWithIssues = [];
+
+        foreach ($orders as $order) {
+            $issues = $this->getAddressIssues($order);
+            if (empty($issues)) {
+                continue;
+            }
+            foreach ($issues as $issue) {
+                $key = match ($issue) {
+                    'missing address' => 'missing_address',
+                    'missing barangay' => 'missing_barangay',
+                    'missing city' => 'missing_city',
+                    'missing province' => 'missing_province',
+                    'low address confidence' => 'low_confidence',
+                    'unmapped address' => 'unmapped',
+                    default => null,
+                };
+                if ($key) {
+                    $issueCounts[$key]++;
+                }
+            }
+            $ordersWithIssues[] = [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'receiver_name' => $order->receiver_name,
+                'issues' => $issues,
+                'address_confidence' => floatval($order->address_confidence),
+            ];
+        }
+
+        return response()->json([
+            'total_orders' => $orders->count(),
+            'valid_orders' => $orders->count() - count($ordersWithIssues),
+            'orders_with_issues' => count($ordersWithIssues),
+            'issue_summary' => $issueCounts,
+            'orders' => $ordersWithIssues,
+        ]);
+    }
+
+    public function addressCorrectionHistory(Order $order): JsonResponse
+    {
+        $history = AddressCorrectionHistory::query()
+            ->where('order_id', $order->id)
+            ->with('user:id,name')
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(fn (AddressCorrectionHistory $entry) => [
+                'id' => $entry->id,
+                'user' => $entry->user?->name ?? 'System',
+                'before' => $entry->before,
+                'after' => $entry->after,
+                'confidence_before' => $entry->confidence_before,
+                'confidence_after' => $entry->confidence_after,
+                'action' => $entry->action,
+                'created_at' => $entry->created_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['history' => $history]);
+    }
+
+    public function bulkAddressUpdate(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ]);
+
+        $path = $request->file('file')->getRealPath();
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return response()->json(['error' => 'Cannot read file.'], 422);
+        }
+
+        $header = fgetcsv($handle);
+        if ($header === false) {
+            fclose($handle);
+            return response()->json(['error' => 'Empty CSV file.'], 422);
+        }
+
+        $header = array_map(fn ($h) => strtolower(trim($h)), $header);
+        $required = ['order_number'];
+        foreach ($required as $col) {
+            if (!in_array($col, $header, true)) {
+                fclose($handle);
+                return response()->json(['error' => "Missing required column: {$col}"], 422);
+            }
+        }
+
+        $colMap = [];
+        foreach (['order_number', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'landmark', 'nearest_landmark'] as $field) {
+            $idx = array_search($field, $header, true);
+            if ($idx !== false) {
+                $colMap[$field] = $idx;
+            }
+        }
+
+        $updated = 0;
+        $skipped = 0;
+        $errors = [];
+        $lineNum = 1;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $lineNum++;
+            $orderNumber = trim($row[$colMap['order_number']] ?? '');
+            if ($orderNumber === '') {
+                $errors[] = "Line {$lineNum}: missing order_number";
+                $skipped++;
+                continue;
+            }
+
+            $order = Order::query()->where('order_number', $orderNumber)->first();
+            if (!$order) {
+                $errors[] = "Line {$lineNum}: order {$orderNumber} not found";
+                $skipped++;
+                continue;
+            }
+
+            $before = [
+                'receiver_address' => $order->receiver_address,
+                'barangay' => $order->barangay,
+                'city' => $order->city,
+                'state' => $order->state,
+                'postal_code' => $order->postal_code,
+                'landmark' => $order->landmark,
+                'nearest_landmark' => $order->nearest_landmark,
+            ];
+            $confidenceBefore = floatval($order->address_confidence ?? 0);
+
+            $changed = false;
+            foreach ($colMap as $field => $idx) {
+                if ($field === 'order_number') continue;
+                $value = trim($row[$idx] ?? '');
+                if ($value !== '' && $value !== $order->{$field}) {
+                    $order->{$field} = $value;
+                    $changed = true;
+                }
+            }
+
+            if (!$changed) {
+                $skipped++;
+                continue;
+            }
+
+            $addressMatch = $this->addressMappings->match([
+                'province' => $order->state,
+                'city_municipality' => $order->city,
+                'barangay' => $order->barangay,
+                'address' => $order->receiver_address,
+            ]);
+
+            $order->address_mapping_id = $addressMatch['mapping']?->id;
+            $order->address_confidence = $addressMatch['confidence'];
+            $order->save();
+
+            AddressCorrectionHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $request->user()?->id,
+                'before' => $before,
+                'after' => [
+                    'receiver_address' => $order->receiver_address,
+                    'barangay' => $order->barangay,
+                    'city' => $order->city,
+                    'state' => $order->state,
+                    'postal_code' => $order->postal_code,
+                    'landmark' => $order->landmark,
+                    'nearest_landmark' => $order->nearest_landmark,
+                ],
+                'confidence_before' => $confidenceBefore,
+                'confidence_after' => floatval($addressMatch['confidence']),
+                'action' => 'bulk_csv',
+            ]);
+
+            $updated++;
+        }
+
+        fclose($handle);
+
+        return response()->json([
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ]);
+    }
+
+    public function geocodeAddress(Request $request, Order $order): JsonResponse
+    {
+        $fullAddress = trim(($order->receiver_address ?? '') . ', ' . ($order->barangay ?? '') . ', ' . ($order->city ?? '') . ', ' . ($order->state ?? ''));
+
+        $result = $this->geocoder->geocode($fullAddress);
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not geocode this address. Please check the address fields.',
+            ]);
+        }
+
+        $order->forceFill([
+            'latitude' => $result['latitude'],
+            'longitude' => $result['longitude'],
+        ])->save();
+
+        $suggestions = [];
+        foreach ($result['components'] as $field => $value) {
+            if ($value !== null && $value !== '') {
+                $current = match ($field) {
+                    'province' => $order->state,
+                    'city_municipality' => $order->city,
+                    'barangay' => $order->barangay,
+                    'postal_code' => $order->postal_code,
+                    default => null,
+                };
+                if (!$current || strtolower(trim($current)) !== strtolower(trim($value))) {
+                    $suggestions[$field] = $value;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'latitude' => $result['latitude'],
+            'longitude' => $result['longitude'],
+            'display_name' => $result['display_name'],
+            'suggestions' => $suggestions,
+        ]);
+    }
+
+    public function suggestPreviousAddress(Order $order): JsonResponse
+    {
+        $phone = $order->receiver_phone ? $this->phones->normalize($order->receiver_phone) : null;
+
+        if (!$phone) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $previous = Order::query()
+            ->where('receiver_phone', $phone)
+            ->where('id', '!=', $order->id)
+            ->whereNotNull('receiver_address')
+            ->where('receiver_address', '!=', '')
+            ->whereIn('status', [
+                \App\Domain\Order\Enums\OrderStatus::CONFIRMED,
+                \App\Domain\Order\Enums\OrderStatus::QA_APPROVED,
+                \App\Domain\Order\Enums\OrderStatus::DISPATCHED,
+                \App\Domain\Order\Enums\OrderStatus::DELIVERED,
+            ])
+            ->latest()
+            ->limit(20)
+            ->get([
+                'id',
+                'order_number',
+                'receiver_address',
+                'barangay',
+                'city',
+                'state',
+                'postal_code',
+                'landmark',
+                'nearest_landmark',
+                'created_at',
+            ]);
+
+        $seen = [];
+        $suggestions = [];
+
+        foreach ($previous as $prev) {
+            $key = md5(
+                ($prev->receiver_address ?? '') . '|' .
+                ($prev->barangay ?? '') . '|' .
+                ($prev->city ?? '') . '|' .
+                ($prev->state ?? '')
+            );
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $suggestions[] = [
+                'order_number' => $prev->order_number,
+                'receiver_address' => $prev->receiver_address,
+                'barangay' => $prev->barangay,
+                'city' => $prev->city,
+                'state' => $prev->state,
+                'postal_code' => $prev->postal_code,
+                'landmark' => $prev->landmark,
+                'nearest_landmark' => $prev->nearest_landmark,
+                'created_at' => $prev->created_at?->toIso8601String(),
+            ];
+
+            if (count($suggestions) >= 5) {
+                break;
+            }
+        }
+
+        return response()->json(['suggestions' => $suggestions]);
+    }
+
+    public function formatAddressByCourier(Request $request, Order $order): JsonResponse
+    {
+        $courierCode = $request->query('courier', $order->courier_code ?? 'GENERIC');
+
+        $result = $this->addressFormatter->formatForCourier($order, $courierCode);
+
+        return response()->json($result);
+    }
+
+    public function addressValidationAnalytics(): JsonResponse
+    {
+        $orders = Order::query()
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::DISPATCHED, OrderStatus::DELIVERED])
+            ->limit(1000)
+            ->get(['id', 'order_number', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'address_confidence', 'address_mapping_id', 'latitude', 'longitude', 'encoded_at']);
+
+        $total = $orders->count();
+
+        // Confidence distribution
+        $confidenceBuckets = ['0-25' => 0, '26-50' => 0, '51-75' => 0, '76-90' => 0, '91-100' => 0];
+        $confidenceSum = 0;
+        $confidenceCount = 0;
+
+        // Issue counts
+        $issueCounts = [
+            'missing_address' => 0,
+            'missing_barangay' => 0,
+            'missing_city' => 0,
+            'missing_province' => 0,
+            'low_confidence' => 0,
+            'unmapped' => 0,
+        ];
+
+        // Geocoding coverage
+        $geocoded = 0;
+        $notGeocoded = 0;
+
+        // Encoding status
+        $encoded = 0;
+        $notEncoded = 0;
+
+        foreach ($orders as $order) {
+            $confidence = floatval($order->address_confidence ?? 0);
+            $confidenceSum += $confidence;
+            $confidenceCount++;
+
+            if ($confidence <= 25) $confidenceBuckets['0-25']++;
+            elseif ($confidence <= 50) $confidenceBuckets['26-50']++;
+            elseif ($confidence <= 75) $confidenceBuckets['51-75']++;
+            elseif ($confidence <= 90) $confidenceBuckets['76-90']++;
+            else $confidenceBuckets['91-100']++;
+
+            $issues = $this->getAddressIssues($order);
+            foreach ($issues as $issue) {
+                $key = match ($issue) {
+                    'missing address' => 'missing_address',
+                    'missing barangay' => 'missing_barangay',
+                    'missing city' => 'missing_city',
+                    'missing province' => 'missing_province',
+                    'low address confidence' => 'low_confidence',
+                    'unmapped address' => 'unmapped',
+                    default => null,
+                };
+                if ($key) $issueCounts[$key]++;
+            }
+
+            if ($order->latitude !== null && $order->longitude !== null) {
+                $geocoded++;
+            } else {
+                $notGeocoded++;
+            }
+
+            if ($order->encoded_at !== null) {
+                $encoded++;
+            } else {
+                $notEncoded++;
+            }
+        }
+
+        // Correction history stats
+        $totalCorrections = AddressCorrectionHistory::query()->count();
+        $correctionsByAction = AddressCorrectionHistory::query()
+            ->selectRaw('action, COUNT(*) as count')
+            ->groupBy('action')
+            ->pluck('count', 'action')
+            ->toArray();
+
+        $avgConfidenceBefore = (float) AddressCorrectionHistory::query()->avg('confidence_before');
+        $avgConfidenceAfter = (float) AddressCorrectionHistory::query()->avg('confidence_after');
+
+        // Top provinces with issues
+        $provinceStats = $orders
+            ->filter(fn ($o) => !empty($this->getAddressIssues($o)))
+            ->groupBy(fn ($o) => $o->state ?? 'Unknown')
+            ->map(fn ($group) => $group->count())
+            ->sortDesc()
+            ->take(10)
+            ->toArray();
+
+        return response()->json([
+            'total_orders' => $total,
+            'avg_confidence' => $confidenceCount > 0 ? round($confidenceSum / $confidenceCount, 2) : 0,
+            'confidence_distribution' => $confidenceBuckets,
+            'issue_summary' => $issueCounts,
+            'orders_with_issues' => $orders->filter(fn ($o) => !empty($this->getAddressIssues($o)))->count(),
+            'orders_valid' => $orders->filter(fn ($o) => empty($this->getAddressIssues($o)))->count(),
+            'geocoding' => [
+                'geocoded' => $geocoded,
+                'not_geocoded' => $notGeocoded,
+                'coverage_pct' => $total > 0 ? round(($geocoded / $total) * 100, 1) : 0,
+            ],
+            'encoding' => [
+                'encoded' => $encoded,
+                'not_encoded' => $notEncoded,
+            ],
+            'corrections' => [
+                'total' => $totalCorrections,
+                'by_action' => $correctionsByAction,
+                'avg_confidence_before' => round($avgConfidenceBefore, 2),
+                'avg_confidence_after' => round($avgConfidenceAfter, 2),
+                'avg_improvement' => round($avgConfidenceAfter - $avgConfidenceBefore, 2),
+            ],
+            'top_provinces_with_issues' => $provinceStats,
+        ]);
+    }
+
+    public function bulkStatusUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'status'      => ['required', 'string', 'in:CONFIRMED,QA_APPROVED,QA_PENDING,QA_REJECTED,CANCELLED,DISPATCHED,DELIVERED,RETURNED'],
+            'reason'      => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $status = OrderStatus::from($validated['status']);
+        $reason = $validated['reason'] ?? null;
+        $updated = 0;
+        $skipped = [];
+        $now = now();
+
+        foreach ($validated['order_ids'] as $orderId) {
+            $order = Order::query()->find($orderId);
+            if (! $order) {
+                $skipped[] = "Order #{$orderId} not found";
+                continue;
+            }
+
+            if ($order->status->isTerminal()) {
+                $skipped[] = "{$order->order_number} is terminal ({$order->status->label()})";
+                continue;
+            }
+
+            $updateData = ['status' => $status];
+
+            if ($status === OrderStatus::CONFIRMED && ! $order->confirmed_at) {
+                $updateData['confirmed_at'] = $now;
+            }
+            if ($status === OrderStatus::DISPATCHED && ! $order->dispatched_at) {
+                $updateData['dispatched_at'] = $now;
+            }
+            if ($status === OrderStatus::DELIVERED && ! $order->delivered_at) {
+                $updateData['delivered_at'] = $now;
+            }
+            if ($status === OrderStatus::RETURNED && ! $order->returned_at) {
+                $updateData['returned_at'] = $now;
+            }
+            if ($status === OrderStatus::QA_REJECTED && $reason) {
+                $updateData['rejection_reason'] = $reason;
+            }
+
+            $order->forceFill($updateData)->save();
+            $updated++;
+        }
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => count($skipped),
+            'errors'   => $skipped,
+        ]);
+    }
+
+    public function bulkAssignEncoder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'encoder_id'  => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $updated = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->update(['encoder_id' => $validated['encoder_id']]);
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => 0,
+            'errors'   => [],
+        ]);
+    }
+
+    public function bulkPrintLabels(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'receiver_address', 'barangay', 'city', 'state', 'postal_code', 'courier_code', 'cod_amount', 'total_amount', 'quantity', 'product_id'])
+            ->load('product:id,name,sku');
+
+        $labels = $orders->map(fn (Order $order) => [
+            'order_number'   => $order->order_number,
+            'receiver_name'  => $order->receiver_name,
+            'receiver_phone' => $order->receiver_phone,
+            'address_line'   => trim(
+                implode(', ', array_filter([
+                    $order->receiver_address,
+                    $order->barangay,
+                    $order->city,
+                    $order->state,
+                    $order->postal_code,
+                ]))
+            ),
+            'courier_code'   => $order->courier_code ?? 'MANUAL',
+            'cod_amount'     => (float) $order->cod_amount,
+            'quantity'       => $order->quantity,
+            'product_name'   => $order->product?->name ?? 'N/A',
+        ]);
+
+        return response()->json([
+            'labels' => $labels,
+            'count'  => $labels->count(),
+        ]);
+    }
+
+    public function bulkCodVerify(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'total_amount', 'cod_amount', 'shipping_cost', 'discount_amount', 'tax_amount', 'quantity', 'unit_price']);
+
+        $items = $orders->map(fn (Order $order) => [
+            'id'              => $order->id,
+            'order_number'    => $order->order_number,
+            'receiver_name'   => $order->receiver_name,
+            'quantity'        => $order->quantity,
+            'unit_price'      => (float) $order->unit_price,
+            'subtotal'        => (float) $order->unit_price * $order->quantity,
+            'shipping_cost'   => (float) ($order->shipping_cost ?? 0),
+            'discount_amount' => (float) ($order->discount_amount ?? 0),
+            'tax_amount'      => (float) ($order->tax_amount ?? 0),
+            'expected_cod'    => round((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0), 2),
+            'actual_cod'      => (float) $order->cod_amount,
+            'discrepancy'     => round((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0)), 2),
+            'is_correct'      => abs((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0))) < 0.01,
+        ]);
+
+        $correct = $items->filter(fn ($item) => $item['is_correct'])->count();
+        $discrepant = $items->count() - $correct;
+
+        return response()->json([
+            'items'       => $items,
+            'total'        => $items->count(),
+            'correct'      => $correct,
+            'discrepant'   => $discrepant,
+            'total_discrepancy' => round($items->sum(fn ($item) => $item['discrepancy']), 2),
+        ]);
+    }
+
+    public function bulkCodUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'updates'             => ['required', 'array', 'min:1'],
+            'updates.*.order_id'  => ['required', 'integer', 'exists:orders,id'],
+            'updates.*.cod_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $updated = 0;
+        $errors = [];
+
+        foreach ($validated['updates'] as $update) {
+            $order = Order::query()->find($update['order_id']);
+            if (! $order) {
+                $errors[] = "Order #{$update['order_id']} not found";
+                continue;
+            }
+            $order->forceFill(['cod_amount' => $update['cod_amount']])->save();
+            $updated++;
+        }
+
+        return response()->json([
+            'updated' => $updated,
+            'errors'  => $errors,
+        ]);
+    }
+
+    public function bulkDuplicateDetect(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->with('product:id,name,sku')
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'receiver_address', 'product_id', 'quantity', 'total_amount', 'cod_amount', 'status', 'created_at']);
+
+        // Group by normalized phone + product_id
+        $byPhoneProduct = $orders->groupBy(function (Order $order) {
+            $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
+            return $phone . '|' . $order->product_id;
+        })->filter(fn ($group) => $group->count() > 1);
+
+        // Group by normalized phone + address (first 50 chars)
+        $byPhoneAddress = $orders->groupBy(function (Order $order) {
+            $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
+            return $phone . '|' . substr(strtolower(trim($order->receiver_address ?? '')), 0, 50);
+        })->filter(fn ($group) => $group->count() > 1);
+
+        // Merge groups, deduplicate by order ID set
+        $seenKeys = [];
+        $groups = [];
+
+        foreach ($byPhoneProduct as $key => $group) {
+            $orderIds = $group->pluck('id')->sort()->values()->all();
+            $groupKey = implode(',', $orderIds);
+            if (isset($seenKeys[$groupKey])) {
+                continue;
+            }
+            $seenKeys[$groupKey] = true;
+            $groups[] = [
+                'match_type'  => 'phone+product',
+                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'product'     => $group->first()->product?->only(['id', 'name', 'sku']),
+                'order_count' => $group->count(),
+                'orders'      => $group->map(fn (Order $o) => [
+                    'id'            => $o->id,
+                    'order_number'  => $o->order_number,
+                    'receiver_name' => $o->receiver_name,
+                    'receiver_phone'=> $o->receiver_phone,
+                    'quantity'      => $o->quantity,
+                    'total_amount'  => (float) $o->total_amount,
+                    'cod_amount'    => (float) $o->cod_amount,
+                    'status'        => $o->status->value,
+                    'created_at'    => $o->created_at?->toIso8601String(),
+                ])->values()->all(),
+            ];
+        }
+
+        foreach ($byPhoneAddress as $key => $group) {
+            $orderIds = $group->pluck('id')->sort()->values()->all();
+            $groupKey = implode(',', $orderIds);
+            if (isset($seenKeys[$groupKey])) {
+                continue;
+            }
+            $seenKeys[$groupKey] = true;
+            $groups[] = [
+                'match_type'  => 'phone+address',
+                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'address'     => substr($group->first()->receiver_address ?? '', 0, 80),
+                'order_count' => $group->count(),
+                'orders'      => $group->map(fn (Order $o) => [
+                    'id'            => $o->id,
+                    'order_number'  => $o->order_number,
+                    'receiver_name' => $o->receiver_name,
+                    'receiver_phone'=> $o->receiver_phone,
+                    'quantity'      => $o->quantity,
+                    'total_amount'  => (float) $o->total_amount,
+                    'cod_amount'    => (float) $o->cod_amount,
+                    'status'        => $o->status->value,
+                    'created_at'    => $o->created_at?->toIso8601String(),
+                ])->values()->all(),
+            ];
+        }
+
+        $ordersInGroups = collect($groups)->flatMap(fn ($g) => array_column($g['orders'], 'id'))->unique()->count();
+
+        return response()->json([
+            'groups'           => $groups,
+            'group_count'      => count($groups),
+            'orders_in_groups' => $ordersInGroups,
+            'total_checked'    => $orders->count(),
+            'unique_orders'    => $orders->count() - $ordersInGroups,
+        ]);
+    }
+
+    public function bulkHoldRelease(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'action'      => ['required', 'string', 'in:hold,release'],
+            'reason'      => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereIn('status', [OrderStatus::CONFIRMED, OrderStatus::QA_APPROVED, OrderStatus::ON_HOLD])
+            ->get();
+
+        $held = 0;
+        $released = 0;
+        $skipped = 0;
+
+        foreach ($orders as $order) {
+            if ($validated['action'] === 'hold' && ! $order->status->isTerminal() && $order->status !== OrderStatus::ON_HOLD) {
+                $order->forceFill([
+                    'status'      => OrderStatus::ON_HOLD,
+                    'held_at'     => now(),
+                    'hold_reason' => $validated['reason'] ?? null,
+                ])->save();
+                $held++;
+            } elseif ($validated['action'] === 'release' && $order->status === OrderStatus::ON_HOLD) {
+                $order->forceFill([
+                    'status'      => OrderStatus::CONFIRMED,
+                    'held_at'     => null,
+                    'hold_reason' => null,
+                ])->save();
+                $released++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        return response()->json([
+            'held'    => $held,
+            'released'=> $released,
+            'skipped' => $skipped,
+            'errors'  => [],
+        ]);
+    }
+
+    public function bulkTagUpdate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+            'tag_ids'     => ['nullable', 'array'],
+            'tag_ids.*'   => ['integer', 'exists:tags,id'],
+            'mode'        => ['required', 'string', 'in:add,replace,remove'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id']);
+
+        $tagIds = $validated['tag_ids'] ?? [];
+        $affected = 0;
+
+        foreach ($orders as $order) {
+            if ($validated['mode'] === 'add') {
+                $order->tags()->syncWithoutDetaching($tagIds);
+            } elseif ($validated['mode'] === 'replace') {
+                $order->tags()->sync($tagIds);
+            } elseif ($validated['mode'] === 'remove') {
+                $order->tags()->detach($tagIds);
+            }
+            $affected++;
+        }
+
+        return response()->json([
+            'updated'  => $affected,
+            'mode'     => $validated['mode'],
+            'tag_count'=> count($tagIds),
+            'errors'   => [],
+        ]);
+    }
+
+    public function bulkSplitByRegion(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get(['id', 'order_number', 'receiver_name', 'receiver_phone', 'state', 'city', 'barangay', 'courier_code', 'status', 'quantity', 'total_amount', 'cod_amount', 'created_at']);
+
+        $groups = $orders->groupBy(fn (Order $order) => $order->state ?: 'Unspecified')->map(function ($orders, $region) {
+            return [
+                'region'      => $region,
+                'order_count' => $orders->count(),
+                'total_amount'=> $orders->sum('total_amount'),
+                'cod_amount'  => $orders->sum('cod_amount'),
+                'couriers'    => $orders->pluck('courier_code')->filter()->unique()->values()->toArray(),
+                'orders'      => $orders->map(fn (Order $order) => [
+                    'id'             => $order->id,
+                    'order_number'   => $order->order_number,
+                    'receiver_name'  => $order->receiver_name,
+                    'receiver_phone' => $order->receiver_phone,
+                    'city'           => $order->city,
+                    'barangay'       => $order->barangay,
+                    'courier_code'   => $order->courier_code,
+                    'status'         => $order->status->value,
+                    'quantity'       => $order->quantity,
+                    'total_amount'   => (float) $order->total_amount,
+                    'cod_amount'     => (float) $order->cod_amount,
+                    'created_at'     => $order->created_at?->toIso8601String(),
+                ])->values()->toArray(),
+            ];
+        })->values()->toArray();
+
+        usort($groups, fn ($a, $b) => $b['order_count'] <=> $a['order_count']);
+
+        return response()->json([
+            'groups'        => $groups,
+            'region_count'  => count($groups),
+            'total_orders'  => $orders->count(),
+        ]);
+    }
+
+    public function bulkRescheduleDelivery(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids'             => ['required', 'array', 'min:1'],
+            'order_ids.*'           => ['required', 'integer', 'exists:orders,id'],
+            'scheduled_delivery_at' => ['required', 'date', 'after:now'],
+            'reason'                => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereNotIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED, OrderStatus::CANCELLED])
+            ->get(['id']);
+
+        $updated = 0;
+        foreach ($orders as $order) {
+            $order->forceFill([
+                'scheduled_delivery_at' => $validated['scheduled_delivery_at'],
+                'reschedule_reason'     => $validated['reason'] ?? null,
+            ])->save();
+            $updated++;
+        }
+
+        $skipped = count($validated['order_ids']) - $updated;
+
+        return response()->json([
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'errors'   => [],
+        ]);
+    }
+
+    public function bulkArchive(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $orders = Order::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->whereIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED, OrderStatus::CANCELLED])
+            ->get(['id']);
+
+        $archived = 0;
+        foreach ($orders as $order) {
+            $order->delete();
+            $archived++;
+        }
+
+        $skipped = count($validated['order_ids']) - $archived;
+
+        return response()->json([
+            'archived' => $archived,
+            'skipped'  => $skipped,
+            'errors'   => [],
+        ]);
     }
 
     public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
@@ -2727,13 +5272,39 @@ class ShopController extends Controller
         }
 
         if ($batch->status === CourierExportBatch::STATUS_READY) {
-            $batch->forceFill([
-                'status' => CourierExportBatch::STATUS_DOWNLOADED,
-                'downloaded_at' => now(),
-            ])->save();
+            $batch->transitionTo(
+                CourierExportBatch::STATUS_DOWNLOADED,
+                'Downloaded via encoder export',
+                auth()->id(),
+            );
         }
 
-        $filename = $batch->batch_number . '.csv';
+        $timestamp = now()->format('Y-m-d_His');
+        $courier = strtoupper($batch->courier_code);
+        $filename = "{$batch->batch_number}_{$courier}_{$timestamp}.csv";
+
+        return Storage::disk('local')->download($batch->file_path, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    public function downloadSharedExport(string $token): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $share = CourierExportBatchShare::query()
+            ->with('batch')
+            ->where('token', $token)
+            ->firstOrFail();
+
+        abort_unless($share->isActive(), 410, 'This shared export link has expired or was revoked.');
+
+        $batch = $share->batch;
+
+        if (! $batch || ! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
+            abort(404, 'Export file not found.');
+        }
+
+        $courier = strtoupper($batch->courier_code);
+        $filename = "{$batch->batch_number}_{$courier}.csv";
 
         return Storage::disk('local')->download($batch->file_path, $filename, [
             'Content-Type' => 'text/csv',
@@ -3134,45 +5705,40 @@ class ShopController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'product_ids' => ['nullable', 'array'],
             'product_ids.*' => ['integer'],
+            'exclude_order_id' => ['nullable', 'integer'],
         ]);
 
         $phone = $validated['phone'] ?? '';
         $productIds = $validated['product_ids'] ?? [];
 
-        $normalizedPhone = $this->phones->normalize($phone);
-        if (! $normalizedPhone) {
-            return response()->json(['duplicates' => []]);
-        }
-
-        $query = Order::query()
-            ->with('product:id,name,sku')
-            ->where('receiver_phone', $normalizedPhone)
-            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
-            ->where('created_at', '>=', now()->subDays(30))
-            ->where('status', '!=', OrderStatus::DRAFT)
-            ->latest()
-            ->limit(10);
-
-        if (! empty($productIds)) {
-            $query->where(function ($q) use ($productIds) {
-                $q->whereIn('product_id', $productIds)
-                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
-                        $sq->whereIn('product_id', $productIds);
-                    });
-            });
-        }
-
-        $duplicates = $query->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at'])
-            ->map(fn ($o) => [
-                'id' => $o->id,
-                'order_number' => $o->order_number,
-                'status' => $o->status->value,
-                'total_amount' => (float) $o->total_amount,
-                'created_at' => $o->created_at?->toIso8601String(),
-                'product' => $o->product?->only(['id', 'name', 'sku']),
+        if (empty($phone) || empty($productIds)) {
+            return response()->json([
+                'duplicates' => [],
+                'duplicate_check' => [
+                    'is_duplicate' => false,
+                    'severity' => 'none',
+                    'duplicate_count' => 0,
+                    'time_window_hours' => 72,
+                ],
             ]);
+        }
 
-        return response()->json(['duplicates' => $duplicates]);
+        $result = $this->duplicateDetection->detectDuplicateOrders(
+            $phone,
+            $productIds,
+            null,
+            isset($validated['exclude_order_id']) ? (int) $validated['exclude_order_id'] : null,
+        );
+
+        return response()->json([
+            'duplicates' => $result['duplicates'],
+            'duplicate_check' => [
+                'is_duplicate' => $result['is_duplicate'],
+                'severity' => $result['severity'],
+                'duplicate_count' => $result['duplicate_count'],
+                'time_window_hours' => $result['time_window_hours'],
+            ],
+        ]);
     }
 
     public function calculateShipping(Request $request): JsonResponse
@@ -3204,6 +5770,113 @@ class ShopController extends Controller
         ]);
     }
 
+    public function orders(Request $request): Response
+    {
+        $query = Order::query()
+            ->with([
+                'customer:id,name,phone,normalized_phone',
+                'shopItems:id,order_id,product_name,quantity',
+                'agent:id,name',
+            ])
+            ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $search = $request->string('q')->toString();
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('order_number', 'like', "%{$search}%")
+                        ->orWhere('receiver_name', 'like', "%{$search}%")
+                        ->orWhere('receiver_phone', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('status'), function ($q) use ($request) {
+                $q->where('status', $request->string('status')->toString());
+            })
+            ->when($request->filled('remark_q'), function ($q) use ($request) {
+                $search = $request->string('remark_q')->toString();
+                $q->whereHas('remarks', function ($sub) use ($search) {
+                    $sub->where('body', 'like', "%{$search}%");
+                });
+            })
+            ->when($request->filled('remark_type'), function ($q) use ($request) {
+                $type = $request->string('remark_type')->toString();
+                $q->whereHas('remarks', function ($sub) use ($type) {
+                    $sub->where('type', $type);
+                });
+            })
+            ->when($request->filled('remark_author'), function ($q) use ($request) {
+                $authorId = (int) $request->string('remark_author')->toString();
+                $q->whereHas('remarks', function ($sub) use ($authorId) {
+                    $sub->where('user_id', $authorId);
+                });
+            })
+            ->when($request->filled('remark_tag'), function ($q) use ($request) {
+                $tag = $request->string('remark_tag')->toString();
+                $q->whereHas('remarks', function ($sub) use ($tag) {
+                    $sub->whereJsonContains('tags', $tag);
+                });
+            })
+            ->latest();
+
+        $orders = $query->paginate(25)->withQueryString();
+
+        $remarkAuthors = OrderRemark::query()
+            ->select('user_id')
+            ->distinct()
+            ->with('user:id,name')
+            ->whereHas('order', function ($q) {
+                $q->whereIn('source_channel', ['manual_shop', 'facebook_shop']);
+            })
+            ->get()
+            ->pluck('user.name', 'user.id')
+            ->filter()
+            ->toArray();
+
+        $remarkTags = OrderRemark::query()
+            ->whereNotNull('tags')
+            ->whereHas('order', function ($q) {
+                $q->whereIn('source_channel', ['manual_shop', 'facebook_shop']);
+            })
+            ->pluck('tags')
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        return Inertia::render('Shop/Orders/Index', [
+            'orders' => $orders,
+            'filters' => $request->only(['q', 'status', 'remark_q', 'remark_type', 'remark_author', 'remark_tag']),
+            'remarkAuthors' => $remarkAuthors,
+            'remarkTags' => $remarkTags,
+        ]);
+    }
+
+    public function order(Request $request, Order $order): Response
+    {
+        $order->load([
+            'customer:id,name,phone,normalized_phone,risk_level,is_blacklisted,canonical_address,barangay,city_municipality,province',
+            'shopItems.product:id,name,sku',
+            'shopItems.variant:id,product_id,sku,variant_name',
+            'agent:id,name',
+            'remarks' => fn ($q) => $q->whereNull('parent_id')->orderByDesc('is_pinned')->orderBy('created_at'),
+            'remarks.replies.user:id,name',
+            'remarks.user:id,name',
+            'remarks.pinnedBy:id,name',
+        ]);
+
+        return Inertia::render('Shop/Orders/Show', [
+            'order' => $order,
+            'remarkTemplates' => RemarkTemplate::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'body', 'type', 'visibility']),
+            'mentionableUsers' => User::query()
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'role']),
+        ]);
+    }
+
     public function createOrder(Request $request): Response
     {
         $conversation = null;
@@ -3211,8 +5884,8 @@ class ShopController extends Controller
         if ($request->filled('conversation_id')) {
             $conversation = Conversation::query()
                 ->with([
-                    'facebookPage:id,page_name,page_id',
-                    'customer:id,name,phone,normalized_phone,canonical_address',
+                    'facebookPage:id,page_name,page_id,default_courier',
+                    'customer:id,name,phone,normalized_phone,canonical_address,preferred_courier',
                     'identity:id,display_name,provider_user_id,phone_detected',
                     'messages' => fn ($query) => $query->latest('sent_at')->limit(5),
                 ])
@@ -3257,6 +5930,11 @@ class ShopController extends Controller
                     ?? $conversation->customer?->phone
                     ?? $conversation->identity?->phone_detected
                     ?? '',
+                'normalized_phone' => $conversation->customer?->normalized_phone
+                    ?? ($conversation->customer?->phone ? null : null),
+                'customer_id' => $conversation->customer?->id,
+                'customer_risk_level' => $conversation->customer?->risk_level,
+                'customer_is_blacklisted' => (bool) $conversation->customer?->is_blacklisted,
                 'complete_address' => $request->filled('complete_address')
                     ? $request->string('complete_address')->toString()
                     : ($conversation->customer?->canonical_address ?? ''),
@@ -3277,12 +5955,29 @@ class ShopController extends Controller
                     $conversation->facebookPage ? "Page: {$conversation->facebookPage->page_name}" : null,
                     $conversation->last_message_preview ? "Last message: {$conversation->last_message_preview}" : null,
                 ]))),
+                'courier_code' => $conversation->facebookPage?->default_courier
+                    ?: $conversation->customer?->preferred_courier
+                    ?: 'MANUAL',
             ] : null,
             'duplicate_warnings' => $this->duplicateWarningsForPhone(
                 $conversation?->customer?->normalized_phone
                     ?? $conversation?->customer?->phone
                     ?? $conversation?->identity?->phone_detected
             ),
+            'duplicate_check' => ($conversation?->customer?->normalized_phone ?? $conversation?->customer?->phone ?? $conversation?->identity?->phone_detected)
+                ? $this->duplicateDetection->checkRecentOrdersByPhone(
+                    $conversation->customer?->normalized_phone
+                        ?? $conversation->customer?->phone
+                        ?? $conversation->identity?->phone_detected
+                )
+                : null,
+            'duplicate_conversations' => $conversation?->identity?->provider_user_id
+                ? $this->duplicateDetection->detectDuplicateConversationsByPsid(
+                    $conversation->identity->provider_user_id,
+                    $conversation->facebook_page_id,
+                    $conversation->id,
+                )
+                : null,
             'drafts' => Order::query()
                 ->where('status', OrderStatus::DRAFT)
                 ->where('assigned_agent_id', auth()->id())
@@ -3298,6 +5993,316 @@ class ShopController extends Controller
                     'items_count' => isset($o->draft_data['items']) ? count($o->draft_data['items']) : 0,
                 ]),
         ]);
+    }
+
+    public function editOrder(Request $request, Order $order): Response
+    {
+        $order->load(['shopItems.product.activeVariants', 'shopItems.variant', 'customer:id,normalized_phone,risk_level,is_blacklisted']);
+
+        $prefill = [
+            'conversation_id' => $order->conversation_id ? (string) $order->conversation_id : '',
+            'customer_name' => $order->receiver_name ?? '',
+            'phone' => $order->receiver_phone ?? '',
+            'normalized_phone' => $order->customer?->normalized_phone,
+            'customer_id' => $order->customer?->id,
+            'customer_risk_level' => $order->customer?->risk_level,
+            'customer_is_blacklisted' => (bool) $order->customer?->is_blacklisted,
+            'complete_address' => $order->receiver_address ?? '',
+            'barangay' => $order->barangay ?? '',
+            'city_municipality' => $order->city ?? '',
+            'province' => $order->state ?? '',
+            'courier_code' => $order->courier_code ?? 'MANUAL',
+            'shipping_fee' => (string) ($order->shipping_cost ?? 0),
+            'discount_amount' => (string) ($order->discount_amount ?? 0),
+            'tax_rate' => (string) ($order->tax_rate ?? 0),
+            'cod_amount' => (string) ($order->cod_amount ?? 0),
+            'remarks' => $order->remarks ?? $order->notes ?? '',
+            'items' => $order->shopItems->map(fn ($item) => [
+                'product_id' => (string) $item->product_id,
+                'variant_id' => $item->variant_id ? (string) $item->variant_id : '',
+                'quantity' => (string) $item->quantity,
+                'unit_price' => (string) $item->unit_price,
+                'discount_amount' => (string) ($item->discount_amount ?? 0),
+            ])->toArray(),
+        ];
+
+        return Inertia::render('Shop/CreateOrder', [
+            'products' => Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'sku', 'name', 'selling_price'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'sku' => $p->sku,
+                    'name' => $p->name,
+                    'selling_price' => $p->selling_price,
+                    'available_stock' => $p->available_stock,
+                    'active_variants' => $p->activeVariants->map(fn ($v) => [
+                        'id' => $v->id,
+                        'sku' => $v->sku,
+                        'variant_name' => $v->variant_name,
+                        'selling_price' => $v->selling_price,
+                        'available_stock' => $v->stock?->available_stock ?? 0,
+                    ])->values(),
+                ]),
+            'couriers' => [
+                ['value' => 'MANUAL', 'label' => 'Manual'],
+                ['value' => 'JNT', 'label' => 'J&T Express'],
+                ['value' => 'FLASH', 'label' => 'Flash Express'],
+            ],
+            'prefill' => $prefill,
+            'edit_order_id' => $order->id,
+            'edit_order_number' => $order->order_number,
+            'duplicate_warnings' => [],
+            'drafts' => [],
+        ]);
+    }
+
+    public function updateOrder(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot edit a completed order.');
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'update_customer_phone' => ['nullable', 'boolean'],
+            'complete_address' => ['required', 'string', 'max:2000'],
+            'landmark' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
+        ]);
+
+        $products = Product::query()
+            ->with('variants:id,product_id,sku,variant_name,selling_price')
+            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
+            ->get()
+            ->keyBy('id');
+
+        $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
+            $product = $products->get((int) $item['product_id']);
+            abort_unless($product, 422, 'Selected product was not found.');
+
+            $variant = null;
+            if (! empty($item['variant_id'])) {
+                $variant = $product->variants->firstWhere('id', (int) $item['variant_id']);
+                abort_unless($variant, 422, 'Selected variant does not belong to the product.');
+            }
+
+            $quantity = (int) $item['quantity'];
+            $unitPrice = (float) $item['unit_price'];
+            $lineDiscount = (float) ($item['discount_amount'] ?? 0);
+            $lineTotal = max(0, ($quantity * $unitPrice) - $lineDiscount);
+
+            return [
+                'product' => $product,
+                'variant' => $variant,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'discount_amount' => $lineDiscount,
+                'line_total' => $lineTotal,
+                'display_name' => $variant ? "{$product->name} - {$variant->variant_name}" : $product->name,
+                'sku' => $variant?->sku ?? $product->sku,
+            ];
+        })->values();
+
+        $primaryItem = $preparedItems->first();
+        abort_unless($primaryItem, 422, 'At least one cart item is required.');
+        $shippingFee = (float) ($validated['shipping_fee'] ?? 0);
+        $orderDiscount = (float) ($validated['discount_amount'] ?? 0);
+        $taxRate = (float) ($validated['tax_rate'] ?? 0);
+        $taxableAmount = max(0, (float) $preparedItems->sum('line_total') - $orderDiscount);
+        $taxAmount = $taxRate > 0 ? round($taxableAmount * $taxRate / 100, 2) : (float) ($validated['tax_amount'] ?? 0);
+        $totalQuantity = (int) $preparedItems->sum('quantity');
+        $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
+        $normalizedPhone = $this->phones->normalize($validated['phone']);
+
+        $order = DB::transaction(function () use (
+            $validated, $order, $preparedItems, $primaryItem,
+            $shippingFee, $orderDiscount, $taxRate, $taxAmount,
+            $totalQuantity, $totalAmount, $normalizedPhone
+        ) {
+            $customer = $this->resolveCustomerForOrder($validated);
+
+            if ($order->conversation_id) {
+                $conversation = Conversation::find($order->conversation_id);
+                if ($conversation && ! $conversation->customer_id) {
+                    $conversation->forceFill(['customer_id' => $customer->id])->save();
+                }
+            }
+
+            $previousRemarks = $order->remarks ?? $order->notes;
+
+            $order->forceFill([
+                'customer_id' => $customer->id,
+                'product_id' => $primaryItem['product']->id,
+                'variant_id' => $primaryItem['variant']?->id,
+                'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+                'quantity' => $totalQuantity,
+                'unit_price' => $primaryItem['unit_price'],
+                'total_amount' => $totalAmount,
+                'cod_amount' => isset($validated['cod_amount']) && $validated['cod_amount'] !== ''
+                    ? (float) $validated['cod_amount']
+                    : $totalAmount,
+                'shipping_cost' => $shippingFee,
+                'discount_amount' => $orderDiscount,
+                'tax_rate' => $taxRate,
+                'tax_amount' => $taxAmount,
+                'receiver_name' => $validated['customer_name'],
+                'receiver_phone' => $normalizedPhone ?: $validated['phone'],
+                'receiver_address' => $validated['complete_address'],
+                'city' => $validated['city_municipality'] ?? null,
+                'state' => $validated['province'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'notes' => $validated['remarks'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+            ])->save();
+
+            $order->shopItems()->delete();
+
+            foreach ($preparedItems as $item) {
+                ShopOrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product']->id,
+                    'variant_id' => $item['variant']?->id,
+                    'sku' => $item['sku'],
+                    'product_name' => $item['display_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'discount_amount' => $item['discount_amount'],
+                    'line_total' => $item['line_total'],
+                ]);
+            }
+
+            $newRemarks = $validated['remarks'] ?? null;
+            if (! empty($newRemarks) && $newRemarks !== $previousRemarks) {
+                OrderRemark::query()->create([
+                    'order_id' => $order->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'agent_note',
+                    'visibility' => 'internal',
+                    'body' => $newRemarks,
+                ]);
+            }
+
+            return $order;
+        });
+
+        return redirect()
+            ->route('orders.show', $order)
+            ->with('success', "Order {$order->order_number} updated.");
+    }
+
+    public function manualFollowUp(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot follow up on a completed order.');
+        }
+
+        if (! $order->conversation_id) {
+            return back()->with('error', 'Order is not linked to a conversation.');
+        }
+
+        $conversation = Conversation::find($order->conversation_id);
+        if (! $conversation) {
+            return back()->with('error', 'Linked conversation not found.');
+        }
+
+        $elapsedDays = $order->dispatched_at
+            ? (int) now()->diffInDays($order->dispatched_at)
+            : 0;
+
+        $body = $elapsedDays > 0
+            ? "⏰ Follow-up: Order {$order->order_number} has been dispatched for {$elapsedDays} day(s) with no delivery confirmation. Please check courier tracking."
+            : "⏰ Follow-up: Order {$order->order_number} ({$order->status->label()}). Please check status with courier.";
+
+        Message::query()->create([
+            'conversation_id' => $order->conversation_id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'sent_by' => $request->user()->id,
+            'external_message_id' => 'system-' . str()->uuid(),
+            'direction' => 'system',
+            'message_type' => 'order_followup',
+            'body' => $body,
+            'metadata' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_status' => $order->status->value,
+                'days_dispatched' => $elapsedDays,
+            ],
+            'sent_at' => now(),
+            'send_status' => 'logged',
+            'retry_count' => 0,
+        ]);
+
+        $conversation->forceFill([
+            'last_message_preview' => $body,
+            'last_message_at' => now(),
+        ])->save();
+
+        OrderRemark::query()->create([
+            'order_id' => $order->id,
+            'conversation_id' => $order->conversation_id,
+            'user_id' => $request->user()->id,
+            'type' => 'follow_up',
+            'body' => $body,
+            'metadata' => ['days_dispatched' => $elapsedDays, 'manual' => true],
+        ]);
+
+        return back()->with('success', "Follow-up posted for order {$order->order_number}.");
+    }
+
+    public function splitOrder(Request $request, Order $order): RedirectResponse
+    {
+        if ($order->status->isTerminal()) {
+            return back()->with('error', 'Cannot split a completed order.');
+        }
+
+        $order->load('shopItems');
+        if ($order->shopItems->count() < 2) {
+            return back()->with('error', 'Cannot split: order must have at least 2 items.');
+        }
+
+        $validated = $request->validate([
+            'item_ids'   => ['required', 'array', 'min:1'],
+            'item_ids.*' => ['integer', 'exists:shop_order_items,id'],
+        ]);
+
+        $validItemIds = $order->shopItems->pluck('id')->toArray();
+        $splitIds = array_filter($validated['item_ids'], fn ($id) => in_array($id, $validItemIds));
+
+        if (count($splitIds) === 0 || count($splitIds) >= count($validItemIds)) {
+            return back()->with('error', 'Cannot split: must select at least one item but not all items.');
+        }
+
+        try {
+            $childOrder = $this->fulfillment->splitOrder($order, $splitIds);
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', "Order split: {$order->order_number} → {$childOrder->order_number}.");
     }
 
     public function storeDraft(Request $request): JsonResponse
@@ -3389,6 +6394,8 @@ class ShopController extends Controller
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'update_customer_phone' => ['nullable', 'boolean'],
             'complete_address' => ['required', 'string', 'max:2000'],
             'landmark' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
@@ -3407,6 +6414,8 @@ class ShopController extends Controller
             'courier_code' => ['nullable', 'string', 'max:30'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
+            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
+            'send_confirmation' => ['nullable', 'boolean'],
         ]);
 
         $products = Product::query()
@@ -3454,10 +6463,13 @@ class ShopController extends Controller
         $totalQuantity = (int) $preparedItems->sum('quantity');
         $totalAmount = max(0, $taxableAmount + $shippingFee + $taxAmount);
         $normalizedPhone = $this->phones->normalize($validated['phone']);
-        $possibleDuplicates = $this->possibleDuplicateOrders(
+        $duplicateCheck = $this->duplicateDetection->detectDuplicateOrders(
             $normalizedPhone ?: $validated['phone'],
-            $preparedItems->pluck('product.id')->map(fn ($id) => (int) $id)->all()
+            $preparedItems->pluck('product.id')->map(fn ($id) => (int) $id)->all(),
         );
+        $possibleDuplicates = Order::query()
+            ->whereIn('id', collect($duplicateCheck['duplicates'])->pluck('order_id'))
+            ->get(['id', 'order_number', 'created_at']);
         $addressMatch = $this->addressMappings->match([
             'province' => $validated['province'] ?? null,
             'city_municipality' => $validated['city_municipality'] ?? null,
@@ -3483,16 +6495,7 @@ class ShopController extends Controller
                 ? Conversation::query()->find($validated['conversation_id'])
                 : null;
 
-            $customer = $this->customerIdentities->firstOrCreateFromPhone([
-                'name' => $validated['customer_name'],
-                'phone' => $validated['phone'],
-                'address' => $validated['complete_address'],
-                'landmark' => $validated['landmark'] ?? null,
-                'barangay' => $validated['barangay'] ?? null,
-                'city_municipality' => $validated['city_municipality'] ?? null,
-                'province' => $validated['province'] ?? null,
-                'region' => $addressMatch['mapping']?->region,
-            ]);
+            $customer = $this->resolveCustomerForOrder($validated, $addressMatch['mapping']?->region);
 
             $order = Order::query()->create([
                 'order_number' => Order::generateOrderNumber(),
@@ -3507,7 +6510,9 @@ class ShopController extends Controller
                 'quantity' => $totalQuantity,
                 'unit_price' => $primaryItem['unit_price'],
                 'total_amount' => $totalAmount,
-                'cod_amount' => $totalAmount,
+                'cod_amount' => isset($validated['cod_amount']) && $validated['cod_amount'] !== ''
+                    ? (float) $validated['cod_amount']
+                    : $totalAmount,
                 'shipping_cost' => $shippingFee,
                 'discount_amount' => $orderDiscount,
                 'tax_rate' => $taxRate,
@@ -3524,6 +6529,7 @@ class ShopController extends Controller
                 'export_status' => 'pending',
                 'confirmed_at' => now(),
                 'notes' => $validated['remarks'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
             ]);
 
             $this->customerAddresses->record($customer, [
@@ -3557,6 +6563,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'agent_note',
+                    'visibility' => 'internal',
                     'body' => $validated['remarks'],
                 ]);
             }
@@ -3566,6 +6573,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'duplicate_warning',
+                    'visibility' => 'internal',
                     'body' => "Possible duplicate of {$possibleDuplicate->order_number} from {$possibleDuplicate->created_at->format('M j, Y g:i A')}.",
                     'metadata' => [
                         'duplicate_order_id' => $possibleDuplicate->id,
@@ -3579,6 +6587,7 @@ class ShopController extends Controller
                     'order_id' => $order->id,
                     'user_id' => auth()->id(),
                     'type' => 'conversation_source',
+                    'visibility' => 'internal',
                     'body' => "Created from Shop conversation #{$conversation->id}.",
                     'metadata' => [
                         'conversation_id' => $conversation->id,
@@ -3600,13 +6609,89 @@ class ShopController extends Controller
             return $order;
         });
 
+        $confirmationSent = false;
+        $confirmationError = null;
+
+        $autoConfirm = SiteSetting::get('shop_auto_order_confirmation', '1') === '1';
+        $shouldSendConfirmation = ($autoConfirm || ! empty($validated['send_confirmation'])) && $conversation;
+
+        if ($shouldSendConfirmation) {
+            $conversation->load(['facebookPage', 'identity']);
+
+            $itemList = $preparedItems->map(fn ($item) =>
+                "• {$item['display_name']} ×{$item['quantity']} — ₱" . number_format($item['line_total'], 2)
+            )->implode("\n");
+
+            $courierLabel = match($validated['courier_code'] ?? 'MANUAL') {
+                'JNT' => 'J&T Express',
+                'FLASH' => 'Flash Express',
+                default => 'Manual',
+            };
+
+            $confirmationBody = "✅ Order Confirmed!\n\n"
+                . "Order #: {$order->order_number}\n"
+                . "Items:\n{$itemList}\n\n"
+                . "Total COD: ₱" . number_format((float) $order->cod_amount, 2) . "\n"
+                . "Courier: {$courierLabel}\n\n"
+                . "Thank you for your order! We'll notify you once it's shipped.";
+
+            $delivery = ['status' => 'logged'];
+
+            if ($conversation->facebookPage?->page_access_token && $conversation->identity?->provider_user_id) {
+                try {
+                    $delivery = $this->facebookConnector->sendMessage(
+                        $conversation->facebookPage,
+                        $conversation->identity->provider_user_id,
+                        $confirmationBody
+                    );
+                    $delivery['status'] = 'sent';
+                    $confirmationSent = true;
+                } catch (\Throwable $exception) {
+                    $delivery = [
+                        'status' => 'failed',
+                        'error' => $exception->getMessage(),
+                    ];
+                    $confirmationError = $exception->getMessage();
+                }
+            }
+
+            Message::query()->create([
+                'conversation_id' => $conversation->id,
+                'facebook_page_id' => $conversation->facebook_page_id,
+                'customer_identity_id' => $conversation->customer_identity_id,
+                'sent_by' => auth()->id(),
+                'external_message_id' => 'local-' . str()->uuid(),
+                'direction' => 'outbound',
+                'message_type' => 'text',
+                'body' => $confirmationBody,
+                'metadata' => ['order_confirmation' => true, 'order_id' => $order->id],
+                'raw_payload' => $delivery,
+                'sent_at' => now(),
+                'send_status' => $delivery['status'],
+                'send_error' => $delivery['error'] ?? null,
+                'retry_count' => 0,
+            ]);
+
+            $conversation->forceFill([
+                'last_message_preview' => $confirmationBody,
+                'last_message_at' => now(),
+            ])->save();
+        }
+
+        $message = "Shop order {$order->order_number} created.";
+        if ($confirmationSent) {
+            $message .= ' Confirmation sent to customer.';
+        } elseif ($confirmationError) {
+            $message .= ' Confirmation message saved but delivery failed.';
+        }
+
         return redirect()
             ->route('orders.show', $order)
             ->with(
                 $possibleDuplicates->isNotEmpty() ? 'warning' : 'success',
                 $possibleDuplicates->isNotEmpty()
-                    ? "Shop order {$order->order_number} created. Possible duplicates found: {$possibleDuplicates->pluck('order_number')->implode(', ')}."
-                    : "Shop order {$order->order_number} created."
+                    ? "{$message} Possible duplicates found: {$possibleDuplicates->pluck('order_number')->implode(', ')}."
+                    : $message
             );
     }
 
@@ -3906,6 +6991,36 @@ class ShopController extends Controller
             ->all();
     }
 
+    private function resolveCustomerForOrder(array $validated, ?string $region = null): Customer
+    {
+        if (($validated['update_customer_phone'] ?? false) && ! empty($validated['customer_id'])) {
+            $customer = Customer::query()->findOrFail($validated['customer_id']);
+            $matchedCustomer = $this->customerIdentities->findByPhone($validated['phone']);
+
+            abort_if(
+                $matchedCustomer && $matchedCustomer->id !== $customer->id,
+                422,
+                'This phone number is already linked to another customer.'
+            );
+
+            $customer->forceFill([
+                'phone' => $validated['phone'],
+                'normalized_phone' => $this->phones->normalize($validated['phone']),
+            ])->save();
+        }
+
+        return $this->customerIdentities->firstOrCreateFromPhone([
+            'name' => $validated['customer_name'],
+            'phone' => $validated['phone'],
+            'address' => $validated['complete_address'],
+            'landmark' => $validated['landmark'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'city_municipality' => $validated['city_municipality'] ?? null,
+            'province' => $validated['province'] ?? null,
+            'region' => $region,
+        ]);
+    }
+
     private function duplicateWarningsForPhone(?string $phone): \Illuminate\Support\Collection
     {
         $normalizedPhone = $phone ? $this->phones->normalize($phone) : null;
@@ -3930,9 +7045,15 @@ class ShopController extends Controller
 
         return Order::query()
             ->where('receiver_phone', $normalizedPhone)
-            ->whereIn('product_id', $productIds)
+            ->where(function ($q) use ($productIds) {
+                $q->whereIn('product_id', $productIds)
+                    ->orWhereHas('shopItems', function ($sq) use ($productIds) {
+                        $sq->whereIn('product_id', $productIds);
+                    });
+            })
             ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
             ->where('created_at', '>=', now()->subDays(14))
+            ->where('status', '!=', OrderStatus::DRAFT)
             ->latest()
             ->get(['id', 'order_number', 'created_at']);
     }
@@ -3971,32 +7092,81 @@ class ShopController extends Controller
         return $replies;
     }
 
-    private function savedTemplatesForConversation(Conversation $conversation): array
+    private function savedTemplatesForConversation(Conversation $conversation, ?int $userId = null, ?string $userRole = null): array
     {
-        if (! Schema::hasTable('shop_reply_templates')) {
-            return [];
+        $pageId = $conversation->facebook_page_id;
+        $templates = [];
+
+        // Existing shop_reply_templates
+        if (Schema::hasTable('shop_reply_templates')) {
+            $templates = ShopReplyTemplate::query()
+                ->where('is_active', true)
+                ->where(function ($q) use ($pageId) {
+                    $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
+                })
+                ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
+                ->map(fn (ShopReplyTemplate $template) => [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'category' => $template->category,
+                    'body' => $this->renderReplyTemplate($template->message, $conversation),
+                    'variables' => $template->variables ?? [],
+                    'is_page_specific' => $template->facebook_page_id !== null,
+                    'shortcut' => null,
+                    'source' => 'shop',
+                ])
+                ->all();
         }
 
-        $pageId = $conversation->facebook_page_id;
+        // New reply_templates table
+        if (Schema::hasTable('reply_templates')) {
+            $newTemplates = ReplyTemplate::query()
+                ->where('is_active', true)
+                ->where(function ($q) {
+                    $q->whereNull('approval_status')
+                        ->orWhere('approval_status', 'approved');
+                })
+                ->where(function ($q) use ($pageId) {
+                    $q->where('facebook_page_id', $pageId)
+                        ->orWhereNull('facebook_page_id')
+                        ->orWhereHas('sharedPages', fn ($sp) => $sp->where('facebook_page_id', $pageId));
+                })
+                ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
+                    $q->where(function ($sub) use ($userRole) {
+                        $sub->whereNull('allowed_roles')
+                            ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                    });
+                })
+                ->when($userId, function ($q) use ($userId) {
+                    $q->withExists(['favoritedBy as is_favorited' => fn ($sub) => $sub->where('user_id', $userId)]);
+                })
+                ->orderByRaw($userId ? 'CASE WHEN EXISTS (SELECT 1 FROM reply_template_favorites WHERE reply_template_id = reply_templates.id AND user_id = ?) THEN 0 ELSE 1 END' : '0', $userId ? [$userId] : [])
+                ->orderByDesc('usage_count')
+                ->orderBy('title')
+                ->limit(50)
+                ->get(['id', 'title', 'content', 'variables', 'category', 'intent', 'language', 'shortcut', 'facebook_page_id', 'usage_count'])
+                ->map(fn (ReplyTemplate $template) => [
+                    'id' => $template->id,
+                    'name' => $template->title,
+                    'category' => $template->category,
+                    'body' => $this->renderReplyTemplate($template->content, $conversation),
+                    'variables' => $template->variables ?? [],
+                    'is_page_specific' => $template->facebook_page_id !== null,
+                    'shortcut' => $template->shortcut,
+                    'source' => 'reply_templates',
+                    'intent' => $template->intent,
+                    'language' => $template->language,
+                    'is_favorited' => $template->is_favorited ?? false,
+                ])
+                ->all();
 
-        return ShopReplyTemplate::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($pageId) {
-                $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
-            })
-            ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
-            ->map(fn (ShopReplyTemplate $template) => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'category' => $template->category,
-                'body' => $this->renderReplyTemplate($template->message, $conversation),
-                'variables' => $template->variables ?? [],
-                'is_page_specific' => $template->facebook_page_id !== null,
-            ])
-            ->all();
+            $templates = array_merge($templates, $newTemplates);
+        }
+
+        return $templates;
     }
 
     private function renderReplyTemplate(string $message, Conversation $conversation): string
@@ -4007,6 +7177,11 @@ class ShopController extends Controller
                 $conversation->customer?->city_municipality,
                 $conversation->customer?->province,
             ])->filter()->implode(', ');
+
+        // Get most recent order for order-related variables
+        $recentOrder = $conversation->customer?->orders()
+            ->latest()
+            ->first();
 
         $replacements = [
             '{customer_name}' => $conversation->customer?->name
@@ -4020,6 +7195,13 @@ class ShopController extends Controller
             '{page_name}' => $conversation->facebookPage?->page_name ?? 'our Page',
             '{status}' => $conversation->status,
             '{last_message}' => $conversation->last_message_preview ?? '',
+            '{order_number}' => $recentOrder?->order_number ?? '',
+            '{tracking_number}' => $recentOrder?->tracking_number ?? '',
+            '{courier}' => $recentOrder?->courier ?? '',
+            '{total_amount}' => $recentOrder?->total_amount
+                ? '₱' . number_format((float) $recentOrder->total_amount, 2)
+                : '',
+            '{agent_name}' => $conversation->assignedAgent?->name ?? 'Agent',
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $message);
@@ -4331,6 +7513,88 @@ class ShopController extends Controller
         return back()->with('success', $message);
     }
 
+    public function storeRemarkTemplate(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+        ]);
+
+        RemarkTemplate::query()->create([
+            'name' => $validated['name'],
+            'body' => $validated['body'],
+            'type' => $validated['type'] ?? 'agent_note',
+            'visibility' => $validated['visibility'] ?? 'internal',
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Remark template created.');
+    }
+
+    public function destroyRemarkTemplate(Request $request, RemarkTemplate $remarkTemplate): RedirectResponse
+    {
+        $remarkTemplate->delete();
+
+        return back()->with('success', 'Remark template deleted.');
+    }
+
+    public function storeOrderRemark(Request $request, Order $order): RedirectResponse
+    {
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+            'parent_id' => ['nullable', 'integer', 'exists:order_remarks,id'],
+            'mentions' => ['nullable', 'array'],
+            'mentions.*' => ['integer', 'exists:users,id'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+        ]);
+
+        if (! empty($validated['parent_id'])) {
+            $parent = OrderRemark::query()
+                ->where('id', $validated['parent_id'])
+                ->where('order_id', $order->id)
+                ->first();
+
+            if (! $parent) {
+                return back()->with('error', 'Parent remark not found for this order.');
+            }
+        }
+
+        $mentions = ! empty($validated['mentions'])
+            ? User::query()
+                ->whereIn('id', $validated['mentions'])
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->pluck('id')
+                ->all()
+            : [];
+
+        $remark = OrderRemark::query()->create([
+            'order_id' => $order->id,
+            'parent_id' => $validated['parent_id'] ?? null,
+            'user_id' => $request->user()->id,
+            'type' => $validated['type'] ?? 'agent_note',
+            'visibility' => $validated['visibility'] ?? 'internal',
+            'body' => $validated['body'],
+            'mentions' => $mentions,
+            'tags' => ! empty($validated['tags']) ? array_values(array_unique(array_filter($validated['tags']))) : null,
+        ]);
+
+        if (! empty($mentions)) {
+            $mentioner = $request->user()->name;
+            $mentionUsers = User::query()->whereIn('id', $mentions)->get();
+            \Illuminate\Support\Facades\Notification::send(
+                $mentionUsers,
+                new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
+            );
+        }
+
+        return back()->with('success', 'Remark added.');
+    }
+
     public function storeConversationRemark(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
@@ -4346,6 +7610,143 @@ class ShopController extends Controller
         ]);
 
         return back()->with('success', 'Remark added.');
+    }
+
+    public function updateOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($remark->type, ['agent_note', 'follow_up', 'escalation', 'customer_feedback'])) {
+            return back()->with('error', 'System remarks cannot be edited.');
+        }
+
+        if ($remark->user_id !== $request->user()->id) {
+            return back()->with('error', 'You can only edit your own remarks.');
+        }
+
+        if ($remark->created_at->diffInHours(now()) > 24) {
+            return back()->with('error', 'Remarks can only be edited within 24 hours of creation.');
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'type' => ['nullable', 'string', 'in:agent_note,follow_up,escalation,customer_feedback'],
+            'visibility' => ['nullable', 'string', 'in:internal,customer_visible'],
+            'mentions' => ['nullable', 'array'],
+            'mentions.*' => ['integer', 'exists:users,id'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+        ]);
+        $mentions = ! empty($validated['mentions'])
+            ? User::query()
+                ->whereIn('id', $validated['mentions'])
+                ->whereIn('role', ['supervisor', 'admin', 'superadmin'])
+                ->pluck('id')
+                ->all()
+            : [];
+
+        $previousMentions = $remark->mentions ?? [];
+        $newMentions = array_values(array_diff($mentions, $previousMentions));
+
+        $remark->forceFill([
+            'body' => $validated['body'],
+            'type' => $validated['type'] ?? $remark->type,
+            'visibility' => $validated['visibility'] ?? $remark->visibility,
+            'mentions' => $mentions,
+            'tags' => ! empty($validated['tags']) ? array_values(array_unique(array_filter($validated['tags']))) : null,
+        ])->save();
+
+        if (! empty($newMentions)) {
+            $mentioner = $request->user()->name;
+            $mentionUsers = User::query()->whereIn('id', $newMentions)->get();
+            \Illuminate\Support\Facades\Notification::send(
+                $mentionUsers,
+                new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
+            );
+        }
+
+        return back()->with('success', 'Remark updated.');
+    }
+
+    public function destroyOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($remark->type, ['agent_note', 'follow_up', 'escalation', 'customer_feedback'])) {
+            return back()->with('error', 'System remarks cannot be deleted.');
+        }
+
+        if ($remark->user_id !== $request->user()->id) {
+            return back()->with('error', 'You can only delete your own remarks.');
+        }
+
+        if ($remark->created_at->diffInHours(now()) > 24) {
+            return back()->with('error', 'Remarks can only be deleted within 24 hours of creation.');
+        }
+
+        $remark->delete();
+
+        return back()->with('success', 'Remark deleted.');
+    }
+
+    public function togglePinOrderRemark(Request $request, Order $order, OrderRemark $remark): RedirectResponse
+    {
+        if ($remark->order_id !== $order->id) {
+            return back()->with('error', 'Remark does not belong to this order.');
+        }
+
+        if (! in_array($request->user()->role, ['supervisor', 'admin', 'superadmin'])) {
+            return back()->with('error', 'Only supervisors can pin remarks.');
+        }
+
+        if ($remark->is_pinned) {
+            $remark->forceFill([
+                'is_pinned' => false,
+                'pinned_at' => null,
+                'pinned_by' => null,
+            ])->save();
+
+            return back()->with('success', 'Remark unpinned.');
+        }
+
+        $remark->forceFill([
+            'is_pinned' => true,
+            'pinned_at' => now(),
+            'pinned_by' => $request->user()->id,
+        ])->save();
+
+        return back()->with('success', 'Remark pinned.');
+    }
+
+    public function exportOrderRemarks(Request $request): BinaryFileResponse
+    {
+        $filters = $request->only([
+            'order_id',
+            'remark_q',
+            'remark_type',
+            'remark_author',
+            'remark_tag',
+        ]);
+
+        $format = $request->query('format', 'xlsx');
+        $filename = 'order_remarks_' . now()->format('Ymd_His');
+
+        $export = new OrderRemarksExport($filters);
+
+        if ($format === 'csv') {
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                $export,
+                "{$filename}.csv",
+                \Maatwebsite\Excel\Excel::CSV,
+                ['Content-Type' => 'text/csv; charset=UTF-8'],
+            );
+        }
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, "{$filename}.xlsx");
     }
 
     public function deleteConversationRemark(Request $request, OrderRemark $remark): RedirectResponse

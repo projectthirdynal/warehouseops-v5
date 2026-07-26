@@ -17,6 +17,7 @@ class Customer extends Model
         'normalized_phone',
         'name',
         'facebook_name',
+        'profile_image_path',
         'tags',
         'canonical_address',
         'landmark',
@@ -34,6 +35,10 @@ class Customer extends Model
         'average_order_value',
         'preferred_courier',
         'payment_method',
+        'preferred_contact_method',
+        'preferred_contact_time',
+        'marketing_opt_out',
+        'language_preference',
         'risk_level',
         'is_blacklisted',
         'blacklist_reason',
@@ -45,6 +50,7 @@ class Customer extends Model
         'total_revenue' => 'decimal:2',
         'average_order_value' => 'decimal:2',
         'is_blacklisted' => 'boolean',
+        'marketing_opt_out' => 'boolean',
         'blacklisted_at' => 'datetime',
         'last_order_date' => 'datetime',
         'tags' => 'array',
@@ -78,5 +84,10 @@ class Customer extends Model
     public function notes(): HasMany
     {
         return $this->hasMany(CustomerNote::class)->latest('created_at');
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(CustomerAuditLog::class)->latest('created_at');
     }
 }

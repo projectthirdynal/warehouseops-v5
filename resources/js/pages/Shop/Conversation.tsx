@@ -22,6 +22,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  Scissors,
   Send,
   Search,
   Flag,
@@ -30,9 +31,11 @@ import {
   ShoppingCart,
   Trash2,
   User,
+  XCircle,
   UserCheck,
   Video as VideoIcon,
   X,
+  Lightbulb,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -61,13 +64,18 @@ interface Message {
   id: number;
   sent_by?: number | null;
   sender_name?: string | null;
-  direction: 'inbound' | 'outbound';
+  direction: 'inbound' | 'outbound' | 'system';
   body: string | null;
   message_type?: string;
   attachments?: Attachment[] | null;
   metadata?: {
     quick_reply_payload?: string;
     quick_replies?: { title: string; payload: string }[];
+    order_id?: number;
+    order_number?: string;
+    order_status?: string;
+    reason?: string | null;
+    [key: string]: unknown;
   } | null;
   reactions?: Record<string, string> | null;
   is_flagged?: boolean;
@@ -141,6 +149,12 @@ interface RecentOrder {
   receiver_address: string | null;
   created_at: string;
   product?: { id: number; name: string; sku: string } | null;
+  shop_items?: {
+    id: number;
+    product_name: string;
+    quantity: number;
+    line_total: string | number;
+  }[];
 }
 
 interface Props {
@@ -154,8 +168,28 @@ interface Props {
     id: number;
     name: string;
     category?: string | null;
+    intent?: string | null;
+    language?: string | null;
     body: string;
     variables?: string[];
+    shortcut?: string | null;
+    source?: 'shop' | 'reply_templates';
+    is_favorited?: boolean;
+  }[];
+  suggested_templates?: {
+    id: number;
+    title: string;
+    content: string;
+    shortcut: string | null;
+    category: string | null;
+    intent: string | null;
+    language?: string | null;
+    usage_count: number;
+    variables?: string[];
+    is_favorited: boolean;
+    source: string;
+    suggestion_score: number;
+    suggestion_reasons: string[];
   }[];
   agents: { id: number; name: string; role: string }[];
   user_role?: string;
@@ -332,6 +366,7 @@ export default function ShopConversation({
   recent_orders,
   quick_replies,
   saved_templates,
+  suggested_templates: initialSuggestions = [],
   agents = [],
   user_role: userRole = 'agent',
   statuses = [],
@@ -491,6 +526,22 @@ export default function ShopConversation({
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!conversation?.id) return;
+    setSuggestionsLoading(true);
+    axios
+      .get('/api/reply-templates/suggest', {
+        params: { conversation_id: conversation.id },
+      })
+      .then(({ data }) => {
+        const scored = data.suggestions ?? [];
+        const abVariants = data.ab_test_variants ?? [];
+        setSuggestedTemplates([...abVariants, ...scored]);
+      })
+      .catch(() => setSuggestedTemplates([]))
+      .finally(() => setSuggestionsLoading(false));
+  }, [conversation?.id, conversation?.status, conversation?.last_message_at]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setNewMessageCount(0);
@@ -576,6 +627,20 @@ export default function ShopConversation({
     variables?: string[];
   } | null>(null);
   const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [shortcutMatches, setShortcutMatches] = useState<
+    {
+      id: number;
+      name: string;
+      body: string;
+      shortcut: string;
+      source: string;
+      variables?: string[];
+    }[]
+  >([]);
+  const [showShortcutDropdown, setShowShortcutDropdown] = useState(false);
+  const [suggestedTemplates, setSuggestedTemplates] = useState(initialSuggestions);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -583,6 +648,14 @@ export default function ShopConversation({
   const [blockReason, setBlockReason] = useState('');
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAgentId, setTransferAgentId] = useState('');
+  const [showCancelOrderModal, setShowCancelOrderModal] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
+  const [cancelOrderNumber, setCancelOrderNumber] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitOrderId, setSplitOrderId] = useState<number | null>(null);
+  const [splitOrderNumber, setSplitOrderNumber] = useState('');
+  const [splitItemIds, setSplitItemIds] = useState<number[]>([]);
   const [newRemark, setNewRemark] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<
     {
@@ -781,6 +854,46 @@ export default function ShopConversation({
       .catch(() => {});
   };
 
+  const openCancelOrderModal = (order: RecentOrder) => {
+    setCancelOrderId(order.id);
+    setCancelOrderNumber(order.order_number);
+    setCancelReason('');
+    setShowCancelOrderModal(true);
+  };
+
+  const openSplitModal = (order: RecentOrder) => {
+    setSplitOrderId(order.id);
+    setSplitOrderNumber(order.order_number);
+    setSplitItemIds([]);
+    setShowSplitModal(true);
+  };
+
+  const confirmSplitOrder = () => {
+    if (!splitOrderId || splitItemIds.length === 0) return;
+    router.post(
+      `/shop/orders/${splitOrderId}/split`,
+      { item_ids: splitItemIds },
+      { preserveScroll: true }
+    );
+    setShowSplitModal(false);
+    setSplitOrderId(null);
+    setSplitOrderNumber('');
+    setSplitItemIds([]);
+  };
+
+  const confirmCancelOrder = () => {
+    if (cancelOrderId === null) return;
+    router.post(
+      `/orders/${cancelOrderId}/cancel`,
+      { reason: cancelReason || undefined },
+      { preserveScroll: true }
+    );
+    setShowCancelOrderModal(false);
+    setCancelOrderId(null);
+    setCancelOrderNumber('');
+    setCancelReason('');
+  };
+
   const sendBroadcast = () => {
     if (!data.body.trim() || broadcastIds.length === 0) return;
     setBroadcastSending(true);
@@ -826,7 +939,14 @@ export default function ShopConversation({
     name: string;
     body: string;
     variables?: string[];
+    shortcut?: string | null;
+    source?: string;
   }) => {
+    if (template.source === 'reply_templates') {
+      axiosWithCsrf
+        .post(`/api/reply-templates/${template.id}/use`, { conversation_id: conversation.id })
+        .catch(() => {});
+    }
     if (!template.variables || template.variables.length === 0) {
       setData('body', template.body);
       setSelectedTemplate(null);
@@ -834,6 +954,48 @@ export default function ShopConversation({
     }
     setSelectedTemplate(template);
     setTemplateVars(template.variables.reduce((acc, v) => ({ ...acc, [v]: '' }), {}));
+  };
+
+  const insertByShortcut = (template: {
+    id: number;
+    name: string;
+    body: string;
+    shortcut: string;
+    source: string;
+    variables?: string[];
+  }) => {
+    insertTemplate(template);
+    // Remove the /shortcut text from the textarea
+    const currentBody = data.body;
+    const slashIdx = currentBody.lastIndexOf('/');
+    if (slashIdx >= 0) {
+      setData('body', currentBody.substring(0, slashIdx));
+    }
+    setShowShortcutDropdown(false);
+    setShortcutMatches([]);
+  };
+
+  const detectShortcut = (text: string) => {
+    const lastWordMatch = text.match(/\/(\w*)$/);
+    if (!lastWordMatch) {
+      setShowShortcutDropdown(false);
+      setShortcutMatches([]);
+      return;
+    }
+    const query = lastWordMatch[1].toLowerCase();
+    const matches = saved_templates
+      .filter((t) => t.shortcut && t.shortcut.toLowerCase().startsWith(query))
+      .slice(0, 5)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        body: t.body,
+        shortcut: t.shortcut!,
+        source: t.source ?? 'shop',
+        variables: t.variables,
+      }));
+    setShortcutMatches(matches);
+    setShowShortcutDropdown(matches.length > 0);
   };
 
   const confirmInsertTemplate = () => {
@@ -1011,7 +1173,7 @@ export default function ShopConversation({
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href={`/shop/orders/create?conversation_id=${conversation.id}`}>
+                <Link href={createOrderHref}>
                   <ShoppingCart className="mr-1.5 h-4 w-4" />
                   Create Order
                 </Link>
@@ -1178,11 +1340,123 @@ export default function ShopConversation({
                 </div>
               )}
 
+              {/* AI-Suggested Templates */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestions((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                  >
+                    <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                    AI Suggestions
+                    {suggestedTemplates.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 text-[10px]">
+                        {suggestedTemplates.length}
+                      </Badge>
+                    )}
+                  </button>
+                </div>
+                {showSuggestions && (
+                  <div className="space-y-2">
+                    {suggestionsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading suggestions...</p>
+                    ) : suggestedTemplates.length > 0 ? (
+                      suggestedTemplates.map((s) => (
+                        <div
+                          key={s.id}
+                          className="rounded-md border border-amber-500/30 bg-amber-50/50 p-2.5 dark:bg-amber-950/10"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    insertTemplate({
+                                      id: s.id,
+                                      name: s.title,
+                                      body: s.content,
+                                      variables: s.variables,
+                                      source: 'reply_templates',
+                                    })
+                                  }
+                                  className="truncate text-left text-sm font-medium hover:text-primary hover:underline"
+                                >
+                                  {s.title}
+                                </button>
+                                {s.intent && (
+                                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                                    {s.intent.replace(/_/g, ' ')}
+                                  </Badge>
+                                )}
+                                {s.language && s.language !== 'en' && (
+                                  <Badge
+                                    variant="outline"
+                                    className="shrink-0 text-[10px] uppercase text-primary"
+                                  >
+                                    {s.language}
+                                  </Badge>
+                                )}
+                              </div>
+                              {s.suggestion_reasons.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {s.suggestion_reasons.map((reason, i) => (
+                                    <span
+                                      key={i}
+                                      className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                    >
+                                      {reason}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                {s.content}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 shrink-0 px-2 text-xs"
+                              onClick={() =>
+                                insertTemplate({
+                                  id: s.id,
+                                  name: s.title,
+                                  body: s.content,
+                                  variables: s.variables,
+                                  source: 'reply_templates',
+                                })
+                              }
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        No suggestions for this conversation yet.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {saved_templates.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Saved Templates
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Saved Templates
+                    </p>
+                    <Link
+                      href="/shop/reply-templates"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Manage →
+                    </Link>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="relative flex-1 min-w-[160px]">
                       <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1232,10 +1506,21 @@ export default function ShopConversation({
                           onClick={() => insertTemplate(template)}
                           className="gap-1.5"
                         >
+                          {template.is_favorited && <span className="text-warning">★</span>}
                           {template.name}
+                          {template.shortcut && (
+                            <span className="rounded bg-muted-foreground/20 px-1 font-mono text-[10px]">
+                              /{template.shortcut}
+                            </span>
+                          )}
                           {template.variables && template.variables.length > 0 && (
                             <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">
                               {template.variables.length} var
+                            </span>
+                          )}
+                          {template.language && template.language !== 'en' && (
+                            <span className="rounded bg-primary/20 px-1 text-[10px] uppercase">
+                              {template.language}
                             </span>
                           )}
                         </Button>
@@ -1393,6 +1678,29 @@ export default function ShopConversation({
                           conversation.identity?.display_name ??
                           'Customer');
                     const senderInitial = senderLabel.charAt(0).toUpperCase();
+
+                    if (message.direction === 'system') {
+                      return (
+                        <div
+                          key={message.id}
+                          id={`message-${message.id}`}
+                          className="flex justify-center"
+                        >
+                          <div className="flex items-center gap-2 rounded-full border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+                            <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                            <span>{message.body}</span>
+                            {message.metadata?.order_id && (
+                              <Link
+                                href={`/orders/${message.metadata.order_id}`}
+                                className="font-medium text-foreground underline-offset-2 hover:underline"
+                              >
+                                View
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
@@ -1737,30 +2045,59 @@ export default function ShopConversation({
               )}
 
               <form onSubmit={submit} className="space-y-3 border-t pt-4">
-                <Textarea
-                  value={data.body}
-                  onChange={(event) => {
-                    setData('body', event.target.value);
-                    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-                    setDraftSaved(false);
-                    if (conversation?.id) {
-                      draftTimerRef.current = setTimeout(() => {
-                        axiosWithCsrf
-                          .post(`/shop/inbox/${conversation.id}/draft`, {
-                            draft_body: event.target.value,
-                          })
-                          .then(() => setDraftSaved(true))
-                          .catch(() => {});
-                      }, 1000);
-                    }
-                  }}
-                  onFocus={() => {
-                    if (conversation?.id) {
-                      axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
-                    }
-                  }}
-                  placeholder="Type a reply..."
-                />
+                <div className="relative">
+                  <Textarea
+                    value={data.body}
+                    onChange={(event) => {
+                      setData('body', event.target.value);
+                      detectShortcut(event.target.value);
+                      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+                      setDraftSaved(false);
+                      if (conversation?.id) {
+                        draftTimerRef.current = setTimeout(() => {
+                          axiosWithCsrf
+                            .post(`/shop/inbox/${conversation.id}/draft`, {
+                              draft_body: event.target.value,
+                            })
+                            .then(() => setDraftSaved(true))
+                            .catch(() => {});
+                        }, 1000);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (conversation?.id) {
+                        axiosWithCsrf.post(`/shop/inbox/${conversation.id}/typing`).catch(() => {});
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowShortcutDropdown(false), 200);
+                    }}
+                    placeholder="Type a reply... (type / for template shortcuts)"
+                  />
+                  {showShortcutDropdown && shortcutMatches.length > 0 && (
+                    <div className="absolute bottom-full left-0 z-20 mb-1 w-72 rounded-md border bg-popover shadow-md">
+                      {shortcutMatches.map((match) => (
+                        <button
+                          key={match.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            insertByShortcut(match);
+                          }}
+                          className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-xs last:border-b-0 hover:bg-muted/50"
+                        >
+                          <span className="font-mono text-muted-foreground">/{match.shortcut}</span>
+                          <span className="flex-1 truncate font-medium">{match.name}</span>
+                          {match.source === 'reply_templates' && (
+                            <span className="rounded bg-primary/10 px-1 text-[10px] text-primary">
+                              New
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {draftSaved && <p className="text-xs text-muted-foreground">Draft saved</p>}
                 {errors.body && <p className="text-xs text-destructive">{errors.body}</p>}
 
@@ -2382,37 +2719,92 @@ export default function ShopConversation({
                 {recent_orders.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No previous orders found.</p>
                 ) : (
-                  recent_orders.map((order) => (
-                    <Link
-                      key={order.id}
-                      href={`/orders/${order.id}`}
-                      className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{order.order_number}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {order.product?.name ?? 'No product'}
-                          </p>
+                  recent_orders.map((order) => {
+                    const isTerminal = [
+                      'DELIVERED',
+                      'RETURNED',
+                      'CANCELLED',
+                      'QA_REJECTED',
+                    ].includes(order.status.toUpperCase());
+                    return (
+                      <div
+                        key={order.id}
+                        className="block rounded-lg border p-3 transition-colors hover:bg-accent/30"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <Link href={`/orders/${order.id}`} className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{order.order_number}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {order.product?.name ?? 'No product'}
+                            </p>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={orderStatusBadgeClass(order.status)}
+                            >
+                              {order.status}
+                            </Badge>
+                            {!isTerminal && (
+                              <>
+                                <Link
+                                  href={`/shop/orders/${order.id}/edit`}
+                                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                                  title="Edit order"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    router.post(
+                                      `/shop/orders/${order.id}/follow-up`,
+                                      {},
+                                      { preserveScroll: true }
+                                    );
+                                  }}
+                                  className="shrink-0 text-muted-foreground hover:text-amber-600"
+                                  title="Post follow-up reminder"
+                                >
+                                  <Clock className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openSplitModal(order)}
+                                  className="shrink-0 text-muted-foreground hover:text-blue-600"
+                                  title="Split order"
+                                >
+                                  <Scissors className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openCancelOrderModal(order)}
+                                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                                  title="Cancel order"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <Badge variant="outline" className={orderStatusBadgeClass(order.status)}>
-                          {order.status}
-                        </Badge>
+                        <Link href={`/orders/${order.id}`}>
+                          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{time(order.created_at)}</span>
+                            <span>{money(order.total_amount)}</span>
+                          </div>
+                          {order.receiver_address && (
+                            <p
+                              className="mt-1.5 truncate text-xs text-muted-foreground"
+                              title={order.receiver_address}
+                            >
+                              {order.receiver_address}
+                            </p>
+                          )}
+                        </Link>
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{time(order.created_at)}</span>
-                        <span>{money(order.total_amount)}</span>
-                      </div>
-                      {order.receiver_address && (
-                        <p
-                          className="mt-1.5 truncate text-xs text-muted-foreground"
-                          title={order.receiver_address}
-                        >
-                          {order.receiver_address}
-                        </p>
-                      )}
-                    </Link>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -3028,6 +3420,124 @@ export default function ShopConversation({
               >
                 <ArrowRightLeft className="mr-1.5 h-4 w-4" />
                 Transfer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelOrderModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowCancelOrderModal(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-destructive">
+                <XCircle className="h-5 w-5" />
+                Cancel Order
+              </h3>
+              <button type="button" onClick={() => setShowCancelOrderModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Cancel order <span className="font-medium text-foreground">{cancelOrderNumber}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel_reason">Reason (optional)</Label>
+              <textarea
+                id="cancel_reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Customer changed mind, out of stock, duplicate order"
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                maxLength={500}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCancelOrderModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" onClick={confirmCancelOrder}>
+                <XCircle className="mr-1.5 h-4 w-4" />
+                Confirm Cancellation
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSplitModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowSplitModal(false)}
+        >
+          <div
+            className="w-full max-w-lg space-y-4 rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Scissors className="h-5 w-5" />
+                Split Order
+              </h3>
+              <button type="button" onClick={() => setShowSplitModal(false)}>
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Select items to move into a new child order. The remaining items stay on{' '}
+              <span className="font-medium text-foreground">{splitOrderNumber}</span>.
+            </p>
+            <div className="space-y-2">
+              {recent_orders
+                .find((o) => o.id === splitOrderId)
+                ?.shop_items?.map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-3 rounded-md border p-2 hover:bg-accent/30"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={splitItemIds.includes(item.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSplitItemIds([...splitItemIds, item.id]);
+                        } else {
+                          setSplitItemIds(splitItemIds.filter((id) => id !== item.id));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{item.product_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Qty: {item.quantity} — ₱{item.line_total}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowSplitModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmSplitOrder}
+                disabled={splitItemIds.length === 0}
+              >
+                <Scissors className="mr-1.5 h-4 w-4" />
+                Split Selected Items
               </Button>
             </div>
           </div>

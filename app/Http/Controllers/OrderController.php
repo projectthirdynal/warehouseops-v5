@@ -69,9 +69,20 @@ class OrderController extends Controller
             'shopItems.variant',
         ]);
 
+        $customerOrders = $order->customer_id
+            ? Order::query()
+                ->with('shopItems:id,order_id,product_name,quantity,line_total')
+                ->where('customer_id', $order->customer_id)
+                ->where('id', '!=', $order->id)
+                ->latest()
+                ->limit(5)
+                ->get(['id', 'order_number', 'status', 'total_amount', 'cod_amount', 'created_at'])
+            : collect();
+
         return Inertia::render('Orders/Show', [
             'order' => $order,
             'duplicate_warnings' => $this->duplicateWarnings($order),
+            'customer_orders' => $customerOrders,
         ]);
     }
 

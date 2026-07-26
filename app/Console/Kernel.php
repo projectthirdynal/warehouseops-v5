@@ -33,11 +33,14 @@ class Kernel extends ConsoleKernel
         $schedule->command('inventory:release-expired-reservations')->hourly()->withoutOverlapping();
         $schedule->command('invoices:mark-overdue')->dailyAt('06:00')->withoutOverlapping();
         $schedule->command('shop:process-scheduled-messages')->everyMinute()->withoutOverlapping();
+        $schedule->command('shop:archive-stale-batches')->dailyAt('02:45')->withoutOverlapping();
         $schedule->command('shop:cleanup-old-batches')->dailyAt('03:00')->withoutOverlapping();
         $schedule->command('shop:check-idle-agents')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('shop:auto-resolve-inactive')->hourly()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:escalate-sla-breached')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:apply-status-rules')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+        $schedule->command('shop:send-order-followups')->dailyAt('09:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('sales-dashboard:generate-scheduled-reports')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {

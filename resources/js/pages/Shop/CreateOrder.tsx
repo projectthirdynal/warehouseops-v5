@@ -1,10 +1,12 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import {
   AlertTriangle,
   ArrowLeft,
   Calculator,
   CheckCircle2,
+  Download,
   Eye,
   FileText,
   LayoutGrid,
@@ -17,6 +19,7 @@ import {
   Trash2,
   Upload,
   User,
+  UserPlus,
   X,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
@@ -26,6 +29,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatCurrency } from '@/lib/utils';
 
 interface ProductVariant {
   id: number;
@@ -49,13 +53,32 @@ interface Courier {
   label: string;
 }
 
+interface DuplicateMatchedProduct {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+}
+
 interface DuplicateWarning {
   id: number;
   order_number: string;
   status: string;
-  total_amount: string | number;
+  total_amount: number;
   created_at: string;
+  created_at_formatted?: string;
+  hours_ago?: number;
+  receiver_name?: string;
+  receiver_phone?: string;
+  courier_code?: string;
+  matched_products?: DuplicateMatchedProduct[];
   product?: { id: number; name: string; sku: string } | null;
+}
+
+interface DuplicateCheckResult {
+  is_duplicate: boolean;
+  severity: 'none' | 'low' | 'medium' | 'high';
+  duplicate_count: number;
+  time_window_hours: number;
 }
 
 interface CartItemForm {
@@ -69,6 +92,11 @@ interface CartItemForm {
 interface OrderForm {
   customer_name: string;
   phone: string;
+  normalized_phone?: string;
+  customer_id?: number | null;
+  update_customer_phone?: boolean;
+  customer_risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'BLACKLISTED' | null;
+  customer_is_blacklisted?: boolean;
   complete_address: string;
   landmark: string;
   barangay: string;
@@ -81,6 +109,87 @@ interface OrderForm {
   courier_code: string;
   remarks: string;
   conversation_id: string;
+  cod_amount: string;
+  send_confirmation: boolean;
+}
+
+interface CustomerMergeSuggestion {
+  id: number;
+  name: string;
+  phone: string;
+  total_orders: number;
+  successful_orders: number;
+  returned_orders: number;
+  risk_level: string;
+  created_at: string;
+  facebook_name?: string | null;
+  normalized_phone?: string | null;
+  total_revenue?: number;
+  is_blacklisted?: boolean;
+  orders_count?: number;
+  match_reasons?: string[];
+}
+
+interface MergePreview {
+  can_merge: boolean;
+  reason?: string;
+  target?: {
+    id: number;
+    name: string;
+    phone: string;
+    normalized_phone: string;
+    total_orders: number;
+    total_revenue: number;
+    risk_level: string;
+    is_blacklisted: boolean;
+  };
+  source?: {
+    id: number;
+    name: string;
+    phone: string;
+    normalized_phone: string;
+    total_orders: number;
+    total_revenue: number;
+    risk_level: string;
+    is_blacklisted: boolean;
+  };
+  transfer_summary?: {
+    orders: number;
+    conversations: number;
+    identities: number;
+    addresses: number;
+    notes: number;
+    leads: number;
+    total_records: number;
+  };
+  merged_stats?: {
+    total_orders: number;
+    successful_orders: number;
+    returned_orders: number;
+    total_revenue: number;
+  };
+  filled_fields?: string[];
+  risk_will_change?: boolean;
+  new_risk_level?: string;
+}
+
+interface CustomerNoteSummary {
+  id: number;
+  body: string;
+  tags: string[] | null;
+  created_at: string;
+  user: { id: number; name: string } | null;
+}
+
+interface CustomerAddressSummary {
+  id: number;
+  label: string | null;
+  canonical_address: string | null;
+  landmark: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+  is_default: boolean;
 }
 
 interface DraftSummary {
@@ -114,12 +223,71 @@ interface RecommendedProduct {
   selling_price: number;
 }
 
+interface DuplicateConversation {
+  conversation_id: number;
+  status: string;
+  channel: string;
+  priority: string;
+  is_flagged: boolean;
+  flag_reason: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_count: number;
+  psid: string | null;
+  display_name: string | null;
+  phone_detected: string | null;
+  page_name: string | null;
+  facebook_page_id: number | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  assigned_agent: string | null;
+  created_at: string;
+  created_at_formatted: string;
+  hours_ago: number;
+}
+
+interface DuplicateConversationResult {
+  is_duplicate: boolean;
+  psid: string;
+  identity_count: number;
+  duplicate_count: number;
+  duplicates: DuplicateConversation[];
+  severity: 'none' | 'low' | 'medium' | 'high';
+}
+
+interface FuzzyDuplicate {
+  id: number;
+  name: string;
+  facebook_name: string | null;
+  phone: string;
+  normalized_phone: string | null;
+  canonical_address: string | null;
+  barangay: string | null;
+  city_municipality: string | null;
+  province: string | null;
+  total_orders: number;
+  total_revenue: number;
+  risk_level: string;
+  is_blacklisted: boolean;
+  created_at: string;
+  created_at_formatted: string;
+  similarity: {
+    name: number;
+    address: number;
+    combined: number;
+  };
+  match_type: string;
+}
+
 interface Props {
   products: Product[];
   couriers: Courier[];
   prefill?: Partial<OrderForm> | null;
   duplicate_warnings: DuplicateWarning[];
+  duplicate_conversations?: DuplicateConversationResult | null;
   drafts: DraftSummary[];
+  edit_order_id?: number | null;
+  edit_order_number?: string | null;
 }
 
 function money(value: number) {
@@ -133,6 +301,55 @@ function money(value: number) {
 function numeric(value: string | number | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+interface SegmentBadge {
+  label: string;
+  className: string;
+}
+
+function computeSegmentationBadges(customer: {
+  total_orders?: number;
+  total_revenue?: number;
+  success_rate?: number;
+  returned_orders?: number;
+  risk_level?: string;
+  is_blacklisted?: boolean;
+}): SegmentBadge[] {
+  const badges: SegmentBadge[] = [];
+  const orders = customer.total_orders ?? 0;
+  const revenue = Number(customer.total_revenue ?? 0);
+  const successRate = Number(customer.success_rate ?? 0);
+  const returns = customer.returned_orders ?? 0;
+  const returnRate = orders > 0 ? (returns / orders) * 100 : 0;
+
+  if (customer.is_blacklisted) {
+    badges.push({ label: 'Blacklisted', className: 'border-destructive/30 text-destructive' });
+  }
+
+  if (revenue >= 50000 && orders >= 10) {
+    badges.push({ label: 'VIP', className: 'border-primary/30 text-primary' });
+  } else if (orders >= 10) {
+    badges.push({ label: 'Loyal', className: 'border-success/30 text-success' });
+  } else if (orders === 1) {
+    badges.push({ label: 'New', className: 'border-info/30 text-info' });
+  }
+
+  if (orders >= 3 && returnRate >= 30) {
+    badges.push({ label: 'High Return Risk', className: 'border-warning/30 text-warning' });
+  }
+
+  if (orders >= 3 && successRate >= 90) {
+    badges.push({ label: 'Reliable', className: 'border-success/30 text-success' });
+  }
+
+  if (!customer.is_blacklisted && customer.risk_level === 'HIGH') {
+    badges.push({ label: 'High Risk', className: 'border-destructive/30 text-destructive' });
+  } else if (!customer.is_blacklisted && customer.risk_level === 'MEDIUM') {
+    badges.push({ label: 'Medium Risk', className: 'border-warning/30 text-warning' });
+  }
+
+  return badges;
 }
 
 function createEmptyItem(): CartItemForm {
@@ -150,24 +367,303 @@ export default function CreateShopOrder({
   couriers,
   prefill,
   duplicate_warnings,
+  duplicate_conversations,
   drafts,
+  edit_order_id = null,
+  edit_order_number = null,
 }: Props) {
-  const { data, setData, post, processing, errors } = useForm<OrderForm>({
+  const { data, setData, post, put, processing, errors } = useForm<OrderForm>({
     customer_name: prefill?.customer_name ?? '',
     phone: prefill?.phone ?? '',
+    normalized_phone: prefill?.normalized_phone ?? undefined,
+    customer_id: prefill?.customer_id ?? null,
+    update_customer_phone: false,
+    customer_risk_level: prefill?.customer_risk_level ?? null,
+    customer_is_blacklisted: prefill?.customer_is_blacklisted ?? false,
     complete_address: prefill?.complete_address ?? '',
     landmark: prefill?.landmark ?? '',
     barangay: prefill?.barangay ?? '',
     city_municipality: prefill?.city_municipality ?? '',
     province: prefill?.province ?? '',
     items: prefill?.items && prefill.items.length > 0 ? prefill.items : [createEmptyItem()],
-    shipping_fee: '0',
-    discount_amount: '0',
-    tax_rate: '0',
-    courier_code: 'MANUAL',
+    shipping_fee: prefill?.shipping_fee ?? '0',
+    discount_amount: prefill?.discount_amount ?? '0',
+    tax_rate: prefill?.tax_rate ?? '0',
+    courier_code: prefill?.courier_code ?? 'MANUAL',
     remarks: prefill?.remarks ?? '',
     conversation_id: prefill?.conversation_id ? String(prefill.conversation_id) : '',
+    cod_amount: prefill?.cod_amount ?? '',
+    send_confirmation: true,
   });
+
+  const [customerLookup, setCustomerLookup] = useState<{
+    status: 'idle' | 'searching' | 'found' | 'not_found';
+    customer?: {
+      id: number;
+      name: string;
+      phone: string;
+      normalized_phone?: string;
+      canonical_address?: string;
+      risk_level?: string;
+      is_blacklisted?: boolean;
+      landmark?: string;
+      barangay?: string;
+      city_municipality?: string;
+      province?: string;
+      total_orders?: number;
+      successful_orders?: number;
+      returned_orders?: number;
+      success_rate?: number;
+      total_revenue?: number;
+      average_order_value?: number;
+    };
+  }>({ status: 'idle' });
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddressSummary[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [customerNotes, setCustomerNotes] = useState<CustomerNoteSummary[]>([]);
+  const [customerNoteBody, setCustomerNoteBody] = useState('');
+  const [savingCustomerNote, setSavingCustomerNote] = useState(false);
+  const [customerTags, setCustomerTags] = useState<string[]>([]);
+  const [customerTagInput, setCustomerTagInput] = useState('');
+  const [savingCustomerTags, setSavingCustomerTags] = useState(false);
+  const [mergeSuggestions, setMergeSuggestions] = useState<CustomerMergeSuggestion[]>([]);
+  const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
+  const [mergeExecuting, setMergeExecuting] = useState(false);
+  const [fuzzyDuplicates, setFuzzyDuplicates] = useState<FuzzyDuplicate[]>([]);
+  const [fuzzyLoading, setFuzzyLoading] = useState(false);
+  const [commPreferences, setCommPreferences] = useState({
+    preferred_courier: '',
+    payment_method: '',
+  });
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const [orderHistory, setOrderHistory] = useState<
+    Array<{
+      id: number;
+      order_number: string;
+      status: string;
+      total_amount: number;
+      cod_amount: number;
+      receiver_address: string;
+      created_at: string;
+      delivered_at: string | null;
+      shop_items?: Array<{
+        id: number;
+        product_name: string;
+        quantity: number;
+        line_total: number;
+      }>;
+    }>
+  >([]);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextLookup = useRef(false);
+
+  useEffect(() => {
+    if (skipNextLookup.current) {
+      skipNextLookup.current = false;
+      return;
+    }
+    if (!data.phone || data.phone.length < 7) {
+      setCustomerLookup({ status: 'idle' });
+      return;
+    }
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    setCustomerLookup({ status: 'searching' });
+    lookupTimer.current = setTimeout(() => {
+      axios
+        .get('/shop/customers/search', { params: { q: data.phone, limit: 1 } })
+        .then((res) => {
+          const found = res.data.customers?.[0];
+          if (found) {
+            setCustomerLookup({ status: 'found', customer: found });
+            skipNextLookup.current = true;
+            setData({
+              ...data,
+              customer_name: found.name,
+              normalized_phone: found.normalized_phone,
+              customer_id: found.id,
+              update_customer_phone: false,
+              customer_risk_level: found.risk_level as OrderForm['customer_risk_level'],
+              customer_is_blacklisted: found.is_blacklisted,
+              complete_address: found.canonical_address ?? data.complete_address,
+              landmark: found.landmark ?? data.landmark,
+              barangay: found.barangay ?? data.barangay,
+              city_municipality: found.city_municipality ?? data.city_municipality,
+              province: found.province ?? data.province,
+            });
+          } else {
+            setCustomerLookup({ status: 'not_found' });
+          }
+        })
+        .catch(() => setCustomerLookup({ status: 'idle' }));
+    }, 500);
+    return () => {
+      if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.phone]);
+
+  useEffect(() => {
+    if (customerLookup.status === 'found' && customerLookup.customer) {
+      axios
+        .get(`/shop/customers/${customerLookup.customer.id}/orders`)
+        .then((res) => setOrderHistory(res.data.orders ?? []))
+        .catch(() => setOrderHistory([]));
+    } else {
+      setOrderHistory([]);
+    }
+  }, [customerLookup.status, customerLookup.customer]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setSavedAddresses([]);
+      setSelectedAddressId('');
+      return;
+    }
+
+    setSelectedAddressId('');
+    axios
+      .get(`/shop/customers/${data.customer_id}/addresses`)
+      .then((res) => setSavedAddresses(res.data.addresses ?? []))
+      .catch(() => setSavedAddresses([]));
+  }, [data.customer_id]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setCustomerNotes([]);
+      setCustomerTags([]);
+      setCommPreferences({ preferred_courier: '', payment_method: '' });
+      return;
+    }
+
+    axios
+      .get(`/shop/customers/${data.customer_id}/notes`)
+      .then((res) => {
+        setCustomerNotes(res.data.notes ?? []);
+        setCustomerTags(res.data.customer_tags ?? []);
+        setCommPreferences({
+          preferred_courier: res.data.preferred_courier ?? '',
+          payment_method: res.data.payment_method ?? '',
+        });
+      })
+      .catch(() => {
+        setCustomerNotes([]);
+        setCustomerTags([]);
+        setCommPreferences({ preferred_courier: '', payment_method: '' });
+      });
+  }, [data.customer_id]);
+
+  useEffect(() => {
+    if (!data.customer_id) {
+      setMergeSuggestions([]);
+      return;
+    }
+
+    axios
+      .get(`/shop/customers/${data.customer_id}/merge-suggestions`)
+      .then((res) => setMergeSuggestions(res.data.suggestions ?? []))
+      .catch(() => setMergeSuggestions([]));
+
+    setFuzzyLoading(true);
+    fetch(`/api/duplicate-check/fuzzy-customers?customer_id=${data.customer_id}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => res.json())
+      .then((data: { fuzzy_duplicates: { is_duplicate: boolean; duplicates: FuzzyDuplicate[] } }) =>
+        setFuzzyDuplicates(data.fuzzy_duplicates?.duplicates ?? [])
+      )
+      .catch(() => setFuzzyDuplicates([]))
+      .finally(() => setFuzzyLoading(false));
+  }, [data.customer_id]);
+
+  const executeMerge = async () => {
+    if (!data.customer_id || !mergePreview?.source || !mergePreview.can_merge) return;
+    setMergeExecuting(true);
+    try {
+      await axios.post('/api/duplicate-check/merge', {
+        target_id: data.customer_id,
+        source_id: mergePreview.source.id,
+      });
+      setMergeSuggestions((s) => s.filter((item) => item.id !== mergePreview.source!.id));
+      setMergePreview(null);
+    } finally {
+      setMergeExecuting(false);
+    }
+  };
+
+  const openMergeModal = (source: CustomerMergeSuggestion) => {
+    setMergePreview(null);
+    setMergePreviewLoading(true);
+    fetch(
+      `/api/duplicate-check/merge-preview?target_id=${data.customer_id}&source_id=${source.id}`,
+      {
+        headers: { Accept: 'application/json' },
+      }
+    )
+      .then((res) => res.json())
+      .then((data: MergePreview) => setMergePreview(data))
+      .catch(() => setMergePreview({ can_merge: false, reason: 'Failed to load merge preview.' }))
+      .finally(() => setMergePreviewLoading(false));
+  };
+
+  const addCustomerNote = async () => {
+    const body = customerNoteBody.trim();
+    if (!data.customer_id || !body) return;
+
+    setSavingCustomerNote(true);
+    try {
+      const response = await axios.post(`/shop/customers/${data.customer_id}/notes`, { body });
+      setCustomerNotes((notes) => [response.data.note, ...notes]);
+      setCustomerNoteBody('');
+    } finally {
+      setSavingCustomerNote(false);
+    }
+  };
+
+  const addCustomerTag = () => {
+    const tag = customerTagInput.trim().toLowerCase();
+    if (!tag || customerTags.includes(tag)) return;
+
+    setCustomerTags((tags) => [...tags, tag]);
+    setCustomerTagInput('');
+  };
+
+  const saveCustomerTags = async () => {
+    if (!data.customer_id) return;
+
+    setSavingCustomerTags(true);
+    try {
+      await axios.patch(`/shop/customers/${data.customer_id}/tags`, { tags: customerTags });
+    } finally {
+      setSavingCustomerTags(false);
+    }
+  };
+
+  const saveCommPreferences = async () => {
+    if (!data.customer_id) return;
+
+    setSavingPreferences(true);
+    try {
+      await axios.patch(`/shop/customers/${data.customer_id}/preferences`, commPreferences);
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
+
+  const selectSavedAddress = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    const address = savedAddresses.find((item) => item.id === Number(addressId));
+    if (!address) return;
+
+    setData({
+      ...data,
+      complete_address: address.canonical_address ?? '',
+      landmark: address.landmark ?? '',
+      barangay: address.barangay ?? '',
+      city_municipality: address.city_municipality ?? '',
+      province: address.province ?? '',
+    });
+  };
 
   const itemError = (index: number, field: string) => {
     const key = `items.${index}.${field}` as keyof typeof errors;
@@ -252,6 +748,7 @@ export default function CreateShopOrder({
   const taxableAmount = Math.max(0, subtotal - orderDiscount);
   const taxAmount = taxRate > 0 ? Math.round(taxableAmount * taxRate) / 100 : 0;
   const total = Math.max(0, taxableAmount + shippingFee + taxAmount);
+  const codAmount = data.cod_amount ? numeric(data.cod_amount) : total;
 
   const [showPreview, setShowPreview] = useState(false);
   const [shippingZone, setShippingZone] = useState<string | null>(null);
@@ -260,6 +757,8 @@ export default function CreateShopOrder({
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftList, setDraftList] = useState<DraftSummary[]>(drafts);
   const [liveDuplicates, setLiveDuplicates] = useState<DuplicateWarning[]>([]);
+  const [duplicateCheck, setDuplicateCheck] = useState<DuplicateCheckResult | null>(null);
+  const [acknowledgedDuplicates, setAcknowledgedDuplicates] = useState(false);
 
   const csrfToken =
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -283,9 +782,13 @@ export default function CreateShopOrder({
         body: JSON.stringify({ phone, product_ids: productIds }),
       })
         .then((res) => res.json())
-        .then((result: { duplicates: DuplicateWarning[] }) => {
-          setLiveDuplicates(result.duplicates ?? []);
-        })
+        .then(
+          (result: { duplicates: DuplicateWarning[]; duplicate_check?: DuplicateCheckResult }) => {
+            setLiveDuplicates(result.duplicates ?? []);
+            setDuplicateCheck(result.duplicate_check ?? null);
+            setAcknowledgedDuplicates(false);
+          }
+        )
         .catch(() => undefined);
     }, 600);
 
@@ -295,6 +798,38 @@ export default function CreateShopOrder({
   const allDuplicates = [...duplicate_warnings, ...liveDuplicates].filter(
     (dup, index, self) => index === self.findIndex((d) => d.id === dup.id)
   );
+
+  const severityConfig: Record<
+    string,
+    { label: string; className: string; borderClass: string; bgClass: string; iconClass: string }
+  > = {
+    high: {
+      label: 'High',
+      className: 'text-destructive',
+      borderClass: 'border-destructive/40',
+      bgClass: 'bg-destructive/5',
+      iconClass: 'text-destructive',
+    },
+    medium: {
+      label: 'Medium',
+      className: 'text-warning',
+      borderClass: 'border-warning/40',
+      bgClass: 'bg-warning/5',
+      iconClass: 'text-warning',
+    },
+    low: {
+      label: 'Low',
+      className: 'text-info',
+      borderClass: 'border-info/30',
+      bgClass: 'bg-info/5',
+      iconClass: 'text-info',
+    },
+    none: { label: 'None', className: '', borderClass: '', bgClass: '', iconClass: '' },
+  };
+  const dupSeverity = duplicateCheck?.severity ?? (allDuplicates.length > 0 ? 'low' : 'none');
+  const sevCfg = severityConfig[dupSeverity] ?? severityConfig.none;
+  const hasDuplicates = allDuplicates.length > 0;
+  const canConfirm = !hasDuplicates || acknowledgedDuplicates;
 
   const saveDraft = () => {
     setSavingDraft(true);
@@ -325,6 +860,11 @@ export default function CreateShopOrder({
           setData({
             customer_name: d.customer_name ?? '',
             phone: d.phone ?? '',
+            normalized_phone: d.normalized_phone ?? undefined,
+            customer_id: d.customer_id ?? null,
+            update_customer_phone: false,
+            customer_risk_level: d.customer_risk_level ?? null,
+            customer_is_blacklisted: d.customer_is_blacklisted ?? false,
             complete_address: d.complete_address ?? '',
             landmark: d.landmark ?? '',
             barangay: d.barangay ?? '',
@@ -337,6 +877,8 @@ export default function CreateShopOrder({
             courier_code: d.courier_code ?? 'MANUAL',
             remarks: d.remarks ?? '',
             conversation_id: d.conversation_id ?? '',
+            cod_amount: d.cod_amount ?? '',
+            send_confirmation: false,
           });
           setDraftId(id);
         }
@@ -365,7 +907,7 @@ export default function CreateShopOrder({
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   const fetchTemplates = () => {
-    fetch('/shop/templates', { headers: { 'X-CSRF-TOKEN': csrfToken } })
+    fetch('/shop/cart-templates', { headers: { 'X-CSRF-TOKEN': csrfToken } })
       .then((res) => res.json())
       .then((result: { templates: TemplateSummary[] }) => {
         setTemplates(result.templates ?? []);
@@ -380,7 +922,7 @@ export default function CreateShopOrder({
   const saveTemplate = () => {
     if (!templateName.trim()) return;
     setSavingTemplate(true);
-    fetch('/shop/templates', {
+    fetch('/shop/cart-templates', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -421,7 +963,7 @@ export default function CreateShopOrder({
   };
 
   const deleteTemplate = (id: number) => {
-    fetch(`/shop/templates/${id}`, {
+    fetch(`/shop/cart-templates/${id}`, {
       method: 'DELETE',
       headers: { 'X-CSRF-TOKEN': csrfToken },
     })
@@ -622,12 +1164,16 @@ export default function CreateShopOrder({
 
   const confirmSubmit = () => {
     setShowPreview(false);
-    post('/shop/orders');
+    if (edit_order_id) {
+      put(`/shop/orders/${edit_order_id}`);
+    } else {
+      post('/shop/orders');
+    }
   };
 
   return (
     <AppLayout>
-      <Head title="Create Shop Order" />
+      <Head title={edit_order_id ? `Edit ${edit_order_number}` : 'Create Shop Order'} />
 
       <form onSubmit={submit} className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -638,11 +1184,15 @@ export default function CreateShopOrder({
                 Shop
               </Link>
             </Button>
-            <h1 className="text-xl font-bold tracking-tight font-display">Create Shop Order</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">
+              {edit_order_id ? `Edit Order ${edit_order_number}` : 'Create Shop Order'}
+            </h1>
             <p className="text-muted-foreground">
-              {data.conversation_id
-                ? `From Shop conversation #${data.conversation_id}`
-                : 'Manual POS entry for Facebook, chat, and phone orders'}
+              {edit_order_id
+                ? 'Update order details, items, and pricing'
+                : data.conversation_id
+                  ? `From Shop conversation #${data.conversation_id}`
+                  : 'Manual POS entry for Facebook, chat, and phone orders'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -678,16 +1228,52 @@ export default function CreateShopOrder({
           </div>
         </div>
 
-        {liveDuplicates.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-            <span className="text-muted-foreground">
-              <span className="font-medium text-warning">
-                {liveDuplicates.length} possible duplicate order
-                {liveDuplicates.length > 1 ? 's' : ''}
-              </span>{' '}
-              found for this phone number in the last 30 days. Review before submitting.
-            </span>
+        {hasDuplicates && (
+          <div
+            className={`flex flex-col gap-3 rounded-md border ${sevCfg.borderClass} ${sevCfg.bgClass} p-4 text-sm`}
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className={`h-4 w-4 shrink-0 ${sevCfg.iconClass}`} />
+              <span className="text-muted-foreground">
+                <span className={`font-medium ${sevCfg.className}`}>
+                  {allDuplicates.length} possible duplicate order
+                  {allDuplicates.length > 1 ? 's' : ''}
+                </span>{' '}
+                found for this phone + product(s) within {duplicateCheck?.time_window_hours ?? 72}h.
+              </span>
+              <Badge
+                variant="outline"
+                className={`ml-auto ${sevCfg.className} ${sevCfg.borderClass}`}
+              >
+                {sevCfg.label} Severity
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {allDuplicates.slice(0, 3).map((dup) => (
+                <Link
+                  key={dup.id}
+                  href={`/orders/${dup.id}`}
+                  className={`inline-flex items-center gap-1.5 rounded-md border ${sevCfg.borderClass} bg-background px-2 py-1 text-xs transition-colors hover:bg-accent/30`}
+                >
+                  <span className="font-medium">{dup.order_number}</span>
+                  <span className="text-muted-foreground">
+                    {dup.hours_ago != null
+                      ? `${dup.hours_ago}h ago`
+                      : new Date(dup.created_at).toLocaleDateString()}
+                  </span>
+                  {dup.matched_products?.map((mp) => (
+                    <span key={mp.product_id} className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                      {mp.product_name} ×{mp.quantity}
+                    </span>
+                  ))}
+                </Link>
+              ))}
+              {allDuplicates.length > 3 && (
+                <span className="text-xs text-muted-foreground">
+                  +{allDuplicates.length - 3} more
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -723,9 +1309,494 @@ export default function CreateShopOrder({
                     placeholder="09171234567"
                   />
                   {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                  {data.customer_id && (
+                    <div className="flex items-start gap-2 rounded-md border border-info/30 bg-info/5 px-2 py-1.5 text-xs">
+                      <input
+                        id="update_customer_phone"
+                        type="checkbox"
+                        checked={data.update_customer_phone ?? false}
+                        onChange={(event) => setData('update_customer_phone', event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-input"
+                      />
+                      <Label
+                        htmlFor="update_customer_phone"
+                        className="cursor-pointer text-xs font-normal"
+                      >
+                        Update the linked customer profile with this phone number when saving the
+                        order.
+                      </Label>
+                    </div>
+                  )}
+                  {data.normalized_phone && data.normalized_phone !== data.phone && (
+                    <p className="text-xs text-muted-foreground">
+                      Normalized: <span className="font-mono">{data.normalized_phone}</span>
+                    </p>
+                  )}
+                  {data.customer_is_blacklisted && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <span className="font-medium">Blacklisted customer</span>
+                    </div>
+                  )}
+                  {!data.customer_is_blacklisted &&
+                    data.customer_risk_level &&
+                    data.customer_risk_level !== 'LOW' && (
+                      <div
+                        className={
+                          'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ' +
+                          (data.customer_risk_level === 'HIGH'
+                            ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                            : 'border-warning/30 bg-warning/5 text-warning')
+                        }
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span className="font-medium">
+                          {data.customer_risk_level} risk customer
+                        </span>
+                      </div>
+                    )}
+                  {customerLookup.status === 'searching' && (
+                    <p className="text-xs text-muted-foreground">Searching customers…</p>
+                  )}
+                  {customerLookup.status === 'found' && customerLookup.customer && (
+                    <div className="rounded-md border border-success/30 bg-success/5 px-2 py-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-success">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>
+                          Existing customer:{' '}
+                          <span className="font-medium">{customerLookup.customer.name}</span>
+                          {customerLookup.customer.total_orders != null && (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              ({customerLookup.customer.total_orders} orders)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {customerLookup.customer.total_orders != null &&
+                        customerLookup.customer.total_orders > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+                            <span>
+                              Success:{' '}
+                              <span className="font-medium text-success">
+                                {customerLookup.customer.success_rate ?? 0}%
+                              </span>
+                            </span>
+                            <span>
+                              Returned:{' '}
+                              <span className="font-medium text-destructive">
+                                {customerLookup.customer.returned_orders ?? 0}
+                              </span>
+                            </span>
+                            <span>
+                              Return Rate:{' '}
+                              <span className="font-medium">
+                                {Math.round(
+                                  ((customerLookup.customer.returned_orders ?? 0) /
+                                    customerLookup.customer.total_orders) *
+                                    100
+                                )}
+                                %
+                              </span>
+                            </span>
+                            {customerLookup.customer.total_revenue != null &&
+                              Number(customerLookup.customer.total_revenue) > 0 && (
+                                <span>
+                                  LTV:{' '}
+                                  <span className="font-medium text-success">
+                                    {money(Number(customerLookup.customer.total_revenue))}
+                                  </span>
+                                </span>
+                              )}
+                            {customerLookup.customer.average_order_value != null &&
+                              Number(customerLookup.customer.average_order_value) > 0 && (
+                                <span>
+                                  AOV:{' '}
+                                  <span className="font-medium">
+                                    {money(Number(customerLookup.customer.average_order_value))}
+                                  </span>
+                                </span>
+                              )}
+                          </div>
+                        )}
+                      {computeSegmentationBadges(customerLookup.customer).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {computeSegmentationBadges(customerLookup.customer).map((badge) => (
+                            <Badge
+                              key={badge.label}
+                              variant="outline"
+                              className={`text-xs ${badge.className}`}
+                            >
+                              {badge.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-1.5">
+                        <a
+                          href={`/shop/customers/${customerLookup.customer.id}/export`}
+                          className="inline-flex items-center gap-1 text-xs text-info hover:underline"
+                        >
+                          <Download className="h-3 w-3" />
+                          Export Profile
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {customerLookup.status === 'not_found' && data.phone.length >= 7 && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-2 py-1.5 text-xs text-info">
+                      <UserPlus className="h-3.5 w-3.5" />
+                      <span>No existing customer — a new one will be created on save.</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Customer Tags</CardTitle>
+                  <CardDescription>Tags are shared across the customer profile.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {customerTags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="gap-1">
+                        {tag}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${tag} tag`}
+                          onClick={() =>
+                            setCustomerTags((tags) => tags.filter((item) => item !== tag))
+                          }
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {customerTags.length === 0 && (
+                      <span className="text-xs text-muted-foreground">No customer tags yet.</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={customerTagInput}
+                      onChange={(event) => setCustomerTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addCustomerTag();
+                        }
+                      }}
+                      placeholder="Add a tag"
+                      maxLength={50}
+                    />
+                    <Button type="button" variant="outline" onClick={addCustomerTag}>
+                      Add
+                    </Button>
+                    <Button type="button" onClick={saveCustomerTags} disabled={savingCustomerTags}>
+                      {savingCustomerTags ? 'Saving…' : 'Save'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Communication Preferences</CardTitle>
+                  <CardDescription>
+                    Default courier and payment method saved to the customer profile.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pref_courier">Preferred courier</Label>
+                      <select
+                        id="pref_courier"
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={commPreferences.preferred_courier}
+                        onChange={(e) =>
+                          setCommPreferences({
+                            ...commPreferences,
+                            preferred_courier: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">No preference</option>
+                        {couriers.map((c) => (
+                          <option key={c.value} value={c.value}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pref_payment">Payment method</Label>
+                      <Input
+                        id="pref_payment"
+                        value={commPreferences.payment_method}
+                        onChange={(e) =>
+                          setCommPreferences({ ...commPreferences, payment_method: e.target.value })
+                        }
+                        placeholder="e.g. COD, GCash"
+                        maxLength={50}
+                      />
+                    </div>
+                  </div>
+                  <Button type="button" onClick={saveCommPreferences} disabled={savingPreferences}>
+                    {savingPreferences ? 'Saving…' : 'Save Preferences'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {mergeSuggestions.length > 0 && (
+              <Card className="border-warning/30">
+                <CardHeader>
+                  <CardTitle className="text-base text-warning">
+                    Possible Duplicate Customers
+                  </CardTitle>
+                  <CardDescription>
+                    These profiles use the same normalized phone number. Review before merging.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {mergeSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/shop/customers/${suggestion.id}`}
+                          className="font-medium text-info hover:underline"
+                        >
+                          {suggestion.name}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {suggestion.phone} · {suggestion.total_orders} orders ·{' '}
+                          {suggestion.risk_level}
+                        </p>
+                        {suggestion.match_reasons && suggestion.match_reasons.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {suggestion.match_reasons.map((reason) => (
+                              <span
+                                key={reason}
+                                className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase"
+                              >
+                                {reason}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openMergeModal(suggestion)}
+                      >
+                        Review & Merge
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {data.customer_id && (fuzzyLoading || fuzzyDuplicates.length > 0) && (
+              <Card className="border-warning/30 bg-warning/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-warning">
+                    <AlertTriangle className="h-5 w-5" />
+                    Fuzzy Duplicate Matches
+                  </CardTitle>
+                  <CardDescription>
+                    Possible duplicates by name or address similarity (not exact matches).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {fuzzyLoading ? (
+                    <p className="text-sm text-muted-foreground">Checking fuzzy matches…</p>
+                  ) : (
+                    fuzzyDuplicates.map((dup) => (
+                      <div
+                        key={dup.id}
+                        className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/shop/customers/${dup.id}`}
+                            className="font-medium text-info hover:underline"
+                          >
+                            {dup.name}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            {dup.phone} · {dup.total_orders} orders · {dup.risk_level}
+                          </p>
+                          {(dup.barangay || dup.city_municipality || dup.province) && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {[dup.barangay, dup.city_municipality, dup.province]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                dup.similarity.combined >= 85
+                                  ? 'bg-destructive/15 text-destructive'
+                                  : dup.similarity.combined >= 70
+                                    ? 'bg-warning/15 text-warning'
+                                    : 'bg-info/15 text-info'
+                              }`}
+                            >
+                              {dup.similarity.combined}% match
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                              name {dup.similarity.name}%
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                              addr {Math.round(dup.similarity.address * 100)}%
+                            </span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase">
+                              {dup.match_type}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            openMergeModal({
+                              id: dup.id,
+                              name: dup.name,
+                              phone: dup.phone,
+                              total_orders: dup.total_orders,
+                              successful_orders: 0,
+                              returned_orders: 0,
+                              risk_level: dup.risk_level,
+                              created_at: dup.created_at,
+                            })
+                          }
+                        >
+                          Review & Merge
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {data.customer_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-5 w-5" />
+                    Customer Notes
+                  </CardTitle>
+                  <CardDescription>Notes are saved to the linked customer profile.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Textarea
+                      value={customerNoteBody}
+                      onChange={(event) => setCustomerNoteBody(event.target.value)}
+                      placeholder="Add a customer note or order remark…"
+                      maxLength={5000}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!customerNoteBody.trim() || savingCustomerNote}
+                        onClick={addCustomerNote}
+                      >
+                        {savingCustomerNote ? 'Saving…' : 'Add Note'}
+                      </Button>
+                    </div>
+                  </div>
+                  {customerNotes.length > 0 ? (
+                    <div className="max-h-48 space-y-2 overflow-y-auto border-t pt-3">
+                      {customerNotes.slice(0, 5).map((note) => (
+                        <div key={note.id} className="rounded-md border p-2 text-sm">
+                          <p className="whitespace-pre-wrap">{note.body}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {note.user?.name ?? 'System'} ·{' '}
+                            {new Date(note.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No notes yet for this customer.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {orderHistory.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <PackagePlus className="h-5 w-5" />
+                    Order History ({orderHistory.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {orderHistory.map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/orders/${ord.id}`}
+                            className="font-medium text-info hover:underline"
+                          >
+                            {ord.order_number}
+                          </Link>
+                          <Badge
+                            variant="outline"
+                            className={
+                              'text-xs ' +
+                              (ord.status === 'DELIVERED'
+                                ? 'border-success/30 text-success'
+                                : ord.status === 'CANCELLED' || ord.status === 'RETURNED'
+                                  ? 'border-destructive/30 text-destructive'
+                                  : 'border-muted text-muted-foreground')
+                            }
+                          >
+                            {ord.status}
+                          </Badge>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {ord.shop_items
+                            ?.map((si) => `${si.product_name} ×${si.quantity}`)
+                            .join(', ') || '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(ord.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="ml-2 text-right">
+                        <p className="font-medium">{formatCurrency(ord.total_amount)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          COD: {formatCurrency(ord.cod_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -738,6 +1809,34 @@ export default function CreateShopOrder({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {savedAddresses.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-info/30 bg-info/5 p-3">
+                    <Label htmlFor="saved_address" className="text-sm">
+                      Saved customer address ({savedAddresses.length})
+                    </Label>
+                    <select
+                      id="saved_address"
+                      value={selectedAddressId}
+                      onChange={(event) => selectSavedAddress(event.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">Select a saved address</option>
+                      {savedAddresses.map((address) => (
+                        <option key={address.id} value={address.id}>
+                          {address.label ? `${address.label}: ` : ''}
+                          {address.canonical_address || 'No street address'}
+                          {address.city_municipality ? `, ${address.city_municipality}` : ''}
+                          {address.is_default ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedAddressId && (
+                      <p className="text-xs text-muted-foreground">
+                        Selected address has filled the delivery fields below.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="complete_address">Complete address</Label>
                   <Textarea
@@ -979,14 +2078,21 @@ export default function CreateShopOrder({
 
           <div className="space-y-6">
             {allDuplicates.length > 0 && (
-              <Card className="border-warning/20 bg-warning/5/50">
+              <Card className={`${sevCfg.borderClass} ${sevCfg.bgClass}`}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-warning">
+                  <CardTitle className={`flex items-center gap-2 ${sevCfg.className}`}>
                     <AlertTriangle className="h-5 w-5" />
                     Possible Duplicates
+                    <Badge
+                      variant="outline"
+                      className={`ml-1 ${sevCfg.className} ${sevCfg.borderClass}`}
+                    >
+                      {sevCfg.label}
+                    </Badge>
                   </CardTitle>
                   <CardDescription>
-                    Recent Shop orders found for this phone number or products
+                    {allDuplicates.length} order{allDuplicates.length > 1 ? 's' : ''} matching this
+                    phone + product(s) within {duplicateCheck?.time_window_hours ?? 72}h
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1000,14 +2106,91 @@ export default function CreateShopOrder({
                         <div>
                           <p className="font-medium">{order.order_number}</p>
                           <p className="text-xs text-muted-foreground">
-                            {order.product?.name ?? 'No product'}
+                            {order.receiver_name ?? 'Unknown customer'}
                           </p>
                         </div>
                         <Badge variant="outline">{order.status}</Badge>
                       </div>
+                      {order.matched_products && order.matched_products.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {order.matched_products.map((mp) => (
+                            <span
+                              key={mp.product_id}
+                              className="rounded bg-muted px-1.5 py-0.5 text-[10px]"
+                            >
+                              {mp.product_name} ×{mp.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {order.product?.name ?? 'No product'}
+                        </p>
+                      )}
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{new Date(order.created_at).toLocaleString()}</span>
+                        <span>
+                          {order.hours_ago != null
+                            ? `${order.hours_ago}h ago`
+                            : new Date(order.created_at).toLocaleString()}
+                        </span>
                         <span>{money(Number(order.total_amount ?? 0))}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {duplicate_conversations && duplicate_conversations.is_duplicate && (
+              <Card className="border-info/30 bg-info/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-info">
+                    <AlertTriangle className="h-5 w-5" />
+                    Duplicate Conversations
+                    <Badge variant="outline" className={`ml-1 text-info border-info/30`}>
+                      {duplicate_conversations.severity}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    {duplicate_conversations.duplicate_count} other active conversation
+                    {duplicate_conversations.duplicate_count > 1 ? 's' : ''} from the same PSID
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {duplicate_conversations.duplicates.map((conv) => (
+                    <Link
+                      key={conv.conversation_id}
+                      href={`/shop/inbox?conversation=${conv.conversation_id}`}
+                      className="block rounded-lg border bg-background p-3 text-sm transition-colors hover:bg-accent/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {conv.display_name ?? conv.customer_name ?? 'Unknown'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {conv.page_name ?? 'Unknown page'}
+                            {conv.assigned_agent ? ` · ${conv.assigned_agent}` : ''}
+                          </p>
+                        </div>
+                        <Badge variant="outline">{conv.status}</Badge>
+                      </div>
+                      {conv.last_message_preview && (
+                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                          {conv.last_message_preview}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {conv.hours_ago != null
+                            ? `${conv.hours_ago}h ago`
+                            : new Date(conv.created_at).toLocaleString()}
+                        </span>
+                        {conv.unread_count > 0 && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            {conv.unread_count} unread
+                          </Badge>
+                        )}
                       </div>
                     </Link>
                   ))}
@@ -1213,8 +2396,33 @@ export default function CreateShopOrder({
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-3 text-base font-semibold">
-                    <span>Total COD</span>
+                    <span>Computed Total</span>
                     <span>{money(total)}</span>
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cod_amount">COD Amount</Label>
+                      {!data.cod_amount && (
+                        <span className="text-xs text-muted-foreground">Auto from total</span>
+                      )}
+                    </div>
+                    <Input
+                      id="cod_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={data.cod_amount}
+                      onChange={(e) => setData('cod_amount', e.target.value)}
+                      placeholder={total.toFixed(2)}
+                    />
+                    {data.cod_amount && Number(data.cod_amount) !== total && (
+                      <p className="text-xs text-muted-foreground">
+                        Override: {money(codAmount)} (computed: {money(total)})
+                      </p>
+                    )}
+                    {errors.cod_amount && (
+                      <p className="text-xs text-destructive">{errors.cod_amount}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1313,6 +2521,20 @@ export default function CreateShopOrder({
                   />
                   {errors.remarks && <p className="text-xs text-destructive">{errors.remarks}</p>}
                 </div>
+                {data.conversation_id && (
+                  <div className="flex items-center gap-2 rounded-md border p-3">
+                    <input
+                      id="send_confirmation"
+                      type="checkbox"
+                      checked={data.send_confirmation}
+                      onChange={(e) => setData('send_confirmation', e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <Label htmlFor="send_confirmation" className="text-sm font-normal">
+                      Send order confirmation message to customer
+                    </Label>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1339,16 +2561,57 @@ export default function CreateShopOrder({
             </div>
 
             <div className="space-y-4">
-              {allDuplicates.length > 0 && (
-                <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-                  <span className="text-muted-foreground">
-                    <span className="font-medium text-warning">
-                      {allDuplicates.length} possible duplicate order
-                      {allDuplicates.length > 1 ? 's' : ''}
-                    </span>{' '}
-                    found for this customer. Please review before confirming.
-                  </span>
+              {hasDuplicates && (
+                <div
+                  className={`rounded-md border ${sevCfg.borderClass} ${sevCfg.bgClass} p-4 text-sm`}
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={`h-4 w-4 shrink-0 ${sevCfg.iconClass}`} />
+                    <span className="text-muted-foreground">
+                      <span className={`font-medium ${sevCfg.className}`}>
+                        {allDuplicates.length} possible duplicate order
+                        {allDuplicates.length > 1 ? 's' : ''}
+                      </span>{' '}
+                      found for this customer. Please review before confirming.
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`ml-auto ${sevCfg.className} ${sevCfg.borderClass}`}
+                    >
+                      {sevCfg.label}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {allDuplicates.map((dup) => (
+                      <Link
+                        key={dup.id}
+                        href={`/orders/${dup.id}`}
+                        className={`flex items-center gap-2 rounded border ${sevCfg.borderClass} bg-background px-2 py-1.5 text-xs transition-colors hover:bg-accent/30`}
+                      >
+                        <span className="font-medium">{dup.order_number}</span>
+                        <span className="text-muted-foreground">
+                          {dup.hours_ago != null
+                            ? `${dup.hours_ago}h ago`
+                            : new Date(dup.created_at).toLocaleDateString()}
+                        </span>
+                        <Badge variant="outline" className="ml-auto">
+                          {dup.status}
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                  <label className="mt-3 flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgedDuplicates}
+                      onChange={(e) => setAcknowledgedDuplicates(e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      I have reviewed the duplicate order(s) and confirm this is a new, separate
+                      order.
+                    </span>
+                  </label>
                 </div>
               )}
               <div className="grid gap-4 md:grid-cols-2">
@@ -1356,6 +2619,42 @@ export default function CreateShopOrder({
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Customer</p>
                   <p className="text-sm font-medium">{data.customer_name || '—'}</p>
                   <p className="text-sm text-muted-foreground">{data.phone || '—'}</p>
+                  {data.normalized_phone && data.normalized_phone !== data.phone && (
+                    <p className="text-xs text-muted-foreground">
+                      Normalized: <span className="font-mono">{data.normalized_phone}</span>
+                    </p>
+                  )}
+                  {data.customer_is_blacklisted && (
+                    <Badge variant="destructive" className="mt-1 text-xs">
+                      Blacklisted
+                    </Badge>
+                  )}
+                  {!data.customer_is_blacklisted &&
+                    data.customer_risk_level &&
+                    data.customer_risk_level !== 'LOW' && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          'mt-1 text-xs ' +
+                          (data.customer_risk_level === 'HIGH'
+                            ? 'border-destructive/30 text-destructive'
+                            : 'border-warning/30 text-warning')
+                        }
+                      >
+                        {data.customer_risk_level} Risk
+                      </Badge>
+                    )}
+                  {customerLookup.status === 'found' &&
+                    customerLookup.customer &&
+                    computeSegmentationBadges(customerLookup.customer).map((badge) => (
+                      <Badge
+                        key={badge.label}
+                        variant="outline"
+                        className={`mt-1 text-xs ${badge.className}`}
+                      >
+                        {badge.label}
+                      </Badge>
+                    ))}
                 </div>
                 <div className="rounded-md border p-3">
                   <p className="mb-1 text-xs font-medium text-muted-foreground">Delivery Address</p>
@@ -1443,9 +2742,15 @@ export default function CreateShopOrder({
                   </div>
                 )}
                 <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                  <span>Total COD</span>
+                  <span>Computed Total</span>
                   <span>{money(total)}</span>
                 </div>
+                {codAmount !== total && (
+                  <div className="flex justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-base font-semibold">
+                    <span>COD Amount</span>
+                    <span>{money(codAmount)}</span>
+                  </div>
+                )}
               </div>
 
               {data.courier_code && (
@@ -1470,9 +2775,14 @@ export default function CreateShopOrder({
                   <X className="mr-1.5 h-4 w-4" />
                   Edit Order
                 </Button>
-                <Button type="button" onClick={confirmSubmit} disabled={processing}>
+                <Button
+                  type="button"
+                  onClick={confirmSubmit}
+                  disabled={processing || !canConfirm}
+                  title={!canConfirm ? 'Acknowledge duplicate warnings to confirm' : undefined}
+                >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                  Confirm & Save
+                  {edit_order_id ? 'Confirm & Update' : 'Confirm & Save'}
                 </Button>
               </div>
             </div>
@@ -1643,6 +2953,166 @@ export default function CreateShopOrder({
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {mergePreview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !mergeExecuting && setMergePreview(null)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Merge Customer Records
+              </h2>
+              <button
+                type="button"
+                onClick={() => !mergeExecuting && setMergePreview(null)}
+                disabled={mergeExecuting}
+              >
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {mergePreviewLoading ? (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                Loading merge preview…
+              </div>
+            ) : !mergePreview.can_merge ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                <p className="font-medium text-destructive">Cannot merge</p>
+                <p className="mt-1 text-muted-foreground">{mergePreview.reason}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+                    <p className="mb-1 text-xs font-medium text-primary">Keep (Target)</p>
+                    <p className="text-sm font-medium">{mergePreview.target?.name}</p>
+                    <p className="text-xs text-muted-foreground">{mergePreview.target?.phone}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {mergePreview.target?.total_orders} orders ·{' '}
+                      {money(mergePreview.target?.total_revenue ?? 0)}
+                    </p>
+                    {mergePreview.target?.is_blacklisted && (
+                      <Badge variant="destructive" className="mt-1 text-[10px]">
+                        Blacklisted
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                    <p className="mb-1 text-xs font-medium text-warning">Merge (Source)</p>
+                    <p className="text-sm font-medium">{mergePreview.source?.name}</p>
+                    <p className="text-xs text-muted-foreground">{mergePreview.source?.phone}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {mergePreview.source?.total_orders} orders ·{' '}
+                      {money(mergePreview.source?.total_revenue ?? 0)}
+                    </p>
+                    {mergePreview.source?.is_blacklisted && (
+                      <Badge variant="destructive" className="mt-1 text-[10px]">
+                        Blacklisted
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {mergePreview.transfer_summary && (
+                  <div className="rounded-md border p-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">
+                      Records to transfer from source:
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.orders}</p>
+                        <p className="text-[10px] text-muted-foreground">Orders</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.conversations}</p>
+                        <p className="text-[10px] text-muted-foreground">Conversations</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.identities}</p>
+                        <p className="text-[10px] text-muted-foreground">Identities</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.addresses}</p>
+                        <p className="text-[10px] text-muted-foreground">Addresses</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.notes}</p>
+                        <p className="text-[10px] text-muted-foreground">Notes</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{mergePreview.transfer_summary.leads}</p>
+                        <p className="text-[10px] text-muted-foreground">Leads</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.merged_stats && (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Merged result:</p>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total orders</span>
+                      <span className="font-medium">{mergePreview.merged_stats.total_orders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total revenue</span>
+                      <span className="font-medium">
+                        {money(mergePreview.merged_stats.total_revenue)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.filled_fields && mergePreview.filled_fields.length > 0 && (
+                  <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs">
+                    <p className="font-medium">Fields to fill from source:</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {mergePreview.filled_fields.map((f) => (
+                        <span key={f} className="rounded bg-muted px-1.5 py-0.5">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {mergePreview.risk_will_change && (
+                  <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+                    <span className="text-muted-foreground">
+                      Risk level will change to{' '}
+                      <span className="font-medium text-destructive">
+                        {mergePreview.new_risk_level}
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setMergePreview(null)}
+                    disabled={mergeExecuting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={executeMerge} disabled={mergeExecuting}>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    {mergeExecuting ? 'Merging…' : 'Confirm Merge'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

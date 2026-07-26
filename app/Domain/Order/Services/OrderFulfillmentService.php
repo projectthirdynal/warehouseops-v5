@@ -13,8 +13,13 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Services\InventoryService;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Models\Customer;
 use App\Models\Lead;
+use App\Models\SiteSetting;
 use App\Models\Waybill;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
@@ -33,6 +38,7 @@ class OrderFulfillmentService
         private CogsService $cogsService,
         private QboSyncService $qboSyncService,
         private LeadPoolService $leadPoolService,
+        private FacebookConnectorService $facebookConnector,
     ) {}
 
     /**
@@ -139,6 +145,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::QA_APPROVED);
+
         // Courier submission runs OUTSIDE the transaction — prevents the external
         // API call from holding a DB lock and rolling back committed data on timeout.
         if ($submitCourier) {
@@ -173,6 +181,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::QA_REJECTED, $reason);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -183,6 +193,8 @@ class OrderFulfillmentService
     public function submitToCourier(Order $order): void
     {
         $order->update(['status' => OrderStatus::PROCESSING]);
+
+        $this->syncOrderStatusToConversation($order, OrderStatus::PROCESSING);
 
         // Create a waybill record first
         $waybill = Waybill::create([
@@ -216,6 +228,8 @@ class OrderFulfillmentService
                         'status'        => OrderStatus::DISPATCHED,
                         'dispatched_at' => now(),
                     ]);
+
+                    $this->syncOrderStatusToConversation($order, OrderStatus::DISPATCHED);
 
                     if ($order->lead) {
                         $order->lead->update(['sales_status' => 'WAYBILL_CREATED']);
@@ -295,6 +309,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::DELIVERED);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -343,6 +359,8 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::RETURNED);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
     }
@@ -377,8 +395,85 @@ class OrderFulfillmentService
             }
         });
 
+        $this->syncOrderStatusToConversation($order, OrderStatus::CANCELLED, $reason);
+
         Cache::forget('inv_dashboard_stats');
         Cache::forget('inv_dashboard_charts');
+    }
+
+    /**
+     * Split an order: move selected items into a new child order.
+     * The parent keeps the remaining items; both orders get recalculated totals.
+     */
+    public function splitOrder(Order $parentOrder, array $splitItemIds): Order
+    {
+        $parentOrder->load('shopItems');
+
+        $splitItems = $parentOrder->shopItems->whereIn('id', $splitItemIds);
+        $keepItems = $parentOrder->shopItems->whereNotIn('id', $splitItemIds);
+
+        if ($splitItems->isEmpty() || $keepItems->isEmpty()) {
+            throw new \InvalidArgumentException('Cannot split: must have at least one item on each side.');
+        }
+
+        return DB::transaction(function () use ($parentOrder, $splitItems, $keepItems) {
+            $splitTotal = $splitItems->sum(fn ($i) => (float) $i->line_total);
+            $splitDiscount = $splitItems->sum(fn ($i) => (float) $i->discount_amount);
+            $keepTotal = $keepItems->sum(fn ($i) => (float) $i->line_total);
+            $keepDiscount = $keepItems->sum(fn ($i) => (float) $i->discount_amount);
+
+            $splitRatio = $parentOrder->total_amount > 0
+                ? $splitTotal / (float) $parentOrder->total_amount
+                : 0;
+
+            $childOrder = Order::create([
+                'order_number'       => Order::generateOrderNumber(),
+                'parent_order_id'    => $parentOrder->id,
+                'lead_id'            => $parentOrder->lead_id,
+                'conversation_id'    => $parentOrder->conversation_id,
+                'facebook_page_id'   => $parentOrder->facebook_page_id,
+                'customer_id'        => $parentOrder->customer_id,
+                'assigned_agent_id'  => $parentOrder->assigned_agent_id,
+                'encoder_id'         => $parentOrder->encoder_id,
+                'status'             => OrderStatus::PENDING,
+                'courier_code'       => $parentOrder->courier_code,
+                'quantity'           => $splitItems->sum('quantity'),
+                'unit_price'         => 0,
+                'total_amount'       => $splitTotal,
+                'cod_amount'         => round((float) $parentOrder->cod_amount * $splitRatio, 2),
+                'shipping_cost'      => round((float) $parentOrder->shipping_cost * $splitRatio, 2),
+                'discount_amount'    => $splitDiscount,
+                'tax_rate'           => $parentOrder->tax_rate,
+                'tax_amount'         => round((float) $parentOrder->tax_amount * $splitRatio, 2),
+                'receiver_name'      => $parentOrder->receiver_name,
+                'receiver_phone'     => $parentOrder->receiver_phone,
+                'receiver_address'   => $parentOrder->receiver_address,
+                'city'               => $parentOrder->city,
+                'state'              => $parentOrder->state,
+                'barangay'           => $parentOrder->barangay,
+                'postal_code'        => $parentOrder->postal_code,
+                'address_mapping_id' => $parentOrder->address_mapping_id,
+                'source_channel'     => $parentOrder->source_channel,
+                'notes'              => "Split from {$parentOrder->order_number}",
+            ]);
+
+            foreach ($splitItems as $item) {
+                $item->update(['order_id' => $childOrder->id]);
+            }
+
+            $parentOrder->update([
+                'total_amount'    => $keepTotal,
+                'cod_amount'      => round((float) $parentOrder->cod_amount - ((float) $parentOrder->cod_amount * $splitRatio), 2),
+                'shipping_cost'   => round((float) $parentOrder->shipping_cost - ((float) $parentOrder->shipping_cost * $splitRatio), 2),
+                'discount_amount' => $keepDiscount,
+                'tax_amount'      => round((float) $parentOrder->tax_amount - ((float) $parentOrder->tax_amount * $splitRatio), 2),
+                'quantity'        => $keepItems->sum('quantity'),
+            ]);
+
+            $this->syncOrderStatusToConversation($childOrder, OrderStatus::PENDING, "Split from {$parentOrder->order_number}");
+
+            return $childOrder;
+        });
     }
 
     /**
@@ -406,5 +501,111 @@ class OrderFulfillmentService
                 'success_rate' => round(($customer->successful_orders / $total) * 100, 2),
             ]);
         }
+    }
+
+    private function syncOrderStatusToConversation(Order $order, OrderStatus $newStatus, ?string $reason = null): void
+    {
+        if (! $order->conversation_id) {
+            return;
+        }
+
+        $conversation = Conversation::find($order->conversation_id);
+        if (! $conversation) {
+            return;
+        }
+
+        $statusLabel = $newStatus->label();
+        $body = "📦 Order {$order->order_number} status updated: {$statusLabel}";
+        if ($reason) {
+            $body .= " — {$reason}";
+        }
+
+        Message::query()->create([
+            'conversation_id' => $order->conversation_id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'sent_by' => auth()->id(),
+            'external_message_id' => 'system-' . str()->uuid(),
+            'direction' => 'system',
+            'message_type' => 'order_status',
+            'body' => $body,
+            'metadata' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_status' => $newStatus->value,
+                'reason' => $reason,
+            ],
+            'sent_at' => now(),
+            'send_status' => 'logged',
+            'retry_count' => 0,
+        ]);
+
+        $conversation->forceFill([
+            'last_message_preview' => $body,
+            'last_message_at' => now(),
+        ])->save();
+
+        $this->sendMessengerStatusUpdate($order, $conversation, $newStatus);
+    }
+
+    private function sendMessengerStatusUpdate(Order $order, Conversation $conversation, OrderStatus $newStatus): void
+    {
+        $autoNotify = SiteSetting::get('shop_auto_messenger_updates', '1') === '1';
+        if (! $autoNotify) {
+            return;
+        }
+
+        $customerMessage = match ($newStatus) {
+            OrderStatus::DISPATCHED => "📦 Your order {$order->order_number} has been dispatched and is on the way! Courier: " . ($order->courier_code ?? 'Manual') . ". Track your shipment soon.",
+            OrderStatus::DELIVERED => "✅ Your order {$order->order_number} has been delivered! Thank you for your purchase. We'd love to hear your feedback.",
+            OrderStatus::RETURNED => "↩️ Your order {$order->order_number} has been returned. Please contact us if you have any questions.",
+            OrderStatus::CANCELLED => "❌ Your order {$order->order_number} has been cancelled. If this was unexpected, please reach out to us.",
+            default => null,
+        };
+
+        if (! $customerMessage) {
+            return;
+        }
+
+        $conversation->load(['facebookPage', 'identity']);
+
+        if (! $conversation->facebookPage?->page_access_token || ! $conversation->identity?->provider_user_id) {
+            return;
+        }
+
+        $delivery = ['status' => 'logged'];
+
+        try {
+            $delivery = $this->facebookConnector->sendMessage(
+                $conversation->facebookPage,
+                $conversation->identity->provider_user_id,
+                $customerMessage,
+            );
+            $delivery['status'] = 'sent';
+        } catch (\Throwable $e) {
+            $delivery = ['status' => 'failed', 'error' => $e->getMessage()];
+            Log::warning("Messenger status update failed for order {$order->order_number}: {$e->getMessage()}");
+        }
+
+        Message::query()->create([
+            'conversation_id' => $conversation->id,
+            'facebook_page_id' => $conversation->facebook_page_id,
+            'customer_identity_id' => $conversation->customer_identity_id,
+            'sent_by' => auth()->id(),
+            'external_message_id' => 'local-' . str()->uuid(),
+            'direction' => 'outbound',
+            'message_type' => 'order_status_update',
+            'body' => $customerMessage,
+            'metadata' => [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_status' => $newStatus->value,
+                'auto_messenger' => true,
+            ],
+            'raw_payload' => $delivery,
+            'sent_at' => now(),
+            'send_status' => $delivery['status'],
+            'send_error' => $delivery['error'] ?? null,
+            'retry_count' => 0,
+        ]);
     }
 }

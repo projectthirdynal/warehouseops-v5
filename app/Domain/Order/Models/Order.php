@@ -8,12 +8,15 @@ use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\User;
 use App\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -24,6 +27,7 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'lead_id',
+        'parent_order_id',
         'conversation_id',
         'facebook_page_id',
         'customer_id',
@@ -49,11 +53,16 @@ class Order extends Model
         'state',
         'barangay',
         'postal_code',
+        'landmark',
+        'nearest_landmark',
+        'latitude',
+        'longitude',
         'address_mapping_id',
         'source_channel',
         'address_confidence',
         'export_status',
         'notes',
+        'remarks',
         'draft_data',
         'rejection_reason',
         'confirmed_at',
@@ -61,6 +70,10 @@ class Order extends Model
         'delivered_at',
         'returned_at',
         'encoded_at',
+        'held_at',
+        'hold_reason',
+        'scheduled_delivery_at',
+        'reschedule_reason',
     ];
 
     protected $casts = [
@@ -78,6 +91,8 @@ class Order extends Model
         'delivered_at'  => 'datetime',
         'returned_at'   => 'datetime',
         'encoded_at'    => 'datetime',
+        'held_at'        => 'datetime',
+        'scheduled_delivery_at' => 'datetime',
         'draft_data'    => 'array',
     ];
 
@@ -116,6 +131,26 @@ class Order extends Model
     public function shopItems(): HasMany
     {
         return $this->hasMany(ShopOrderItem::class);
+    }
+
+    public function parentOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'parent_order_id');
+    }
+
+    public function childOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'parent_order_id');
+    }
+
+    public function remarks(): HasMany
+    {
+        return $this->hasMany(OrderRemark::class);
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'order_tag');
     }
 
     // Scopes

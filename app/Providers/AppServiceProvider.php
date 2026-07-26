@@ -2,8 +2,22 @@
 
 namespace App\Providers;
 
+use App\Domain\Analytics\Services\SalesDashboardService;
 use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\StatusMapper;
+use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvCodValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester;
+use App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker;
+use App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
+use App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder;
+use App\Domain\Shop\CourierCsv\CourierCsvTestMode;
+use App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
+use App\Domain\Shop\CourierCsv\CourierCsvValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator;
 use App\Domain\Order\Models\Order;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
@@ -20,8 +34,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(SalesDashboardService::class);
         $this->app->singleton(CourierServiceManager::class);
         $this->app->singleton(StatusMapper::class);
+        $this->app->singleton(CourierCsvSchemaRegistry::class);
+        $this->app->singleton(CourierCsvValidationConfig::class);
+        $this->app->singleton(CourierCsvValidationAnalytics::class);
+        $this->app->singleton(CourierCsvCorrectionSuggester::class);
+        $this->app->singleton(CourierCsvEncodingChecker::class);
+        $this->app->singleton(CourierCsvTemplateBuilder::class);
+        $this->app->singleton(CourierCsvTestMode::class);
+        $this->app->singleton(CourierCsvUploadVerifier::class);
+        $this->app->singleton(CourierCsvPhoneValidator::class);
+        $this->app->singleton(CourierCsvCodValidator::class);
+        $this->app->singleton(CourierCsvAddressValidator::class);
+        $this->app->singleton(CourierCsvWeightDimensionValidator::class);
+        $this->app->singleton(CourierCsvValidator::class);
     }
 
     /**

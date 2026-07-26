@@ -20,9 +20,25 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import type { Order, OrderDuplicateWarning } from '@/types';
 
+interface CustomerOrder {
+  id: number;
+  order_number: string;
+  status: string;
+  total_amount: number;
+  cod_amount: number;
+  created_at: string;
+  shop_items?: Array<{
+    id: number;
+    product_name: string;
+    quantity: number;
+    line_total: number;
+  }>;
+}
+
 interface Props {
   order: Order;
   duplicate_warnings: OrderDuplicateWarning[];
+  customer_orders?: CustomerOrder[];
 }
 
 const statusColors: Record<string, string> = {
@@ -45,7 +61,7 @@ const resolutionLabels: Record<OrderDuplicateWarning['resolution_status'], strin
   cancel_new: 'Cancelled new order',
 };
 
-export default function OrderShow({ order, duplicate_warnings }: Props) {
+export default function OrderShow({ order, duplicate_warnings, customer_orders = [] }: Props) {
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
@@ -494,16 +510,106 @@ export default function OrderShow({ order, duplicate_warnings }: Props) {
                   <CardTitle className="text-base">Customer</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
-                  <p className="font-medium">{order.customer.name}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{order.customer.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      {order.customer.is_blacklisted && (
+                        <Badge variant="destructive" className="text-xs">
+                          Blacklisted
+                        </Badge>
+                      )}
+                      {!order.customer.is_blacklisted &&
+                        order.customer.risk_level &&
+                        order.customer.risk_level !== 'LOW' && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              order.customer.risk_level === 'HIGH'
+                                ? 'border-destructive/30 text-destructive'
+                                : 'border-warning/30 text-warning'
+                            }
+                          >
+                            {order.customer.risk_level}
+                          </Badge>
+                        )}
+                    </div>
+                  </div>
                   <p className="text-muted-foreground">{order.customer.phone}</p>
+                  {order.customer.normalized_phone &&
+                    order.customer.normalized_phone !== order.customer.phone && (
+                      <p className="text-xs text-muted-foreground">
+                        Normalized:{' '}
+                        <span className="font-mono">{order.customer.normalized_phone}</span>
+                      </p>
+                    )}
                   <div className="flex justify-between pt-2 border-t mt-2">
-                    <span className="text-muted-foreground">Orders</span>
+                    <span className="text-muted-foreground">Total Orders</span>
                     <span>{order.customer.total_orders}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Successful</span>
+                    <span className="text-success">{order.customer.successful_orders}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Returned</span>
+                    <span className="text-destructive">{order.customer.returned_orders}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Success Rate</span>
                     <span>{order.customer.success_rate}%</span>
                   </div>
+                  {order.customer.total_orders > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Return Rate</span>
+                      <span>
+                        {Math.round(
+                          (order.customer.returned_orders / order.customer.total_orders) * 100
+                        )}
+                        %
+                      </span>
+                    </div>
+                  )}
+                  {customer_orders.length > 0 && (
+                    <div className="pt-2 border-t mt-2">
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                        Recent Orders
+                      </p>
+                      <div className="space-y-1.5">
+                        {customer_orders.map((co) => (
+                          <div key={co.id} className="flex items-center justify-between text-xs">
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={`/orders/${co.id}`}
+                                className="font-medium text-info hover:underline"
+                              >
+                                {co.order_number}
+                              </Link>
+                              <span
+                                className={
+                                  'ml-1.5 ' +
+                                  (co.status === 'DELIVERED'
+                                    ? 'text-success'
+                                    : co.status === 'CANCELLED' || co.status === 'RETURNED'
+                                      ? 'text-destructive'
+                                      : 'text-muted-foreground')
+                                }
+                              >
+                                {co.status}
+                              </span>
+                              <p className="truncate text-muted-foreground">
+                                {co.shop_items
+                                  ?.map((si) => `${si.product_name} ×${si.quantity}`)
+                                  .join(', ') || '—'}
+                              </p>
+                            </div>
+                            <span className="ml-2 font-medium">
+                              {formatCurrency(co.total_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
