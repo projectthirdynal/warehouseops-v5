@@ -130,7 +130,7 @@ export default function CreateCampaign({ templates, audienceOptions, variables }
                   <div className="space-y-2">
                     <Label htmlFor="type">Campaign Type</Label>
                     <Select value={data.type} onValueChange={(value) => setData('type', value)}>
-                      <SelectTrigger>
+                      <SelectTrigger id="type">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
