@@ -52,7 +52,7 @@ class StockAdjustmentController extends Controller
             ->when($to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
             ->when($request->reason_code, fn ($q, string $code) => $q->where('reason_code', $code));
 
-        $rows = $baseQuery->paginate(50)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a));
+        $rows = $baseQuery->paginate(50)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a))->toArray();
 
         $scoped = $this->adjustmentQuery($request)
             ->when($from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
