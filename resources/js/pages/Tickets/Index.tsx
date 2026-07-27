@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Headphones,
   Plus,
@@ -31,6 +32,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatDate } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Ticket {
   id: number;
@@ -63,6 +75,7 @@ interface Props {
     in_progress: number;
     resolved_today: number;
   };
+  categories: string[];
 }
 
 const statusConfig: Record<
@@ -83,9 +96,30 @@ const priorityConfig: Record<Ticket['priority'], { label: string; color: string 
   urgent: { label: 'Urgent', color: 'text-destructive' },
 };
 
-export default function TicketsIndex({ tickets, stats }: Props) {
+export default function TicketsIndex({ tickets, stats, categories }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showCreate, setShowCreate] = useState(false);
+
+  const form = useForm({
+    subject: '',
+    description: '',
+    priority: 'medium',
+    category: 'general',
+    related_waybill: '',
+  });
+
+  function submitTicket(e: React.FormEvent) {
+    e.preventDefault();
+    form.post('/tickets', {
+      onSuccess: () => {
+        setShowCreate(false);
+        form.reset();
+        toast.success('Ticket created successfully.');
+      },
+      onError: () => toast.error('Failed to create ticket. Check the form fields.'),
+    });
+  }
 
   return (
     <AppLayout>
@@ -98,7 +132,7 @@ export default function TicketsIndex({ tickets, stats }: Props) {
             <h1 className="text-xl font-bold font-display tracking-tight">Support Tickets</h1>
             <p className="text-muted-foreground">Manage customer and internal support requests</p>
           </div>
-          <Button>
+          <Button onClick={() => setShowCreate(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
             Create Ticket
           </Button>
@@ -298,6 +332,96 @@ export default function TicketsIndex({ tickets, stats }: Props) {
           </CardContent>
         </Card>
       </div>
+      {/* Create Ticket Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create Support Ticket</DialogTitle>
+            <DialogDescription>Submit a new support or internal request ticket.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitTicket} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="subject">Subject *</Label>
+              <Input
+                id="subject"
+                value={form.data.subject}
+                onChange={(e) => form.setData('subject', e.target.value)}
+                placeholder="Brief summary of the issue"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="priority">Priority *</Label>
+                <Select
+                  value={form.data.priority}
+                  onValueChange={(v) => form.setData('priority', v)}
+                >
+                  <SelectTrigger id="priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={form.data.category}
+                  onValueChange={(v) => form.setData('category', v)}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(categories ?? ['general']).map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="related_waybill">Related Waybill (optional)</Label>
+              <Input
+                id="related_waybill"
+                value={form.data.related_waybill}
+                onChange={(e) => form.setData('related_waybill', e.target.value)}
+                placeholder="e.g. WB-2026-00123"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={form.data.description}
+                onChange={(e) => form.setData('description', e.target.value)}
+                placeholder="Provide details about the issue..."
+                rows={4}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={form.processing}>
+                {form.processing ? 'Creating...' : 'Create Ticket'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

@@ -123,6 +123,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
 
     Route::prefix('tickets')->name('tickets.')->group(function () {
         Route::get('/', [TicketController::class, 'index'])->name('index');
+        Route::post('/', [TicketController::class, 'store'])->name('store');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
