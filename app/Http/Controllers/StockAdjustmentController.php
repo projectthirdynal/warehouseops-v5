@@ -44,21 +44,85 @@ class StockAdjustmentController extends Controller
 
     public function report(Request $request): Response
     {
+        $from = $request->from ?? now()->startOfMonth()->format('Y-m-d');
+        $to   = $request->to   ?? now()->format('Y-m-d');
+
+        $baseQuery = $this->adjustmentQuery($request)
+            ->when($from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
+            ->when($to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+            ->when($request->reason_code, fn ($q, string $code) => $q->where('reason_code', $code));
+
+        $rows = $baseQuery->paginate(50)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a));
+
+        $scoped = $this->adjustmentQuery($request)
+            ->when($from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
+            ->when($to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+            ->when($request->reason_code, fn ($q, string $code) => $q->where('reason_code', $code));
+
+        $all = $scoped->get();
+
+        $summary = [
+            'total'            => $all->count(),
+            'pending'          => $all->where('status', 'PENDING')->count(),
+            'approved'         => $all->where('status', 'APPROVED')->count(),
+            'rejected'         => $all->where('status', 'REJECTED')->count(),
+            'positive_count'   => $all->where('variance', '>', 0)->count(),
+            'negative_count'   => $all->where('variance', '<', 0)->count(),
+            'zero_count'       => $all->where('variance', 0)->count(),
+            'total_added'      => $all->where('variance', '>', 0)->sum('variance'),
+            'total_deducted'   => $all->where('variance', '<', 0)->sum('variance'),
+            'total_units_moved' => $all->sum(fn ($a) => abs($a->variance)),
+        ];
+
+        $byReason = $all->groupBy('reason_code')->map(fn ($group, $code) => [
+            'reason_code'  => $code,
+            'count'        => $group->count(),
+            'approved'     => $group->where('status', 'APPROVED')->count(),
+            'pending'      => $group->where('status', 'PENDING')->count(),
+            'rejected'     => $group->where('status', 'REJECTED')->count(),
+            'net_variance' => $group->sum('variance'),
+        ])->sortByDesc('count')->values();
+
+        $byWarehouse = $all->groupBy(fn ($a) => $a->warehouse?->name ?? 'Unknown')->map(fn ($group, $name) => [
+            'warehouse_name'  => $name,
+            'warehouse_code'  => $group->first()->warehouse?->code ?? '',
+            'count'           => $group->count(),
+            'approved'        => $group->where('status', 'APPROVED')->count(),
+            'pending'         => $group->where('status', 'PENDING')->count(),
+            'total_added'     => $group->where('variance', '>', 0)->sum('variance'),
+            'total_deducted'  => $group->where('variance', '<', 0)->sum('variance'),
+        ])->sortByDesc('count')->values();
+
+        $bySubmitter = $all->groupBy(fn ($a) => $a->submittedBy?->name ?? 'System')->map(fn ($group, $name) => [
+            'submitter_name' => $name,
+            'count'          => $group->count(),
+            'approved'       => $group->where('status', 'APPROVED')->count(),
+            'rejected'       => $group->where('status', 'REJECTED')->count(),
+            'pending'        => $group->where('status', 'PENDING')->count(),
+        ])->sortByDesc('count')->values();
+
+        $byHour = $all->groupBy(fn ($a) => $a->created_at->hour)->map(fn ($group, $hour) => [
+            'hour'     => (int) $hour,
+            'count'    => $group->count(),
+            'approved' => $group->where('status', 'APPROVED')->count(),
+        ])->sortBy('hour')->values();
+
+        $topImpact = $all->sortByDesc(fn ($a) => abs($a->variance))->take(10)->map(fn ($a) => $this->flattenAdjustment($a))->values();
+
+        $pendingRows = $all->where('status', 'PENDING')->sortBy('created_at')->map(fn ($a) => $this->flattenAdjustment($a))->values();
+
         return Inertia::render('Inventory/AdjustmentReport', [
-            'adjustments' => $this->adjustmentQuery($request)
-                ->when($request->from, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
-                ->when($request->to, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
-                ->paginate(50)
-                ->withQueryString()
-                ->through(fn ($a) => $this->flattenAdjustment($a)),
-            'warehouses' => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
-            'summary' => [
-                'total' => StockAdjustment::count(),
-                'pending' => StockAdjustment::where('status', 'PENDING')->count(),
-                'approved' => StockAdjustment::where('status', 'APPROVED')->count(),
-                'rejected' => StockAdjustment::where('status', 'REJECTED')->count(),
-            ],
-            'filters' => $request->only(['from', 'to', 'status', 'warehouse_id']),
+            'rows'         => $rows,
+            'warehouses'   => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
+            'summary'      => $summary,
+            'by_reason'    => $byReason,
+            'by_warehouse' => $byWarehouse,
+            'by_submitter' => $bySubmitter,
+            'by_hour'      => $byHour,
+            'top_impact'   => $topImpact,
+            'pending_rows' => $pendingRows,
+            'filters'      => $request->only(['from', 'to', 'status', 'warehouse_id', 'reason_code']),
+            'period'       => ['from' => $from, 'to' => $to],
         ]);
     }
 
@@ -271,6 +335,10 @@ class StockAdjustmentController extends Controller
 
     private function flattenAdjustment(StockAdjustment $a): array
     {
+        $itemName = $a->supply?->name ?? $a->product?->name ?? '-';
+        $itemSku  = $a->supply?->sku  ?? $a->product?->sku  ?? '-';
+        $itemType = $a->supply_id ? 'Supply' : 'Product';
+
         return [
             'id'              => $a->id,
             'reason_code'     => $a->reason_code,
@@ -281,6 +349,9 @@ class StockAdjustmentController extends Controller
             'status'          => $a->status,
             'created_at'      => $a->created_at,
             'approved_at'     => $a->approved_at,
+            'item_name'       => $itemName,
+            'item_sku'        => $itemSku,
+            'item_type'       => $itemType,
             'product_name'    => $a->product?->name,
             'product_sku'     => $a->product?->sku,
             'supply_name'     => $a->supply?->name,
