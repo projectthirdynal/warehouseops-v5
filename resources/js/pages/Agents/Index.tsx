@@ -357,7 +357,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.visit(`/agents/${agent.id}`)}>
                           <Eye className="mr-1.5 h-4 w-4" />
                           View Profile
                         </DropdownMenuItem>

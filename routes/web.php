@@ -713,6 +713,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Agents & User Management
     Route::prefix('agents')->name('agents.')->group(function () {
         Route::get('/governance', [AgentController::class, 'index'])->name('governance');
+        Route::get('/{user}', [AgentController::class, 'show'])->name('show')->whereNumber('user');
         Route::post('/', [AgentController::class, 'store'])->name('store');
         Route::patch('/{user}/profile', [AgentController::class, 'updateProfile'])->name('update-profile')->whereNumber('user');
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active')->whereNumber('user');
