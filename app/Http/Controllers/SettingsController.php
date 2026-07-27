@@ -38,10 +38,52 @@ class SettingsController extends Controller
                 'language' => SiteSetting::get('language', 'en'),
             ],
             'integrations' => [
-                ['name' => 'Google Workspace', 'icon' => 'google', 'status' => 'connected', 'description' => 'Email and calendar sync'],
-                ['name' => 'Slack', 'icon' => 'slack', 'status' => 'connected', 'description' => 'Team notifications'],
-                ['name' => 'Microsoft 365', 'icon' => 'microsoft', 'status' => 'disconnected', 'description' => 'Office integration'],
-                ['name' => 'Webhook', 'icon' => 'webhook', 'status' => 'connected', 'description' => 'Custom event notifications'],
+                [
+                    'name'        => 'Google Workspace',
+                    'icon'        => 'google',
+                    'status'      => SiteSetting::get('integration_google_workspace', 'connected'),
+                    'description' => 'Email and calendar sync',
+                    'key'         => 'google_workspace',
+                    'settings'    => [
+                        'client_id'     => SiteSetting::get('integration_google_workspace_client_id', ''),
+                        'client_secret' => SiteSetting::get('integration_google_workspace_client_secret', ''),
+                        'redirect_uri'  => SiteSetting::get('integration_google_workspace_redirect_uri', ''),
+                    ],
+                ],
+                [
+                    'name'        => 'Slack',
+                    'icon'        => 'slack',
+                    'status'      => SiteSetting::get('integration_slack', 'connected'),
+                    'description' => 'Team notifications',
+                    'key'         => 'slack',
+                    'settings'    => [
+                        'webhook_url' => SiteSetting::get('integration_slack_webhook_url', ''),
+                        'channel'     => SiteSetting::get('integration_slack_channel', ''),
+                    ],
+                ],
+                [
+                    'name'        => 'Microsoft 365',
+                    'icon'        => 'microsoft',
+                    'status'      => SiteSetting::get('integration_microsoft_365', 'disconnected'),
+                    'description' => 'Office integration',
+                    'key'         => 'microsoft_365',
+                    'settings'    => [
+                        'tenant_id'     => SiteSetting::get('integration_microsoft_365_tenant_id', ''),
+                        'client_id'     => SiteSetting::get('integration_microsoft_365_client_id', ''),
+                        'client_secret' => SiteSetting::get('integration_microsoft_365_client_secret', ''),
+                    ],
+                ],
+                [
+                    'name'        => 'Webhook',
+                    'icon'        => 'webhook',
+                    'status'      => SiteSetting::get('integration_webhook', 'connected'),
+                    'description' => 'Custom event notifications',
+                    'key'         => 'webhook',
+                    'settings'    => [
+                        'endpoint_url' => SiteSetting::get('integration_webhook_endpoint_url', ''),
+                        'secret_token' => SiteSetting::get('integration_webhook_secret_token', ''),
+                    ],
+                ],
             ],
             'email_settings' => [
                 'mailer'        => SiteSetting::get('mail_mailer', 'smtp'),
@@ -279,5 +321,48 @@ class SettingsController extends Controller
         SiteSetting::set('scanner_beep_error',   $request->beep_on_error ? '1' : '0');
 
         return redirect()->back(303)->with('success', 'Scanner settings saved.');
+    }
+
+    /* ─── Integrations ─── */
+
+    public function toggleIntegration(Request $request)
+    {
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'in:google_workspace,slack,microsoft_365,webhook'],
+        ]);
+
+        $settingKey = "integration_{$validated['key']}";
+        $current = SiteSetting::get($settingKey, 'disconnected');
+        $newStatus = $current === 'connected' ? 'disconnected' : 'connected';
+
+        SiteSetting::set($settingKey, $newStatus);
+
+        ActivityLog::log('toggle_integration', $request->user(), 'system', null, [
+            'integration' => $validated['key'],
+            'status' => $newStatus,
+        ]);
+
+        $action = $newStatus === 'connected' ? 'connected' : 'disconnected';
+
+        return redirect()->back(303)->with('success', "Integration {$action} successfully.");
+    }
+
+    public function updateIntegrationSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'in:google_workspace,slack,microsoft_365,webhook'],
+            'settings' => ['required', 'array'],
+        ]);
+
+        foreach ($validated['settings'] as $field => $value) {
+            SiteSetting::set("integration_{$validated['key']}_{$field}", $value);
+        }
+
+        ActivityLog::log('update_integration_settings', $request->user(), 'system', null, [
+            'integration' => $validated['key'],
+            'fields' => array_keys($validated['settings']),
+        ]);
+
+        return redirect()->back(303)->with('success', 'Integration settings saved.');
     }
 }

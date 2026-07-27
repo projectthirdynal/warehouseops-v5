@@ -1,5 +1,6 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   User,
   Bell,
@@ -37,6 +38,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 /* ─── Types ─── */
 interface UserData {
@@ -55,6 +64,8 @@ interface Integration {
   icon: string;
   status: 'connected' | 'disconnected';
   description: string;
+  key: string;
+  settings: Record<string, string>;
 }
 
 interface EmailSettings {
@@ -1061,6 +1072,60 @@ function ScannerSection({ scanner_settings }: { scanner_settings?: ScannerSettin
 
 /* ─── Integrations Section ─── */
 function IntegrationsSection({ integrations = [] }: { integrations?: Integration[] }) {
+  const [manageIntg, setManageIntg] = useState<Integration | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const handleToggle = (intg: Integration) => {
+    setToggling(true);
+    router.post(
+      '/settings/integrations/toggle',
+      { key: intg.key },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success(
+            `${intg.name} ${intg.status === 'connected' ? 'disconnected' : 'connected'} successfully.`
+          );
+          setManageIntg(null);
+        },
+        onError: () => toast.error(`Failed to toggle ${intg.name}.`),
+        onFinish: () => setToggling(false),
+      }
+    );
+  };
+
+  const openManage = (intg: Integration) => {
+    setSettingsForm({ ...intg.settings });
+    setManageIntg(intg);
+  };
+
+  const handleSaveSettings = () => {
+    if (!manageIntg) return;
+    setSavingSettings(true);
+    router.patch(
+      '/settings/integrations/update',
+      { key: manageIntg.key, settings: settingsForm },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success(`${manageIntg.name} settings saved.`);
+          setManageIntg(null);
+        },
+        onError: () => toast.error(`Failed to save ${manageIntg.name} settings.`),
+        onFinish: () => setSavingSettings(false),
+      }
+    );
+  };
+
+  const formatFieldLabel = (key: string) => {
+    return key
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1085,14 +1150,85 @@ function IntegrationsSection({ integrations = [] }: { integrations?: Integration
                 </Badge>
               </div>
               <div className="mt-4 flex justify-end">
-                <Button variant="outline" size="sm">
-                  {intg.status === 'connected' ? 'Manage' : 'Connect'}
-                </Button>
+                {intg.status === 'connected' ? (
+                  <Button variant="outline" size="sm" onClick={() => openManage(intg)}>
+                    Manage
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggle(intg)}
+                    disabled={toggling}
+                  >
+                    {toggling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    Connect
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Manage Integration Dialog */}
+      <Dialog open={manageIntg !== null} onOpenChange={(open) => !open && setManageIntg(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Manage {manageIntg?.name}</DialogTitle>
+            <DialogDescription>
+              Configure integration settings or disconnect this service.
+            </DialogDescription>
+          </DialogHeader>
+
+          {manageIntg && (
+            <div className="space-y-4">
+              {Object.keys(manageIntg.settings).length > 0 ? (
+                Object.entries(manageIntg.settings).map(([field]) => (
+                  <div key={field} className="space-y-1.5">
+                    <Label htmlFor={`intg-${field}`}>{formatFieldLabel(field)}</Label>
+                    <Input
+                      id={`intg-${field}`}
+                      value={settingsForm[field] ?? ''}
+                      onChange={(e) =>
+                        setSettingsForm({ ...settingsForm, [field]: e.target.value })
+                      }
+                      placeholder={`Enter ${formatFieldLabel(field).toLowerCase()}`}
+                    />
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No configurable settings for this integration.
+                </p>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleToggle(manageIntg)}
+                  disabled={toggling}
+                >
+                  {toggling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                  Disconnect
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setManageIntg(null)}>
+                  Cancel
+                </Button>
+                {Object.keys(manageIntg.settings).length > 0 && (
+                  <Button type="button" onClick={handleSaveSettings} disabled={savingSettings}>
+                    {savingSettings ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    Save Settings
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

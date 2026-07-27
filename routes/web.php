@@ -136,6 +136,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::post('/email/test', [SettingsController::class, 'testEmail'])->name('email.test');
         Route::patch('/printer', [SettingsController::class, 'updateLabelPrinter'])->name('printer.update');
         Route::patch('/scanner', [SettingsController::class, 'updateScannerSettings'])->name('scanner.update');
+        Route::post('/integrations/toggle', [SettingsController::class, 'toggleIntegration'])->name('integrations.toggle');
+        Route::patch('/integrations/update', [SettingsController::class, 'updateIntegrationSettings'])->name('integrations.update');
     });
 });
 
