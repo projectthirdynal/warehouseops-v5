@@ -1,4 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Truck,
   CheckCircle2,
@@ -19,6 +20,7 @@ import {
   Headphones,
   ShieldAlert,
   UserCog,
+  RefreshCw,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -122,22 +124,56 @@ const ACTIVITY_COLORS: Record<string, string> = {
 };
 
 export default function Dashboard({ stats, recentActivity, hourlyActivity, trends, role }: Props) {
-  const s = stats ?? {
-    total_waybills: 0,
-    pending_dispatch: 0,
-    in_transit: 0,
-    delivered_today: 0,
-    returned_today: 0,
-    total_leads: 0,
-    new_leads: 0,
-    sales_today: 0,
-    conversion_rate: 0,
-    qc_pending: 0,
-    agents_online: 0,
-  };
+  const [liveStats, setLiveStats] = useState(stats);
+  const [liveActivity, setLiveActivity] = useState(recentActivity);
+  const [liveHourly, setLiveHourly] = useState(hourlyActivity);
+  const [liveTrends, setLiveTrends] = useState(trends);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const s = liveStats ??
+    stats ?? {
+      total_waybills: 0,
+      pending_dispatch: 0,
+      in_transit: 0,
+      delivered_today: 0,
+      returned_today: 0,
+      total_leads: 0,
+      new_leads: 0,
+      sales_today: 0,
+      conversion_rate: 0,
+      qc_pending: 0,
+      agents_online: 0,
+    };
 
   const page = usePage<PageProps>();
   const effectiveRole = role ?? page.props.auth?.user?.role ?? 'agent';
+
+  const refreshStats = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/dashboard/stats', {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveStats(data.stats);
+        setLiveActivity(data.recentActivity);
+        setLiveHourly(data.hourlyActivity);
+        setLiveTrends(data.trends);
+        setLastUpdated(data.updated_at);
+      }
+    } catch {
+      // silently fail — keep existing data
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(refreshStats, 30_000);
+    return () => clearInterval(interval);
+  }, [refreshStats]);
 
   // ── Role-based stat card configs ──
   type StatCardConfig = {
@@ -180,7 +216,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.sales_today,
         icon: TrendingUp,
         variant: 'success',
-        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.sales ?? null, label: 'vs yesterday' },
       },
       {
         title: 'Conversion Rate',
@@ -252,7 +288,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.sales_today,
         icon: TrendingUp,
         variant: 'success',
-        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.sales ?? null, label: 'vs yesterday' },
       },
       { title: 'Conversion Rate', value: `${s.conversion_rate}%`, icon: BarChart3 },
       { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
@@ -280,7 +316,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.delivered_today,
         icon: CheckCircle2,
         variant: 'success',
-        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.delivered ?? null, label: 'vs yesterday' },
       },
       { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
     ];
@@ -352,7 +388,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.sales_today,
         icon: TrendingUp,
         variant: 'success',
-        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.sales ?? null, label: 'vs yesterday' },
       },
       {
         title: 'New Leads',
@@ -405,7 +441,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.delivered_today,
         icon: CheckCircle2,
         variant: 'success',
-        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.delivered ?? null, label: 'vs yesterday' },
       },
       { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
     ];
@@ -482,7 +518,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.delivered_today,
         icon: CheckCircle2,
         variant: 'success',
-        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.delivered ?? null, label: 'vs yesterday' },
       },
       { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
     ];
@@ -500,7 +536,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         value: s.sales_today,
         icon: TrendingUp,
         variant: 'success',
-        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+        trend: { value: liveTrends?.sales ?? null, label: 'vs yesterday' },
       },
       {
         title: 'QC Pending',
@@ -827,8 +863,8 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   }
 
   const chartData =
-    hourlyActivity.length > 0
-      ? hourlyActivity
+    liveHourly.length > 0
+      ? liveHourly
       : Array.from({ length: 12 }, (_, i) => ({ hour: String(8 + i), waybills: 0 }));
 
   const chartMax = Math.max(...chartData.map((d) => d.waybills), 1);
@@ -885,12 +921,28 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                 'Overview of warehouse operations and key metrics'}
             </p>
           </div>
-          <Button asChild>
-            <Link href="/scanner">
-              <QrCode className="mr-1.5 h-4 w-4" />
-              Open Scanner
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                Updated {new Date(lastUpdated).toLocaleTimeString()}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={refreshStats}
+              disabled={refreshing}
+              title="Refresh stats"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button asChild>
+              <Link href="/scanner">
+                <QrCode className="mr-1.5 h-4 w-4" />
+                Open Scanner
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stat cards row 1 */}
@@ -984,11 +1036,11 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
               <CardDescription>Latest system events</CardDescription>
             </CardHeader>
             <CardContent>
-              {recentActivity.length === 0 ? (
+              {liveActivity.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No recent activity</p>
               ) : (
                 <div className="space-y-4">
-                  {recentActivity.slice(0, 6).map((activity) => {
+                  {liveActivity.slice(0, 6).map((activity) => {
                     const Icon = ACTIVITY_ICONS[activity.type] ?? BarChart3;
                     const color = ACTIVITY_COLORS[activity.type] ?? 'bg-muted-foreground';
                     return (

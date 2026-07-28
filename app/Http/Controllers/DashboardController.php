@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Waybill;
 use App\Models\Invoice;
 use App\Domain\Product\Models\ProductStock;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,6 +22,34 @@ class DashboardController extends Controller
         $user = $request->user();
         $role = $user?->role ?? 'agent';
 
+        [$stats, $trends, $hourlyActivity, $recentActivity] = $this->buildDashboardData($user);
+
+        return Inertia::render('Dashboard/Index', [
+            'stats'          => $stats,
+            'recentActivity' => $recentActivity,
+            'hourlyActivity' => $hourlyActivity,
+            'trends'         => $trends,
+            'role'           => $role,
+        ]);
+    }
+
+    public function stats(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        [$stats, $trends, $hourlyActivity, $recentActivity] = $this->buildDashboardData($user);
+
+        return response()->json([
+            'stats'          => $stats,
+            'recentActivity' => $recentActivity,
+            'hourlyActivity' => $hourlyActivity,
+            'trends'         => $trends,
+            'updated_at'     => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildDashboardData(?\App\Models\User $user): array
+    {
         // Waybill statistics
         $totalWaybills   = Waybill::count();
         $pendingDispatch = Waybill::where('status', 'PENDING')->count();
@@ -49,13 +78,13 @@ class DashboardController extends Controller
             ->where('last_login_at', '>=', now()->subHour())
             ->count();
 
-        // Ticket statistics (for agent/teamleader roles)
+        // Ticket statistics
         $openTickets = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->count();
         $myTickets  = Ticket::where('assigned_to', $user?->id)
             ->whereIn('status', ['open', 'in_progress', 'waiting'])
             ->count();
 
-        // Invoice statistics (for finance/accounting roles)
+        // Invoice statistics
         $invoicesOverdue = Invoice::where('status', 'OVERDUE')->count();
         $invoicesUnpaid   = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
         $totalRevenue     = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])->sum('amount_paid');
@@ -63,12 +92,11 @@ class DashboardController extends Controller
             ->whereIn('status', ['PAID', 'PARTIAL'])
             ->sum('amount_paid');
 
-        // Inventory statistics (for warehouse roles)
+        // Inventory statistics
         $lowStockCount  = ProductStock::whereRaw('current_stock - reserved_stock <= reorder_point')->count();
         $totalProducts  = ProductStock::distinct('product_id')->count('product_id');
-        $pendingGrCount = 0; // Goods receipt pending — placeholder if GR model exists
 
-        // Claims statistics (for claims_officer)
+        // Claims statistics
         $claimsPending  = Waybill::where('status', 'RETURNED')->whereNull('returned_at')->orWhereNull('delivered_at')->where('status', 'CLAIMED')->count();
         $beyondSlaCount = Waybill::where('status', 'RETURNED')->where('returned_at', '<', now()->subDays(7))->count();
 
@@ -84,23 +112,19 @@ class DashboardController extends Controller
             'conversion_rate' => $conversionRate,
             'qc_pending'      => $qcPending,
             'agents_online'   => $agentsOnline,
-            // Ticket stats
             'open_tickets'    => $openTickets,
             'my_tickets'      => $myTickets,
-            // Finance stats
             'invoices_overdue' => $invoicesOverdue,
             'invoices_unpaid'  => $invoicesUnpaid,
             'total_revenue'    => round($totalRevenue, 2),
             'revenue_today'    => round($revenueToday, 2),
-            // Warehouse stats
             'low_stock_count'  => $lowStockCount,
             'total_products'   => $totalProducts,
-            // Claims stats
             'claims_pending'   => $claimsPending,
             'beyond_sla_count'  => $beyondSlaCount,
         ];
 
-        // Trend vs yesterday (null when yesterday had no data to avoid misleading +∞%)
+        // Trend vs yesterday
         $trends = [
             'delivered' => $deliveredYesterday > 0
                 ? (int) round((($deliveredToday - $deliveredYesterday) / $deliveredYesterday) * 100)
@@ -110,7 +134,7 @@ class DashboardController extends Controller
                 : null,
         ];
 
-        // Hourly waybill count for today — single aggregated query (8 AM – 7 PM)
+        // Hourly waybill count for today
         $rawHourly = Waybill::selectRaw('EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt')
             ->whereDate('created_at', today())
             ->whereRaw('EXTRACT(HOUR FROM created_at) BETWEEN 8 AND 19')
@@ -122,7 +146,7 @@ class DashboardController extends Controller
             $hourlyActivity[] = ['hour' => (string) $h, 'waybills' => (int) ($rawHourly[$h] ?? 0)];
         }
 
-        // Recent activity merged from deliveries, lead assignments, and QC approvals
+        // Recent activity
         $recentDeliveries = Waybill::where('status', 'DELIVERED')
             ->orderBy('delivered_at', 'desc')
             ->limit(3)
@@ -172,12 +196,6 @@ class DashboardController extends Controller
             'time'    => $item['time'],
         ], $recentActivity);
 
-        return Inertia::render('Dashboard/Index', [
-            'stats'          => $stats,
-            'recentActivity' => $recentActivity,
-            'hourlyActivity' => $hourlyActivity,
-            'trends'         => $trends,
-            'role'           => $role,
-        ]);
+        return [$stats, $trends, $hourlyActivity, $recentActivity];
     }
 }
