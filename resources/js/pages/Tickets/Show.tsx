@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Trash2,
   StickyNote,
+  Star,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,9 @@ interface Ticket {
   resolved_at?: string | null;
   sla_status?: 'on_track' | 'warning' | 'overdue' | 'breached' | 'met' | 'none';
   sla_remaining?: { overdue: boolean; hours: number; human: string } | null;
+  satisfaction_rating?: number | null;
+  satisfaction_comment?: string | null;
+  satisfaction_submitted_at?: string | null;
 }
 
 interface ActivityLogEntry {
@@ -209,6 +213,10 @@ export default function TicketsShow({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showCanned, setShowCanned] = useState(false);
   const [cannedSearch, setCannedSearch] = useState('');
+  const [surveyRating, setSurveyRating] = useState<number>(ticket.satisfaction_rating ?? 0);
+  const [surveyComment, setSurveyComment] = useState(ticket.satisfaction_comment ?? '');
+  const [surveyHover, setSurveyHover] = useState(0);
+  const [surveySubmitting, setSurveySubmitting] = useState(false);
 
   const allowedTransitions: Record<Ticket['status'], Ticket['status'][]> = {
     open: ['in_progress', 'waiting', 'resolved', 'closed'],
@@ -275,6 +283,27 @@ export default function TicketsShow({
       cr.title.toLowerCase().includes(cannedSearch.toLowerCase()) ||
       cr.category.toLowerCase().includes(cannedSearch.toLowerCase())
   );
+
+  const canSubmitSurvey =
+    (ticket.status === 'resolved' || ticket.status === 'closed') &&
+    !ticket.satisfaction_submitted_at &&
+    ticket.created_by.id === currentUserId;
+
+  function submitSurvey(e: React.FormEvent) {
+    e.preventDefault();
+    if (surveyRating < 1 || surveyRating > 5) return;
+    setSurveySubmitting(true);
+    router.post(
+      `/tickets/${ticket.id}/survey`,
+      { satisfaction_rating: surveyRating, satisfaction_comment: surveyComment || undefined },
+      {
+        preserveScroll: true,
+        onSuccess: () => toast.success('Thank you for your feedback!'),
+        onError: () => toast.error('Failed to submit survey.'),
+        onFinish: () => setSurveySubmitting(false),
+      }
+    );
+  }
 
   const publicComments = comments.filter((c) => !c.is_internal);
   const internalNotes = comments.filter((c) => c.is_internal);
@@ -782,6 +811,104 @@ export default function TicketsShow({
                       {ticket.resolved_at && <div>Resolved: {formatDate(ticket.resolved_at)}</div>}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Satisfaction Survey */}
+            {canSubmitSurvey && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Star className="h-4 w-4" />
+                    Satisfaction Survey
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={submitSurvey} className="space-y-4">
+                    <div>
+                      <p className="text-sm mb-2">How satisfied were you with the resolution?</p>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setSurveyRating(n)}
+                            onMouseEnter={() => setSurveyHover(n)}
+                            onMouseLeave={() => setSurveyHover(0)}
+                            className="p-1"
+                          >
+                            <Star
+                              className={`h-7 w-7 transition-colors ${
+                                (surveyHover || surveyRating) >= n
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-muted-foreground'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          {surveyRating > 0 && `${surveyRating} / 5`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">
+                        Additional comments (optional)
+                      </label>
+                      <Textarea
+                        value={surveyComment}
+                        onChange={(e) => setSurveyComment(e.target.value)}
+                        placeholder="Tell us about your experience..."
+                        rows={3}
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="w-full"
+                      disabled={surveySubmitting || surveyRating < 1}
+                    >
+                      {surveySubmitting ? 'Submitting...' : 'Submit Feedback'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Satisfaction Display (already submitted) */}
+            {ticket.satisfaction_submitted_at && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Star className="h-4 w-4" />
+                    Satisfaction Rating
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star
+                        key={n}
+                        className={`h-5 w-5 ${
+                          (ticket.satisfaction_rating ?? 0) >= n
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'text-muted-foreground'
+                        }`}
+                      />
+                    ))}
+                    <span className="ml-2 text-sm font-medium">
+                      {ticket.satisfaction_rating} / 5
+                    </span>
+                  </div>
+                  {ticket.satisfaction_comment && (
+                    <p className="text-sm text-muted-foreground italic border-l-2 pl-3">
+                      "{ticket.satisfaction_comment}"
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Submitted {formatDate(ticket.satisfaction_submitted_at)}
+                  </p>
                 </CardContent>
               </Card>
             )}

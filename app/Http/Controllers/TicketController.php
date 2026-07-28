@@ -228,6 +228,9 @@ class TicketController extends Controller
                 'resolved_at'     => $ticket->resolved_at?->toIso8601String(),
                 'sla_status'      => $ticket->slaStatus(),
                 'sla_remaining'   => $ticket->timeRemaining(),
+                'satisfaction_rating'       => $ticket->satisfaction_rating,
+                'satisfaction_comment'      => $ticket->satisfaction_comment,
+                'satisfaction_submitted_at' => $ticket->satisfaction_submitted_at?->toIso8601String(),
             ],
             'activityLogs'    => $activityLogs,
             'comments'        => $comments,
@@ -292,6 +295,26 @@ class TicketController extends Controller
         ]);
 
         return back()->with('success', $isInternal ? 'Internal note deleted.' : 'Comment deleted.');
+    }
+
+    public function submitSurvey(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'satisfaction_rating'  => ['required', 'integer', 'min:1', 'max:5'],
+            'satisfaction_comment' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $ticket->update([
+            'satisfaction_rating'       => $validated['satisfaction_rating'],
+            'satisfaction_comment'      => $validated['satisfaction_comment'] ?? null,
+            'satisfaction_submitted_at' => now(),
+        ]);
+
+        ActivityLog::log('ticket_satisfaction_survey', $request->user(), 'ticket', $ticket->id, [
+            'rating' => $validated['satisfaction_rating'],
+        ]);
+
+        return back()->with('success', 'Thank you for your feedback!');
     }
 
     public function updateStatus(Request $request, Ticket $ticket)

@@ -25,12 +25,17 @@ class Ticket extends Model
         'related_lead',
         'due_at',
         'resolved_at',
+        'satisfaction_rating',
+        'satisfaction_comment',
+        'satisfaction_submitted_at',
     ];
 
     protected $casts = [
         'related_lead' => 'integer',
         'due_at'        => 'datetime',
         'resolved_at'   => 'datetime',
+        'satisfaction_rating'      => 'integer',
+        'satisfaction_submitted_at' => 'datetime',
     ];
 
     public function createdBy(): BelongsTo

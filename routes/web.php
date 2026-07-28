@@ -149,6 +149,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::delete('/{ticket}/comments/{comment}', [TicketController::class, 'destroyComment'])->name('comments.destroy')->whereNumber('ticket')->whereNumber('comment');
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update')->whereNumber('ticket');
         Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign')->whereNumber('ticket');
+        Route::post('/{ticket}/survey', [TicketController::class, 'submitSurvey'])->name('survey.submit')->whereNumber('ticket');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
