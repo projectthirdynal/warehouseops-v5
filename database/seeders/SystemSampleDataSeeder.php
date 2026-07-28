@@ -384,7 +384,7 @@ class SystemSampleDataSeeder extends Seeder
             ['phone' => '09195558888', 'name' => 'Cristina Reyes'],
             ['address' => '789 Aurora Blvd, Cubao, Quezon City',
              'city' => 'Quezon City', 'state' => 'Metro Manila',
-             'status' => 'new', 'sales_status' => 'open', 'source' => 'facebook',
+             'status' => 'new', 'sales_status' => 'open', 'source' => 'FACEBOOK',
              'assigned_to' => $agent->id, 'product_name' => 'Smartphone X Pro 128GB',
              'product_brand' => 'TechBrand', 'amount' => 8500.00,
              'total_cycles' => 1, 'quality_score' => 85]
