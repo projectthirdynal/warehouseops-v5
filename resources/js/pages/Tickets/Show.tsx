@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -21,6 +21,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { formatDate } from '@/lib/utils';
 
 interface TicketUser {
@@ -105,6 +112,15 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
   const statusCfg = statusConfig[ticket.status];
   const priorityCfg = priorityConfig[ticket.priority];
   const [showInternal, setShowInternal] = useState(true);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  const allowedTransitions: Record<Ticket['status'], Ticket['status'][]> = {
+    open: ['in_progress', 'waiting', 'resolved', 'closed'],
+    in_progress: ['waiting', 'resolved', 'closed', 'open'],
+    waiting: ['in_progress', 'resolved', 'closed', 'open'],
+    resolved: ['closed', 'in_progress', 'open'],
+    closed: ['in_progress', 'open'],
+  };
 
   const form = useForm({
     body: '',
@@ -124,6 +140,20 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
   }
 
   const visibleComments = showInternal ? comments : comments.filter((c) => !c.is_internal);
+
+  function handleStatusChange(newStatus: Ticket['status']) {
+    setStatusUpdating(true);
+    router.patch(
+      `/tickets/${ticket.id}/status`,
+      { status: newStatus },
+      {
+        preserveScroll: true,
+        onSuccess: () => toast.success(`Status changed to ${statusConfig[newStatus].label}.`),
+        onError: () => toast.error('Failed to update status.'),
+        onFinish: () => setStatusUpdating(false),
+      }
+    );
+  }
 
   return (
     <AppLayout>
@@ -430,6 +460,60 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
               </CardContent>
             </Card>
 
+            {/* Status Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Status Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">Current Status</label>
+                  <Select
+                    value={ticket.status}
+                    onValueChange={(v) => handleStatusChange(v as Ticket['status'])}
+                    disabled={statusUpdating}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedTransitions[ticket.status].map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {statusConfig[s].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={statusUpdating}
+                    onClick={() => handleStatusChange('resolved')}
+                  >
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
+                    Mark Resolved
+                  </Button>
+                )}
+                {ticket.status === 'resolved' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={statusUpdating}
+                    onClick={() => handleStatusChange('closed')}
+                  >
+                    <CheckCircle className="mr-1.5 h-4 w-4" />
+                    Close Ticket
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Quick Actions */}
             <Card>
               <CardHeader>
@@ -446,10 +530,6 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
                 >
                   <MessageSquare className="mr-1.5 h-4 w-4" />
                   Reply
-                </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start" disabled>
-                  <CheckCircle className="mr-1.5 h-4 w-4" />
-                  Mark Resolved (coming soon)
                 </Button>
               </CardContent>
             </Card>

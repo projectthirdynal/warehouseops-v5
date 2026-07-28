@@ -29,7 +29,7 @@ class TicketExampleSeeder extends Seeder
             'ticket_number'   => 'TK-' . now()->format('ymd') . '-0001',
             'subject'         => 'Waybill WB-2026-00123 not delivered — customer complaint',
             'description'     => "Customer Maria Santos reported that her order (WB-2026-00123) was marked as delivered on July 26 but she never received it. She called in very upset. The courier is J&T Express. Need to investigate and file a claim if necessary.\n\nCustomer contact: 0917-555-1234\nOrder amount: ₱2,450 COD",
-            'status'          => 'open',
+            'status'          => 'in_progress',
             'priority'        => 'urgent',
             'category'        => 'delivery',
             'created_by'      => $agent->id,
@@ -66,6 +66,11 @@ class TicketExampleSeeder extends Seeder
 
         ActivityLog::log('ticket_assigned', $admin, 'ticket', $ticket->id, [
             'assigned_to' => $supervisor->name,
+        ]);
+
+        ActivityLog::log('ticket_status_changed', $supervisor, 'ticket', $ticket->id, [
+            'from' => 'open',
+            'to'   => 'in_progress',
         ]);
 
         ActivityLog::log('ticket_comment_added', $agent, 'ticket', $ticket->id, [

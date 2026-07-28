@@ -143,4 +143,35 @@ class TicketController extends Controller
 
         return back()->with('success', 'Comment added.');
     }
+
+    public function updateStatus(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'in:open,in_progress,waiting,resolved,closed'],
+        ]);
+
+        $oldStatus = $ticket->status;
+        $newStatus = $validated['status'];
+
+        $allowedTransitions = [
+            'open'         => ['in_progress', 'waiting', 'resolved', 'closed'],
+            'in_progress'  => ['waiting', 'resolved', 'closed', 'open'],
+            'waiting'      => ['in_progress', 'resolved', 'closed', 'open'],
+            'resolved'     => ['closed', 'in_progress', 'open'],
+            'closed'       => ['in_progress', 'open'],
+        ];
+
+        if (!in_array($newStatus, $allowedTransitions[$oldStatus] ?? [])) {
+            return back()->withErrors(['status' => "Cannot transition from {$oldStatus} to {$newStatus}."]);
+        }
+
+        $ticket->update(['status' => $newStatus]);
+
+        ActivityLog::log('ticket_status_changed', $request->user(), 'ticket', $ticket->id, [
+            'from' => $oldStatus,
+            'to'   => $newStatus,
+        ]);
+
+        return back()->with('success', "Ticket status updated to {$newStatus}.");
+    }
 }
