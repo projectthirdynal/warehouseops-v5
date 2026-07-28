@@ -89,7 +89,8 @@ class DashboardController extends Controller
                 'message'   => "Waybill #{$w->waybill_number} delivered successfully",
                 'time'      => $w->delivered_at?->diffForHumans() ?? 'recently',
                 '_ts'       => $w->delivered_at,
-            ]);
+            ])
+            ->toArray();
 
         $recentAssignments = Lead::whereNotNull('assigned_to')
             ->orderBy('updated_at', 'desc')
@@ -101,7 +102,8 @@ class DashboardController extends Controller
                 'message' => 'Lead assigned to agent',
                 'time'    => $l->updated_at->diffForHumans(),
                 '_ts'     => $l->updated_at,
-            ]);
+            ])
+            ->toArray();
 
         $recentQC = Lead::where('sales_status', 'QA_APPROVED')
             ->orderBy('updated_at', 'desc')
@@ -113,21 +115,18 @@ class DashboardController extends Controller
                 'message' => "Sale #{$l->id} approved by QC",
                 'time'    => $l->updated_at->diffForHumans(),
                 '_ts'     => $l->updated_at,
-            ]);
-
-        $recentActivity = $recentDeliveries
-            ->concat($recentAssignments)
-            ->concat($recentQC)
-            ->sortByDesc(fn ($item) => $item['_ts'])
-            ->take(10)
-            ->values()
-            ->map(fn ($item) => [
-                'id'      => $item['id'],
-                'type'    => $item['type'],
-                'message' => $item['message'],
-                'time'    => $item['time'],
             ])
             ->toArray();
+
+        $recentActivity = array_merge($recentDeliveries, $recentAssignments, $recentQC);
+        usort($recentActivity, fn ($a, $b) => ($b['_ts'] ?? null) <=> ($a['_ts'] ?? null));
+        $recentActivity = array_slice($recentActivity, 0, 10);
+        $recentActivity = array_map(fn ($item) => [
+            'id'      => $item['id'],
+            'type'    => $item['type'],
+            'message' => $item['message'],
+            'time'    => $item['time'],
+        ], $recentActivity);
 
         return Inertia::render('Dashboard/Index', [
             'stats'          => $stats,
