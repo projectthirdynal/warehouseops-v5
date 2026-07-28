@@ -14,6 +14,8 @@ import {
   AlertCircle,
   User,
   Settings,
+  Timer,
+  AlertTriangle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -66,6 +68,9 @@ interface Ticket {
   created_at: string;
   updated_at: string;
   messages_count: number;
+  due_at?: string | null;
+  sla_status?: 'on_track' | 'warning' | 'overdue' | 'breached' | 'met' | 'none';
+  sla_remaining?: { overdue: boolean; hours: number; human: string } | null;
 }
 
 interface CategoryItem {
@@ -92,6 +97,7 @@ interface Props {
     open: number;
     in_progress: number;
     resolved_today: number;
+    overdue?: number;
   };
   categories: CategoryItem[];
   priorities: PriorityItem[];
@@ -114,6 +120,21 @@ const priorityColorMap: Record<string, string> = {
   amber: 'text-amber-600',
   orange: 'text-orange-600',
   red: 'text-destructive',
+};
+
+const slaConfig: Record<string, { label: string; className: string; icon?: string }> = {
+  on_track: { label: 'On Track', className: 'text-success border-success/30 bg-success/5' },
+  warning: { label: 'Warning', className: 'text-amber-600 border-amber-300 bg-amber-50' },
+  overdue: {
+    label: 'Overdue',
+    className: 'text-destructive border-destructive/30 bg-destructive/5',
+  },
+  breached: {
+    label: 'Breached',
+    className: 'text-destructive border-destructive/30 bg-destructive/5',
+  },
+  met: { label: 'SLA Met', className: 'text-success border-success/30 bg-success/5' },
+  none: { label: '', className: '' },
 };
 
 export default function TicketsIndex({
@@ -234,6 +255,18 @@ export default function TicketsIndex({
               </div>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" /> Overdue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold font-display text-destructive">
+                {stats?.overdue ?? 0}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filters */}
@@ -342,6 +375,15 @@ export default function TicketsIndex({
                           {ticket.related_waybill && (
                             <Badge variant="outline" className="text-xs">
                               WB: {ticket.related_waybill}
+                            </Badge>
+                          )}
+                          {ticket.sla_status && ticket.sla_status !== 'none' && (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${slaConfig[ticket.sla_status]?.className ?? ''}`}
+                            >
+                              <Timer className="mr-1 h-3 w-3" />
+                              {ticket.sla_remaining?.human ?? slaConfig[ticket.sla_status].label}
                             </Badge>
                           )}
                         </div>

@@ -35,6 +35,9 @@ class TicketController extends Controller
                 'created_at'      => $t->created_at,
                 'updated_at'      => $t->updated_at,
                 'messages_count'  => $t->comments()->count(),
+                'due_at'          => $t->due_at?->toIso8601String(),
+                'sla_status'      => $t->slaStatus(),
+                'sla_remaining'   => $t->timeRemaining(),
             ]);
 
         $stats = [
@@ -42,6 +45,7 @@ class TicketController extends Controller
             'open'           => Ticket::where('status', 'open')->count(),
             'in_progress'    => Ticket::where('status', 'in_progress')->count(),
             'resolved_today' => Ticket::where('status', 'resolved')->whereDate('updated_at', today())->count(),
+            'overdue'        => Ticket::whereNotNull('due_at')->where('due_at', '<', now())->whereNotIn('status', ['resolved', 'closed'])->count(),
         ];
 
         $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
@@ -75,6 +79,7 @@ class TicketController extends Controller
             'related_waybill' => $validated['related_waybill'] ?? null,
             'status'          => 'open',
             'created_by'      => $request->user()->id,
+            'due_at'          => Ticket::calculateDueAt($validated['priority']),
         ]);
 
         return back()->with('success', "Ticket {$ticket->ticket_number} created.");
@@ -133,6 +138,10 @@ class TicketController extends Controller
                 'related_lead'    => $ticket->related_lead,
                 'created_at'      => $ticket->created_at,
                 'updated_at'      => $ticket->updated_at,
+                'due_at'          => $ticket->due_at?->toIso8601String(),
+                'resolved_at'     => $ticket->resolved_at?->toIso8601String(),
+                'sla_status'      => $ticket->slaStatus(),
+                'sla_remaining'   => $ticket->timeRemaining(),
             ],
             'activityLogs'    => $activityLogs,
             'comments'        => $comments,
@@ -186,7 +195,14 @@ class TicketController extends Controller
             return back()->withErrors(['status' => "Cannot transition from {$oldStatus} to {$newStatus}."]);
         }
 
-        $ticket->update(['status' => $newStatus]);
+        $updateData = ['status' => $newStatus];
+        if (in_array($newStatus, ['resolved', 'closed']) && !$ticket->resolved_at) {
+            $updateData['resolved_at'] = now();
+        }
+        if (!in_array($newStatus, ['resolved', 'closed'])) {
+            $updateData['resolved_at'] = null;
+        }
+        $ticket->update($updateData);
 
         ActivityLog::log('ticket_status_changed', $request->user(), 'ticket', $ticket->id, [
             'from' => $oldStatus,

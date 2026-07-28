@@ -14,6 +14,9 @@ import {
   Activity,
   Send,
   Lock,
+  Timer,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -50,6 +53,10 @@ interface Ticket {
   related_lead?: number;
   created_at: string;
   updated_at: string;
+  due_at?: string | null;
+  resolved_at?: string | null;
+  sla_status?: 'on_track' | 'warning' | 'overdue' | 'breached' | 'met' | 'none';
+  sla_remaining?: { overdue: boolean; hours: number; human: string } | null;
 }
 
 interface ActivityLogEntry {
@@ -117,6 +124,38 @@ const priorityColorMap: Record<string, string> = {
   amber: 'text-amber-600',
   orange: 'text-orange-600',
   red: 'text-destructive',
+};
+
+const slaConfig: Record<
+  string,
+  { label: string; className: string; icon: 'timer' | 'alert' | 'check' }
+> = {
+  on_track: {
+    label: 'On Track',
+    className: 'text-success border-success/30 bg-success/5',
+    icon: 'timer',
+  },
+  warning: {
+    label: 'Warning',
+    className: 'text-amber-600 border-amber-300 bg-amber-50',
+    icon: 'timer',
+  },
+  overdue: {
+    label: 'Overdue',
+    className: 'text-destructive border-destructive/30 bg-destructive/5',
+    icon: 'alert',
+  },
+  breached: {
+    label: 'SLA Breached',
+    className: 'text-destructive border-destructive/30 bg-destructive/5',
+    icon: 'alert',
+  },
+  met: {
+    label: 'SLA Met',
+    className: 'text-success border-success/30 bg-success/5',
+    icon: 'check',
+  },
+  none: { label: '', className: '', icon: 'timer' },
 };
 
 function getInitials(name: string): string {
@@ -527,6 +566,47 @@ export default function TicketsShow({
                 </div>
               </CardContent>
             </Card>
+
+            {/* SLA Tracking */}
+            {ticket.sla_status && ticket.sla_status !== 'none' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Timer className="h-4 w-4" />
+                    SLA Tracking
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div
+                    className={`rounded-lg border p-3 ${slaConfig[ticket.sla_status]?.className ?? ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {ticket.sla_status === 'overdue' || ticket.sla_status === 'breached' ? (
+                        <AlertTriangle className="h-5 w-5" />
+                      ) : ticket.sla_status === 'met' ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : (
+                        <Timer className="h-5 w-5" />
+                      )}
+                      <div>
+                        <div className="text-sm font-semibold">
+                          {slaConfig[ticket.sla_status]?.label}
+                        </div>
+                        {ticket.sla_remaining && (
+                          <div className="text-xs">{ticket.sla_remaining.human}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {ticket.due_at && (
+                    <div className="text-xs text-muted-foreground">
+                      <div>Due: {formatDate(ticket.due_at)}</div>
+                      {ticket.resolved_at && <div>Resolved: {formatDate(ticket.resolved_at)}</div>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Related Items */}
             <Card>
