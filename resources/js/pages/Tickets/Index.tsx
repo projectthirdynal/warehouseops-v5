@@ -123,6 +123,8 @@ export default function TicketsIndex({
   priorities,
   currentUserId,
 }: Props) {
+  const cats = categories ?? [];
+  const pris = priorities ?? [];
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assignedToMe, setAssignedToMe] = useState(false);
@@ -282,7 +284,7 @@ export default function TicketsIndex({
               {filteredTickets.length > 0 ? (
                 filteredTickets.map((ticket) => {
                   const statusCfg = statusConfig[ticket.status];
-                  const priItem = priorities.find((p) => p.slug === ticket.priority);
+                  const priItem = pris.find((p) => p.slug === ticket.priority);
                   const priColor = priItem
                     ? priorityColorMap[priItem.color] || 'text-muted-foreground'
                     : 'text-muted-foreground';
@@ -422,7 +424,7 @@ export default function TicketsIndex({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {priorities
+                    {pris
                       .filter((p) => p.is_active)
                       .map((p) => (
                         <SelectItem key={p.id} value={p.slug}>
@@ -443,7 +445,7 @@ export default function TicketsIndex({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories
+                    {cats
                       .filter((c) => c.is_active)
                       .map((c) => (
                         <SelectItem key={c.id} value={c.slug}>
