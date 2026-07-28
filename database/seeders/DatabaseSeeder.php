@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CustomerRiskRulesSeeder::class,
             TicketExampleSeeder::class,
+            SystemSampleDataSeeder::class,
         ]);
     }
 }
