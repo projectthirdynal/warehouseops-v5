@@ -272,6 +272,23 @@ class TicketController extends Controller
         return back()->with('success', 'Comment added.');
     }
 
+    public function destroyComment(Request $request, Ticket $ticket, TicketComment $comment)
+    {
+        if ($comment->ticket_id !== $ticket->id) {
+            return back()->withErrors(['comment' => 'Comment does not belong to this ticket.']);
+        }
+
+        $isInternal = $comment->is_internal;
+        $comment->delete();
+
+        ActivityLog::log('ticket_comment_deleted', $request->user(), 'ticket', $ticket->id, [
+            'comment_id' => $comment->id,
+            'is_internal' => $isInternal,
+        ]);
+
+        return back()->with('success', $isInternal ? 'Internal note deleted.' : 'Comment deleted.');
+    }
+
     public function updateStatus(Request $request, Ticket $ticket)
     {
         $validated = $request->validate([

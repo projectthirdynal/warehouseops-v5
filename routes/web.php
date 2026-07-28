@@ -140,6 +140,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
 
         Route::get('/{ticket}', [TicketController::class, 'show'])->name('show')->whereNumber('ticket');
         Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store')->whereNumber('ticket');
+        Route::delete('/{ticket}/comments/{comment}', [TicketController::class, 'destroyComment'])->name('comments.destroy')->whereNumber('ticket')->whereNumber('comment');
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update')->whereNumber('ticket');
         Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign')->whereNumber('ticket');
     });

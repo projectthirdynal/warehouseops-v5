@@ -17,6 +17,8 @@ import {
   Timer,
   AlertTriangle,
   CheckCircle2,
+  Trash2,
+  StickyNote,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -191,9 +193,10 @@ export default function TicketsShow({
   const priLabel = priItem ? priItem.name : ticket.priority;
   const catItem = categories?.find((c) => c.slug === ticket.category);
   const catLabel = catItem ? catItem.name : ticket.category;
-  const [showInternal, setShowInternal] = useState(true);
+  const [commentTab, setCommentTab] = useState<'public' | 'internal'>('public');
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [assignUpdating, setAssignUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const allowedTransitions: Record<Ticket['status'], Ticket['status'][]> = {
     open: ['in_progress', 'waiting', 'resolved', 'closed'],
@@ -203,24 +206,54 @@ export default function TicketsShow({
     closed: ['in_progress', 'open'],
   };
 
-  const form = useForm({
+  const publicForm = useForm({
     body: '',
     is_internal: false,
   });
+  const internalForm = useForm({
+    body: '',
+    is_internal: true,
+  });
 
-  function submitComment(e: React.FormEvent) {
+  function submitPublicComment(e: React.FormEvent) {
     e.preventDefault();
-    form.post(`/tickets/${ticket.id}/comments`, {
+    publicForm.post(`/tickets/${ticket.id}/comments`, {
       preserveScroll: true,
       onSuccess: () => {
-        form.reset();
+        publicForm.reset();
         toast.success('Comment added.');
       },
       onError: () => toast.error('Failed to add comment.'),
     });
   }
 
-  const visibleComments = showInternal ? comments : comments.filter((c) => !c.is_internal);
+  function submitInternalNote(e: React.FormEvent) {
+    e.preventDefault();
+    internalForm.post(`/tickets/${ticket.id}/comments`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        internalForm.reset();
+        toast.success('Internal note added.');
+      },
+      onError: () => toast.error('Failed to add internal note.'),
+    });
+  }
+
+  function deleteComment(commentId: number, isInternal: boolean) {
+    setDeletingId(commentId);
+    router.delete(`/tickets/${ticket.id}/comments/${commentId}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success(isInternal ? 'Internal note deleted.' : 'Comment deleted.');
+      },
+      onError: () => toast.error('Failed to delete.'),
+      onFinish: () => setDeletingId(null),
+    });
+  }
+
+  const publicComments = comments.filter((c) => !c.is_internal);
+  const internalNotes = comments.filter((c) => c.is_internal);
+  const activeComments = commentTab === 'public' ? publicComments : internalNotes;
 
   function handleStatusChange(newStatus: Ticket['status']) {
     setStatusUpdating(true);
@@ -342,31 +375,56 @@ export default function TicketsShow({
               </CardContent>
             </Card>
 
-            {/* Comments Thread */}
+            {/* Comments & Internal Notes */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Comments ({comments.length})
-                  </CardTitle>
-                  {comments.some((c) => c.is_internal) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowInternal(!showInternal)}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCommentTab('public')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      commentTab === 'public'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Comments
+                    <Badge
+                      variant={commentTab === 'public' ? 'secondary' : 'outline'}
+                      className="ml-1 text-xs"
                     >
-                      <Lock className="mr-1.5 h-3 w-3" />
-                      {showInternal ? 'Hide Internal' : 'Show Internal'}
-                    </Button>
-                  )}
+                      {publicComments.length}
+                    </Badge>
+                  </button>
+                  <button
+                    onClick={() => setCommentTab('internal')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      commentTab === 'internal'
+                        ? 'bg-amber-600 text-white'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    Internal Notes
+                    <Badge
+                      variant={commentTab === 'internal' ? 'secondary' : 'outline'}
+                      className="ml-1 text-xs"
+                    >
+                      {internalNotes.length}
+                    </Badge>
+                  </button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {visibleComments.length > 0 ? (
+                {activeComments.length > 0 ? (
                   <div className="space-y-3">
-                    {visibleComments.map((comment) => (
-                      <div key={comment.id} className="flex items-start gap-3">
+                    {activeComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className={`flex items-start gap-3 rounded-lg p-3 ${
+                          comment.is_internal ? 'bg-amber-50 border border-amber-200' : ''
+                        }`}
+                      >
                         <Avatar className="h-8 w-8 mt-0.5">
                           <AvatarFallback className="text-xs">
                             {getInitials(comment.user.name)}
@@ -376,7 +434,10 @@ export default function TicketsShow({
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{comment.user.name}</span>
                             {comment.is_internal && (
-                              <Badge variant="secondary" className="text-xs">
+                              <Badge
+                                variant="secondary"
+                                className="text-xs bg-amber-200 text-amber-900"
+                              >
                                 <Lock className="mr-1 h-2.5 w-2.5" />
                                 Internal
                               </Badge>
@@ -387,49 +448,87 @@ export default function TicketsShow({
                           </div>
                           <p className="mt-1 text-sm whitespace-pre-wrap">{comment.body}</p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          disabled={deletingId === comment.id}
+                          onClick={() => deleteComment(comment.id, comment.is_internal)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">No comments yet.</p>
+                  <p className="text-sm text-muted-foreground italic">
+                    {commentTab === 'public' ? 'No comments yet.' : 'No internal notes yet.'}
+                  </p>
                 )}
 
-                {/* Reply Form */}
-                <form onSubmit={submitComment} className="space-y-3 pt-3 border-t">
-                  <Textarea
-                    value={form.data.body}
-                    onChange={(e) => form.setData('body', e.target.value)}
-                    placeholder="Write a reply..."
-                    rows={3}
-                    required
-                  />
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.data.is_internal}
-                        onChange={(e) => form.setData('is_internal', e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <Lock className="h-3 w-3" />
-                      Internal note
-                    </label>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={form.processing || !form.data.body.trim()}
-                    >
-                      {form.processing ? (
-                        'Sending...'
-                      ) : (
-                        <>
-                          <Send className="mr-1.5 h-3.5 w-3.5" />
-                          Post Comment
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
+                {/* Public Comment Form */}
+                {commentTab === 'public' && (
+                  <form onSubmit={submitPublicComment} className="space-y-3 pt-3 border-t">
+                    <Textarea
+                      value={publicForm.data.body}
+                      onChange={(e) => publicForm.setData('body', e.target.value)}
+                      placeholder="Write a public reply..."
+                      rows={3}
+                      required
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={publicForm.processing || !publicForm.data.body.trim()}
+                      >
+                        {publicForm.processing ? (
+                          'Sending...'
+                        ) : (
+                          <>
+                            <Send className="mr-1.5 h-3.5 w-3.5" />
+                            Post Comment
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Internal Note Form */}
+                {commentTab === 'internal' && (
+                  <form onSubmit={submitInternalNote} className="space-y-3 pt-3 border-t">
+                    <Textarea
+                      value={internalForm.data.body}
+                      onChange={(e) => internalForm.setData('body', e.target.value)}
+                      placeholder="Write an internal note (visible to staff only)..."
+                      rows={3}
+                      required
+                      className="border-amber-300 bg-amber-50/30"
+                    />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-700">
+                        <Lock className="h-3 w-3" />
+                        Internal notes are only visible to staff members.
+                      </div>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={internalForm.processing || !internalForm.data.body.trim()}
+                        className="bg-amber-600 hover:bg-amber-700"
+                      >
+                        {internalForm.processing ? (
+                          'Saving...'
+                        ) : (
+                          <>
+                            <StickyNote className="mr-1.5 h-3.5 w-3.5" />
+                            Add Note
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </CardContent>
             </Card>
 
