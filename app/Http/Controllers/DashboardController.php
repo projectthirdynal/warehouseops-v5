@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\DashboardWidgetConfig;
 use App\Models\Lead;
 use App\Models\Ticket;
 use App\Models\User;
@@ -30,6 +31,7 @@ class DashboardController extends Controller
             'hourlyActivity' => $hourlyActivity,
             'trends'         => $trends,
             'role'           => $role,
+            'widgetConfig'   => $this->getWidgetConfig($user?->id ?? 0, 'main'),
         ]);
     }
 
@@ -197,5 +199,104 @@ class DashboardController extends Controller
         ], $recentActivity);
 
         return [$stats, $trends, $hourlyActivity, $recentActivity];
+    }
+
+    // ── Widget configuration ──
+
+    public static function availableWidgets(): array
+    {
+        return [
+            ['key' => 'stat_cards_1', 'label' => 'Stat Cards (Row 1)', 'description' => 'Primary role-based statistics', 'category' => 'stats', 'default_visible' => true, 'default_order' => 1],
+            ['key' => 'stat_cards_2', 'label' => 'Stat Cards (Row 2)', 'description' => 'Secondary role-based statistics', 'category' => 'stats', 'default_visible' => true, 'default_order' => 2],
+            ['key' => 'hourly_chart', 'label' => 'Hourly Activity Chart', 'description' => 'Waybill activity by hour', 'category' => 'charts', 'default_visible' => true, 'default_order' => 3],
+            ['key' => 'recent_activity', 'label' => 'Recent Activity', 'description' => 'Latest system events feed', 'category' => 'activity', 'default_visible' => true, 'default_order' => 4],
+            ['key' => 'summary_stats', 'label' => 'Summary Statistics', 'description' => 'Role-based summary metrics', 'category' => 'stats', 'default_visible' => true, 'default_order' => 5],
+            ['key' => 'quick_actions', 'label' => 'Quick Actions', 'description' => 'Role-based shortcut buttons', 'category' => 'actions', 'default_visible' => true, 'default_order' => 6],
+        ];
+    }
+
+    public function widgetConfig(Request $request): JsonResponse
+    {
+        $userId = $request->user()?->id ?? 0;
+        $dashboard = (string) $request->query('dashboard', 'main');
+
+        return response()->json($this->getWidgetConfig($userId, $dashboard));
+    }
+
+    public function saveWidgetConfig(Request $request): JsonResponse
+    {
+        $userId = $request->user()?->id ?? 0;
+        $dashboard = (string) $request->input('dashboard', 'main');
+        $widgets = $request->input('widgets', []);
+        $availableKeys = array_column(self::availableWidgets(), 'key');
+
+        foreach ($widgets as $config) {
+            $key = $config['key'] ?? null;
+            if (!$key || !in_array($key, $availableKeys)) {
+                continue;
+            }
+            DashboardWidgetConfig::updateOrCreate(
+                [
+                    'user_id' => $userId,
+                    'dashboard' => $dashboard,
+                    'widget_key' => $key,
+                ],
+                [
+                    'is_visible' => $config['is_visible'] ?? true,
+                    'sort_order' => $config['sort_order'] ?? 0,
+                    'settings' => $config['settings'] ?? null,
+                ]
+            );
+        }
+
+        return response()->json($this->getWidgetConfig($userId, $dashboard));
+    }
+
+    public function resetWidgetConfig(Request $request): JsonResponse
+    {
+        $userId = $request->user()?->id ?? 0;
+        $dashboard = (string) $request->query('dashboard', 'main');
+
+        DashboardWidgetConfig::where('user_id', $userId)
+            ->where('dashboard', $dashboard)
+            ->delete();
+
+        return response()->json($this->getWidgetConfig($userId, $dashboard));
+    }
+
+    private function getWidgetConfig(int $userId, string $dashboard): array
+    {
+        $configs = DashboardWidgetConfig::where('user_id', $userId)
+            ->where('dashboard', $dashboard)
+            ->get()
+            ->keyBy('widget_key');
+
+        $available = self::availableWidgets();
+        $widgets = [];
+
+        foreach ($available as $widget) {
+            $config = $configs->get($widget['key']);
+            $widgets[] = [
+                'key' => $widget['key'],
+                'label' => $widget['label'],
+                'description' => $widget['description'],
+                'category' => $widget['category'],
+                'is_visible' => $config?->is_visible ?? $widget['default_visible'],
+                'sort_order' => $config?->sort_order ?? $widget['default_order'],
+                'settings' => $config?->settings ?? [],
+            ];
+        }
+
+        usort($widgets, fn ($a, $b) => $a['sort_order'] <=> $b['sort_order']);
+
+        $visible = array_values(array_filter($widgets, fn ($w) => $w['is_visible']));
+        $hidden = array_values(array_filter($widgets, fn ($w) => !$w['is_visible']));
+
+        return [
+            'widgets' => $widgets,
+            'visible_widgets' => $visible,
+            'hidden_widgets' => $hidden,
+            'dashboard' => $dashboard,
+        ];
     }
 }

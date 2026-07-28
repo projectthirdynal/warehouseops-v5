@@ -22,6 +22,11 @@ import {
   ShieldAlert,
   UserCog,
   RefreshCw,
+  GripVertical,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  RotateCcw,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,6 +43,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -53,12 +59,30 @@ import type {
   PageProps,
 } from '@/types';
 
+interface WidgetItem {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+  is_visible: boolean;
+  sort_order: number;
+  settings: Record<string, unknown>;
+}
+
+interface WidgetConfigData {
+  widgets: WidgetItem[];
+  visible_widgets: WidgetItem[];
+  hidden_widgets: WidgetItem[];
+  dashboard: string;
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
   hourlyActivity: DashboardHourlyItem[];
   trends: DashboardTrends;
   role?: string;
+  widgetConfig?: WidgetConfigData;
 }
 
 function StatCard({
@@ -142,13 +166,30 @@ const ACTIVITY_COLORS: Record<string, string> = {
   System: 'bg-muted-foreground',
 };
 
-export default function Dashboard({ stats, recentActivity, hourlyActivity, trends, role }: Props) {
+export default function Dashboard({
+  stats,
+  recentActivity,
+  hourlyActivity,
+  trends,
+  role,
+  widgetConfig,
+}: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
   const [liveHourly, setLiveHourly] = useState(hourlyActivity);
   const [liveTrends, setLiveTrends] = useState(trends);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Widget customization state ──
+  const [widgets, setWidgets] = useState<WidgetItem[]>(widgetConfig?.widgets ?? []);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [savingWidgets, setSavingWidgets] = useState(false);
+
+  const widgetVisible = (key: string): boolean =>
+    widgets.find((w) => w.key === key)?.is_visible ?? true;
 
   const s = liveStats ??
     stats ?? {
@@ -193,6 +234,107 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     const interval = setInterval(refreshStats, 30_000);
     return () => clearInterval(interval);
   }, [refreshStats]);
+
+  // ── Widget config handlers ──
+  const saveWidgetConfig = useCallback(async (newWidgets: WidgetItem[]) => {
+    setSavingWidgets(true);
+    try {
+      const res = await fetch('/api/dashboard/widgets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-CSRF-TOKEN':
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+        },
+        body: JSON.stringify({
+          dashboard: 'main',
+          widgets: newWidgets.map((w, i) => ({
+            key: w.key,
+            is_visible: w.is_visible,
+            sort_order: i + 1,
+            settings: w.settings,
+          })),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWidgets(data.widgets);
+        toast.success('Dashboard layout saved.');
+      } else {
+        toast.error('Failed to save layout.');
+      }
+    } catch {
+      toast.error('Failed to save layout.');
+    } finally {
+      setSavingWidgets(false);
+    }
+  }, []);
+
+  const resetWidgetConfig = useCallback(async () => {
+    setSavingWidgets(true);
+    try {
+      const res = await fetch('/api/dashboard/widgets/reset?dashboard=main', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'X-CSRF-TOKEN':
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWidgets(data.widgets);
+        toast.success('Dashboard layout reset to defaults.');
+      } else {
+        toast.error('Failed to reset layout.');
+      }
+    } catch {
+      toast.error('Failed to reset layout.');
+    } finally {
+      setSavingWidgets(false);
+    }
+  }, []);
+
+  function toggleWidgetVisibility(key: string) {
+    setWidgets((prev) =>
+      prev.map((w) => (w.key === key ? { ...w, is_visible: !w.is_visible } : w))
+    );
+  }
+
+  function handleDragStart(idx: number) {
+    setDraggedIdx(idx);
+  }
+
+  function handleDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  }
+
+  function handleDrop(idx: number) {
+    if (draggedIdx === null || draggedIdx === idx) {
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    setWidgets((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(draggedIdx, 1);
+      updated.splice(idx, 0, moved);
+      return updated;
+    });
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  }
+
+  function handleSaveLayout() {
+    saveWidgetConfig(widgets);
+    setShowCustomize(false);
+  }
+
+  function handleResetLayout() {
+    resetWidgetConfig();
+  }
 
   // ── Role-based stat card configs ──
   type StatCardConfig = {
@@ -1046,6 +1188,15 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCustomize(true)}
+              title="Customize dashboard layout"
+            >
+              <LayoutGrid className="mr-1.5 h-4 w-4" />
+              Customize
+            </Button>
             <Button asChild>
               <Link href="/scanner">
                 <QrCode className="mr-1.5 h-4 w-4" />
@@ -1056,138 +1207,168 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         </div>
 
         {/* Stat cards row 1 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {statCards1.map((card) => (
-            <StatCard key={card.title} {...card} />
-          ))}
-        </div>
+        {widgetVisible('stat_cards_1') && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {statCards1.map((card) => (
+              <StatCard key={card.title} {...card} />
+            ))}
+          </div>
+        )}
 
         {/* Stat cards row 2 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {statCards2.map((card) => (
-            <StatCard key={card.title} {...card} />
-          ))}
-        </div>
+        {widgetVisible('stat_cards_2') && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {statCards2.map((card) => (
+              <StatCard key={card.title} {...card} />
+            ))}
+          </div>
+        )}
 
         {/* Chart + Activity */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Today's Activity</CardTitle>
-                  <CardDescription>Hourly waybill volume</CardDescription>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {dateLabel}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {chartMax === 1 && chartData.every((d) => d.waybills === 0) ? (
-                <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-                  No waybill activity yet today
-                </div>
-              ) : (
-                <div className="flex items-end gap-1.5 h-32">
-                  {chartData.map((item) => {
-                    const hour = parseInt(item.hour, 10);
-                    const isCurrentHour = today.getHours() === hour;
-                    const heightPct = Math.max(
-                      (item.waybills / chartMax) * 100,
-                      item.waybills > 0 ? 4 : 1
-                    );
-                    return (
-                      <div
-                        key={item.hour}
-                        className="flex-1 flex flex-col items-center gap-1 group"
-                      >
-                        <div className="relative w-full">
-                          {item.waybills > 0 && (
-                            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              {item.waybills}
-                            </span>
-                          )}
-                          <div
-                            className={`w-full rounded-t transition-all ${
-                              isCurrentHour ? 'bg-primary' : 'bg-primary/30 hover:bg-primary/60'
-                            }`}
-                            style={{ height: `${heightPct}%`, minHeight: '4px' }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">
-                          {hour > 12 ? hour - 12 : hour}
-                          {hour >= 12 ? 'p' : 'a'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t">
-                {summaryStats.map((stat) => (
-                  <div key={stat.label} className="text-center">
-                    <p
-                      className={`text-xl font-bold font-display tabular-nums ${stat.color ?? ''}`}
-                    >
-                      {stat.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+          {widgetVisible('hourly_chart') && (
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Today's Activity</CardTitle>
+                    <CardDescription>Hourly waybill volume</CardDescription>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Latest system events</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {liveActivity.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No recent activity</p>
-              ) : (
-                <div className="space-y-4">
-                  {liveActivity.slice(0, 6).map((activity) => {
-                    const Icon = ACTIVITY_ICONS[activity.type] ?? BarChart3;
-                    const color = ACTIVITY_COLORS[activity.type] ?? 'bg-muted-foreground';
-                    return (
-                      <div key={activity.id} className="flex items-start gap-3">
-                        <div className={`rounded-full p-1.5 shrink-0 ${color}`}>
-                          <Icon className="h-3 w-3 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">{activity.message}</p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <Badge variant="outline" className="text-xs">
+                    {dateLabel}
+                  </Badge>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {chartMax === 1 && chartData.every((d) => d.waybills === 0) ? (
+                  <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
+                    No waybill activity yet today
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-1.5 h-32">
+                    {chartData.map((item) => {
+                      const hour = parseInt(item.hour, 10);
+                      const isCurrentHour = today.getHours() === hour;
+                      const heightPct = Math.max(
+                        (item.waybills / chartMax) * 100,
+                        item.waybills > 0 ? 4 : 1
+                      );
+                      return (
+                        <div
+                          key={item.hour}
+                          className="flex-1 flex flex-col items-center gap-1 group"
+                        >
+                          <div className="relative w-full">
+                            {item.waybills > 0 && (
+                              <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                {item.waybills}
+                              </span>
+                            )}
+                            <div
+                              className={`w-full rounded-t transition-all ${
+                                isCurrentHour ? 'bg-primary' : 'bg-primary/30 hover:bg-primary/60'
+                              }`}
+                              style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {hour > 12 ? hour - 12 : hour}
+                            {hour >= 12 ? 'p' : 'a'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t">
+                  {summaryStats.map((stat) => (
+                    <div key={stat.label} className="text-center">
+                      <p
+                        className={`text-xl font-bold font-display tabular-nums ${stat.color ?? ''}`}
+                      >
+                        {stat.value}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {widgetVisible('recent_activity') && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Latest system events</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {liveActivity.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No recent activity
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {liveActivity.slice(0, 6).map((activity) => {
+                      const Icon = ACTIVITY_ICONS[activity.type] ?? BarChart3;
+                      const color = ACTIVITY_COLORS[activity.type] ?? 'bg-muted-foreground';
+                      return (
+                        <div key={activity.id} className="flex items-start gap-3">
+                          <div className={`rounded-full p-1.5 shrink-0 ${color}`}>
+                            <Icon className="h-3 w-3 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{activity.message}</p>
+                            <p className="text-xs text-muted-foreground">{activity.time}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Frequently used operations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {quickActions.map((item) => {
-                const key = item.href ?? item.action ?? item.label;
-                if (item.action) {
-                  const action = item.action;
+        {widgetVisible('quick_actions') && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Frequently used operations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                {quickActions.map((item) => {
+                  const key = item.href ?? item.action ?? item.label;
+                  if (item.action) {
+                    const action = item.action;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleQuickAction(action)}
+                        className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`rounded-lg p-2 ${item.color}`}>
+                            <item.icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{item.label}</p>
+                            <p className="text-xs text-muted-foreground">{item.desc}</p>
+                          </div>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </button>
+                    );
+                  }
                   return (
-                    <button
+                    <Link
                       key={key}
-                      onClick={() => handleQuickAction(action)}
-                      className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group text-left"
+                      href={item.href!}
+                      className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group"
                     >
                       <div className="flex items-center gap-3">
                         <div className={`rounded-lg p-2 ${item.color}`}>
@@ -1199,31 +1380,13 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                         </div>
                       </div>
                       <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </button>
+                    </Link>
                   );
-                }
-                return (
-                  <Link
-                    key={key}
-                    href={item.href!}
-                    className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`rounded-lg p-2 ${item.color}`}>
-                        <item.icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.label}</p>
-                        <p className="text-xs text-muted-foreground">{item.desc}</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </Link>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Create Ticket Dialog */}
         <Dialog open={showTicketModal} onOpenChange={setShowTicketModal}>
@@ -1310,6 +1473,75 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Customize Layout Dialog */}
+        <Dialog open={showCustomize} onOpenChange={setShowCustomize}>
+          <DialogContent className="sm:max-w-[520px]">
+            <DialogHeader>
+              <DialogTitle>Customize Dashboard</DialogTitle>
+              <DialogDescription>
+                Drag to reorder widgets. Toggle visibility on or off. Click Save to apply your
+                layout.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {widgets.map((w, idx) => (
+                <div
+                  key={w.key}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={() => handleDrop(idx)}
+                  onDragEnd={() => {
+                    setDraggedIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  className={`flex items-center gap-3 rounded-lg border p-3 transition-all ${
+                    draggedIdx === idx
+                      ? 'opacity-50 border-primary'
+                      : dragOverIdx === idx
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border'
+                  } ${!w.is_visible ? 'opacity-60' : ''}`}
+                >
+                  <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{w.label}</p>
+                      {w.is_visible ? (
+                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{w.description}</p>
+                  </div>
+                  <Switch
+                    checked={w.is_visible}
+                    onCheckedChange={() => toggleWidgetVisibility(w.key)}
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={handleResetLayout}
+                disabled={savingWidgets}
+                className="sm:mr-auto"
+              >
+                <RotateCcw className="mr-1.5 h-4 w-4" />
+                Reset to Defaults
+              </Button>
+              <Button variant="outline" onClick={() => setShowCustomize(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveLayout} disabled={savingWidgets}>
+                {savingWidgets ? 'Saving...' : 'Save Layout'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
