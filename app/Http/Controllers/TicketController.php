@@ -80,7 +80,7 @@ class TicketController extends Controller
         return back()->with('success', "Ticket {$ticket->ticket_number} created.");
     }
 
-    public function show(Ticket $ticket)
+    public function show(Request $request, Ticket $ticket)
     {
         $ticket->load(['createdBy:id,name,email', 'assignedTo:id,name,email']);
         $ticket->loadCount('comments');
