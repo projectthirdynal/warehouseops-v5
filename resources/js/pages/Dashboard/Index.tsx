@@ -1,5 +1,6 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Truck,
   CheckCircle2,
@@ -26,6 +27,24 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type {
   DashboardStats,
   DashboardHourlyItem,
@@ -558,16 +577,58 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   }
 
   // ── Role-based quick actions ──
-  let quickActions: {
-    href: string;
+  type QuickAction = {
+    href?: string;
+    action?: 'create_ticket' | 'import_waybills' | 'new_lead';
     label: string;
     desc: string;
     icon: React.ComponentType<{ className?: string }>;
     color: string;
-  }[] = [];
+  };
+  let quickActions: QuickAction[] = [];
+
+  // ── Create Ticket modal ──
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const ticketForm = useForm({
+    subject: '',
+    description: '',
+    priority: 'medium',
+    category: 'general',
+    related_waybill: '',
+  });
+
+  function submitTicket(e: React.FormEvent) {
+    e.preventDefault();
+    ticketForm.post('/tickets', {
+      onSuccess: () => {
+        setShowTicketModal(false);
+        ticketForm.reset();
+        toast.success('Ticket created successfully.');
+        refreshStats();
+      },
+      onError: () => toast.error('Failed to create ticket. Check the form fields.'),
+    });
+  }
+
+  function handleQuickAction(action: string) {
+    if (action === 'create_ticket') {
+      setShowTicketModal(true);
+    } else if (action === 'import_waybills') {
+      router.visit('/waybills/import');
+    } else if (action === 'new_lead') {
+      router.visit('/lead-pool/import');
+    }
+  }
 
   if (isAgent) {
     quickActions = [
+      {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
       {
         href: '/leads',
         label: 'My Leads',
@@ -600,6 +661,13 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   } else if (isFinance) {
     quickActions = [
       {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
         href: '/finance',
         label: 'Finance Overview',
         desc: 'Revenue & costs',
@@ -630,6 +698,13 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     ];
   } else if (isWarehouse) {
     quickActions = [
+      {
+        action: 'import_waybills',
+        label: 'Import Waybills',
+        desc: 'Upload CSV file',
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
       {
         href: '/scanner',
         label: 'Scanner',
@@ -662,6 +737,13 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   } else if (isClaims) {
     quickActions = [
       {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
         href: '/waybills/claims',
         label: 'Claims',
         desc: `${s.claims_pending ?? 0} pending`,
@@ -692,6 +774,13 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     ];
   } else if (isTeamLeader) {
     quickActions = [
+      {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
       {
         href: '/leads',
         label: 'Leads',
@@ -755,18 +844,25 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   } else if (isEncoder) {
     quickActions = [
       {
-        href: '/leads',
+        action: 'new_lead',
         label: 'New Lead',
-        desc: 'Create entry',
+        desc: 'Import a lead',
         icon: Users,
         color: 'bg-success/10 text-success',
       },
       {
-        href: '/waybills',
-        label: 'Waybills',
-        desc: 'Import / manage',
+        action: 'import_waybills',
+        label: 'Import Waybills',
+        desc: 'Upload CSV file',
         icon: Truck,
         color: 'bg-info/10 text-info',
+      },
+      {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
       },
       {
         href: '/orders',
@@ -786,6 +882,20 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
   } else {
     // Admin / superadmin / supervisor
     quickActions = [
+      {
+        action: 'create_ticket',
+        label: 'Create Ticket',
+        desc: 'Open a support ticket',
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        action: 'import_waybills',
+        label: 'Import Waybills',
+        desc: 'Upload CSV file',
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
       {
         href: '/scanner',
         label: 'Scanner',
@@ -1069,27 +1179,139 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {quickActions.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-2 ${item.color}`}>
-                      <item.icon className="h-5 w-5" />
+              {quickActions.map((item) => {
+                const key = item.href ?? item.action ?? item.label;
+                if (item.action) {
+                  const action = item.action;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => handleQuickAction(action)}
+                      className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`rounded-lg p-2 ${item.color}`}>
+                          <item.icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{item.label}</p>
+                          <p className="text-xs text-muted-foreground">{item.desc}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </button>
+                  );
+                }
+                return (
+                  <Link
+                    key={key}
+                    href={item.href!}
+                    className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`rounded-lg p-2 ${item.color}`}>
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </Link>
-              ))}
+                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </Link>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
+
+        {/* Create Ticket Dialog */}
+        <Dialog open={showTicketModal} onOpenChange={setShowTicketModal}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Create Support Ticket</DialogTitle>
+              <DialogDescription>
+                Open a new support ticket. It will be assigned and routed automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={submitTicket} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ticket-subject">Subject</Label>
+                <Input
+                  id="ticket-subject"
+                  value={ticketForm.data.subject}
+                  onChange={(e) => ticketForm.setData('subject', e.target.value)}
+                  placeholder="Brief description of the issue"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ticket-priority">Priority</Label>
+                  <Select
+                    value={ticketForm.data.priority}
+                    onValueChange={(v) => ticketForm.setData('priority', v)}
+                  >
+                    <SelectTrigger id="ticket-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ticket-category">Category</Label>
+                  <Select
+                    value={ticketForm.data.category}
+                    onValueChange={(v) => ticketForm.setData('category', v)}
+                  >
+                    <SelectTrigger id="ticket-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="billing">Billing</SelectItem>
+                      <SelectItem value="logistics">Logistics</SelectItem>
+                      <SelectItem value="quality">Quality</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ticket-desc">Description</Label>
+                <Textarea
+                  id="ticket-desc"
+                  value={ticketForm.data.description}
+                  onChange={(e) => ticketForm.setData('description', e.target.value)}
+                  placeholder="Provide details about the issue..."
+                  rows={4}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ticket-waybill">Related Waybill (optional)</Label>
+                <Input
+                  id="ticket-waybill"
+                  value={ticketForm.data.related_waybill}
+                  onChange={(e) => ticketForm.setData('related_waybill', e.target.value)}
+                  placeholder="Waybill number if applicable"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowTicketModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={ticketForm.processing}>
+                  {ticketForm.processing ? 'Creating...' : 'Create Ticket'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
