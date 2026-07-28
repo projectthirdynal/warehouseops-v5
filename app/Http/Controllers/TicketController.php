@@ -8,6 +8,10 @@ use App\Models\TicketCategory;
 use App\Models\TicketPriority;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Notifications\TicketCreatedNotification;
+use App\Notifications\TicketRepliedNotification;
+use App\Notifications\TicketStatusChangedNotification;
+use App\Notifications\TicketAssignedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -148,6 +152,18 @@ class TicketController extends Controller
             'due_at'          => Ticket::calculateDueAt($validated['priority']),
         ]);
 
+        // Notify assignable users about new ticket
+        $creator = User::find($request->user()->id);
+        $assignableUsers = User::whereIn('role', ['superadmin', 'admin', 'supervisor', 'agent'])
+            ->where('is_active', true)
+            ->where('id', '!=', $creator->id)
+            ->get();
+
+        \Illuminate\Support\Facades\Notification::send(
+            $assignableUsers,
+            new TicketCreatedNotification($ticket, $creator->name),
+        );
+
         return back()->with('success', "Ticket {$ticket->ticket_number} created.");
     }
 
@@ -237,6 +253,22 @@ class TicketController extends Controller
             'is_internal' => $comment->is_internal,
         ]);
 
+        // Notify ticket creator and assignee about the reply (skip internal notes for non-admin)
+        if (!$comment->is_internal) {
+            $recipients = collect();
+            if ($ticket->created_by && $ticket->created_by !== $request->user()->id) {
+                $recipients->push(User::find($ticket->created_by));
+            }
+            if ($ticket->assigned_to && $ticket->assigned_to !== $request->user()->id) {
+                $recipients->push(User::find($ticket->assigned_to));
+            }
+            $recipients = $recipients->filter()->unique('id');
+            \Illuminate\Support\Facades\Notification::send(
+                $recipients,
+                new TicketRepliedNotification($ticket, $request->user()->name, $comment->body, false),
+            );
+        }
+
         return back()->with('success', 'Comment added.');
     }
 
@@ -275,6 +307,20 @@ class TicketController extends Controller
             'to'   => $newStatus,
         ]);
 
+        // Notify ticket creator and assignee about status change
+        $recipients = collect();
+        if ($ticket->created_by && $ticket->created_by !== $request->user()->id) {
+            $recipients->push(User::find($ticket->created_by));
+        }
+        if ($ticket->assigned_to && $ticket->assigned_to !== $request->user()->id) {
+            $recipients->push(User::find($ticket->assigned_to));
+        }
+        $recipients = $recipients->filter()->unique('id');
+        \Illuminate\Support\Facades\Notification::send(
+            $recipients,
+            new TicketStatusChangedNotification($ticket, $oldStatus, $newStatus, $request->user()->name),
+        );
+
         return back()->with('success', "Ticket status updated to {$newStatus}.");
     }
 
@@ -289,10 +335,33 @@ class TicketController extends Controller
 
         $ticket->update(['assigned_to' => $validated['assigned_to']]);
 
+        $previousAssigneeName = $previousAssignee ? User::find($previousAssignee)?->name : null;
+
         ActivityLog::log('ticket_assigned', $request->user(), 'ticket', $ticket->id, [
-            'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssignee] : null,
+            'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssigneeName] : null,
             'to'   => ['id' => $newAssignee->id, 'name' => $newAssignee->name],
         ]);
+
+        // Notify the new assignee
+        $newAssignee->notify(new TicketAssignedNotification(
+            $ticket,
+            $previousAssigneeName,
+            $newAssignee->name,
+            $request->user()->name,
+        ));
+
+        // Also notify ticket creator (if not the assigner)
+        if ($ticket->created_by && $ticket->created_by !== $request->user()->id) {
+            $creator = User::find($ticket->created_by);
+            if ($creator) {
+                $creator->notify(new TicketAssignedNotification(
+                    $ticket,
+                    $previousAssigneeName,
+                    $newAssignee->name,
+                    $request->user()->name,
+                ));
+            }
+        }
 
         return back()->with('success', "Ticket assigned to {$newAssignee->name}.");
     }
