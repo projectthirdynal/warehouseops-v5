@@ -27,6 +27,11 @@ import {
   EyeOff,
   LayoutGrid,
   RotateCcw,
+  AlertTriangle,
+  Bell,
+  PackageX,
+  FileWarning,
+  TruckIcon,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -76,6 +81,15 @@ interface WidgetConfigData {
   dashboard: string;
 }
 
+interface AlertItem {
+  type: 'low_stock' | 'sla_breach' | 'failed_import' | 'undelivered';
+  severity: 'critical' | 'warning';
+  title: string;
+  description: string;
+  href: string;
+  created_at: string;
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -83,6 +97,7 @@ interface Props {
   trends: DashboardTrends;
   role?: string;
   widgetConfig?: WidgetConfigData;
+  alerts?: AlertItem[];
 }
 
 function StatCard({
@@ -173,6 +188,7 @@ export default function Dashboard({
   trends,
   role,
   widgetConfig,
+  alerts: initialAlerts,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -187,6 +203,9 @@ export default function Dashboard({
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [savingWidgets, setSavingWidgets] = useState(false);
+
+  // ── Alerts state ──
+  const [liveAlerts, setLiveAlerts] = useState<AlertItem[]>(initialAlerts ?? []);
 
   const widgetVisible = (key: string): boolean =>
     widgets.find((w) => w.key === key)?.is_visible ?? true;
@@ -223,6 +242,14 @@ export default function Dashboard({
         setLiveTrends(data.trends);
         setLastUpdated(data.updated_at);
       }
+
+      // Fetch alerts in parallel (non-blocking)
+      fetch('/api/dashboard/alerts', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveAlerts(d.alerts);
+        })
+        .catch(() => {});
     } catch {
       // silently fail — keep existing data
     } finally {
@@ -1384,6 +1411,87 @@ export default function Dashboard({
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alerts Widget */}
+        {widgetVisible('alerts_widget') && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Alerts
+                  </CardTitle>
+                  <CardDescription>Operational alerts requiring attention</CardDescription>
+                </div>
+                {liveAlerts.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {liveAlerts.length} active
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {liveAlerts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <CheckCircle2 className="h-8 w-8 text-success mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No active alerts — all systems normal
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                  {liveAlerts.map((alert, idx) => {
+                    const isCritical = alert.severity === 'critical';
+                    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+                      low_stock: PackageX,
+                      sla_breach: AlertTriangle,
+                      failed_import: FileWarning,
+                      undelivered: TruckIcon,
+                    };
+                    const Icon = iconMap[alert.type] ?? AlertCircle;
+                    return (
+                      <Link
+                        key={`${alert.type}-${idx}`}
+                        href={alert.href}
+                        className={`flex items-start gap-3 rounded-lg border p-3 hover:bg-accent transition-colors group ${
+                          isCritical
+                            ? 'border-destructive/30 bg-destructive/5'
+                            : 'border-warning/30 bg-warning/5'
+                        }`}
+                      >
+                        <div
+                          className={`rounded-lg p-2 shrink-0 ${
+                            isCritical
+                              ? 'bg-destructive/10 text-destructive'
+                              : 'bg-warning/10 text-warning'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate">{alert.title}</p>
+                            <Badge
+                              variant={isCritical ? 'destructive' : 'outline'}
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {isCritical ? 'Critical' : 'Warning'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {alert.description}
+                          </p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

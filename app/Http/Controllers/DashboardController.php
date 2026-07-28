@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\DashboardWidgetConfig;
 use App\Models\Lead;
 use App\Models\Ticket;
+use App\Models\Upload;
 use App\Models\User;
 use App\Models\Waybill;
 use App\Models\Invoice;
@@ -32,6 +33,7 @@ class DashboardController extends Controller
             'trends'         => $trends,
             'role'           => $role,
             'widgetConfig'   => $this->getWidgetConfig($user?->id ?? 0, 'main'),
+            'alerts'         => $this->buildAlerts(),
         ]);
     }
 
@@ -48,6 +50,100 @@ class DashboardController extends Controller
             'trends'         => $trends,
             'updated_at'     => now()->toIso8601String(),
         ]);
+    }
+
+    public function alerts(Request $request): JsonResponse
+    {
+        return response()->json([
+            'alerts'     => $this->buildAlerts(),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildAlerts(): array
+    {
+        $alerts = [];
+
+        // 1. Low stock items
+        $lowStock = ProductStock::whereRaw('current_stock - reserved_stock <= reorder_point')
+            ->limit(10)
+            ->get(['id', 'product_id', 'current_stock', 'reserved_stock', 'reorder_point']);
+
+        foreach ($lowStock as $item) {
+            $available = $item->current_stock - $item->reserved_stock;
+            $alerts[] = [
+                'type'        => 'low_stock',
+                'severity'    => $available <= 0 ? 'critical' : 'warning',
+                'title'       => "Low Stock: Product #{$item->product_id}",
+                'description' => "Available: {$available} units (reorder at {$item->reorder_point})",
+                'href'        => '/inventory',
+                'created_at'  => now()->toIso8601String(),
+            ];
+        }
+
+        // 2. SLA breaches — returned waybills older than 7 days
+        $beyondSla = Waybill::where('status', 'RETURNED')
+            ->where('returned_at', '<', now()->subDays(7))
+            ->limit(10)
+            ->get(['id', 'waybill_number', 'returned_at']);
+
+        foreach ($beyondSla as $wb) {
+            $daysOver = $wb->returned_at?->diffInDays(now()) ?? 0;
+            $alerts[] = [
+                'type'        => 'sla_breach',
+                'severity'    => $daysOver > 14 ? 'critical' : 'warning',
+                'title'       => "SLA Breach: {$wb->waybill_number}",
+                'description' => "Returned {$daysOver} days ago — beyond 7-day SLA",
+                'href'        => '/claims',
+                'created_at'  => $wb->returned_at?->toIso8601String() ?? now()->toIso8601String(),
+            ];
+        }
+
+        // 3. Failed imports (last 7 days)
+        $failedImports = Upload::where('type', 'waybill')
+            ->whereIn('status', ['failed', 'validation_failed'])
+            ->where('created_at', '>=', now()->subDays(7))
+            ->limit(5)
+            ->get(['id', 'original_filename', 'status', 'created_at']);
+
+        foreach ($failedImports as $upload) {
+            $alerts[] = [
+                'type'        => 'failed_import',
+                'severity'    => 'warning',
+                'title'       => "Failed Import: {$upload->original_filename}",
+                'description' => "Status: {$upload->status} — retry or re-upload needed",
+                'href'        => '/waybills/import',
+                'created_at'  => $upload->created_at->toIso8601String(),
+            ];
+        }
+
+        // 4. Undelivered waybills — dispatched 5+ days ago, still not delivered
+        $undelivered = Waybill::whereIn('status', ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'])
+            ->where('created_at', '<', now()->subDays(5))
+            ->limit(10)
+            ->get(['id', 'waybill_number', 'created_at']);
+
+        foreach ($undelivered as $wb) {
+            $daysStuck = $wb->created_at->diffInDays(now());
+            $alerts[] = [
+                'type'        => 'undelivered',
+                'severity'    => $daysStuck > 10 ? 'critical' : 'warning',
+                'title'       => "Undelivered: {$wb->waybill_number}",
+                'description' => "In transit for {$daysStuck} days without delivery",
+                'href'        => '/waybills',
+                'created_at'  => $wb->created_at->toIso8601String(),
+            ];
+        }
+
+        // Sort by severity (critical first), then by date descending
+        usort($alerts, function ($a, $b) {
+            if ($a['severity'] !== $b['severity']) {
+                return $a['severity'] === 'critical' ? -1 : 1;
+            }
+            return strcmp($b['created_at'], $a['created_at']);
+        });
+
+        return $alerts;
     }
 
     private function buildDashboardData(?\App\Models\User $user): array
@@ -212,6 +308,7 @@ class DashboardController extends Controller
             ['key' => 'recent_activity', 'label' => 'Recent Activity', 'description' => 'Latest system events feed', 'category' => 'activity', 'default_visible' => true, 'default_order' => 4],
             ['key' => 'summary_stats', 'label' => 'Summary Statistics', 'description' => 'Role-based summary metrics', 'category' => 'stats', 'default_visible' => true, 'default_order' => 5],
             ['key' => 'quick_actions', 'label' => 'Quick Actions', 'description' => 'Role-based shortcut buttons', 'category' => 'actions', 'default_visible' => true, 'default_order' => 6],
+            ['key' => 'alerts_widget', 'label' => 'Alerts', 'description' => 'Low stock, SLA breaches, failed imports, undelivered waybills', 'category' => 'alerts', 'default_visible' => true, 'default_order' => 7],
         ];
     }
 

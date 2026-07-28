@@ -121,6 +121,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,warehouse'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
+    Route::get('/api/dashboard/alerts', [DashboardController::class, 'alerts'])->name('dashboard.alerts');
     Route::get('/api/dashboard/widgets', [DashboardController::class, 'widgetConfig'])->name('dashboard.widgets');
     Route::post('/api/dashboard/widgets', [DashboardController::class, 'saveWidgetConfig'])->name('dashboard.widgets.save');
     Route::post('/api/dashboard/widgets/reset', [DashboardController::class, 'resetWidgetConfig'])->name('dashboard.widgets.reset');
