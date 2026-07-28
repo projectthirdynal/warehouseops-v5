@@ -6,6 +6,7 @@ use App\Models\Ticket;
 use App\Models\TicketComment;
 use App\Models\TicketCategory;
 use App\Models\TicketPriority;
+use App\Models\TicketCannedResponse;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Notifications\TicketCreatedNotification;
@@ -204,6 +205,9 @@ class TicketController extends Controller
 
         $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
         $priorities = TicketPriority::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'level', 'is_active']);
+        $cannedResponses = TicketCannedResponse::where('is_active', true)
+            ->orderBy('title')
+            ->get(['id', 'title', 'body', 'category']);
 
         return Inertia::render('Tickets/Show', [
             'ticket'       => [
@@ -230,6 +234,7 @@ class TicketController extends Controller
             'assignableUsers' => $assignableUsers,
             'categories'      => $categories,
             'priorities'      => $priorities,
+            'cannedResponses' => $cannedResponses,
             'currentUserId'   => $request->user()->id,
         ]);
     }
@@ -387,10 +392,12 @@ class TicketController extends Controller
     {
         $categories = TicketCategory::orderBy('sort_order')->get();
         $priorities = TicketPriority::orderBy('sort_order')->get();
+        $cannedResponses = TicketCannedResponse::orderByDesc('created_at')->get();
 
         return Inertia::render('Tickets/Settings', [
-            'categories' => $categories,
-            'priorities' => $priorities,
+            'categories'       => $categories,
+            'priorities'       => $priorities,
+            'cannedResponses'  => $cannedResponses,
         ]);
     }
 
@@ -490,6 +497,63 @@ class TicketController extends Controller
         $priority->delete();
 
         return back()->with('success', 'Priority deleted.');
+    }
+
+    // ---- Canned Responses ----
+
+    public function storeCannedResponse(Request $request)
+    {
+        $validated = $request->validate([
+            'title'    => ['required', 'string', 'max:200'],
+            'body'     => ['required', 'string', 'max:5000'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'is_active' => ['boolean'],
+        ]);
+
+        TicketCannedResponse::create([
+            'title'    => $validated['title'],
+            'body'     => $validated['body'],
+            'category' => $validated['category'] ?? 'general',
+            'is_active' => $validated['is_active'] ?? true,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Canned response created.');
+    }
+
+    public function updateCannedResponse(Request $request, TicketCannedResponse $cannedResponse)
+    {
+        $validated = $request->validate([
+            'title'    => ['required', 'string', 'max:200'],
+            'body'     => ['required', 'string', 'max:5000'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $cannedResponse->update([
+            'title'    => $validated['title'],
+            'body'     => $validated['body'],
+            'category' => $validated['category'] ?? 'general',
+            'is_active' => $validated['is_active'] ?? true,
+        ]);
+
+        return back()->with('success', 'Canned response updated.');
+    }
+
+    public function destroyCannedResponse(TicketCannedResponse $cannedResponse)
+    {
+        $cannedResponse->delete();
+
+        return back()->with('success', 'Canned response deleted.');
+    }
+
+    public function useCannedResponse(Request $request, TicketCannedResponse $cannedResponse)
+    {
+        $cannedResponse->increment('usage_count');
+
+        return response()->json([
+            'body' => $cannedResponse->body,
+        ]);
     }
 
     public function bulkAssign(Request $request)

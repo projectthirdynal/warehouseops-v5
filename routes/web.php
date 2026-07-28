@@ -133,6 +133,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/priorities/{priority}', [TicketController::class, 'updatePriority'])->name('priorities.update');
         Route::delete('/priorities/{priority}', [TicketController::class, 'destroyPriority'])->name('priorities.destroy');
 
+        // Canned Responses
+        Route::post('/canned-responses', [TicketController::class, 'storeCannedResponse'])->name('canned-responses.store');
+        Route::patch('/canned-responses/{cannedResponse}', [TicketController::class, 'updateCannedResponse'])->name('canned-responses.update');
+        Route::delete('/canned-responses/{cannedResponse}', [TicketController::class, 'destroyCannedResponse'])->name('canned-responses.destroy');
+        Route::post('/canned-responses/{cannedResponse}/use', [TicketController::class, 'useCannedResponse'])->name('canned-responses.use');
+
         // Bulk actions — must be before {ticket} wildcard
         Route::post('/bulk/assign', [TicketController::class, 'bulkAssign'])->name('bulk.assign');
         Route::post('/bulk/close', [TicketController::class, 'bulkClose'])->name('bulk.close');

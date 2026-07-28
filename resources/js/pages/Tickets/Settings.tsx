@@ -1,13 +1,23 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, Tag, Flag, Plus, Pencil, Trash2, Settings as SettingsIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  Tag,
+  Flag,
+  Plus,
+  Pencil,
+  Trash2,
+  Settings as SettingsIcon,
+  MessageSquare,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -43,9 +53,20 @@ interface PriorityItem {
   sort_order: number;
 }
 
+interface CannedResponseItem {
+  id: number;
+  title: string;
+  body: string;
+  category: string;
+  is_active: boolean;
+  usage_count: number;
+  created_at: string;
+}
+
 interface Props {
   categories: CategoryItem[];
   priorities: PriorityItem[];
+  cannedResponses?: CannedResponseItem[];
 }
 
 const colorOptions = [
@@ -72,11 +93,14 @@ const colorClassMap: Record<string, string> = {
   teal: 'bg-teal-100 text-teal-700',
 };
 
-export default function TicketsSettings({ categories, priorities }: Props) {
+export default function TicketsSettings({ categories, priorities, cannedResponses }: Props) {
+  const canned = cannedResponses ?? [];
   const [catDialog, setCatDialog] = useState(false);
   const [priDialog, setPriDialog] = useState(false);
+  const [crDialog, setCrDialog] = useState(false);
   const [editingCat, setEditingCat] = useState<CategoryItem | null>(null);
   const [editingPri, setEditingPri] = useState<PriorityItem | null>(null);
+  const [editingCr, setEditingCr] = useState<CannedResponseItem | null>(null);
 
   const catForm = useForm({
     name: '',
@@ -91,6 +115,13 @@ export default function TicketsSettings({ categories, priorities }: Props) {
     level: 1,
     is_active: true,
     sort_order: 0,
+  });
+
+  const crForm = useForm({
+    title: '',
+    body: '',
+    category: 'general',
+    is_active: true,
   });
 
   function openNewCat() {
@@ -191,6 +222,56 @@ export default function TicketsSettings({ categories, priorities }: Props) {
       preserveScroll: true,
       onSuccess: () => toast.success('Priority deleted.'),
       onError: () => toast.error('Failed to delete priority.'),
+    });
+  }
+
+  function openNewCr() {
+    setEditingCr(null);
+    crForm.reset();
+    crForm.setData({ title: '', body: '', category: 'general', is_active: true });
+    setCrDialog(true);
+  }
+
+  function openEditCr(cr: CannedResponseItem) {
+    setEditingCr(cr);
+    crForm.setData({
+      title: cr.title,
+      body: cr.body,
+      category: cr.category,
+      is_active: cr.is_active,
+    });
+    setCrDialog(true);
+  }
+
+  function submitCr(e: React.FormEvent) {
+    e.preventDefault();
+    if (editingCr) {
+      router.patch(`/tickets/canned-responses/${editingCr.id}`, crForm.data, {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success('Canned response updated.');
+          setCrDialog(false);
+        },
+        onError: () => toast.error('Failed to update canned response.'),
+      });
+    } else {
+      router.post('/tickets/canned-responses', crForm.data, {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success('Canned response created.');
+          setCrDialog(false);
+        },
+        onError: () => toast.error('Failed to create canned response.'),
+      });
+    }
+  }
+
+  function deleteCr(cr: CannedResponseItem) {
+    if (!confirm(`Delete canned response "${cr.title}"?`)) return;
+    router.delete(`/tickets/canned-responses/${cr.id}`, {
+      preserveScroll: true,
+      onSuccess: () => toast.success('Canned response deleted.'),
+      onError: () => toast.error('Failed to delete canned response.'),
     });
   }
 
@@ -307,6 +388,52 @@ export default function TicketsSettings({ categories, priorities }: Props) {
             </CardContent>
           </Card>
         </div>
+
+        {/* Canned Responses */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Canned Responses
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={openNewCr}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {canned.map((cr) => (
+              <div key={cr.id} className="flex items-start justify-between rounded-md border p-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{cr.title}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {cr.category}
+                    </Badge>
+                    {!cr.is_active && (
+                      <span className="text-xs text-muted-foreground">Inactive</span>
+                    )}
+                    <span className="text-xs text-muted-foreground">Used {cr.usage_count}x</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{cr.body}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEditCr(cr)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteCr(cr)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {canned.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">No canned responses yet.</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Category Dialog */}
@@ -459,6 +586,69 @@ export default function TicketsSettings({ categories, priorities }: Props) {
               </Button>
               <Button type="submit" disabled={priForm.processing}>
                 {priForm.processing ? 'Saving...' : editingPri ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Canned Response Dialog */}
+      <Dialog open={crDialog} onOpenChange={setCrDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingCr ? 'Edit Canned Response' : 'New Canned Response'}</DialogTitle>
+            <DialogDescription>
+              {editingCr
+                ? 'Update the canned response below.'
+                : 'Create a pre-written template for common ticket replies.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitCr} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-title">Title</Label>
+              <Input
+                id="cr-title"
+                value={crForm.data.title}
+                onChange={(e) => crForm.setData('title', e.target.value)}
+                placeholder="e.g. Greeting - Order Status Check"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-category">Category</Label>
+              <Input
+                id="cr-category"
+                value={crForm.data.category}
+                onChange={(e) => crForm.setData('category', e.target.value)}
+                placeholder="e.g. greeting, billing, shipping"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-body">Body</Label>
+              <Textarea
+                id="cr-body"
+                value={crForm.data.body}
+                onChange={(e) => crForm.setData('body', e.target.value)}
+                placeholder="Write the response text..."
+                rows={5}
+                required
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={crForm.data.is_active}
+                onChange={(e) => crForm.setData('is_active', e.target.checked)}
+                className="rounded border-input"
+              />
+              <Label className="text-sm font-normal cursor-pointer">Active</Label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCrDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={crForm.processing}>
+                {crForm.processing ? 'Saving...' : editingCr ? 'Update' : 'Create'}
               </Button>
             </DialogFooter>
           </form>

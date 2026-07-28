@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -100,6 +101,13 @@ interface PriorityItem {
   is_active: boolean;
 }
 
+interface CannedResponse {
+  id: number;
+  title: string;
+  body: string;
+  category: string;
+}
+
 interface Props {
   ticket: Ticket;
   activityLogs: ActivityLogEntry[];
@@ -107,6 +115,7 @@ interface Props {
   assignableUsers?: AssignableUser[];
   categories?: CategoryItem[];
   priorities?: PriorityItem[];
+  cannedResponses?: CannedResponse[];
   currentUserId?: number;
 }
 
@@ -183,6 +192,7 @@ export default function TicketsShow({
   assignableUsers,
   categories,
   priorities,
+  cannedResponses,
   currentUserId,
 }: Props) {
   const statusCfg = statusConfig[ticket.status];
@@ -197,6 +207,8 @@ export default function TicketsShow({
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [assignUpdating, setAssignUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [showCanned, setShowCanned] = useState(false);
+  const [cannedSearch, setCannedSearch] = useState('');
 
   const allowedTransitions: Record<Ticket['status'], Ticket['status'][]> = {
     open: ['in_progress', 'waiting', 'resolved', 'closed'],
@@ -250,6 +262,19 @@ export default function TicketsShow({
       onFinish: () => setDeletingId(null),
     });
   }
+
+  function insertCannedResponse(cr: CannedResponse) {
+    publicForm.setData('body', cr.body);
+    setShowCanned(false);
+    setCannedSearch('');
+    router.post(`/tickets/canned-responses/${cr.id}/use`, {}, { preserveScroll: true });
+  }
+
+  const filteredCanned = (cannedResponses ?? []).filter(
+    (cr) =>
+      cr.title.toLowerCase().includes(cannedSearch.toLowerCase()) ||
+      cr.category.toLowerCase().includes(cannedSearch.toLowerCase())
+  );
 
   const publicComments = comments.filter((c) => !c.is_internal);
   const internalNotes = comments.filter((c) => c.is_internal);
@@ -469,6 +494,60 @@ export default function TicketsShow({
                 {/* Public Comment Form */}
                 {commentTab === 'public' && (
                   <form onSubmit={submitPublicComment} className="space-y-3 pt-3 border-t">
+                    {/* Canned Response Picker */}
+                    {(cannedResponses ?? []).length > 0 && (
+                      <div className="relative">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowCanned(!showCanned)}
+                        >
+                          <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                          Canned Responses
+                        </Button>
+                        {showCanned && (
+                          <div className="absolute z-10 mt-1 w-full max-w-md rounded-md border bg-popover shadow-md">
+                            <div className="p-2">
+                              <Input
+                                type="text"
+                                placeholder="Search canned responses..."
+                                value={cannedSearch}
+                                onChange={(e) => setCannedSearch(e.target.value)}
+                                className="h-8 text-sm"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="max-h-64 overflow-y-auto">
+                              {filteredCanned.length > 0 ? (
+                                filteredCanned.map((cr) => (
+                                  <button
+                                    key={cr.id}
+                                    type="button"
+                                    onClick={() => insertCannedResponse(cr)}
+                                    className="w-full text-left px-3 py-2 hover:bg-muted transition-colors border-b last:border-0"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">{cr.title}</span>
+                                      <Badge variant="outline" className="text-xs">
+                                        {cr.category}
+                                      </Badge>
+                                    </div>
+                                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                                      {cr.body}
+                                    </p>
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="px-3 py-2 text-sm text-muted-foreground italic">
+                                  No matches found.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Textarea
                       value={publicForm.data.body}
                       onChange={(e) => publicForm.setData('body', e.target.value)}
