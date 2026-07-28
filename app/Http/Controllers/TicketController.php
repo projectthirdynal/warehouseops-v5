@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\TicketComment;
 use App\Models\ActivityLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -44,6 +45,7 @@ class TicketController extends Controller
             'tickets'    => $tickets,
             'stats'      => $stats,
             'categories' => ['general', 'waybill', 'delivery', 'product', 'billing', 'technical', 'other'],
+            'currentUserId' => $request->user()->id,
         ]);
     }
 
@@ -101,6 +103,11 @@ class TicketController extends Controller
                 'created_at' => $log->created_at,
             ]);
 
+        $assignableUsers = User::whereIn('role', ['superadmin', 'admin', 'supervisor', 'agent'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
         return Inertia::render('Tickets/Show', [
             'ticket'       => [
                 'id'              => $ticket->id,
@@ -117,8 +124,10 @@ class TicketController extends Controller
                 'created_at'      => $ticket->created_at,
                 'updated_at'      => $ticket->updated_at,
             ],
-            'activityLogs' => $activityLogs,
-            'comments'      => $comments,
+            'activityLogs'    => $activityLogs,
+            'comments'        => $comments,
+            'assignableUsers' => $assignableUsers,
+            'currentUserId'   => $request->user()->id,
         ]);
     }
 
@@ -173,5 +182,24 @@ class TicketController extends Controller
         ]);
 
         return back()->with('success', "Ticket status updated to {$newStatus}.");
+    }
+
+    public function assign(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'assigned_to' => ['required', 'exists:users,id'],
+        ]);
+
+        $previousAssignee = $ticket->assigned_to;
+        $newAssignee = User::find($validated['assigned_to']);
+
+        $ticket->update(['assigned_to' => $validated['assigned_to']]);
+
+        ActivityLog::log('ticket_assigned', $request->user(), 'ticket', $ticket->id, [
+            'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssignee] : null,
+            'to'   => ['id' => $newAssignee->id, 'name' => $newAssignee->name],
+        ]);
+
+        return back()->with('success', "Ticket assigned to {$newAssignee->name}.");
     }
 }

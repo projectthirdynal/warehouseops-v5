@@ -68,10 +68,18 @@ interface Comment {
   created_at: string;
 }
 
+interface AssignableUser {
+  id: number;
+  name: string;
+  email?: string;
+}
+
 interface Props {
   ticket: Ticket;
   activityLogs: ActivityLogEntry[];
   comments: Comment[];
+  assignableUsers?: AssignableUser[];
+  currentUserId?: number;
 }
 
 const statusConfig: Record<
@@ -108,11 +116,18 @@ function formatActionLabel(action: string): string {
     .join(' ');
 }
 
-export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
+export default function TicketsShow({
+  ticket,
+  activityLogs,
+  comments,
+  assignableUsers,
+  currentUserId,
+}: Props) {
   const statusCfg = statusConfig[ticket.status];
   const priorityCfg = priorityConfig[ticket.priority];
   const [showInternal, setShowInternal] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [assignUpdating, setAssignUpdating] = useState(false);
 
   const allowedTransitions: Record<Ticket['status'], Ticket['status'][]> = {
     open: ['in_progress', 'waiting', 'resolved', 'closed'],
@@ -151,6 +166,20 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
         onSuccess: () => toast.success(`Status changed to ${statusConfig[newStatus].label}.`),
         onError: () => toast.error('Failed to update status.'),
         onFinish: () => setStatusUpdating(false),
+      }
+    );
+  }
+
+  function handleAssign(userId: number) {
+    setAssignUpdating(true);
+    router.patch(
+      `/tickets/${ticket.id}/assign`,
+      { assigned_to: userId },
+      {
+        preserveScroll: true,
+        onSuccess: () => toast.success('Ticket assigned successfully.'),
+        onError: () => toast.error('Failed to assign ticket.'),
+        onFinish: () => setAssignUpdating(false),
       }
     );
   }
@@ -434,6 +463,36 @@ export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <AlertCircle className="h-4 w-4" />
                       Unassigned
+                    </div>
+                  )}
+                  {assignableUsers && assignableUsers.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <Select
+                        value={ticket.assigned_to ? String(ticket.assigned_to.id) : ''}
+                        onValueChange={(v) => handleAssign(Number(v))}
+                        disabled={assignUpdating}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select assignee..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {assignableUsers.map((user) => (
+                            <SelectItem key={user.id} value={String(user.id)}>
+                              {user.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        disabled={assignUpdating || !currentUserId}
+                        onClick={() => currentUserId && handleAssign(currentUserId)}
+                      >
+                        <User className="mr-1.5 h-4 w-4" />
+                        Assign to Me
+                      </Button>
                     </div>
                   )}
                 </div>

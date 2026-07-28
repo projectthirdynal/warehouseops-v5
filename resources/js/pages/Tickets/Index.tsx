@@ -76,6 +76,7 @@ interface Props {
     resolved_today: number;
   };
   categories: string[];
+  currentUserId?: number;
 }
 
 const statusConfig: Record<
@@ -96,9 +97,10 @@ const priorityConfig: Record<Ticket['priority'], { label: string; color: string 
   urgent: { label: 'Urgent', color: 'text-destructive' },
 };
 
-export default function TicketsIndex({ tickets, stats, categories }: Props) {
+export default function TicketsIndex({ tickets, stats, categories, currentUserId }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [assignedToMe, setAssignedToMe] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
   const form = useForm({
@@ -120,6 +122,16 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
       onError: () => toast.error('Failed to create ticket. Check the form fields.'),
     });
   }
+
+  const filteredTickets = tickets.filter((t) => {
+    const matchesSearch =
+      !search ||
+      t.subject.toLowerCase().includes(search.toLowerCase()) ||
+      t.ticket_number.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+    const matchesAssigned = !assignedToMe || (currentUserId && t.assigned_to?.id === currentUserId);
+    return matchesSearch && matchesStatus && matchesAssigned;
+  });
 
   return (
     <AppLayout>
@@ -216,6 +228,13 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
                   <SelectItem value="resolved">Resolved</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant={assignedToMe ? 'default' : 'outline'}
+                onClick={() => setAssignedToMe(!assignedToMe)}
+              >
+                <User className="mr-1.5 h-4 w-4" />
+                Assigned to Me
+              </Button>
               <Button variant="outline">
                 <Filter className="mr-1.5 h-4 w-4" />
                 Filter
@@ -228,8 +247,8 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
         <Card>
           <CardContent className="p-0">
             <div className="divide-y">
-              {tickets?.length > 0 ? (
-                tickets.map((ticket) => {
+              {filteredTickets.length > 0 ? (
+                filteredTickets.map((ticket) => {
                   const statusCfg = statusConfig[ticket.status];
                   const priorityCfg = priorityConfig[ticket.priority];
                   return (
@@ -325,7 +344,9 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
                   <Headphones className="h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No tickets found</h3>
                   <p className="text-muted-foreground">
-                    All caught up! No support tickets to review.
+                    {assignedToMe
+                      ? 'No tickets assigned to you.'
+                      : 'All caught up! No support tickets to review.'}
                   </p>
                 </div>
               )}

@@ -127,6 +127,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::get('/{ticket}', [TicketController::class, 'show'])->name('show');
         Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store');
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update');
+        Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
