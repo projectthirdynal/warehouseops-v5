@@ -116,9 +116,9 @@ class DashboardController extends Controller
             ]);
 
         $recentActivity = $recentDeliveries
-            ->merge($recentAssignments)
-            ->merge($recentQC)
-            ->sortByDesc('_ts')
+            ->concat($recentAssignments)
+            ->concat($recentQC)
+            ->sortByDesc(fn ($item) => $item['_ts'])
             ->take(10)
             ->values()
             ->map(fn ($item) => [
