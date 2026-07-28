@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -236,6 +236,7 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
                     <div
                       key={ticket.id}
                       className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => router.visit(`/tickets/${ticket.id}`)}
                     >
                       <div
                         className={`mt-1 p-2 rounded-full ${
@@ -301,7 +302,7 @@ export default function TicketsIndex({ tickets, stats, categories }: Props) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.visit(`/tickets/${ticket.id}`)}>
                               <Eye className="mr-1.5 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>

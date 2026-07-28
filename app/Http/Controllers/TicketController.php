@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -67,5 +68,43 @@ class TicketController extends Controller
         ]);
 
         return back()->with('success', "Ticket {$ticket->ticket_number} created.");
+    }
+
+    public function show(Ticket $ticket)
+    {
+        $ticket->load(['createdBy:id,name,email', 'assignedTo:id,name,email']);
+
+        $activityLogs = ActivityLog::where('entity_type', 'ticket')
+            ->where('entity_id', $ticket->id)
+            ->with('user:id,name')
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn ($log) => [
+                'id'         => $log->id,
+                'action'     => $log->action,
+                'user'       => $log->user,
+                'metadata'   => $log->metadata,
+                'created_at' => $log->created_at,
+            ]);
+
+        return Inertia::render('Tickets/Show', [
+            'ticket'       => [
+                'id'              => $ticket->id,
+                'ticket_number'   => $ticket->ticket_number,
+                'subject'         => $ticket->subject,
+                'description'     => $ticket->description,
+                'status'          => $ticket->status,
+                'priority'        => $ticket->priority,
+                'category'        => $ticket->category,
+                'created_by'      => $ticket->createdBy,
+                'assigned_to'     => $ticket->assignedTo,
+                'related_waybill' => $ticket->related_waybill,
+                'related_lead'    => $ticket->related_lead,
+                'created_at'      => $ticket->created_at,
+                'updated_at'      => $ticket->updated_at,
+            ],
+            'activityLogs' => $activityLogs,
+        ]);
     }
 }
