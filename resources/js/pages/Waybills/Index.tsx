@@ -33,6 +33,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -646,6 +647,9 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update Status — {statusWaybill?.waybill_number}</DialogTitle>
+            <DialogDescription>
+              Select a new status and optionally provide a reason for this update.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitStatusUpdate} className="space-y-4">
             <div className="space-y-2">
