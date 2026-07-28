@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\TicketComment;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -29,7 +30,7 @@ class TicketController extends Controller
                 'related_lead'    => $t->related_lead,
                 'created_at'      => $t->created_at,
                 'updated_at'      => $t->updated_at,
-                'messages_count'  => 0,
+                'messages_count'  => $t->comments()->count(),
             ]);
 
         $stats = [
@@ -73,6 +74,18 @@ class TicketController extends Controller
     public function show(Ticket $ticket)
     {
         $ticket->load(['createdBy:id,name,email', 'assignedTo:id,name,email']);
+        $ticket->loadCount('comments');
+
+        $comments = $ticket->comments()
+            ->with('user:id,name')
+            ->get()
+            ->map(fn ($c) => [
+                'id'           => $c->id,
+                'body'         => $c->body,
+                'is_internal'  => $c->is_internal,
+                'user'         => $c->user,
+                'created_at'   => $c->created_at,
+            ]);
 
         $activityLogs = ActivityLog::where('entity_type', 'ticket')
             ->where('entity_id', $ticket->id)
@@ -105,6 +118,29 @@ class TicketController extends Controller
                 'updated_at'      => $ticket->updated_at,
             ],
             'activityLogs' => $activityLogs,
+            'comments'      => $comments,
         ]);
+    }
+
+    public function storeComment(Request $request, Ticket $ticket)
+    {
+        $validated = $request->validate([
+            'body'        => ['required', 'string', 'max:5000'],
+            'is_internal' => ['boolean'],
+        ]);
+
+        $comment = TicketComment::create([
+            'ticket_id'   => $ticket->id,
+            'user_id'     => $request->user()->id,
+            'body'        => $validated['body'],
+            'is_internal' => $validated['is_internal'] ?? false,
+        ]);
+
+        ActivityLog::log('ticket_comment_added', $request->user(), 'ticket', $ticket->id, [
+            'comment_id' => $comment->id,
+            'is_internal' => $comment->is_internal,
+        ]);
+
+        return back()->with('success', 'Comment added.');
     }
 }

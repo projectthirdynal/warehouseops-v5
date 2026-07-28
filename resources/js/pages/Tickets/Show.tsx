@@ -1,4 +1,6 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Headphones,
@@ -10,12 +12,15 @@ import {
   Tag,
   Package,
   Activity,
+  Send,
+  Lock,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import { formatDate } from '@/lib/utils';
 
 interface TicketUser {
@@ -48,9 +53,18 @@ interface ActivityLogEntry {
   created_at: string;
 }
 
+interface Comment {
+  id: number;
+  body: string;
+  is_internal: boolean;
+  user: { id: number; name: string };
+  created_at: string;
+}
+
 interface Props {
   ticket: Ticket;
   activityLogs: ActivityLogEntry[];
+  comments: Comment[];
 }
 
 const statusConfig: Record<
@@ -87,9 +101,29 @@ function formatActionLabel(action: string): string {
     .join(' ');
 }
 
-export default function TicketsShow({ ticket, activityLogs }: Props) {
+export default function TicketsShow({ ticket, activityLogs, comments }: Props) {
   const statusCfg = statusConfig[ticket.status];
   const priorityCfg = priorityConfig[ticket.priority];
+  const [showInternal, setShowInternal] = useState(true);
+
+  const form = useForm({
+    body: '',
+    is_internal: false,
+  });
+
+  function submitComment(e: React.FormEvent) {
+    e.preventDefault();
+    form.post(`/tickets/${ticket.id}/comments`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        form.reset();
+        toast.success('Comment added.');
+      },
+      onError: () => toast.error('Failed to add comment.'),
+    });
+  }
+
+  const visibleComments = showInternal ? comments : comments.filter((c) => !c.is_internal);
 
   return (
     <AppLayout>
@@ -178,6 +212,97 @@ export default function TicketsShow({ ticket, activityLogs }: Props) {
                 ) : (
                   <p className="text-sm text-muted-foreground italic">No description provided.</p>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Comments Thread */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Comments ({comments.length})
+                  </CardTitle>
+                  {comments.some((c) => c.is_internal) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowInternal(!showInternal)}
+                    >
+                      <Lock className="mr-1.5 h-3 w-3" />
+                      {showInternal ? 'Hide Internal' : 'Show Internal'}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {visibleComments.length > 0 ? (
+                  <div className="space-y-3">
+                    {visibleComments.map((comment) => (
+                      <div key={comment.id} className="flex items-start gap-3">
+                        <Avatar className="h-8 w-8 mt-0.5">
+                          <AvatarFallback className="text-xs">
+                            {getInitials(comment.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{comment.user.name}</span>
+                            {comment.is_internal && (
+                              <Badge variant="secondary" className="text-xs">
+                                <Lock className="mr-1 h-2.5 w-2.5" />
+                                Internal
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(comment.created_at)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm whitespace-pre-wrap">{comment.body}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No comments yet.</p>
+                )}
+
+                {/* Reply Form */}
+                <form onSubmit={submitComment} className="space-y-3 pt-3 border-t">
+                  <Textarea
+                    value={form.data.body}
+                    onChange={(e) => form.setData('body', e.target.value)}
+                    placeholder="Write a reply..."
+                    rows={3}
+                    required
+                  />
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.data.is_internal}
+                        onChange={(e) => form.setData('is_internal', e.target.checked)}
+                        className="rounded border-input"
+                      />
+                      <Lock className="h-3 w-3" />
+                      Internal note
+                    </label>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={form.processing || !form.data.body.trim()}
+                    >
+                      {form.processing ? (
+                        'Sending...'
+                      ) : (
+                        <>
+                          <Send className="mr-1.5 h-3.5 w-3.5" />
+                          Post Comment
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
 
@@ -313,9 +438,14 @@ export default function TicketsShow({ ticket, activityLogs }: Props) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" size="sm" className="w-full justify-start" disabled>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => document.querySelector('textarea')?.focus()}
+                >
                   <MessageSquare className="mr-1.5 h-4 w-4" />
-                  Reply (coming soon)
+                  Reply
                 </Button>
                 <Button variant="outline" size="sm" className="w-full justify-start" disabled>
                   <CheckCircle className="mr-1.5 h-4 w-4" />
