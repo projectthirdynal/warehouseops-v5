@@ -415,12 +415,12 @@ export default function TicketsIndex({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="priority">Priority *</Label>
+                <Label>Priority *</Label>
                 <Select
                   value={form.data.priority}
                   onValueChange={(v) => form.setData('priority', v)}
                 >
-                  <SelectTrigger id="priority">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -436,12 +436,12 @@ export default function TicketsIndex({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="category">Category *</Label>
+                <Label>Category *</Label>
                 <Select
                   value={form.data.category}
                   onValueChange={(v) => form.setData('category', v)}
                 >
-                  <SelectTrigger id="category">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

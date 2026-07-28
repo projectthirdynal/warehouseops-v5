@@ -124,7 +124,7 @@ export default function ShopTemplates({ templates }: Props) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
+                    <Label>Category</Label>
                     <div className="flex flex-wrap gap-2">
                       {categories.map((category) => (
                         <Badge
