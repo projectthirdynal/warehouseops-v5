@@ -16,29 +16,89 @@ class TicketController extends Controller
 {
     public function index(Request $request)
     {
-        $tickets = Ticket::with(['createdBy:id,name', 'assignedTo:id,name'])
-            ->orderByDesc('created_at')
-            ->limit(100)
-            ->get()
-            ->map(fn ($t) => [
-                'id'              => $t->id,
-                'ticket_number'   => $t->ticket_number,
-                'subject'         => $t->subject,
-                'description'     => $t->description,
-                'status'          => $t->status,
-                'priority'        => $t->priority,
-                'category'        => $t->category,
-                'created_by'      => $t->createdBy,
-                'assigned_to'     => $t->assignedTo,
-                'related_waybill' => $t->related_waybill,
-                'related_lead'    => $t->related_lead,
-                'created_at'      => $t->created_at,
-                'updated_at'      => $t->updated_at,
-                'messages_count'  => $t->comments()->count(),
-                'due_at'          => $t->due_at?->toIso8601String(),
-                'sla_status'      => $t->slaStatus(),
-                'sla_remaining'   => $t->timeRemaining(),
-            ]);
+        $validated = $request->validate([
+            'search'      => ['nullable', 'string', 'max:200'],
+            'status'      => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
+            'priority'    => ['nullable', 'string'],
+            'category'    => ['nullable', 'string'],
+            'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
+            'date_from'   => ['nullable', 'date'],
+            'date_to'     => ['nullable', 'date'],
+            'sla_status'  => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
+            'sort_by'     => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
+            'sort_dir'    => ['nullable', 'string', 'in:asc,desc'],
+        ]);
+
+        $query = Ticket::with(['createdBy:id,name', 'assignedTo:id,name']);
+
+        // Search across subject, ticket_number, description
+        if (!empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('subject', 'ilike', "%{$search}%")
+                  ->orWhere('ticket_number', 'ilike', "%{$search}%")
+                  ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+
+        // Status filter
+        if (!empty($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+
+        // Priority filter
+        if (!empty($validated['priority'])) {
+            $query->where('priority', $validated['priority']);
+        }
+
+        // Category filter
+        if (!empty($validated['category'])) {
+            $query->where('category', $validated['category']);
+        }
+
+        // Assignee filter
+        if (!empty($validated['assigned_to'])) {
+            $query->where('assigned_to', $validated['assigned_to']);
+        }
+
+        // Date range filter
+        if (!empty($validated['date_from'])) {
+            $query->whereDate('created_at', '>=', $validated['date_from']);
+        }
+        if (!empty($validated['date_to'])) {
+            $query->whereDate('created_at', '<=', $validated['date_to']);
+        }
+
+        // SLA status filter (post-filter in PHP since it's computed)
+        $sortBy = $validated['sort_by'] ?? 'created_at';
+        $sortDir = $validated['sort_dir'] ?? 'desc';
+        $query->orderBy($sortBy, $sortDir);
+
+        $tickets = $query->limit(100)->get()->map(fn ($t) => [
+            'id'              => $t->id,
+            'ticket_number'   => $t->ticket_number,
+            'subject'         => $t->subject,
+            'description'     => $t->description,
+            'status'          => $t->status,
+            'priority'        => $t->priority,
+            'category'        => $t->category,
+            'created_by'      => $t->createdBy,
+            'assigned_to'     => $t->assignedTo,
+            'related_waybill' => $t->related_waybill,
+            'related_lead'    => $t->related_lead,
+            'created_at'      => $t->created_at,
+            'updated_at'      => $t->updated_at,
+            'messages_count'  => $t->comments()->count(),
+            'due_at'          => $t->due_at?->toIso8601String(),
+            'sla_status'      => $t->slaStatus(),
+            'sla_remaining'   => $t->timeRemaining(),
+        ]);
+
+        // SLA status post-filter
+        if (!empty($validated['sla_status'])) {
+            $slaFilter = $validated['sla_status'];
+            $tickets = $tickets->filter(fn ($t) => $t['sla_status'] === $slaFilter);
+        }
 
         $stats = [
             'total'          => Ticket::count(),
@@ -50,13 +110,19 @@ class TicketController extends Controller
 
         $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
         $priorities = TicketPriority::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'level', 'is_active']);
+        $assignableUsers = User::whereIn('role', ['superadmin', 'admin', 'supervisor', 'agent'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return Inertia::render('Tickets/Index', [
-            'tickets'        => $tickets,
+            'tickets'        => $tickets->values(),
             'stats'          => $stats,
             'categories'     => $categories,
             'priorities'     => $priorities,
+            'assignableUsers' => $assignableUsers,
             'currentUserId'  => $request->user()->id,
+            'filters'        => $request->only(['search', 'status', 'priority', 'category', 'assigned_to', 'date_from', 'date_to', 'sla_status', 'sort_by', 'sort_dir']),
         ]);
     }
 

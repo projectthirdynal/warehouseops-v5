@@ -90,6 +90,24 @@ interface PriorityItem {
   is_active: boolean;
 }
 
+interface AssignableUser {
+  id: number;
+  name: string;
+}
+
+interface Filters {
+  search?: string;
+  status?: string;
+  priority?: string;
+  category?: string;
+  assigned_to?: number | string;
+  date_from?: string;
+  date_to?: string;
+  sla_status?: string;
+  sort_by?: string;
+  sort_dir?: string;
+}
+
 interface Props {
   tickets: Ticket[];
   stats: {
@@ -101,7 +119,9 @@ interface Props {
   };
   categories: CategoryItem[];
   priorities: PriorityItem[];
+  assignableUsers?: AssignableUser[];
   currentUserId?: number;
+  filters?: Filters;
 }
 
 const statusConfig: Record<
@@ -142,14 +162,93 @@ export default function TicketsIndex({
   stats,
   categories,
   priorities,
+  assignableUsers,
   currentUserId,
+  filters: initialFilters,
 }: Props) {
   const cats = categories ?? [];
   const pris = priorities ?? [];
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [assignedToMe, setAssignedToMe] = useState(false);
+  const users = assignableUsers ?? [];
   const [showCreate, setShowCreate] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [filters, setFilters] = useState<Filters>({
+    search: initialFilters?.search ?? '',
+    status: initialFilters?.status ?? '',
+    priority: initialFilters?.priority ?? '',
+    category: initialFilters?.category ?? '',
+    assigned_to: initialFilters?.assigned_to ?? '',
+    date_from: initialFilters?.date_from ?? '',
+    date_to: initialFilters?.date_to ?? '',
+    sla_status: initialFilters?.sla_status ?? '',
+    sort_by: initialFilters?.sort_by ?? 'created_at',
+    sort_dir: initialFilters?.sort_dir ?? 'desc',
+  });
+
+  const [searchInput, setSearchInput] = useState(filters.search ?? '');
+
+  function applyFilters(newFilters?: Partial<Filters>) {
+    const updated = { ...filters, ...newFilters };
+    setFilters(updated);
+    const params: Record<string, string> = {};
+    Object.entries(updated).forEach(([key, value]) => {
+      if (value !== '' && value !== undefined && value !== null) {
+        params[key] = String(value);
+      }
+    });
+    router.visit('/tickets', {
+      data: params,
+      preserveState: true,
+      preserveScroll: true,
+      only: ['tickets', 'stats', 'filters'],
+    });
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    applyFilters({ search: searchInput });
+  }
+
+  function clearFilters() {
+    setSearchInput('');
+    setFilters({
+      search: '',
+      status: '',
+      priority: '',
+      category: '',
+      assigned_to: '',
+      date_from: '',
+      date_to: '',
+      sla_status: '',
+      sort_by: 'created_at',
+      sort_dir: 'desc',
+    });
+    router.visit('/tickets', {
+      preserveState: true,
+      preserveScroll: true,
+      only: ['tickets', 'stats', 'filters'],
+    });
+  }
+
+  const hasActiveFilters =
+    filters.status ||
+    filters.priority ||
+    filters.category ||
+    filters.assigned_to ||
+    filters.date_from ||
+    filters.date_to ||
+    filters.sla_status ||
+    (filters.search && filters.search !== '');
+
+  const assignedToMe = filters.assigned_to === currentUserId?.toString();
+
+  function toggleAssignedToMe() {
+    if (assignedToMe) {
+      applyFilters({ assigned_to: '' });
+    } else if (currentUserId) {
+      applyFilters({ assigned_to: currentUserId });
+    }
+  }
 
   const form = useForm({
     subject: '',
@@ -171,15 +270,7 @@ export default function TicketsIndex({
     });
   }
 
-  const filteredTickets = tickets.filter((t) => {
-    const matchesSearch =
-      !search ||
-      t.subject.toLowerCase().includes(search.toLowerCase()) ||
-      t.ticket_number.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-    const matchesAssigned = !assignedToMe || (currentUserId && t.assigned_to?.id === currentUserId);
-    return matchesSearch && matchesStatus && matchesAssigned;
-  });
+  const filteredTickets = tickets;
 
   return (
     <AppLayout>
@@ -273,17 +364,20 @@ export default function TicketsIndex({
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4 md:flex-row">
-              <div className="relative flex-1">
+              <form onSubmit={handleSearch} className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search tickets..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search subject, ticket #, or description..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              </form>
+              <Select
+                value={filters.status || 'all'}
+                onValueChange={(v) => applyFilters({ status: v === 'all' ? '' : v })}
+              >
                 <SelectTrigger className="w-full md:w-[150px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -293,20 +387,179 @@ export default function TicketsIndex({
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="waiting">Waiting</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                variant={assignedToMe ? 'default' : 'outline'}
-                onClick={() => setAssignedToMe(!assignedToMe)}
-              >
+              <Button variant={assignedToMe ? 'default' : 'outline'} onClick={toggleAssignedToMe}>
                 <User className="mr-1.5 h-4 w-4" />
                 Assigned to Me
               </Button>
-              <Button variant="outline">
+              <Button
+                variant={showAdvanced ? 'default' : 'outline'}
+                onClick={() => setShowAdvanced(!showAdvanced)}
+              >
                 <Filter className="mr-1.5 h-4 w-4" />
-                Filter
+                Advanced
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                    Active
+                  </Badge>
+                )}
               </Button>
             </div>
+
+            {showAdvanced && (
+              <div className="mt-4 pt-4 border-t space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  {/* Priority */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Priority</label>
+                    <Select
+                      value={filters.priority || 'all'}
+                      onValueChange={(v) => applyFilters({ priority: v === 'all' ? '' : v })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Priorities" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Priorities</SelectItem>
+                        {pris
+                          .filter((p) => p.is_active)
+                          .map((p) => (
+                            <SelectItem key={p.id} value={p.slug}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Category */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Category</label>
+                    <Select
+                      value={filters.category || 'all'}
+                      onValueChange={(v) => applyFilters({ category: v === 'all' ? '' : v })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {cats
+                          .filter((c) => c.is_active)
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.slug}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Assignee */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Assignee</label>
+                    <Select
+                      value={filters.assigned_to ? String(filters.assigned_to) : 'all'}
+                      onValueChange={(v) => applyFilters({ assigned_to: v === 'all' ? '' : v })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Assignees" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Assignees</SelectItem>
+                        {users.map((u) => (
+                          <SelectItem key={u.id} value={String(u.id)}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* SLA Status */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">SLA Status</label>
+                    <Select
+                      value={filters.sla_status || 'all'}
+                      onValueChange={(v) => applyFilters({ sla_status: v === 'all' ? '' : v })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All SLA" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All SLA Status</SelectItem>
+                        <SelectItem value="on_track">On Track</SelectItem>
+                        <SelectItem value="warning">Warning</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value="breached">Breached</SelectItem>
+                        <SelectItem value="met">SLA Met</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Date From */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Date From</label>
+                    <Input
+                      type="date"
+                      value={filters.date_from ?? ''}
+                      onChange={(e) => applyFilters({ date_from: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Date To */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Date To</label>
+                    <Input
+                      type="date"
+                      value={filters.date_to ?? ''}
+                      onChange={(e) => applyFilters({ date_to: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Sort + Clear */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">Sort by:</label>
+                    <Select
+                      value={filters.sort_by ?? 'created_at'}
+                      onValueChange={(v) => applyFilters({ sort_by: v })}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="created_at">Created Date</SelectItem>
+                        <SelectItem value="updated_at">Updated Date</SelectItem>
+                        <SelectItem value="due_at">Due Date</SelectItem>
+                        <SelectItem value="priority">Priority</SelectItem>
+                        <SelectItem value="subject">Subject</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={filters.sort_dir ?? 'desc'}
+                      onValueChange={(v) => applyFilters({ sort_dir: v })}
+                    >
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="desc">Descending</SelectItem>
+                        <SelectItem value="asc">Ascending</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      Clear All Filters
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -426,8 +679,8 @@ export default function TicketsIndex({
                   <Headphones className="h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No tickets found</h3>
                   <p className="text-muted-foreground">
-                    {assignedToMe
-                      ? 'No tickets assigned to you.'
+                    {hasActiveFilters
+                      ? 'No tickets match the current filters. Try clearing some filters.'
                       : 'All caught up! No support tickets to review.'}
                   </p>
                 </div>
