@@ -330,9 +330,9 @@ export default function TicketsSettings({ categories, priorities }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cat-color">Color</Label>
+              <Label>Color</Label>
               <Select value={catForm.data.color} onValueChange={(v) => catForm.setData('color', v)}>
-                <SelectTrigger id="cat-color">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -355,12 +355,12 @@ export default function TicketsSettings({ categories, priorities }: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="cat-active">Active</Label>
+                <Label>Active</Label>
                 <Select
                   value={catForm.data.is_active ? 'true' : 'false'}
                   onValueChange={(v) => catForm.setData('is_active', v === 'true')}
                 >
-                  <SelectTrigger id="cat-active">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -403,9 +403,9 @@ export default function TicketsSettings({ categories, priorities }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pri-color">Color</Label>
+              <Label>Color</Label>
               <Select value={priForm.data.color} onValueChange={(v) => priForm.setData('color', v)}>
-                <SelectTrigger id="pri-color">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -438,12 +438,12 @@ export default function TicketsSettings({ categories, priorities }: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="pri-active">Active</Label>
+                <Label>Active</Label>
                 <Select
                   value={priForm.data.is_active ? 'true' : 'false'}
                   onValueChange={(v) => priForm.setData('is_active', v === 'true')}
                 >
-                  <SelectTrigger id="pri-active">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
