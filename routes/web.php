@@ -133,6 +133,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::patch('/priorities/{priority}', [TicketController::class, 'updatePriority'])->name('priorities.update');
         Route::delete('/priorities/{priority}', [TicketController::class, 'destroyPriority'])->name('priorities.destroy');
 
+        // Bulk actions — must be before {ticket} wildcard
+        Route::post('/bulk/assign', [TicketController::class, 'bulkAssign'])->name('bulk.assign');
+        Route::post('/bulk/close', [TicketController::class, 'bulkClose'])->name('bulk.close');
+        Route::post('/bulk/priority', [TicketController::class, 'bulkPriorityChange'])->name('bulk.priority');
+
         Route::get('/{ticket}', [TicketController::class, 'show'])->name('show')->whereNumber('ticket');
         Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store')->whereNumber('ticket');
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update')->whereNumber('ticket');

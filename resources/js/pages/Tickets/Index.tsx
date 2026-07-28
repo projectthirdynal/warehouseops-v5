@@ -16,6 +16,8 @@ import {
   Settings,
   Timer,
   AlertTriangle,
+  XCircle,
+  Tag,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -171,6 +173,12 @@ export default function TicketsIndex({
   const users = assignableUsers ?? [];
   const [showCreate, setShowCreate] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [showBulkPriority, setShowBulkPriority] = useState(false);
+  const [bulkAssignTo, setBulkAssignTo] = useState('');
+  const [bulkPriority, setBulkPriority] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
     search: initialFilters?.search ?? '',
@@ -271,6 +279,90 @@ export default function TicketsIndex({
   }
 
   const filteredTickets = tickets;
+
+  const allSelected = filteredTickets.length > 0 && selectedIds.length === filteredTickets.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredTickets.map((t) => t.id));
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+  }
+
+  function handleBulkClose() {
+    setBulkProcessing(true);
+    router.post(
+      '/tickets/bulk/close',
+      { ticket_ids: selectedIds },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success(`${selectedIds.length} ticket(s) closed.`);
+          clearSelection();
+        },
+        onError: () => toast.error('Failed to close tickets.'),
+        onFinish: () => setBulkProcessing(false),
+      }
+    );
+  }
+
+  function handleBulkAssign(e: React.FormEvent) {
+    e.preventDefault();
+    if (!bulkAssignTo) {
+      toast.error('Please select an assignee.');
+      return;
+    }
+    setBulkProcessing(true);
+    router.post(
+      '/tickets/bulk/assign',
+      { ticket_ids: selectedIds, assigned_to: Number(bulkAssignTo) },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success(`${selectedIds.length} ticket(s) assigned.`);
+          setShowBulkAssign(false);
+          setBulkAssignTo('');
+          clearSelection();
+        },
+        onError: () => toast.error('Failed to assign tickets.'),
+        onFinish: () => setBulkProcessing(false),
+      }
+    );
+  }
+
+  function handleBulkPriority(e: React.FormEvent) {
+    e.preventDefault();
+    if (!bulkPriority) {
+      toast.error('Please select a priority.');
+      return;
+    }
+    setBulkProcessing(true);
+    router.post(
+      '/tickets/bulk/priority',
+      { ticket_ids: selectedIds, priority: bulkPriority },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          toast.success(`${selectedIds.length} ticket(s) priority updated.`);
+          setShowBulkPriority(false);
+          setBulkPriority('');
+          clearSelection();
+        },
+        onError: () => toast.error('Failed to update priority.'),
+        onFinish: () => setBulkProcessing(false),
+      }
+    );
+  }
 
   return (
     <AppLayout>
@@ -563,9 +655,60 @@ export default function TicketsIndex({
           </CardContent>
         </Card>
 
+        {/* Bulk Action Bar */}
+        {selectedIds.length > 0 && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium">{selectedIds.length} selected</span>
+                  <Button variant="ghost" size="sm" onClick={clearSelection}>
+                    Clear
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowBulkAssign(true)}>
+                    <User className="mr-1.5 h-3.5 w-3.5" />
+                    Bulk Assign
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowBulkPriority(true)}>
+                    <Tag className="mr-1.5 h-3.5 w-3.5" />
+                    Change Priority
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkClose}
+                    disabled={bulkProcessing}
+                  >
+                    <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                    Bulk Close
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tickets List */}
         <Card>
           <CardContent className="p-0">
+            {filteredTickets.length > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {allSelected ? 'Deselect all' : 'Select all'}
+                </span>
+              </div>
+            )}
             <div className="divide-y">
               {filteredTickets.length > 0 ? (
                 filteredTickets.map((ticket) => {
@@ -575,14 +718,23 @@ export default function TicketsIndex({
                     ? priorityColorMap[priItem.color] || 'text-muted-foreground'
                     : 'text-muted-foreground';
                   const priLabel = priItem ? priItem.name : ticket.priority;
+                  const isSelected = selectedIds.includes(ticket.id);
                   return (
                     <div
                       key={ticket.id}
-                      className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                      onClick={() => router.visit(`/tickets/${ticket.id}`)}
+                      className={`flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors ${
+                        isSelected ? 'bg-primary/5' : ''
+                      }`}
                     >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(ticket.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2 h-4 w-4 rounded border-input"
+                      />
                       <div
-                        className={`mt-1 p-2 rounded-full ${
+                        className={`mt-1 p-2 rounded-full cursor-pointer ${
                           priItem?.color === 'red'
                             ? 'bg-destructive/10'
                             : priItem?.color === 'orange'
@@ -591,11 +743,15 @@ export default function TicketsIndex({
                                 ? 'bg-amber-100'
                                 : 'bg-muted'
                         }`}
+                        onClick={() => router.visit(`/tickets/${ticket.id}`)}
                       >
                         <Headphones className={`h-4 w-4 ${priColor}`} />
                       </div>
 
-                      <div className="flex-1 min-w-0">
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => router.visit(`/tickets/${ticket.id}`)}
+                      >
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm text-muted-foreground">
                             #{ticket.ticket_number}
@@ -779,6 +935,83 @@ export default function TicketsIndex({
               </Button>
               <Button type="submit" disabled={form.processing}>
                 {form.processing ? 'Creating...' : 'Create Ticket'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Assign Dialog */}
+      <Dialog open={showBulkAssign} onOpenChange={setShowBulkAssign}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Tickets</DialogTitle>
+            <DialogDescription>
+              Assign {selectedIds.length} selected ticket(s) to a team member.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleBulkAssign} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Assign To *</Label>
+              <Select value={bulkAssignTo} onValueChange={setBulkAssignTo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowBulkAssign(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={bulkProcessing}>
+                {bulkProcessing ? 'Assigning...' : 'Assign'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Priority Change Dialog */}
+      <Dialog open={showBulkPriority} onOpenChange={setShowBulkPriority}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Bulk Change Priority</DialogTitle>
+            <DialogDescription>
+              Change priority for {selectedIds.length} selected ticket(s). Due dates will be
+              recalculated.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleBulkPriority} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>New Priority *</Label>
+              <Select value={bulkPriority} onValueChange={setBulkPriority}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pris
+                    .filter((p) => p.is_active)
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.slug}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowBulkPriority(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={bulkProcessing}>
+                {bulkProcessing ? 'Updating...' : 'Update Priority'}
               </Button>
             </DialogFooter>
           </form>

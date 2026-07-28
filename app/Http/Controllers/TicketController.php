@@ -405,4 +405,94 @@ class TicketController extends Controller
 
         return back()->with('success', 'Priority deleted.');
     }
+
+    public function bulkAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'ticket_ids'   => ['required', 'array', 'min:1'],
+            'ticket_ids.*' => ['integer', 'exists:tickets,id'],
+            'assigned_to'  => ['required', 'exists:users,id'],
+        ]);
+
+        $tickets = Ticket::whereIn('id', $validated['ticket_ids'])->get();
+        $assignee = User::find($validated['assigned_to']);
+        $count = 0;
+
+        foreach ($tickets as $ticket) {
+            if ($ticket->assigned_to !== $assignee->id) {
+                $previousAssignee = $ticket->assigned_to;
+                $ticket->update(['assigned_to' => $assignee->id]);
+
+                ActivityLog::log('ticket_assigned', $request->user(), 'ticket', $ticket->id, [
+                    'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssignee] : null,
+                    'to'   => ['id' => $assignee->id, 'name' => $assignee->name],
+                    'bulk' => true,
+                ]);
+                $count++;
+            }
+        }
+
+        return back()->with('success', "{$count} ticket(s) assigned to {$assignee->name}.");
+    }
+
+    public function bulkClose(Request $request)
+    {
+        $validated = $request->validate([
+            'ticket_ids' => ['required', 'array', 'min:1'],
+            'ticket_ids.*' => ['integer', 'exists:tickets,id'],
+        ]);
+
+        $tickets = Ticket::whereIn('id', $validated['ticket_ids'])
+            ->whereNotIn('status', ['closed'])
+            ->get();
+        $count = 0;
+
+        foreach ($tickets as $ticket) {
+            $oldStatus = $ticket->status;
+            $ticket->update([
+                'status'      => 'closed',
+                'resolved_at' => $ticket->resolved_at ?? now(),
+            ]);
+
+            ActivityLog::log('ticket_status_changed', $request->user(), 'ticket', $ticket->id, [
+                'from' => $oldStatus,
+                'to'   => 'closed',
+                'bulk' => true,
+            ]);
+            $count++;
+        }
+
+        return back()->with('success', "{$count} ticket(s) closed.");
+    }
+
+    public function bulkPriorityChange(Request $request)
+    {
+        $validated = $request->validate([
+            'ticket_ids' => ['required', 'array', 'min:1'],
+            'ticket_ids.*' => ['integer', 'exists:tickets,id'],
+            'priority'   => ['required', 'string', 'max:50'],
+        ]);
+
+        $tickets = Ticket::whereIn('id', $validated['ticket_ids'])->get();
+        $count = 0;
+
+        foreach ($tickets as $ticket) {
+            if ($ticket->priority !== $validated['priority']) {
+                $oldPriority = $ticket->priority;
+                $ticket->update([
+                    'priority' => $validated['priority'],
+                    'due_at'    => Ticket::calculateDueAt($validated['priority'], $ticket->created_at),
+                ]);
+
+                ActivityLog::log('ticket_priority_changed', $request->user(), 'ticket', $ticket->id, [
+                    'from' => $oldPriority,
+                    'to'   => $validated['priority'],
+                    'bulk' => true,
+                ]);
+                $count++;
+            }
+        }
+
+        return back()->with('success', "{$count} ticket(s) priority updated.");
+    }
 }
