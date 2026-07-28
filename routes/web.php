@@ -124,12 +124,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
     Route::prefix('tickets')->name('tickets.')->group(function () {
         Route::get('/', [TicketController::class, 'index'])->name('index');
         Route::post('/', [TicketController::class, 'store'])->name('store');
-        Route::get('/{ticket}', [TicketController::class, 'show'])->name('show');
-        Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store');
-        Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update');
-        Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign');
-
-        // Category & Priority Management (admin only)
+        // Category & Priority Management (admin only) — must be before {ticket} wildcard
         Route::get('/settings', [TicketController::class, 'settings'])->name('settings');
         Route::post('/categories', [TicketController::class, 'storeCategory'])->name('categories.store');
         Route::patch('/categories/{category}', [TicketController::class, 'updateCategory'])->name('categories.update');
@@ -137,6 +132,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::post('/priorities', [TicketController::class, 'storePriority'])->name('priorities.store');
         Route::patch('/priorities/{priority}', [TicketController::class, 'updatePriority'])->name('priorities.update');
         Route::delete('/priorities/{priority}', [TicketController::class, 'destroyPriority'])->name('priorities.destroy');
+
+        Route::get('/{ticket}', [TicketController::class, 'show'])->name('show')->whereNumber('ticket');
+        Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store')->whereNumber('ticket');
+        Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update')->whereNumber('ticket');
+        Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign')->whereNumber('ticket');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
