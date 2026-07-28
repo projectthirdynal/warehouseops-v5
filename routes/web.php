@@ -126,6 +126,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::post('/', [TicketController::class, 'store'])->name('store');
         // Category & Priority Management (admin only) — must be before {ticket} wildcard
         Route::get('/settings', [TicketController::class, 'settings'])->name('settings');
+        Route::get('/analytics', [TicketController::class, 'analytics'])->name('analytics');
         Route::post('/categories', [TicketController::class, 'storeCategory'])->name('categories.store');
         Route::patch('/categories/{category}', [TicketController::class, 'updateCategory'])->name('categories.update');
         Route::delete('/categories/{category}', [TicketController::class, 'destroyCategory'])->name('categories.destroy');

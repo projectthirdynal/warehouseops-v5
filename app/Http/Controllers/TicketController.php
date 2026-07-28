@@ -15,6 +15,7 @@ use App\Notifications\TicketStatusChangedNotification;
 use App\Notifications\TicketAssignedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class TicketController extends Controller
@@ -667,5 +668,138 @@ class TicketController extends Controller
         }
 
         return back()->with('success', "{$count} ticket(s) priority updated.");
+    }
+
+    public function analytics()
+    {
+        // ── Overview stats ──
+        $totalTickets    = Ticket::count();
+        $openTickets     = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->count();
+        $resolvedTickets = Ticket::whereIn('status', ['resolved', 'closed'])->count();
+        $overdueCount    = Ticket::whereNotNull('due_at')->whereIn('status', ['open', 'in_progress', 'waiting'])->where('due_at', '<', now())->count();
+
+        // ── Resolution time (avg hours for resolved/closed tickets with resolved_at) ──
+        $resolutionStats = Ticket::whereIn('status', ['resolved', 'closed'])
+            ->whereNotNull('resolved_at')
+            ->whereNotNull('created_at')
+            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as avg_hours')
+            ->selectRaw('MIN(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as min_hours')
+            ->selectRaw('MAX(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as max_hours')
+            ->first();
+
+        $avgResolutionHours = $resolutionStats?->avg_hours ? round((float) $resolutionStats->avg_hours, 1) : null;
+        $minResolutionHours = $resolutionStats?->min_hours ? round((float) $resolutionStats->min_hours, 1) : null;
+        $maxResolutionHours = $resolutionStats?->max_hours ? round((float) $resolutionStats->max_hours, 1) : null;
+
+        // ── Status breakdown ──
+        $statusBreakdown = Ticket::select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        // ── Priority breakdown ──
+        $priorityBreakdown = Ticket::select('priority', DB::raw('count(*) as count'))
+            ->groupBy('priority')
+            ->pluck('count', 'priority')
+            ->toArray();
+
+        // ── Category breakdown ──
+        $categoryBreakdown = Ticket::select('category', DB::raw('count(*) as count'))
+            ->groupBy('category')
+            ->orderByDesc('count')
+            ->pluck('count', 'category')
+            ->toArray();
+
+        // ── SLA compliance ──
+        $slaMet    = Ticket::whereIn('status', ['resolved', 'closed'])->whereNotNull('due_at')->whereNotNull('resolved_at')->where('resolved_at', '<=', DB::raw('due_at'))->count();
+        $slaBreached = Ticket::whereIn('status', ['resolved', 'closed'])->whereNotNull('due_at')->whereNotNull('resolved_at')->where('resolved_at', '>', DB::raw('due_at'))->count();
+        $slaPending  = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '<', now())->count();
+        $slaOnTrack  = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '>=', now())->count();
+
+        $totalSla = $slaMet + $slaBreached;
+        $slaComplianceRate = $totalSla > 0 ? round(($slaMet / $totalSla) * 100, 1) : null;
+
+        // ── Satisfaction stats ──
+        $satisfactionRated = Ticket::whereNotNull('satisfaction_rating')->count();
+        $avgSatisfaction   = Ticket::whereNotNull('satisfaction_rating')->avg('satisfaction_rating');
+        $satisfactionDist  = Ticket::whereNotNull('satisfaction_rating')
+            ->select('satisfaction_rating', DB::raw('count(*) as count'))
+            ->groupBy('satisfaction_rating')
+            ->pluck('count', 'satisfaction_rating')
+            ->toArray();
+
+        // ── Tickets created over last 30 days (daily) ──
+        $trend = Ticket::where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as total')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->map(fn ($row) => ['date' => $row->date, 'total' => (int) $row->total]);
+
+        // ── Resolution trend (last 30 days, resolved_at) ──
+        $resolutionTrend = Ticket::whereIn('status', ['resolved', 'closed'])
+            ->where('resolved_at', '>=', now()->subDays(30))
+            ->selectRaw('DATE(resolved_at) as date, COUNT(*) as resolved')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->map(fn ($row) => ['date' => $row->date, 'resolved' => (int) $row->resolved]);
+
+        // Merge trends on date
+        $trendDates = $trend->pluck('date')->merge($resolutionTrend->pluck('date'))->unique()->sort()->values();
+        $trendMerged = $trendDates->map(function ($date) use ($trend, $resolutionTrend) {
+            $created  = $trend->firstWhere('date', $date);
+            $resolved = $resolutionTrend->firstWhere('date', $date);
+
+            return [
+                'date'     => $date,
+                'created'  => $created['total'] ?? 0,
+                'resolved' => $resolved['resolved'] ?? 0,
+            ];
+        });
+
+        // ── Top assignees ──
+        $topAssignees = Ticket::whereNotNull('assigned_to')
+            ->select('assigned_to', DB::raw('count(*) as ticket_count'))
+            ->with('assignedTo:id,name')
+            ->groupBy('assigned_to')
+            ->orderByDesc('ticket_count')
+            ->limit(5)
+            ->get()
+            ->map(fn ($row) => [
+                'name'        => $row->assignedTo?->name ?? 'Unknown',
+                'ticket_count' => (int) $row->ticket_count,
+            ]);
+
+        return Inertia::render('Tickets/Analytics', [
+            'overview' => [
+                'total'     => $totalTickets,
+                'open'      => $openTickets,
+                'resolved'  => $resolvedTickets,
+                'overdue'   => $overdueCount,
+            ],
+            'resolutionTime' => [
+                'avg_hours' => $avgResolutionHours,
+                'min_hours' => $minResolutionHours,
+                'max_hours' => $maxResolutionHours,
+            ],
+            'statusBreakdown'    => $statusBreakdown,
+            'priorityBreakdown'  => $priorityBreakdown,
+            'categoryBreakdown'  => $categoryBreakdown,
+            'sla' => [
+                'met'             => $slaMet,
+                'breached'        => $slaBreached,
+                'pending_overdue' => $slaPending,
+                'on_track'        => $slaOnTrack,
+                'compliance_rate' => $slaComplianceRate,
+            ],
+            'satisfaction' => [
+                'rated'   => $satisfactionRated,
+                'average' => $avgSatisfaction ? round((float) $avgSatisfaction, 2) : null,
+                'distribution' => $satisfactionDist,
+            ],
+            'trend'          => $trendMerged,
+            'topAssignees'   => $topAssignees,
+        ]);
     }
 }

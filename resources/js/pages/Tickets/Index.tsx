@@ -14,6 +14,7 @@ import {
   AlertCircle,
   User,
   Settings,
+  BarChart3,
   Timer,
   AlertTriangle,
   XCircle,
@@ -379,6 +380,11 @@ export default function TicketsIndex({
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
               Create Ticket
+            </Button>
+            <Button variant="outline" size="icon" asChild>
+              <Link href="/tickets/analytics">
+                <BarChart3 className="h-4 w-4" />
+              </Link>
             </Button>
             <Button variant="outline" size="icon" asChild>
               <Link href="/tickets/settings">
