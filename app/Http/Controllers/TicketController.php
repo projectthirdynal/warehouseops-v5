@@ -802,4 +802,116 @@ class TicketController extends Controller
             'topAssignees'   => $topAssignees,
         ]);
     }
+
+    public function exportCsv(Request $request)
+    {
+        $validated = $request->validate([
+            'search'      => ['nullable', 'string', 'max:200'],
+            'status'      => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
+            'priority'    => ['nullable', 'string'],
+            'category'    => ['nullable', 'string'],
+            'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
+            'date_from'   => ['nullable', 'date'],
+            'date_to'     => ['nullable', 'date'],
+            'sla_status'  => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
+            'sort_by'     => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
+            'sort_dir'    => ['nullable', 'string', 'in:asc,desc'],
+        ]);
+
+        $query = Ticket::with(['createdBy:id,name', 'assignedTo:id,name']);
+
+        if (!empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('subject', 'ilike', "%{$search}%")
+                  ->orWhere('ticket_number', 'ilike', "%{$search}%")
+                  ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+        if (!empty($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+        if (!empty($validated['priority'])) {
+            $query->where('priority', $validated['priority']);
+        }
+        if (!empty($validated['category'])) {
+            $query->where('category', $validated['category']);
+        }
+        if (!empty($validated['assigned_to'])) {
+            $query->where('assigned_to', $validated['assigned_to']);
+        }
+        if (!empty($validated['date_from'])) {
+            $query->whereDate('created_at', '>=', $validated['date_from']);
+        }
+        if (!empty($validated['date_to'])) {
+            $query->whereDate('created_at', '<=', $validated['date_to']);
+        }
+
+        $sortBy = $validated['sort_by'] ?? 'created_at';
+        $sortDir = $validated['sort_dir'] ?? 'desc';
+        $query->orderBy($sortBy, $sortDir);
+
+        $tickets = $query->limit(500)->get();
+
+        // SLA status post-filter
+        if (!empty($validated['sla_status'])) {
+            $slaFilter = $validated['sla_status'];
+            $tickets = $tickets->filter(fn ($t) => $t->slaStatus() === $slaFilter);
+        }
+
+        $headers = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="tickets-export-' . now()->format('Y-m-d') . '.csv"',
+        ];
+
+        $columns = [
+            'Ticket #',
+            'Subject',
+            'Status',
+            'Priority',
+            'Category',
+            'Created By',
+            'Assigned To',
+            'Related Waybill',
+            'Related Lead',
+            'SLA Status',
+            'Due At',
+            'Resolved At',
+            'Satisfaction Rating',
+            'Satisfaction Comment',
+            'Created At',
+            'Updated At',
+        ];
+
+        $callback = function () use ($tickets, $columns) {
+            $fh = fopen('php://output', 'w');
+            fprintf($fh, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($fh, $columns);
+
+            foreach ($tickets as $t) {
+                fputcsv($fh, [
+                    $t->ticket_number,
+                    $t->subject,
+                    $t->status,
+                    $t->priority,
+                    $t->category,
+                    $t->createdBy?->name ?? '',
+                    $t->assignedTo?->name ?? 'Unassigned',
+                    $t->related_waybill ?? '',
+                    $t->related_lead ?? '',
+                    $t->slaStatus(),
+                    $t->due_at?->format('Y-m-d H:i') ?? '',
+                    $t->resolved_at?->format('Y-m-d H:i') ?? '',
+                    $t->satisfaction_rating !== null ? (string) $t->satisfaction_rating . '/5' : '',
+                    $t->satisfaction_comment ?? '',
+                    $t->created_at?->format('Y-m-d H:i') ?? '',
+                    $t->updated_at?->format('Y-m-d H:i') ?? '',
+                ]);
+            }
+
+            fclose($fh);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

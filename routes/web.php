@@ -127,6 +127,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         // Category & Priority Management (admin only) — must be before {ticket} wildcard
         Route::get('/settings', [TicketController::class, 'settings'])->name('settings');
         Route::get('/analytics', [TicketController::class, 'analytics'])->name('analytics');
+        Route::get('/export/csv', [TicketController::class, 'exportCsv'])->name('export.csv');
         Route::post('/categories', [TicketController::class, 'storeCategory'])->name('categories.store');
         Route::patch('/categories/{category}', [TicketController::class, 'updateCategory'])->name('categories.update');
         Route::delete('/categories/{category}', [TicketController::class, 'destroyCategory'])->name('categories.destroy');

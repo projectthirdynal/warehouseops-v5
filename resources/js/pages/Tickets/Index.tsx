@@ -15,6 +15,7 @@ import {
   User,
   Settings,
   BarChart3,
+  Download,
   Timer,
   AlertTriangle,
   XCircle,
@@ -259,6 +260,16 @@ export default function TicketsIndex({
     }
   }
 
+  function exportCsv() {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== '' && value !== undefined && value !== null) {
+        params.append(key, String(value));
+      }
+    });
+    window.location.href = `/tickets/export/csv?${params.toString()}`;
+  }
+
   const form = useForm({
     subject: '',
     description: '',
@@ -385,6 +396,9 @@ export default function TicketsIndex({
               <Link href="/tickets/analytics">
                 <BarChart3 className="h-4 w-4" />
               </Link>
+            </Button>
+            <Button variant="outline" size="icon" onClick={exportCsv}>
+              <Download className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="icon" asChild>
               <Link href="/tickets/settings">
