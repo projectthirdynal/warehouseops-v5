@@ -128,6 +128,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store');
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update');
         Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign');
+
+        // Category & Priority Management (admin only)
+        Route::get('/settings', [TicketController::class, 'settings'])->name('settings');
+        Route::post('/categories', [TicketController::class, 'storeCategory'])->name('categories.store');
+        Route::patch('/categories/{category}', [TicketController::class, 'updateCategory'])->name('categories.update');
+        Route::delete('/categories/{category}', [TicketController::class, 'destroyCategory'])->name('categories.destroy');
+        Route::post('/priorities', [TicketController::class, 'storePriority'])->name('priorities.store');
+        Route::patch('/priorities/{priority}', [TicketController::class, 'updatePriority'])->name('priorities.update');
+        Route::delete('/priorities/{priority}', [TicketController::class, 'destroyPriority'])->name('priorities.destroy');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {

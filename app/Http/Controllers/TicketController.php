@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketComment;
+use App\Models\TicketCategory;
+use App\Models\TicketPriority;
 use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class TicketController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $tickets = Ticket::with(['createdBy:id,name', 'assignedTo:id,name'])
             ->orderByDesc('created_at')
@@ -41,11 +44,15 @@ class TicketController extends Controller
             'resolved_today' => Ticket::where('status', 'resolved')->whereDate('updated_at', today())->count(),
         ];
 
+        $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
+        $priorities = TicketPriority::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'level', 'is_active']);
+
         return Inertia::render('Tickets/Index', [
-            'tickets'    => $tickets,
-            'stats'      => $stats,
-            'categories' => ['general', 'waybill', 'delivery', 'product', 'billing', 'technical', 'other'],
-            'currentUserId' => $request->user()->id,
+            'tickets'        => $tickets,
+            'stats'          => $stats,
+            'categories'     => $categories,
+            'priorities'     => $priorities,
+            'currentUserId'  => $request->user()->id,
         ]);
     }
 
@@ -54,7 +61,7 @@ class TicketController extends Controller
         $validated = $request->validate([
             'subject'         => ['required', 'string', 'max:255'],
             'description'     => ['nullable', 'string', 'max:5000'],
-            'priority'        => ['required', 'in:low,medium,high,urgent'],
+            'priority'        => ['required', 'string', 'max:50'],
             'category'        => ['required', 'string', 'max:100'],
             'related_waybill' => ['nullable', 'string', 'max:100'],
         ]);
@@ -108,6 +115,9 @@ class TicketController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
+        $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
+        $priorities = TicketPriority::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'level', 'is_active']);
+
         return Inertia::render('Tickets/Show', [
             'ticket'       => [
                 'id'              => $ticket->id,
@@ -127,6 +137,8 @@ class TicketController extends Controller
             'activityLogs'    => $activityLogs,
             'comments'        => $comments,
             'assignableUsers' => $assignableUsers,
+            'categories'      => $categories,
+            'priorities'      => $priorities,
             'currentUserId'   => $request->user()->id,
         ]);
     }
@@ -201,5 +213,114 @@ class TicketController extends Controller
         ]);
 
         return back()->with('success', "Ticket assigned to {$newAssignee->name}.");
+    }
+
+    public function settings()
+    {
+        $categories = TicketCategory::orderBy('sort_order')->get();
+        $priorities = TicketPriority::orderBy('sort_order')->get();
+
+        return Inertia::render('Tickets/Settings', [
+            'categories' => $categories,
+            'priorities' => $priorities,
+        ]);
+    }
+
+    public function storeCategory(Request $request)
+    {
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:100'],
+            'color'      => ['required', 'string', 'max:20'],
+            'is_active'  => ['boolean'],
+            'sort_order' => ['integer'],
+        ]);
+
+        TicketCategory::create([
+            'name'       => $validated['name'],
+            'slug'       => Str::slug($validated['name']),
+            'color'      => $validated['color'],
+            'is_active'  => $validated['is_active'] ?? true,
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        return back()->with('success', 'Category created.');
+    }
+
+    public function updateCategory(Request $request, TicketCategory $category)
+    {
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:100'],
+            'color'      => ['required', 'string', 'max:20'],
+            'is_active'  => ['boolean'],
+            'sort_order' => ['integer'],
+        ]);
+
+        $category->update([
+            'name'       => $validated['name'],
+            'slug'       => Str::slug($validated['name']),
+            'color'      => $validated['color'],
+            'is_active'  => $validated['is_active'] ?? true,
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        return back()->with('success', 'Category updated.');
+    }
+
+    public function destroyCategory(TicketCategory $category)
+    {
+        $category->delete();
+
+        return back()->with('success', 'Category deleted.');
+    }
+
+    public function storePriority(Request $request)
+    {
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:100'],
+            'color'      => ['required', 'string', 'max:20'],
+            'level'      => ['required', 'integer'],
+            'is_active'  => ['boolean'],
+            'sort_order' => ['integer'],
+        ]);
+
+        TicketPriority::create([
+            'name'       => $validated['name'],
+            'slug'       => Str::slug($validated['name']),
+            'color'      => $validated['color'],
+            'level'      => $validated['level'],
+            'is_active'  => $validated['is_active'] ?? true,
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        return back()->with('success', 'Priority created.');
+    }
+
+    public function updatePriority(Request $request, TicketPriority $priority)
+    {
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:100'],
+            'color'      => ['required', 'string', 'max:20'],
+            'level'      => ['required', 'integer'],
+            'is_active'  => ['boolean'],
+            'sort_order' => ['integer'],
+        ]);
+
+        $priority->update([
+            'name'       => $validated['name'],
+            'slug'       => Str::slug($validated['name']),
+            'color'      => $validated['color'],
+            'level'      => $validated['level'],
+            'is_active'  => $validated['is_active'] ?? true,
+            'sort_order' => $validated['sort_order'] ?? 0,
+        ]);
+
+        return back()->with('success', 'Priority updated.');
+    }
+
+    public function destroyPriority(TicketPriority $priority)
+    {
+        $priority->delete();
+
+        return back()->with('success', 'Priority deleted.');
     }
 }

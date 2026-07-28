@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -13,6 +13,7 @@ import {
   CheckCircle,
   AlertCircle,
   User,
+  Settings,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -67,6 +68,23 @@ interface Ticket {
   messages_count: number;
 }
 
+interface CategoryItem {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  is_active: boolean;
+}
+
+interface PriorityItem {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  level: number;
+  is_active: boolean;
+}
+
 interface Props {
   tickets: Ticket[];
   stats: {
@@ -75,7 +93,8 @@ interface Props {
     in_progress: number;
     resolved_today: number;
   };
-  categories: string[];
+  categories: CategoryItem[];
+  priorities: PriorityItem[];
   currentUserId?: number;
 }
 
@@ -90,14 +109,20 @@ const statusConfig: Record<
   closed: { label: 'Closed', variant: 'outline' },
 };
 
-const priorityConfig: Record<Ticket['priority'], { label: string; color: string }> = {
-  low: { label: 'Low', color: 'text-muted-foreground' },
-  medium: { label: 'Medium', color: 'text-warning' },
-  high: { label: 'High', color: 'text-warning' },
-  urgent: { label: 'Urgent', color: 'text-destructive' },
+const priorityColorMap: Record<string, string> = {
+  gray: 'text-muted-foreground',
+  amber: 'text-amber-600',
+  orange: 'text-orange-600',
+  red: 'text-destructive',
 };
 
-export default function TicketsIndex({ tickets, stats, categories, currentUserId }: Props) {
+export default function TicketsIndex({
+  tickets,
+  stats,
+  categories,
+  priorities,
+  currentUserId,
+}: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assignedToMe, setAssignedToMe] = useState(false);
@@ -144,10 +169,17 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
             <h1 className="text-xl font-bold font-display tracking-tight">Support Tickets</h1>
             <p className="text-muted-foreground">Manage customer and internal support requests</p>
           </div>
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Create Ticket
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create Ticket
+            </Button>
+            <Button variant="outline" size="icon" asChild>
+              <Link href="/tickets/settings">
+                <Settings className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -250,7 +282,11 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
               {filteredTickets.length > 0 ? (
                 filteredTickets.map((ticket) => {
                   const statusCfg = statusConfig[ticket.status];
-                  const priorityCfg = priorityConfig[ticket.priority];
+                  const priItem = priorities.find((p) => p.slug === ticket.priority);
+                  const priColor = priItem
+                    ? priorityColorMap[priItem.color] || 'text-muted-foreground'
+                    : 'text-muted-foreground';
+                  const priLabel = priItem ? priItem.name : ticket.priority;
                   return (
                     <div
                       key={ticket.id}
@@ -259,14 +295,16 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
                     >
                       <div
                         className={`mt-1 p-2 rounded-full ${
-                          ticket.priority === 'urgent'
+                          priItem?.color === 'red'
                             ? 'bg-destructive/10'
-                            : ticket.priority === 'high'
-                              ? 'bg-warning/10'
-                              : 'bg-muted'
+                            : priItem?.color === 'orange'
+                              ? 'bg-orange-100'
+                              : priItem?.color === 'amber'
+                                ? 'bg-amber-100'
+                                : 'bg-muted'
                         }`}
                       >
-                        <Headphones className={`h-4 w-4 ${priorityCfg.color}`} />
+                        <Headphones className={`h-4 w-4 ${priColor}`} />
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -275,8 +313,8 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
                             #{ticket.ticket_number}
                           </span>
                           <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                          <Badge variant="outline" className={priorityCfg.color}>
-                            {priorityCfg.label}
+                          <Badge variant="outline" className={priColor}>
+                            {priLabel}
                           </Badge>
                         </div>
 
@@ -384,10 +422,13 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    {priorities
+                      .filter((p) => p.is_active)
+                      .map((p) => (
+                        <SelectItem key={p.id} value={p.slug}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -402,11 +443,13 @@ export default function TicketsIndex({ tickets, stats, categories, currentUserId
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(categories ?? ['general']).map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c.charAt(0).toUpperCase() + c.slice(1)}
-                      </SelectItem>
-                    ))}
+                    {categories
+                      .filter((c) => c.is_active)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.slug}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

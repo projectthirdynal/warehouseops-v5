@@ -74,11 +74,30 @@ interface AssignableUser {
   email?: string;
 }
 
+interface CategoryItem {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  is_active: boolean;
+}
+
+interface PriorityItem {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  level: number;
+  is_active: boolean;
+}
+
 interface Props {
   ticket: Ticket;
   activityLogs: ActivityLogEntry[];
   comments: Comment[];
   assignableUsers?: AssignableUser[];
+  categories?: CategoryItem[];
+  priorities?: PriorityItem[];
   currentUserId?: number;
 }
 
@@ -93,11 +112,11 @@ const statusConfig: Record<
   closed: { label: 'Closed', variant: 'outline' },
 };
 
-const priorityConfig: Record<Ticket['priority'], { label: string; color: string }> = {
-  low: { label: 'Low', color: 'text-muted-foreground' },
-  medium: { label: 'Medium', color: 'text-warning' },
-  high: { label: 'High', color: 'text-warning' },
-  urgent: { label: 'Urgent', color: 'text-destructive' },
+const priorityColorMap: Record<string, string> = {
+  gray: 'text-muted-foreground',
+  amber: 'text-amber-600',
+  orange: 'text-orange-600',
+  red: 'text-destructive',
 };
 
 function getInitials(name: string): string {
@@ -121,10 +140,18 @@ export default function TicketsShow({
   activityLogs,
   comments,
   assignableUsers,
+  categories,
+  priorities,
   currentUserId,
 }: Props) {
   const statusCfg = statusConfig[ticket.status];
-  const priorityCfg = priorityConfig[ticket.priority];
+  const priItem = priorities?.find((p) => p.slug === ticket.priority);
+  const priColor = priItem
+    ? priorityColorMap[priItem.color] || 'text-muted-foreground'
+    : 'text-muted-foreground';
+  const priLabel = priItem ? priItem.name : ticket.priority;
+  const catItem = categories?.find((c) => c.slug === ticket.category);
+  const catLabel = catItem ? catItem.name : ticket.category;
   const [showInternal, setShowInternal] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [assignUpdating, setAssignUpdating] = useState(false);
@@ -205,14 +232,16 @@ export default function TicketsShow({
             <div className="flex items-start gap-4">
               <div
                 className={`p-3 rounded-full ${
-                  ticket.priority === 'urgent'
+                  priItem?.color === 'red'
                     ? 'bg-destructive/10'
-                    : ticket.priority === 'high'
-                      ? 'bg-warning/10'
-                      : 'bg-muted'
+                    : priItem?.color === 'orange'
+                      ? 'bg-orange-100'
+                      : priItem?.color === 'amber'
+                        ? 'bg-amber-100'
+                        : 'bg-muted'
                 }`}
               >
-                <Headphones className={`h-6 w-6 ${priorityCfg.color}`} />
+                <Headphones className={`h-6 w-6 ${priColor}`} />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -221,12 +250,12 @@ export default function TicketsShow({
                     #{ticket.ticket_number}
                   </span>
                   <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                  <Badge variant="outline" className={priorityCfg.color}>
-                    {priorityCfg.label}
+                  <Badge variant="outline" className={priColor}>
+                    {priLabel}
                   </Badge>
                   <Badge variant="outline">
                     <Tag className="mr-1 h-3 w-3" />
-                    {ticket.category}
+                    {catLabel}
                   </Badge>
                 </div>
 
