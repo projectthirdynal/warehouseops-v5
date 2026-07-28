@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
   Truck,
   CheckCircle2,
@@ -13,6 +13,12 @@ import {
   Recycle,
   BarChart3,
   ArrowRight,
+  FileText,
+  DollarSign,
+  Package,
+  Headphones,
+  ShieldAlert,
+  UserCog,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -23,6 +29,7 @@ import type {
   DashboardHourlyItem,
   DashboardActivity,
   DashboardTrends,
+  PageProps,
 } from '@/types';
 
 interface Props {
@@ -30,6 +37,7 @@ interface Props {
   recentActivity: DashboardActivity[];
   hourlyActivity: DashboardHourlyItem[];
   trends: DashboardTrends;
+  role?: string;
 }
 
 function StatCard({
@@ -113,7 +121,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   System: 'bg-muted-foreground',
 };
 
-export default function Dashboard({ stats, recentActivity, hourlyActivity, trends }: Props) {
+export default function Dashboard({ stats, recentActivity, hourlyActivity, trends, role }: Props) {
   const s = stats ?? {
     total_waybills: 0,
     pending_dispatch: 0,
@@ -127,6 +135,696 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     qc_pending: 0,
     agents_online: 0,
   };
+
+  const page = usePage<PageProps>();
+  const effectiveRole = role ?? page.props.auth?.user?.role ?? 'agent';
+
+  // ── Role-based stat card configs ──
+  type StatCardConfig = {
+    title: string;
+    value: string | number;
+    icon: React.ComponentType<{ className?: string }>;
+    variant?: 'default' | 'success' | 'warning' | 'danger';
+    description?: string;
+    href?: string;
+    trend?: { value: number | null; label: string };
+  };
+
+  const FINANCE_ROLES = ['finance', 'accounting'];
+  const WAREHOUSE_ROLES = ['warehouse'];
+
+  const isFinance = FINANCE_ROLES.includes(effectiveRole);
+  const isWarehouse = WAREHOUSE_ROLES.includes(effectiveRole);
+  const isAgent = effectiveRole === 'agent';
+  const isTeamLeader = effectiveRole === 'teamleader';
+  const isClaims = effectiveRole === 'claims_officer';
+  const isChecker = effectiveRole === 'checker';
+  const isEncoder = effectiveRole === 'encoder';
+
+  // ── Stat cards per role ──
+  let statCards1: StatCardConfig[] = [];
+  let statCards2: StatCardConfig[] = [];
+
+  if (isAgent) {
+    statCards1 = [
+      {
+        title: 'New Leads',
+        value: s.new_leads,
+        icon: Users,
+        variant: 'success',
+        description: 'Unassigned',
+        href: '/leads',
+      },
+      {
+        title: 'Sales Today',
+        value: s.sales_today,
+        icon: TrendingUp,
+        variant: 'success',
+        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+      },
+      {
+        title: 'Conversion Rate',
+        value: `${s.conversion_rate}%`,
+        icon: BarChart3,
+        description: 'Leads to sales',
+      },
+      {
+        title: 'QC Pending',
+        value: s.qc_pending,
+        icon: AlertCircle,
+        variant: s.qc_pending > 10 ? 'danger' : 'warning',
+        description: 'Awaiting review',
+        href: '/qc',
+      },
+    ];
+    statCards2 = [
+      {
+        title: 'My Open Tickets',
+        value: s.my_tickets ?? 0,
+        icon: Headphones,
+        variant: 'warning',
+        description: 'Assigned to me',
+        href: '/tickets',
+      },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+      {
+        title: 'Agents Online',
+        value: s.agents_online,
+        icon: Users,
+        variant: 'success',
+        description: 'Active in last hour',
+      },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+    ];
+  } else if (isFinance) {
+    statCards1 = [
+      {
+        title: 'Revenue Today',
+        value: `₱${(s.revenue_today ?? 0).toLocaleString()}`,
+        icon: DollarSign,
+        variant: 'success',
+      },
+      {
+        title: 'Total Revenue',
+        value: `₱${(s.total_revenue ?? 0).toLocaleString()}`,
+        icon: TrendingUp,
+        variant: 'success',
+      },
+      {
+        title: 'Invoices Unpaid',
+        value: s.invoices_unpaid ?? 0,
+        icon: FileText,
+        variant: 'warning',
+        description: 'Sent / Partial',
+        href: '/finance/invoices',
+      },
+      {
+        title: 'Invoices Overdue',
+        value: s.invoices_overdue ?? 0,
+        icon: AlertCircle,
+        variant: 'danger',
+        href: '/finance/invoices',
+      },
+    ];
+    statCards2 = [
+      {
+        title: 'Sales Today',
+        value: s.sales_today,
+        icon: TrendingUp,
+        variant: 'success',
+        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+      },
+      { title: 'Conversion Rate', value: `${s.conversion_rate}%`, icon: BarChart3 },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+    ];
+  } else if (isWarehouse) {
+    statCards1 = [
+      {
+        title: 'Pending Dispatch',
+        value: s.pending_dispatch,
+        icon: Clock,
+        variant: 'warning',
+        description: 'Awaiting scan',
+        href: '/waybills',
+      },
+      {
+        title: 'In Transit',
+        value: s.in_transit,
+        icon: Truck,
+        description: 'With courier',
+        href: '/waybills',
+      },
+      {
+        title: 'Delivered Today',
+        value: s.delivered_today,
+        icon: CheckCircle2,
+        variant: 'success',
+        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+      },
+      { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
+    ];
+    statCards2 = [
+      {
+        title: 'Low Stock Items',
+        value: s.low_stock_count ?? 0,
+        icon: Package,
+        variant: (s.low_stock_count ?? 0) > 0 ? 'warning' : 'default',
+        description: 'At or below reorder point',
+        href: '/inventory',
+      },
+      {
+        title: 'Total Products',
+        value: s.total_products ?? 0,
+        icon: BarChart3,
+        href: '/inventory',
+      },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+    ];
+  } else if (isClaims) {
+    statCards1 = [
+      { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
+      {
+        title: 'Claims Pending',
+        value: s.claims_pending ?? 0,
+        icon: ShieldAlert,
+        variant: 'warning',
+        description: 'Awaiting resolution',
+        href: '/waybills/claims',
+      },
+      {
+        title: 'Beyond SLA',
+        value: s.beyond_sla_count ?? 0,
+        icon: AlertCircle,
+        variant: 'danger',
+        href: '/waybills/claims/beyond-sla',
+      },
+      {
+        title: 'In Transit',
+        value: s.in_transit,
+        icon: Truck,
+        description: 'With courier',
+        href: '/waybills',
+      },
+    ];
+    statCards2 = [
+      {
+        title: 'Delivered Today',
+        value: s.delivered_today,
+        icon: CheckCircle2,
+        variant: 'success',
+      },
+      {
+        title: 'Pending Dispatch',
+        value: s.pending_dispatch,
+        icon: Clock,
+        variant: 'warning',
+        href: '/waybills',
+      },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+    ];
+  } else if (isTeamLeader) {
+    statCards1 = [
+      {
+        title: 'Sales Today',
+        value: s.sales_today,
+        icon: TrendingUp,
+        variant: 'success',
+        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+      },
+      {
+        title: 'New Leads',
+        value: s.new_leads,
+        icon: Users,
+        variant: 'success',
+        description: 'Unassigned',
+        href: '/leads',
+      },
+      { title: 'Conversion Rate', value: `${s.conversion_rate}%`, icon: BarChart3 },
+      {
+        title: 'Agents Online',
+        value: s.agents_online,
+        icon: Users,
+        variant: 'success',
+        description: 'Active in last hour',
+        href: '/agents/governance',
+      },
+    ];
+    statCards2 = [
+      {
+        title: 'QC Pending',
+        value: s.qc_pending,
+        icon: AlertCircle,
+        variant: s.qc_pending > 10 ? 'danger' : 'warning',
+        href: '/qc',
+      },
+      {
+        title: 'Open Tickets',
+        value: s.open_tickets ?? 0,
+        icon: Headphones,
+        variant: 'warning',
+        href: '/tickets',
+      },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+    ];
+  } else if (isChecker) {
+    statCards1 = [
+      {
+        title: 'Pending Dispatch',
+        value: s.pending_dispatch,
+        icon: Clock,
+        variant: 'warning',
+        href: '/waybills',
+      },
+      { title: 'In Transit', value: s.in_transit, icon: Truck, href: '/waybills' },
+      {
+        title: 'Delivered Today',
+        value: s.delivered_today,
+        icon: CheckCircle2,
+        variant: 'success',
+        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+      },
+      { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
+    ];
+    statCards2 = [
+      {
+        title: 'QC Pending',
+        value: s.qc_pending,
+        icon: AlertCircle,
+        variant: 'warning',
+        href: '/qc',
+      },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+      { title: 'Total Products', value: s.total_products ?? 0, icon: Package, href: '/inventory' },
+    ];
+  } else if (isEncoder) {
+    statCards1 = [
+      {
+        title: 'New Leads',
+        value: s.new_leads,
+        icon: Users,
+        variant: 'success',
+        description: 'Unassigned',
+        href: '/leads',
+      },
+      {
+        title: 'Pending Dispatch',
+        value: s.pending_dispatch,
+        icon: Clock,
+        variant: 'warning',
+        href: '/waybills',
+      },
+      { title: 'Total Waybills', value: s.total_waybills, icon: Truck, href: '/waybills' },
+      {
+        title: 'Open Tickets',
+        value: s.open_tickets ?? 0,
+        icon: Headphones,
+        variant: 'warning',
+        href: '/tickets',
+      },
+    ];
+    statCards2 = [
+      { title: 'Sales Today', value: s.sales_today, icon: TrendingUp, variant: 'success' },
+      { title: 'Conversion Rate', value: `${s.conversion_rate}%`, icon: BarChart3 },
+      { title: 'Total Leads', value: s.total_leads, icon: Users, href: '/leads' },
+      {
+        title: 'QC Pending',
+        value: s.qc_pending,
+        icon: AlertCircle,
+        variant: 'warning',
+        href: '/qc',
+      },
+    ];
+  } else {
+    // Admin / superadmin / supervisor — full dashboard
+    statCards1 = [
+      {
+        title: 'Pending Dispatch',
+        value: s.pending_dispatch,
+        icon: Clock,
+        variant: 'warning',
+        description: 'Waybills awaiting scan',
+        href: '/waybills',
+      },
+      {
+        title: 'In Transit',
+        value: s.in_transit,
+        icon: Truck,
+        description: 'With courier',
+        href: '/waybills',
+      },
+      {
+        title: 'Delivered Today',
+        value: s.delivered_today,
+        icon: CheckCircle2,
+        variant: 'success',
+        trend: { value: trends?.delivered ?? null, label: 'vs yesterday' },
+      },
+      { title: 'Returns Today', value: s.returned_today, icon: XCircle, variant: 'danger' },
+    ];
+    statCards2 = [
+      {
+        title: 'New Leads',
+        value: s.new_leads,
+        icon: Users,
+        variant: 'success',
+        description: 'Unassigned',
+        href: '/leads',
+      },
+      {
+        title: 'Sales Today',
+        value: s.sales_today,
+        icon: TrendingUp,
+        variant: 'success',
+        trend: { value: trends?.sales ?? null, label: 'vs yesterday' },
+      },
+      {
+        title: 'QC Pending',
+        value: s.qc_pending,
+        icon: AlertCircle,
+        variant: s.qc_pending > 10 ? 'danger' : 'warning',
+        description: 'Awaiting review',
+        href: '/qc',
+      },
+      {
+        title: 'Agents Online',
+        value: s.agents_online,
+        icon: Users,
+        variant: 'success',
+        description: 'Active in last hour',
+        href: '/agents/governance',
+      },
+    ];
+  }
+
+  // ── Role-based quick actions ──
+  let quickActions: {
+    href: string;
+    label: string;
+    desc: string;
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+  }[] = [];
+
+  if (isAgent) {
+    quickActions = [
+      {
+        href: '/leads',
+        label: 'My Leads',
+        desc: `${s.new_leads} new`,
+        icon: Users,
+        color: 'bg-success/10 text-success',
+      },
+      {
+        href: '/qc',
+        label: 'QC Review',
+        desc: `${s.qc_pending} pending`,
+        icon: ClipboardCheck,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/tickets',
+        label: 'My Tickets',
+        desc: `${s.my_tickets ?? 0} open`,
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/scanner',
+        label: 'Scanner',
+        desc: 'Scan waybills',
+        icon: QrCode,
+        color: 'bg-primary/10 text-primary',
+      },
+    ];
+  } else if (isFinance) {
+    quickActions = [
+      {
+        href: '/finance',
+        label: 'Finance Overview',
+        desc: 'Revenue & costs',
+        icon: DollarSign,
+        color: 'bg-success/10 text-success',
+      },
+      {
+        href: '/finance/invoices',
+        label: 'Invoices',
+        desc: `${s.invoices_unpaid ?? 0} unpaid`,
+        icon: FileText,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/finance/cost-of-goods',
+        label: 'Cost of Goods',
+        desc: 'COGS analysis',
+        icon: Package,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/sales',
+        label: 'Sales',
+        desc: 'Sales dashboard',
+        icon: TrendingUp,
+        color: 'bg-success/10 text-success',
+      },
+    ];
+  } else if (isWarehouse) {
+    quickActions = [
+      {
+        href: '/scanner',
+        label: 'Scanner',
+        desc: 'Scan waybills',
+        icon: QrCode,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/inventory',
+        label: 'Inventory',
+        desc: `${s.low_stock_count ?? 0} low stock`,
+        icon: Package,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/waybills',
+        label: 'Waybills',
+        desc: `${s.pending_dispatch} pending`,
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
+      {
+        href: '/inventory/adjustments',
+        label: 'Adjustments',
+        desc: 'Stock changes',
+        icon: BarChart3,
+        color: 'bg-primary/10 text-primary',
+      },
+    ];
+  } else if (isClaims) {
+    quickActions = [
+      {
+        href: '/waybills/claims',
+        label: 'Claims',
+        desc: `${s.claims_pending ?? 0} pending`,
+        icon: ShieldAlert,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/waybills/claims/beyond-sla',
+        label: 'Beyond SLA',
+        desc: `${s.beyond_sla_count ?? 0} overdue`,
+        icon: AlertCircle,
+        color: 'bg-destructive/10 text-destructive',
+      },
+      {
+        href: '/waybills',
+        label: 'Waybills',
+        desc: 'All shipments',
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
+      {
+        href: '/scanner',
+        label: 'Scanner',
+        desc: 'Scan waybills',
+        icon: QrCode,
+        color: 'bg-primary/10 text-primary',
+      },
+    ];
+  } else if (isTeamLeader) {
+    quickActions = [
+      {
+        href: '/leads',
+        label: 'Leads',
+        desc: `${s.new_leads} new`,
+        icon: Users,
+        color: 'bg-success/10 text-success',
+      },
+      {
+        href: '/distribution',
+        label: 'Distribution',
+        desc: 'Assign leads',
+        icon: UserCog,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/qc',
+        label: 'QC Review',
+        desc: `${s.qc_pending} pending`,
+        icon: ClipboardCheck,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/agents/governance',
+        label: 'Agents',
+        desc: `${s.agents_online} online`,
+        icon: Users,
+        color: 'bg-success/10 text-success',
+      },
+    ];
+  } else if (isChecker) {
+    quickActions = [
+      {
+        href: '/scanner',
+        label: 'Scanner',
+        desc: 'Scan waybills',
+        icon: QrCode,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/waybills',
+        label: 'Waybills',
+        desc: `${s.pending_dispatch} pending`,
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
+      {
+        href: '/qc',
+        label: 'QC Review',
+        desc: `${s.qc_pending} pending`,
+        icon: ClipboardCheck,
+        color: 'bg-warning/10 text-warning',
+      },
+      {
+        href: '/inventory',
+        label: 'Inventory',
+        desc: 'Stock levels',
+        icon: Package,
+        color: 'bg-primary/10 text-primary',
+      },
+    ];
+  } else if (isEncoder) {
+    quickActions = [
+      {
+        href: '/leads',
+        label: 'New Lead',
+        desc: 'Create entry',
+        icon: Users,
+        color: 'bg-success/10 text-success',
+      },
+      {
+        href: '/waybills',
+        label: 'Waybills',
+        desc: 'Import / manage',
+        icon: Truck,
+        color: 'bg-info/10 text-info',
+      },
+      {
+        href: '/orders',
+        label: 'Orders',
+        desc: 'Manage orders',
+        icon: ClipboardCheck,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/tickets',
+        label: 'Tickets',
+        desc: `${s.open_tickets ?? 0} open`,
+        icon: Headphones,
+        color: 'bg-warning/10 text-warning',
+      },
+    ];
+  } else {
+    // Admin / superadmin / supervisor
+    quickActions = [
+      {
+        href: '/scanner',
+        label: 'Scanner',
+        desc: 'Scan waybills',
+        icon: QrCode,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/leads',
+        label: 'Leads',
+        desc: `${s.new_leads} new`,
+        icon: Users,
+        color: 'bg-success/10 text-success',
+      },
+      {
+        href: '/qc',
+        label: 'QC Review',
+        desc: `${s.qc_pending} pending`,
+        icon: ClipboardCheck,
+        color: 'bg-primary/10 text-primary',
+      },
+      {
+        href: '/recycling/pool',
+        label: 'Recycling',
+        desc: 'Lead pool',
+        icon: Recycle,
+        color: 'bg-warning/10 text-warning',
+      },
+    ];
+  }
+
+  // ── Role-based summary stats (bottom of chart) ──
+  let summaryStats: { label: string; value: string; color?: string }[] = [];
+
+  if (isFinance) {
+    summaryStats = [
+      {
+        label: 'Total Revenue',
+        value: `₱${(s.total_revenue ?? 0).toLocaleString()}`,
+        color: 'text-success',
+      },
+      { label: 'Total Leads', value: s.total_leads.toLocaleString() },
+      { label: 'Conversion Rate', value: `${s.conversion_rate}%` },
+    ];
+  } else if (isWarehouse) {
+    summaryStats = [
+      { label: 'Total Waybills', value: s.total_waybills.toLocaleString() },
+      { label: 'Total Products', value: (s.total_products ?? 0).toLocaleString() },
+      {
+        label: 'Low Stock',
+        value: (s.low_stock_count ?? 0).toLocaleString(),
+        color: 'text-warning',
+      },
+    ];
+  } else if (isClaims) {
+    summaryStats = [
+      { label: 'Total Waybills', value: s.total_waybills.toLocaleString() },
+      {
+        label: 'Claims Pending',
+        value: (s.claims_pending ?? 0).toLocaleString(),
+        color: 'text-warning',
+      },
+      {
+        label: 'Beyond SLA',
+        value: (s.beyond_sla_count ?? 0).toLocaleString(),
+        color: 'text-destructive',
+      },
+    ];
+  } else {
+    summaryStats = [
+      { label: 'Total Waybills', value: s.total_waybills.toLocaleString() },
+      { label: 'Total Leads', value: s.total_leads.toLocaleString() },
+      { label: 'Conversion Rate', value: `${s.conversion_rate}%`, color: 'text-success' },
+    ];
+  }
 
   const chartData =
     hourlyActivity.length > 0
@@ -142,6 +840,35 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
     day: 'numeric',
   });
 
+  // ── Role-based header title ──
+  const roleTitles: Record<string, string> = {
+    agent: 'Agent Dashboard',
+    finance: 'Finance Dashboard',
+    accounting: 'Finance Dashboard',
+    warehouse: 'Warehouse Dashboard',
+    teamleader: 'Team Leader Dashboard',
+    checker: 'Operations Dashboard',
+    encoder: 'Data Entry Dashboard',
+    claims_officer: 'Claims Dashboard',
+    superadmin: 'Dashboard',
+    admin: 'Dashboard',
+    supervisor: 'Dashboard',
+  };
+
+  const roleDescriptions: Record<string, string> = {
+    agent: 'Your leads, sales, and assigned tickets',
+    finance: 'Revenue, invoices, and financial overview',
+    accounting: 'Revenue, invoices, and financial overview',
+    warehouse: 'Shipments, inventory, and stock levels',
+    teamleader: 'Team performance and lead distribution',
+    checker: 'Waybill scanning and QC operations',
+    encoder: 'Data entry and order management',
+    claims_officer: 'Returns, claims, and SLA tracking',
+    superadmin: 'Overview of warehouse operations and key metrics',
+    admin: 'Overview of warehouse operations and key metrics',
+    supervisor: 'Overview of warehouse operations and key metrics',
+  };
+
   return (
     <AppLayout>
       <Head title="Dashboard" />
@@ -150,9 +877,12 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-bold tracking-tight font-display">Dashboard</h1>
+            <h1 className="text-xl font-bold tracking-tight font-display">
+              {roleTitles[effectiveRole] ?? 'Dashboard'}
+            </h1>
             <p className="text-muted-foreground">
-              Overview of warehouse operations and key metrics
+              {roleDescriptions[effectiveRole] ??
+                'Overview of warehouse operations and key metrics'}
             </p>
           </div>
           <Button asChild>
@@ -163,71 +893,18 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
           </Button>
         </div>
 
-        {/* Waybill stats */}
+        {/* Stat cards row 1 */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Pending Dispatch"
-            value={s.pending_dispatch}
-            icon={Clock}
-            variant="warning"
-            description="Waybills awaiting scan"
-            href="/waybills"
-          />
-          <StatCard
-            title="In Transit"
-            value={s.in_transit}
-            icon={Truck}
-            description="With courier"
-            href="/waybills"
-          />
-          <StatCard
-            title="Delivered Today"
-            value={s.delivered_today}
-            icon={CheckCircle2}
-            variant="success"
-            trend={{ value: trends?.delivered ?? null, label: 'vs yesterday' }}
-          />
-          <StatCard
-            title="Returns Today"
-            value={s.returned_today}
-            icon={XCircle}
-            variant="danger"
-          />
+          {statCards1.map((card) => (
+            <StatCard key={card.title} {...card} />
+          ))}
         </div>
 
-        {/* Lead / ops stats */}
+        {/* Stat cards row 2 */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="New Leads"
-            value={s.new_leads}
-            icon={Users}
-            variant="success"
-            description="Unassigned"
-            href="/leads"
-          />
-          <StatCard
-            title="Sales Today"
-            value={s.sales_today}
-            icon={TrendingUp}
-            variant="success"
-            trend={{ value: trends?.sales ?? null, label: 'vs yesterday' }}
-          />
-          <StatCard
-            title="QC Pending"
-            value={s.qc_pending}
-            icon={AlertCircle}
-            variant={s.qc_pending > 10 ? 'danger' : 'warning'}
-            description="Awaiting review"
-            href="/qc"
-          />
-          <StatCard
-            title="Agents Online"
-            value={s.agents_online}
-            icon={Users}
-            variant="success"
-            description="Active in last hour"
-            href="/agents/governance"
-          />
+          {statCards2.map((card) => (
+            <StatCard key={card.title} {...card} />
+          ))}
         </div>
 
         {/* Chart + Activity */}
@@ -287,24 +964,16 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
               )}
 
               <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t">
-                <div className="text-center">
-                  <p className="text-xl font-bold font-display tabular-nums">
-                    {s.total_waybills.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Total Waybills</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold font-display tabular-nums">
-                    {s.total_leads.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Total Leads</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold font-display tabular-nums text-success">
-                    {s.conversion_rate}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">Conversion Rate</p>
-                </div>
+                {summaryStats.map((stat) => (
+                  <div key={stat.label} className="text-center">
+                    <p
+                      className={`text-xl font-bold font-display tabular-nums ${stat.color ?? ''}`}
+                    >
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -348,36 +1017,7 @@ export default function Dashboard({ stats, recentActivity, hourlyActivity, trend
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  href: '/scanner',
-                  label: 'Scanner',
-                  desc: 'Scan waybills',
-                  icon: QrCode,
-                  color: 'bg-primary/10 text-primary',
-                },
-                {
-                  href: '/leads',
-                  label: 'Leads',
-                  desc: `${s.new_leads} new`,
-                  icon: Users,
-                  color: 'bg-success/10 text-success',
-                },
-                {
-                  href: '/qc',
-                  label: 'QC Review',
-                  desc: `${s.qc_pending} pending`,
-                  icon: ClipboardCheck,
-                  color: 'bg-primary/10 text-primary',
-                },
-                {
-                  href: '/recycling/pool',
-                  label: 'Recycling',
-                  desc: 'Lead pool',
-                  icon: Recycle,
-                  color: 'bg-warning/10 text-warning',
-                },
-              ].map((item) => (
+              {quickActions.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}

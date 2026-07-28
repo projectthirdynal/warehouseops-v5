@@ -5,15 +5,22 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
+use App\Models\Ticket;
 use App\Models\User;
 use App\Models\Waybill;
+use App\Models\Invoice;
+use App\Domain\Product\Models\ProductStock;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+        $role = $user?->role ?? 'agent';
+
         // Waybill statistics
         $totalWaybills   = Waybill::count();
         $pendingDispatch = Waybill::where('status', 'PENDING')->count();
@@ -42,6 +49,29 @@ class DashboardController extends Controller
             ->where('last_login_at', '>=', now()->subHour())
             ->count();
 
+        // Ticket statistics (for agent/teamleader roles)
+        $openTickets = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->count();
+        $myTickets  = Ticket::where('assigned_to', $user?->id)
+            ->whereIn('status', ['open', 'in_progress', 'waiting'])
+            ->count();
+
+        // Invoice statistics (for finance/accounting roles)
+        $invoicesOverdue = Invoice::where('status', 'OVERDUE')->count();
+        $invoicesUnpaid   = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
+        $totalRevenue     = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])->sum('amount_paid');
+        $revenueToday     = (float) Invoice::whereDate('updated_at', today())
+            ->whereIn('status', ['PAID', 'PARTIAL'])
+            ->sum('amount_paid');
+
+        // Inventory statistics (for warehouse roles)
+        $lowStockCount  = ProductStock::whereRaw('current_stock - reserved_stock <= reorder_point')->count();
+        $totalProducts  = ProductStock::distinct('product_id')->count('product_id');
+        $pendingGrCount = 0; // Goods receipt pending — placeholder if GR model exists
+
+        // Claims statistics (for claims_officer)
+        $claimsPending  = Waybill::where('status', 'RETURNED')->whereNull('returned_at')->orWhereNull('delivered_at')->where('status', 'CLAIMED')->count();
+        $beyondSlaCount = Waybill::where('status', 'RETURNED')->where('returned_at', '<', now()->subDays(7))->count();
+
         $stats = [
             'total_waybills'  => $totalWaybills,
             'pending_dispatch' => $pendingDispatch,
@@ -54,6 +84,20 @@ class DashboardController extends Controller
             'conversion_rate' => $conversionRate,
             'qc_pending'      => $qcPending,
             'agents_online'   => $agentsOnline,
+            // Ticket stats
+            'open_tickets'    => $openTickets,
+            'my_tickets'      => $myTickets,
+            // Finance stats
+            'invoices_overdue' => $invoicesOverdue,
+            'invoices_unpaid'  => $invoicesUnpaid,
+            'total_revenue'    => round($totalRevenue, 2),
+            'revenue_today'    => round($revenueToday, 2),
+            // Warehouse stats
+            'low_stock_count'  => $lowStockCount,
+            'total_products'   => $totalProducts,
+            // Claims stats
+            'claims_pending'   => $claimsPending,
+            'beyond_sla_count'  => $beyondSlaCount,
         ];
 
         // Trend vs yesterday (null when yesterday had no data to avoid misleading +∞%)
@@ -133,6 +177,7 @@ class DashboardController extends Controller
             'recentActivity' => $recentActivity,
             'hourlyActivity' => $hourlyActivity,
             'trends'         => $trends,
+            'role'           => $role,
         ]);
     }
 }
