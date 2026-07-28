@@ -682,9 +682,9 @@ class TicketController extends Controller
         $resolutionStats = Ticket::whereIn('status', ['resolved', 'closed'])
             ->whereNotNull('resolved_at')
             ->whereNotNull('created_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as avg_hours')
-            ->selectRaw('MIN(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as min_hours')
-            ->selectRaw('MAX(TIMESTAMPDIFF(HOUR, created_at, resolved_at)) as max_hours')
+            ->selectRaw('AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) as avg_hours')
+            ->selectRaw('MIN(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) as min_hours')
+            ->selectRaw('MAX(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) as max_hours')
             ->first();
 
         $avgResolutionHours = $resolutionStats?->avg_hours ? round((float) $resolutionStats->avg_hours, 1) : null;
