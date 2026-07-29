@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DashboardWidgetConfig;
 use App\Models\Lead;
+use App\Models\SiteSetting;
 use App\Models\Ticket;
 use App\Models\Upload;
 use App\Models\User;
@@ -40,6 +41,7 @@ class DashboardController extends Controller
             'revenueSummary' => $this->buildRevenueSummary(),
             'operationHeatmap' => $this->buildOperationHeatmap(),
             'agentLeaderboard' => $this->buildAgentLeaderboard(),
+            'weather'          => $this->buildWeather(),
         ]);
     }
 
@@ -315,6 +317,92 @@ class DashboardController extends Controller
         ];
     }
 
+    public function weather(Request $request): JsonResponse
+    {
+        return response()->json([
+            'weather'    => $this->buildWeather(),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildWeather(): array
+    {
+        // Use Open-Meteo API (free, no API key required).
+        // Cache for 10 minutes to avoid excessive calls.
+        return \Cache::remember('dashboard_weather', 600, function () {
+            $lat = (float) SiteSetting::where('key', 'weather_lat')->value('value') ?: 14.5995;
+            $lon = (float) SiteSetting::where('key', 'weather_lon')->value('value') ?: 120.9842;
+            $city = SiteSetting::where('key', 'weather_city')->value('value') ?: 'Manila, PH';
+
+            $url = sprintf(
+                'https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia/Manila&forecast_days=3',
+                $lat,
+                $lon
+            );
+
+            try {
+                $response = \Http::timeout(5)->get($url);
+                if (!$response->ok()) {
+                    return ['available' => false, 'city' => $city];
+                }
+                $data = $response->json();
+            } catch (\Throwable $e) {
+                return ['available' => false, 'city' => $city];
+            }
+
+            $current = $data['current'] ?? [];
+            $daily = $data['daily'] ?? [];
+
+            $weatherCodeMap = [
+                0 => 'Clear sky', 1 => 'Mainly clear', 2 => 'Partly cloudy', 3 => 'Overcast',
+                45 => 'Fog', 48 => 'Depositing rime fog',
+                51 => 'Light drizzle', 53 => 'Moderate drizzle', 55 => 'Dense drizzle',
+                56 => 'Light freezing drizzle', 57 => 'Dense freezing drizzle',
+                61 => 'Slight rain', 63 => 'Moderate rain', 65 => 'Heavy rain',
+                66 => 'Light freezing rain', 67 => 'Heavy freezing rain',
+                71 => 'Slight snow', 73 => 'Moderate snow', 75 => 'Heavy snow',
+                77 => 'Snow grains',
+                80 => 'Slight rain showers', 81 => 'Moderate rain showers', 82 => 'Violent rain showers',
+                85 => 'Slight snow showers', 86 => 'Heavy snow showers',
+                95 => 'Thunderstorm', 96 => 'Thunderstorm with slight hail', 99 => 'Thunderstorm with heavy hail',
+            ];
+
+            $code = $current['weather_code'] ?? 0;
+            $forecast = [];
+            $dailyCodes = $daily['weather_code'] ?? [];
+            $dailyMax = $daily['temperature_2m_max'] ?? [];
+            $dailyMin = $daily['temperature_2m_min'] ?? [];
+            $dailyPrecip = $daily['precipitation_probability_max'] ?? [];
+            $dailyDates = $daily['time'] ?? [];
+
+            for ($i = 0; $i < min(3, count($dailyDates)); $i++) {
+                $forecast[] = [
+                    'date'          => $dailyDates[$i],
+                    'label'         => \Carbon\Carbon::parse($dailyDates[$i])->format('D'),
+                    'condition'     => $weatherCodeMap[$dailyCodes[$i] ?? 0] ?? 'Unknown',
+                    'weather_code'  => $dailyCodes[$i] ?? 0,
+                    'temp_max'      => round($dailyMax[$i] ?? 0, 1),
+                    'temp_min'      => round($dailyMin[$i] ?? 0, 1),
+                    'precip_prob'   => (int) ($dailyPrecip[$i] ?? 0),
+                ];
+            }
+
+            return [
+                'available'      => true,
+                'city'           => $city,
+                'temperature'    => round($current['temperature_2m'] ?? 0, 1),
+                'feels_like'     => round($current['apparent_temperature'] ?? 0, 1),
+                'humidity'       => (int) ($current['relative_humidity_2m'] ?? 0),
+                'precipitation'  => round($current['precipitation'] ?? 0, 1),
+                'wind_speed'     => round($current['wind_speed_10m'] ?? 0, 1),
+                'condition'      => $weatherCodeMap[$code] ?? 'Unknown',
+                'weather_code'   => $code,
+                'is_raining'     => in_array($code, [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]),
+                'forecast'       => $forecast,
+            ];
+        });
+    }
+
     private function buildAlerts(): array
     {
         $alerts = [];
@@ -567,6 +655,7 @@ class DashboardController extends Controller
             ['key' => 'revenue_summary', 'label' => 'Revenue Summary', 'description' => 'Today/week/month revenue, top products, conversion trend', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 8],
             ['key' => 'ops_heatmap', 'label' => 'Operations Heatmap', 'description' => 'Hourly activity across days of week (30-day window)', 'category' => 'charts', 'default_visible' => true, 'default_order' => 9],
             ['key' => 'agent_leaderboard', 'label' => 'Agent Leaderboard', 'description' => 'Top 5 agents by sales today with rank change', 'category' => 'performance', 'default_visible' => true, 'default_order' => 10],
+            ['key' => 'weather', 'label' => 'Weather', 'description' => 'Current weather + 3-day forecast for delivery planning', 'category' => 'info', 'default_visible' => true, 'default_order' => 11],
         ];
     }
 

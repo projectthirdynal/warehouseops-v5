@@ -35,6 +35,10 @@ import {
   Wallet,
   Grid3x3,
   Trophy,
+  CloudSun,
+  CloudRain,
+  Droplets,
+  Wind,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -165,6 +169,30 @@ interface AgentLeaderboardData {
   date: string;
 }
 
+interface ForecastDay {
+  date: string;
+  label: string;
+  condition: string;
+  weather_code: number;
+  temp_max: number;
+  temp_min: number;
+  precip_prob: number;
+}
+
+interface WeatherData {
+  available: boolean;
+  city: string;
+  temperature: number;
+  feels_like: number;
+  humidity: number;
+  precipitation: number;
+  wind_speed: number;
+  condition: string;
+  weather_code: number;
+  is_raining: boolean;
+  forecast: ForecastDay[];
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -176,6 +204,7 @@ interface Props {
   revenueSummary?: RevenueSummaryData;
   operationHeatmap?: OperationHeatmapData;
   agentLeaderboard?: AgentLeaderboardData;
+  weather?: WeatherData;
 }
 
 function StatCard({
@@ -270,6 +299,7 @@ export default function Dashboard({
   revenueSummary: initialRevenue,
   operationHeatmap: initialHeatmap,
   agentLeaderboard: initialLeaderboard,
+  weather: initialWeather,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -300,6 +330,9 @@ export default function Dashboard({
   const [liveLeaderboard, setLiveLeaderboard] = useState<AgentLeaderboardData | null>(
     initialLeaderboard ?? null
   );
+
+  // ── Weather state ──
+  const [liveWeather, setLiveWeather] = useState<WeatherData | null>(initialWeather ?? null);
 
   const widgetVisible = (key: string): boolean =>
     widgets.find((w) => w.key === key)?.is_visible ?? true;
@@ -366,6 +399,14 @@ export default function Dashboard({
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d) setLiveLeaderboard(d.leaderboard);
+        })
+        .catch(() => {});
+
+      // Fetch weather in parallel (non-blocking)
+      fetch('/api/dashboard/weather', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveWeather(d.weather);
         })
         .catch(() => {});
     } catch {
@@ -1934,6 +1975,112 @@ export default function Dashboard({
                       <p className="text-lg font-bold tabular-nums">
                         {liveLeaderboard.total_orders}
                       </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Weather Widget */}
+        {widgetVisible('weather') && liveWeather && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {liveWeather.is_raining ? (
+                      <CloudRain className="h-5 w-5" />
+                    ) : (
+                      <CloudSun className="h-5 w-5" />
+                    )}
+                    Weather
+                  </CardTitle>
+                  <CardDescription>{liveWeather.city} — for delivery planning</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!liveWeather.available ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Weather data temporarily unavailable
+                </p>
+              ) : (
+                <>
+                  {/* Current conditions */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-center">
+                      <span className="text-4xl font-bold tabular-nums">
+                        {Math.round(liveWeather.temperature)}°
+                      </span>
+                      <span className="text-xs text-muted-foreground">{liveWeather.condition}</span>
+                    </div>
+                    <div className="flex-1 grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Droplets className="h-4 w-4 text-muted-foreground" />
+                        <span className="tabular-nums">{liveWeather.humidity}%</span>
+                        <span className="text-xs text-muted-foreground">humidity</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Wind className="h-4 w-4 text-muted-foreground" />
+                        <span className="tabular-nums">{liveWeather.wind_speed} km/h</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Feels like</span>
+                        <span className="tabular-nums font-medium">
+                          {Math.round(liveWeather.feels_like)}°
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Precip</span>
+                        <span className="tabular-nums font-medium">
+                          {liveWeather.precipitation} mm
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery advisory */}
+                  {liveWeather.is_raining && (
+                    <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-2.5 text-sm text-blue-700 dark:text-blue-300">
+                      <CloudRain className="h-4 w-4 shrink-0" />
+                      <span>
+                        Active rainfall — expect potential delivery delays. Consider rescheduling
+                        non-urgent shipments.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 3-day forecast */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">3-Day Forecast</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {liveWeather.forecast.map((day) => (
+                        <div
+                          key={day.date}
+                          className="rounded-lg border p-2.5 text-center space-y-1"
+                        >
+                          <p className="text-xs font-medium">{day.label}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {day.condition}
+                          </p>
+                          <div className="flex items-center justify-center gap-1 text-xs">
+                            <span className="font-semibold tabular-nums">
+                              {Math.round(day.temp_max)}°
+                            </span>
+                            <span className="text-muted-foreground tabular-nums">
+                              {Math.round(day.temp_min)}°
+                            </span>
+                          </div>
+                          {day.precip_prob > 0 && (
+                            <div className="flex items-center justify-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400">
+                              <Droplets className="h-2.5 w-2.5" />
+                              <span className="tabular-nums">{day.precip_prob}%</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </>
