@@ -478,13 +478,22 @@ export default function ShopConversation({
     if (!pollingEnabled || !conversation?.id) return;
 
     let failCount = 0;
+    let cancelled = false;
+    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
 
-    const interval = setInterval(() => {
+    const doLongPoll = () => {
+      if (cancelled) return;
+
       axios
         .get(`/shop/inbox/${conversation.id}/poll`, {
-          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+          params: {
+            ...(lastMessageId > 0 ? { after_message_id: lastMessageId } : {}),
+            wait: 1,
+          },
+          timeout: 35000,
         })
         .then(({ data }) => {
+          if (cancelled) return;
           setConnectionStatus('connected');
           failCount = 0;
           if (data.messages?.length > 0) {
@@ -502,18 +511,71 @@ export default function ShopConversation({
             }
           }
           setIsTyping(Boolean(data.is_typing));
+          // Re-issue immediately — server held the request if no messages
+          timeoutRef = setTimeout(doLongPoll, 500);
         })
         .catch(() => {
+          if (cancelled) return;
           failCount++;
           if (failCount >= 3) {
+            setConnectionStatus('offline');
+            // Fall back to short-polling every 5s
+            timeoutRef = setTimeout(doShortPoll, 5000);
+          } else {
+            setConnectionStatus('reconnecting');
+            // Retry long-poll after brief delay
+            timeoutRef = setTimeout(doLongPoll, 2000);
+          }
+        });
+    };
+
+    const doShortPoll = () => {
+      if (cancelled) return;
+
+      axios
+        .get(`/shop/inbox/${conversation.id}/poll`, {
+          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+        })
+        .then(({ data }) => {
+          if (cancelled) return;
+          setConnectionStatus('connected');
+          failCount = 0;
+          if (data.messages?.length > 0) {
+            const inboundCount = data.messages.filter(
+              (m: Message) => m.direction === 'inbound'
+            ).length;
+            setMessages((prev) => [...prev, ...data.messages]);
+            const maxId = data.messages.reduce(
+              (max: number, m: Message) => (m.id > max ? m.id : max),
+              lastMessageId
+            );
+            setLastMessageId(maxId);
+            if (inboundCount > 0) {
+              setNewMessageCount((c) => c + inboundCount);
+            }
+          }
+          setIsTyping(Boolean(data.is_typing));
+          // Try long-polling again after successful short-poll
+          timeoutRef = setTimeout(doLongPoll, 1000);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          failCount++;
+          if (failCount >= 5) {
             setConnectionStatus('offline');
           } else {
             setConnectionStatus('reconnecting');
           }
+          timeoutRef = setTimeout(doShortPoll, 5000);
         });
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
+    doLongPoll();
+
+    return () => {
+      cancelled = true;
+      if (timeoutRef) clearTimeout(timeoutRef);
+    };
   }, [conversation?.id, lastMessageId, pollingEnabled]);
 
   useEffect(() => {
@@ -1288,7 +1350,7 @@ export default function ShopConversation({
                           ? 'Connection lost — retrying'
                           : connectionStatus === 'reconnecting'
                             ? 'Reconnecting...'
-                            : 'Polling every 5s'
+                            : 'Long-polling (real-time)'
                     }
                   >
                     {!pollingEnabled ? (

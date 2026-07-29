@@ -2497,43 +2497,109 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'after_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+            'wait'             => ['nullable', 'integer', 'in:0,1'],
         ]);
 
-        $query = Message::query()
-            ->where('conversation_id', $conversation->id)
-            ->orderBy('sent_at')
-            ->orderBy('id');
+        $afterId = $validated['after_message_id'] ?? null;
+        $longPoll = ($validated['wait'] ?? 0) === 1;
+        $maxWait = 30; // seconds
+        $checkInterval = 2; // seconds
 
-        if ($validated['after_message_id'] ?? null) {
-            $query->where('id', '>', $validated['after_message_id']);
+        $fetchNewMessages = function () use ($conversation, $afterId) {
+            $query = Message::query()
+                ->where('conversation_id', $conversation->id)
+                ->orderBy('sent_at')
+                ->orderBy('id');
+
+            if ($afterId) {
+                $query->where('id', '>', $afterId);
+            }
+
+            return $query
+                ->with(['sender:id,name'])
+                ->get([
+                    'id',
+                    'sent_by',
+                    'direction',
+                    'body',
+                    'message_type',
+                    'attachments',
+                    'metadata',
+                    'reactions',
+                    'is_flagged',
+                    'flag_reason',
+                    'translated_body',
+                    'translated_lang',
+                    'sent_at',
+                    'raw_payload',
+                    'phone_candidates',
+                ])
+                ->map(fn (Message $m) => array_merge($m->toArray(), [
+                    'sender_name' => $m->sender?->name,
+                ]));
+        };
+
+        // Long-polling: hold the request for up to 30s waiting for new messages
+        if ($longPoll) {
+            $elapsed = 0;
+            while ($elapsed < $maxWait) {
+                $messages = $fetchNewMessages();
+
+                if ($messages->isNotEmpty()) {
+                    $conversation->refresh();
+                    $isTyping = $conversation->typing_at !== null
+                        && $conversation->typing_at->gt(now()->subSeconds(15));
+
+                    return response()->json([
+                        'messages' => $messages,
+                        'last_message_preview' => $conversation->last_message_preview,
+                        'last_message_at' => $conversation->last_message_at,
+                        'unread_count' => $conversation->unread_count,
+                        'status' => $conversation->status,
+                        'is_typing' => $isTyping,
+                        'long_poll' => true,
+                    ]);
+                }
+
+                // Check typing indicator even if no new messages
+                $conversation->refresh();
+                $isTyping = $conversation->typing_at !== null
+                    && $conversation->typing_at->gt(now()->subSeconds(15));
+
+                // If typing status changed, return early so frontend can update
+                if ($isTyping) {
+                    return response()->json([
+                        'messages' => [],
+                        'last_message_preview' => $conversation->last_message_preview,
+                        'last_message_at' => $conversation->last_message_at,
+                        'unread_count' => $conversation->unread_count,
+                        'status' => $conversation->status,
+                        'is_typing' => true,
+                        'long_poll' => true,
+                    ]);
+                }
+
+                sleep($checkInterval);
+                $elapsed += $checkInterval;
+            }
+
+            // Timeout — return empty response so client re-issues
+            return response()->json([
+                'messages' => [],
+                'last_message_preview' => $conversation->last_message_preview,
+                'last_message_at' => $conversation->last_message_at,
+                'unread_count' => $conversation->unread_count,
+                'status' => $conversation->status,
+                'is_typing' => false,
+                'long_poll' => true,
+            ]);
         }
 
-        $messages = $query
-            ->with(['sender:id,name'])
-            ->get([
-                'id',
-                'sent_by',
-                'direction',
-                'body',
-                'message_type',
-                'attachments',
-                'metadata',
-                'reactions',
-                'is_flagged',
-                'flag_reason',
-                'translated_body',
-                'translated_lang',
-                'sent_at',
-                'raw_payload',
-                'phone_candidates',
-            ])
-            ->map(fn (Message $m) => array_merge($m->toArray(), [
-                'sender_name' => $m->sender?->name,
-            ]));
+        // Short-polling (backward compatible — original behavior)
+        $messages = $fetchNewMessages();
 
         $conversation->refresh();
 
-        // Customer is typing if typing_at was set within the last 15 seconds
         $isTyping = $conversation->typing_at !== null
             && $conversation->typing_at->gt(now()->subSeconds(15));
 
