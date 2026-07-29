@@ -691,6 +691,13 @@ class ShopController extends Controller
             $query->where('facebook_page_id', $request->integer('page_id'));
         }
 
+        if ($request->filled('page_ids')) {
+            $pageIds = array_filter(explode(',', $request->string('page_ids')), fn ($v) => $v !== '');
+            if (! empty($pageIds)) {
+                $query->whereIn('facebook_page_id', array_map('intval', $pageIds));
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
@@ -853,7 +860,64 @@ class ShopController extends Controller
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
+            'filters' => $request->only(['page_id', 'page_ids', 'status', 'assigned_agent_id', 'priority', 'flagged', 'sentiment', 'tag_id', 'snoozed']),
+        ]);
+    }
+
+    public function unifiedInboxStats(Request $request): JsonResponse
+    {
+        $pageIds = [];
+        if ($request->filled('page_ids')) {
+            $pageIds = array_filter(explode(',', $request->string('page_ids')), fn ($v) => $v !== '');
+            $pageIds = array_map('intval', $pageIds);
+        }
+
+        $baseQuery = Conversation::query()->whereNull('merged_into_id');
+
+        if (! empty($pageIds)) {
+            $baseQuery->whereIn('facebook_page_id', $pageIds);
+        }
+
+        $total = (clone $baseQuery)->count();
+        $unread = (clone $baseQuery)->where('unread_count', '>', 0)->count();
+        $flagged = (clone $baseQuery)->where('is_flagged', true)->whereNull('resolved_at')->count();
+        $unassigned = (clone $baseQuery)->whereNull('assigned_agent_id')->whereNotIn('status', ['resolved', 'archived', 'closed'])->count();
+
+        $statusCounts = (clone $baseQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $perPageStats = FacebookPage::query()
+            ->orderBy('page_name')
+            ->get(['id', 'page_name', 'page_id'])
+            ->map(function (FacebookPage $page) use ($pageIds) {
+                $q = Conversation::query()
+                    ->whereNull('merged_into_id')
+                    ->where('facebook_page_id', $page->id);
+                $total = (clone $q)->count();
+                return [
+                    'id' => $page->id,
+                    'page_name' => $page->page_name,
+                    'total' => $total,
+                    'unread' => (clone $q)->where('unread_count', '>', 0)->count(),
+                    'unassigned' => (clone $q)->whereNull('assigned_agent_id')->whereNotIn('status', ['resolved', 'archived', 'closed'])->count(),
+                    'flagged' => (clone $q)->where('is_flagged', true)->whereNull('resolved_at')->count(),
+                    'active' => ! empty($pageIds) ? in_array($page->id, $pageIds, true) : false,
+                ];
+            })
+            ->filter(fn ($p) => $p['total'] > 0)
+            ->values()
+            ->toArray();
+
+        return response()->json([
+            'total' => $total,
+            'unread' => $unread,
+            'flagged' => $flagged,
+            'unassigned' => $unassigned,
+            'status_counts' => $statusCounts,
+            'per_page' => $perPageStats,
         ]);
     }
 
