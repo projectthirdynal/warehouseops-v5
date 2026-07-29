@@ -34,6 +34,7 @@ import {
   TruckIcon,
   Wallet,
   Grid3x3,
+  Trophy,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -146,6 +147,24 @@ interface OperationHeatmapData {
   period_days: number;
 }
 
+interface LeaderboardEntry {
+  rank: number;
+  agent_id: number;
+  agent_name: string;
+  orders: number;
+  revenue: number;
+  avg_order_value: number;
+  yesterday_rev: number;
+  rank_change: number | null;
+}
+
+interface AgentLeaderboardData {
+  items: LeaderboardEntry[];
+  total_revenue: number;
+  total_orders: number;
+  date: string;
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -156,6 +175,7 @@ interface Props {
   alerts?: AlertItem[];
   revenueSummary?: RevenueSummaryData;
   operationHeatmap?: OperationHeatmapData;
+  agentLeaderboard?: AgentLeaderboardData;
 }
 
 function StatCard({
@@ -249,6 +269,7 @@ export default function Dashboard({
   alerts: initialAlerts,
   revenueSummary: initialRevenue,
   operationHeatmap: initialHeatmap,
+  agentLeaderboard: initialLeaderboard,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -273,6 +294,11 @@ export default function Dashboard({
   // ── Operations heatmap state ──
   const [liveHeatmap, setLiveHeatmap] = useState<OperationHeatmapData | null>(
     initialHeatmap ?? null
+  );
+
+  // ── Agent leaderboard state ──
+  const [liveLeaderboard, setLiveLeaderboard] = useState<AgentLeaderboardData | null>(
+    initialLeaderboard ?? null
   );
 
   const widgetVisible = (key: string): boolean =>
@@ -332,6 +358,14 @@ export default function Dashboard({
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d) setLiveHeatmap(d.heatmap);
+        })
+        .catch(() => {});
+
+      // Fetch agent leaderboard in parallel (non-blocking)
+      fetch('/api/dashboard/agent-leaderboard', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveLeaderboard(d.leaderboard);
         })
         .catch(() => {});
     } catch {
@@ -1774,6 +1808,136 @@ export default function Dashboard({
                   ))}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Agent Leaderboard Widget */}
+        {widgetVisible('agent_leaderboard') && liveLeaderboard && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5" />
+                    Agent Leaderboard
+                  </CardTitle>
+                  <CardDescription>
+                    Top agents by delivered sales — {liveLeaderboard.date}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {liveLeaderboard.items.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No delivered orders today yet
+                </p>
+              ) : (
+                <>
+                  {/* Leaderboard list */}
+                  <div className="space-y-2">
+                    {liveLeaderboard.items.map((entry) => {
+                      const maxRev = Math.max(...liveLeaderboard.items.map((e) => e.revenue), 1);
+                      const barPct = Math.max((entry.revenue / maxRev) * 100, 4);
+                      return (
+                        <div
+                          key={entry.agent_id}
+                          className="flex items-center gap-3 rounded-lg border p-3"
+                        >
+                          {/* Rank */}
+                          <div
+                            className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 font-bold text-sm ${
+                              entry.rank === 1
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                : entry.rank === 2
+                                  ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                                  : entry.rank === 3
+                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                    : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {entry.rank}
+                          </div>
+
+                          {/* Name + bar */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{entry.agent_name}</p>
+                              {entry.rank_change !== null && entry.rank_change > 0 && (
+                                <span className="flex items-center gap-0.5 text-xs text-success">
+                                  <TrendingUp className="h-3 w-3" />
+                                  {entry.rank_change}
+                                </span>
+                              )}
+                              {entry.rank_change !== null && entry.rank_change < 0 && (
+                                <span className="flex items-center gap-0.5 text-xs text-destructive">
+                                  <TrendingDown className="h-3 w-3" />
+                                  {Math.abs(entry.rank_change)}
+                                </span>
+                              )}
+                              {entry.rank_change === 0 && (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                              {entry.rank_change === null && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                  NEW
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-1.5 rounded-full bg-primary/30"
+                                style={{ width: `${barPct}%` }}
+                              />
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {entry.orders} orders
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Revenue */}
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold tabular-nums">
+                              ₱
+                              {entry.revenue.toLocaleString('en-PH', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                              })}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              AOV ₱
+                              {entry.avg_order_value.toLocaleString('en-PH', {
+                                maximumFractionDigits: 0,
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Summary */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Total Revenue Today</p>
+                      <p className="text-lg font-bold tabular-nums">
+                        ₱
+                        {liveLeaderboard.total_revenue.toLocaleString('en-PH', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        })}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Total Delivered Orders</p>
+                      <p className="text-lg font-bold tabular-nums">
+                        {liveLeaderboard.total_orders}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}

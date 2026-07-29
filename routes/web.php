@@ -124,6 +124,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
     Route::get('/api/dashboard/alerts', [DashboardController::class, 'alerts'])->name('dashboard.alerts');
     Route::get('/api/dashboard/revenue-summary', [DashboardController::class, 'revenueSummary'])->name('dashboard.revenue-summary');
     Route::get('/api/dashboard/operation-heatmap', [DashboardController::class, 'operationHeatmap'])->name('dashboard.operation-heatmap');
+    Route::get('/api/dashboard/agent-leaderboard', [DashboardController::class, 'agentLeaderboard'])->name('dashboard.agent-leaderboard');
     Route::get('/api/dashboard/widgets', [DashboardController::class, 'widgetConfig'])->name('dashboard.widgets');
     Route::post('/api/dashboard/widgets', [DashboardController::class, 'saveWidgetConfig'])->name('dashboard.widgets.save');
     Route::post('/api/dashboard/widgets/reset', [DashboardController::class, 'resetWidgetConfig'])->name('dashboard.widgets.reset');

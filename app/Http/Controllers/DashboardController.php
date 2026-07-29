@@ -39,6 +39,7 @@ class DashboardController extends Controller
             'alerts'         => $this->buildAlerts(),
             'revenueSummary' => $this->buildRevenueSummary(),
             'operationHeatmap' => $this->buildOperationHeatmap(),
+            'agentLeaderboard' => $this->buildAgentLeaderboard(),
         ]);
     }
 
@@ -237,6 +238,80 @@ class DashboardController extends Controller
             'max_count'  => $maxCount,
             'peak_hours' => $peakHours,
             'period_days' => 30,
+        ];
+    }
+
+    public function agentLeaderboard(Request $request): JsonResponse
+    {
+        return response()->json([
+            'leaderboard'  => $this->buildAgentLeaderboard(),
+            'updated_at'   => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildAgentLeaderboard(): array
+    {
+        // Top 5 agents by delivered-order revenue today, with rank change vs yesterday
+
+        $todayRows = Order::selectRaw('assigned_agent_id, COUNT(*) as cnt, SUM(total_amount) as rev')
+            ->where('status', 'DELIVERED')
+            ->whereDate('created_at', today())
+            ->whereNotNull('assigned_agent_id')
+            ->groupBy('assigned_agent_id')
+            ->orderByDesc('rev')
+            ->limit(5)
+            ->get();
+
+        $yesterdayRows = Order::selectRaw('assigned_agent_id, COUNT(*) as cnt, SUM(total_amount) as rev')
+            ->where('status', 'DELIVERED')
+            ->whereDate('created_at', today()->subDay())
+            ->whereNotNull('assigned_agent_id')
+            ->groupBy('assigned_agent_id')
+            ->orderByDesc('rev')
+            ->get()
+            ->keyBy('assigned_agent_id');
+
+        $agentIds = $todayRows->pluck('assigned_agent_id')->unique()->filter()->values()->all();
+        $agents = User::whereIn('id', $agentIds)->pluck('name', 'id');
+
+        $totalRevenue = (float) $todayRows->sum('rev');
+        $totalOrders = (int) $todayRows->sum('cnt');
+
+        $items = $todayRows->map(function ($r, $i) use ($agents, $yesterdayRows) {
+            $yesterdayRank = null;
+            $yesterdayRev = 0;
+            if ($yesterdayRows->has($r->assigned_agent_id)) {
+                $yRev = (float) $yesterdayRows[$r->assigned_agent_id]->rev;
+                $yesterdayRev = $yRev;
+                $yesterdayRank = 0;
+                foreach ($yesterdayRows as $idx => $yRow) {
+                    $yesterdayRank++;
+                    if ($idx === $r->assigned_agent_id) {
+                        break;
+                    }
+                }
+            }
+
+            $todayRank = $i + 1;
+            $rankChange = $yesterdayRank !== null ? $yesterdayRank - $todayRank : null;
+
+            return [
+                'rank'            => $todayRank,
+                'agent_id'        => $r->assigned_agent_id,
+                'agent_name'      => $agents[$r->assigned_agent_id] ?? 'Unknown',
+                'orders'          => (int) $r->cnt,
+                'revenue'         => round((float) $r->rev, 2),
+                'avg_order_value' => $r->cnt > 0 ? round((float) $r->rev / (int) $r->cnt, 2) : 0.0,
+                'yesterday_rev'   => round($yesterdayRev, 2),
+                'rank_change'     => $rankChange,
+            ];
+        })->values()->all();
+
+        return [
+            'items'         => $items,
+            'total_revenue' => round($totalRevenue, 2),
+            'total_orders'  => $totalOrders,
+            'date'          => today()->toDateString(),
         ];
     }
 
@@ -491,6 +566,7 @@ class DashboardController extends Controller
             ['key' => 'alerts_widget', 'label' => 'Alerts', 'description' => 'Low stock, SLA breaches, failed imports, undelivered waybills', 'category' => 'alerts', 'default_visible' => true, 'default_order' => 7],
             ['key' => 'revenue_summary', 'label' => 'Revenue Summary', 'description' => 'Today/week/month revenue, top products, conversion trend', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 8],
             ['key' => 'ops_heatmap', 'label' => 'Operations Heatmap', 'description' => 'Hourly activity across days of week (30-day window)', 'category' => 'charts', 'default_visible' => true, 'default_order' => 9],
+            ['key' => 'agent_leaderboard', 'label' => 'Agent Leaderboard', 'description' => 'Top 5 agents by sales today with rank change', 'category' => 'performance', 'default_visible' => true, 'default_order' => 10],
         ];
     }
 
