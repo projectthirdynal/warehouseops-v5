@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   FileSpreadsheet,
+  Frown,
   Gauge,
   Inbox,
   Radio,
@@ -21,6 +22,7 @@ import {
   Shield,
   ShieldCheck,
   ShoppingCart,
+  Smile,
   Store,
   Truck,
   Users,
@@ -187,6 +189,28 @@ interface PosCacheStats {
   customer_search_cache_ttl: number;
 }
 
+interface SentimentStats {
+  total: number;
+  positive: number;
+  neutral: number;
+  negative: number;
+  positive_pct: number;
+  neutral_pct: number;
+  negative_pct: number;
+  flagged_negative: number;
+  auto_flagged_total: number;
+  resolved_flags: number;
+  recent_negative_24h: number;
+  trend: { date: string; positive: number; neutral: number; negative: number }[];
+}
+
+interface SentimentSettings {
+  auto_flag_enabled: boolean;
+  negative_threshold: number;
+  min_negative_hits: number;
+  auto_unflag_enabled: boolean;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -205,6 +229,10 @@ export default function ShopIndex({
   const [bulkSyncLoading, setBulkSyncLoading] = useState(false);
   const [posCache, setPosCache] = useState<PosCacheStats | null>(null);
   const [posCacheClearing, setPosCacheClearing] = useState(false);
+  const [sentimentStats, setSentimentStats] = useState<SentimentStats | null>(null);
+  const [sentimentSettings, setSentimentSettings] = useState<SentimentSettings | null>(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+  const [bulkSentimentLoading, setBulkSentimentLoading] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -212,6 +240,8 @@ export default function ShopIndex({
     axios.get('/shop/courier-sync/settings').then(({ data }) => setSyncSettings(data));
     axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
     axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
+    axios.get('/shop/sentiment/stats').then(({ data }) => setSentimentStats(data));
+    axios.get('/shop/sentiment/settings').then(({ data }) => setSentimentSettings(data));
   }, []);
 
   const refreshStats = () => {
@@ -224,6 +254,34 @@ export default function ShopIndex({
 
   const refreshPosCache = () => {
     axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
+  };
+
+  const refreshSentimentStats = () => {
+    axios.get('/shop/sentiment/stats').then(({ data }) => setSentimentStats(data));
+  };
+
+  const saveSentimentSetting = (key: keyof SentimentSettings, value: boolean | number) => {
+    setSentimentLoading(true);
+    axios
+      .patch('/shop/sentiment/settings', { [key]: value })
+      .then(({ data }) => {
+        setSentimentSettings(data.settings);
+        toast.success('Sentiment settings updated');
+      })
+      .catch(() => toast.error('Failed to update sentiment settings'))
+      .finally(() => setSentimentLoading(false));
+  };
+
+  const handleBulkSentimentAnalyze = () => {
+    setBulkSentimentLoading(true);
+    axios
+      .post('/shop/sentiment/bulk-analyze')
+      .then(({ data }) => {
+        toast.success(data.message || 'Bulk analysis complete');
+        refreshSentimentStats();
+      })
+      .catch(() => toast.error('Bulk analysis failed'))
+      .finally(() => setBulkSentimentLoading(false));
   };
 
   const clearPosCache = () => {
@@ -817,6 +875,189 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading cache stats...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Frown className="h-5 w-5 text-destructive" />
+                  Sentiment Analysis
+                </CardTitle>
+                <CardDescription>Auto-detect negative sentiment & flag for review</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {sentimentStats && sentimentSettings ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <Smile className="mx-auto mb-1 h-5 w-5 text-success" />
+                        <p className="text-xs text-muted-foreground">Positive</p>
+                        <p className="text-lg font-bold text-success">{sentimentStats.positive}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sentimentStats.positive_pct}%
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <div className="mx-auto mb-1 h-5 w-5 rounded-full bg-muted-foreground/20" />
+                        <p className="text-xs text-muted-foreground">Neutral</p>
+                        <p className="text-lg font-bold">{sentimentStats.neutral}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sentimentStats.neutral_pct}%
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <Frown className="mx-auto mb-1 h-5 w-5 text-destructive" />
+                        <p className="text-xs text-muted-foreground">Negative</p>
+                        <p className="text-lg font-bold text-destructive">
+                          {sentimentStats.negative}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {sentimentStats.negative_pct}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Flagged for review</p>
+                        <p className="text-lg font-bold text-destructive">
+                          {sentimentStats.flagged_negative}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Negative (24h)</p>
+                        <p className="text-lg font-bold">{sentimentStats.recent_negative_24h}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Auto-flagged total</p>
+                        <p className="text-lg font-bold">{sentimentStats.auto_flagged_total}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Resolved flags</p>
+                        <p className="text-lg font-bold text-success">
+                          {sentimentStats.resolved_flags}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 7-day trend mini bar */}
+                    {sentimentStats.trend.length > 0 && (
+                      <div className="rounded-lg border p-3">
+                        <p className="mb-2 text-xs text-muted-foreground">7-day sentiment trend</p>
+                        <div className="flex items-end gap-1">
+                          {sentimentStats.trend.map((day) => {
+                            const max = Math.max(day.positive + day.neutral + day.negative, 1);
+                            return (
+                              <div
+                                key={day.date}
+                                className="flex flex-1 flex-col items-center gap-0.5"
+                                title={`${day.date}: ${day.positive}+ ${day.neutral}= ${day.negative}-`}
+                              >
+                                <div className="flex h-16 w-full flex-col justify-end overflow-hidden rounded-sm">
+                                  {day.negative > 0 && (
+                                    <div
+                                      className="bg-destructive/60"
+                                      style={{
+                                        height: `${(day.negative / max) * 100}%`,
+                                      }}
+                                    />
+                                  )}
+                                  {day.neutral > 0 && (
+                                    <div
+                                      className="bg-muted-foreground/30"
+                                      style={{
+                                        height: `${(day.neutral / max) * 100}%`,
+                                      }}
+                                    />
+                                  )}
+                                  {day.positive > 0 && (
+                                    <div
+                                      className="bg-success/60"
+                                      style={{
+                                        height: `${(day.positive / max) * 100}%`,
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {day.date.slice(5)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Settings */}
+                    <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Auto-flag negative sentiment</Label>
+                        <Switch
+                          checked={sentimentSettings.auto_flag_enabled}
+                          onCheckedChange={(v) => saveSentimentSetting('auto_flag_enabled', v)}
+                          disabled={sentimentLoading}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Auto-unflag when sentiment improves</Label>
+                        <Switch
+                          checked={sentimentSettings.auto_unflag_enabled}
+                          onCheckedChange={(v) => saveSentimentSetting('auto_unflag_enabled', v)}
+                          disabled={sentimentLoading}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">
+                          Min negative keywords: {sentimentSettings.min_negative_hits}
+                        </Label>
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          value={sentimentSettings.min_negative_hits}
+                          onChange={(e) =>
+                            saveSentimentSetting('min_negative_hits', parseInt(e.target.value))
+                          }
+                          disabled={sentimentLoading}
+                          className="w-24"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">
+                          Negative threshold: {sentimentSettings.negative_threshold}
+                        </Label>
+                        <input
+                          type="range"
+                          min={-0.5}
+                          max={0}
+                          step={0.05}
+                          value={sentimentSettings.negative_threshold}
+                          onChange={(e) =>
+                            saveSentimentSetting('negative_threshold', parseFloat(e.target.value))
+                          }
+                          disabled={sentimentLoading}
+                          className="w-24"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      variant="default"
+                      onClick={handleBulkSentimentAnalyze}
+                      disabled={bulkSentimentLoading}
+                    >
+                      <RefreshCw
+                        className={`mr-1.5 h-4 w-4 ${bulkSentimentLoading ? 'animate-spin' : ''}`}
+                      />
+                      {bulkSentimentLoading ? 'Analyzing...' : 'Bulk Analyze Conversations'}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading sentiment data...</p>
                 )}
               </CardContent>
             </Card>

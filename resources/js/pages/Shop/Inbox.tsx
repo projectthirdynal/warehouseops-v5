@@ -189,6 +189,7 @@ interface Props {
     assigned_agent_id?: string;
     priority?: string;
     flagged?: string;
+    sentiment?: string;
     tag_id?: string;
     snoozed?: string;
   };
@@ -1034,6 +1035,22 @@ export default function ShopInbox({
               <Flag className="h-4 w-4" />
               Flagged
             </Button>
+            <Select
+              value={filters.sentiment ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ sentiment: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sentiment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sentiment</SelectItem>
+                <SelectItem value="positive">Positive</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+                <SelectItem value="negative">Negative</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

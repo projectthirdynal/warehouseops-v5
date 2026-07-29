@@ -129,10 +129,33 @@ class MetaConversationIngestor
                     ->toArray();
 
                 $sentiment = $this->sentimentAnalyzer->analyze(implode(' ', $recentMessages));
-                $conversation->forceFill([
+
+                $updateData = [
                     'sentiment' => $sentiment['sentiment'],
                     'sentiment_score' => $sentiment['score'],
-                ])->save();
+                ];
+
+                // Auto-flag if negative sentiment meets threshold and not already flagged
+                if ($this->sentimentAnalyzer->shouldFlag($sentiment) && ! $conversation->is_flagged) {
+                    $flaggedWords = $sentiment['flagged_words'] ?? [];
+                    $reason = 'Negative sentiment detected';
+                    if (! empty($flaggedWords)) {
+                        $reason .= ' (keywords: ' . implode(', ', array_slice($flaggedWords, 0, 5)) . ')';
+                    }
+
+                    $updateData['is_flagged'] = true;
+                    $updateData['flag_reason'] = $reason;
+                    $updateData['flagged_at'] = now();
+                }
+
+                // Auto-unflag if sentiment improves and was auto-flagged
+                if ($sentiment['sentiment'] !== 'negative' && $conversation->is_flagged && str_starts_with($conversation->flag_reason ?? '', 'Negative sentiment detected')) {
+                    $updateData['is_flagged'] = false;
+                    $updateData['flag_reason'] = null;
+                    $updateData['flagged_at'] = null;
+                }
+
+                $conversation->forceFill($updateData)->save();
             }
 
             $webhookEvent->forceFill([

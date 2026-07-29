@@ -41,6 +41,7 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Services\SentimentReviewService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
@@ -98,6 +99,7 @@ class ShopController extends Controller
         private readonly DuplicateDetectionService $duplicateDetection,
         private readonly CustomerRiskService $customerRisk,
         private readonly CustomerAuditService $customerAudit,
+        private readonly SentimentReviewService $sentimentReview,
     ) {}
 
     public function index(): Response
@@ -708,6 +710,10 @@ class ShopController extends Controller
 
         if ($request->boolean('flagged')) {
             $query->where('is_flagged', true);
+        }
+
+        if ($request->filled('sentiment')) {
+            $query->where('sentiment', $request->string('sentiment'));
         }
 
         if ($request->string('snoozed')->toString() === 'active') {
@@ -5794,6 +5800,70 @@ class ShopController extends Controller
             'success' => true,
             'cleared_keys' => $cleared + 1,
             'message' => 'POS cache cleared successfully.',
+        ]);
+    }
+
+    public function sentimentStats(): JsonResponse
+    {
+        return response()->json($this->sentimentReview->getStats());
+    }
+
+    public function sentimentSettings(): JsonResponse
+    {
+        return response()->json($this->sentimentReview->getSettings());
+    }
+
+    public function updateSentimentSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'auto_flag_enabled' => ['nullable', 'boolean'],
+            'negative_threshold' => ['nullable', 'numeric', 'min:-1', 'max:0'],
+            'min_negative_hits' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'auto_unflag_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $this->sentimentReview->updateSettings($validated);
+
+        return response()->json([
+            'settings' => $settings,
+            'message' => 'Sentiment analysis settings updated.',
+        ]);
+    }
+
+    public function sentimentReviewQueue(Request $request): JsonResponse
+    {
+        $limit = $request->integer('limit', 50);
+        $limit = max(1, min(100, $limit));
+
+        return response()->json([
+            'conversations' => $this->sentimentReview->getReviewQueue($limit),
+        ]);
+    }
+
+    public function resolveSentimentFlag(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $resolved = $this->sentimentReview->resolveFlag($validated['conversation_id']);
+
+        return response()->json([
+            'success' => $resolved,
+            'message' => $resolved ? 'Sentiment flag resolved.' : 'Conversation not found.',
+        ]);
+    }
+
+    public function bulkSentimentAnalyze(): JsonResponse
+    {
+        $result = $this->sentimentReview->bulkAnalyze(100);
+
+        return response()->json([
+            'success' => true,
+            'analyzed' => $result['analyzed'],
+            'flagged' => $result['flagged'],
+            'total' => $result['total'],
+            'message' => "Analyzed {$result['analyzed']} conversations, flagged {$result['flagged']}.",
         ]);
     }
 

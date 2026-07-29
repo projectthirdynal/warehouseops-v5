@@ -520,6 +520,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/courier-sync/settings', [ShopController::class, 'courierSyncSettings'])->name('shop.courier-sync.settings');
     Route::patch('/shop/courier-sync/settings', [ShopController::class, 'updateCourierSyncSettings'])->name('shop.courier-sync.update');
     Route::post('/shop/courier-sync/bulk', [ShopController::class, 'bulkCourierSync'])->name('shop.courier-sync.bulk');
+    Route::get('/shop/sentiment/stats', [ShopController::class, 'sentimentStats'])->name('shop.sentiment.stats');
+    Route::get('/shop/sentiment/settings', [ShopController::class, 'sentimentSettings'])->name('shop.sentiment.settings');
+    Route::patch('/shop/sentiment/settings', [ShopController::class, 'updateSentimentSettings'])->name('shop.sentiment.update');
+    Route::get('/shop/sentiment/review-queue', [ShopController::class, 'sentimentReviewQueue'])->name('shop.sentiment.review-queue');
+    Route::post('/shop/sentiment/resolve-flag', [ShopController::class, 'resolveSentimentFlag'])->name('shop.sentiment.resolve-flag');
+    Route::post('/shop/sentiment/bulk-analyze', [ShopController::class, 'bulkSentimentAnalyze'])->name('shop.sentiment.bulk-analyze');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');

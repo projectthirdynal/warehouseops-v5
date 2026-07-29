@@ -1306,7 +1306,13 @@ export default function ShopConversation({
                   {conversation.priority ?? 'normal'}
                 </Badge>
               )}
-              {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
+              {conversation.is_flagged && (
+                <Badge variant="destructive" title={conversation.flag_reason ?? undefined}>
+                  {conversation.flag_reason?.startsWith('Negative sentiment detected')
+                    ? 'Auto-Flagged'
+                    : 'Flagged'}
+                </Badge>
+              )}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
               {conversation.sentiment !== 'neutral' && (
                 <Badge
