@@ -45,6 +45,7 @@ use App\Domain\Shop\Services\SentimentReviewService;
 use App\Domain\Shop\Services\ConversationSlaService;
 use App\Domain\Shop\Services\BroadcastCampaignService;
 use App\Domain\Shop\Services\ProductRecommendationService;
+use App\Domain\Shop\Services\ConversationMergePreviewService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -107,6 +108,7 @@ class ShopController extends Controller
         private readonly ConversationSlaService $slaService,
         private readonly BroadcastCampaignService $broadcastService,
         private readonly ProductRecommendationService $recommendationService,
+        private readonly ConversationMergePreviewService $mergePreviewService,
     ) {}
 
     public function index(): Response
@@ -2398,6 +2400,39 @@ class ShopController extends Controller
         ])->save();
 
         return back()->with('success', 'Reminder cleared.');
+    }
+
+    public function mergePreview(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+
+        if ($source->id === $conversation->id) {
+            return response()->json(['error' => 'Cannot merge a conversation into itself.'], 422);
+        }
+
+        $preview = $this->mergePreviewService->preview($conversation, $source);
+
+        return response()->json($preview);
+    }
+
+    public function mergeExecute(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+        $result = $this->mergePreviewService->executeMerge($conversation, $source);
+
+        if (!$result['success']) {
+            return response()->json($result, 422);
+        }
+
+        return response()->json($result);
     }
 
     public function mergeConversations(Request $request, Conversation $conversation): RedirectResponse

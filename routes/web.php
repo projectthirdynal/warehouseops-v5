@@ -553,6 +553,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/inbox/{conversation}/snooze', [ShopController::class, 'unsnoozeConversation'])->name('shop.conversation.unsnooze');
     Route::post('/shop/inbox/{conversation}/reminder', [ShopController::class, 'setConversationReminder'])->name('shop.conversation.reminder');
     Route::delete('/shop/inbox/{conversation}/reminder', [ShopController::class, 'clearConversationReminder'])->name('shop.conversation.reminder.clear');
+    Route::post('/shop/inbox/{conversation}/merge/preview', [ShopController::class, 'mergePreview'])->name('shop.conversation.merge.preview');
+    Route::post('/shop/inbox/{conversation}/merge/execute', [ShopController::class, 'mergeExecute'])->name('shop.conversation.merge.execute');
     Route::post('/shop/inbox/{conversation}/merge', [ShopController::class, 'mergeConversations'])->name('shop.conversation.merge');
     Route::post('/shop/inbox/{conversation}/block', [ShopController::class, 'toggleBlock'])->name('shop.conversation.block');
     Route::post('/shop/inbox/{conversation}/remarks', [ShopController::class, 'storeConversationRemark'])->name('shop.conversation.remarks.store');
