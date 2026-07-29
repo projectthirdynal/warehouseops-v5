@@ -527,6 +527,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/sentiment/review-queue', [ShopController::class, 'sentimentReviewQueue'])->name('shop.sentiment.review-queue');
     Route::post('/shop/sentiment/resolve-flag', [ShopController::class, 'resolveSentimentFlag'])->name('shop.sentiment.resolve-flag');
     Route::post('/shop/sentiment/bulk-analyze', [ShopController::class, 'bulkSentimentAnalyze'])->name('shop.sentiment.bulk-analyze');
+    Route::get('/shop/sla/stats', [ShopController::class, 'slaStats'])->name('shop.sla.stats');
+    Route::get('/shop/sla/settings', [ShopController::class, 'slaSettings'])->name('shop.sla.settings');
+    Route::patch('/shop/sla/settings', [ShopController::class, 'updateSlaSettings'])->name('shop.sla.update');
+    Route::get('/shop/sla/breached', [ShopController::class, 'slaBreached'])->name('shop.sla.breached');
     Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');

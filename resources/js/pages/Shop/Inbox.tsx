@@ -196,6 +196,7 @@ interface Props {
     sentiment?: string;
     tag_id?: string;
     snoozed?: string;
+    sla_status?: string;
   };
   workload_report?: {
     total_active: number;
@@ -1143,6 +1144,23 @@ export default function ShopInbox({
                 <SelectItem value="positive">Positive</SelectItem>
                 <SelectItem value="neutral">Neutral</SelectItem>
                 <SelectItem value="negative">Negative</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.sla_status ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ sla_status: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="SLA" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All SLA</SelectItem>
+                <SelectItem value="ok">OK</SelectItem>
+                <SelectItem value="warning">Warning</SelectItem>
+                <SelectItem value="breached">Breached</SelectItem>
+                <SelectItem value="unresponded">Unresponded</SelectItem>
               </SelectContent>
             </Select>
           </div>

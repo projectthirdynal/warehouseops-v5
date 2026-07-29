@@ -42,6 +42,7 @@ use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Services\SentimentReviewService;
+use App\Domain\Shop\Services\ConversationSlaService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
@@ -100,6 +101,7 @@ class ShopController extends Controller
         private readonly CustomerRiskService $customerRisk,
         private readonly CustomerAuditService $customerAudit,
         private readonly SentimentReviewService $sentimentReview,
+        private readonly ConversationSlaService $slaService,
     ) {}
 
     public function index(): Response
@@ -723,6 +725,51 @@ class ShopController extends Controller
             $query->where('sentiment', $request->string('sentiment'));
         }
 
+        if ($request->filled('sla_status')) {
+            $slaStatus = $request->string('sla_status')->toString();
+            $thresholds = Conversation::slaThresholds();
+            $warningPercent = (int) SiteSetting::get('conversation_sla_warning_percent', (string) Conversation::SLA_WARNING_PERCENT);
+            $now = now();
+
+            if ($slaStatus === 'breached') {
+                $query->where(function ($q) use ($thresholds, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $q->orWhere(function ($sq) use ($status, $threshold, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $threshold]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'warning') {
+                $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $warningAt = (int) ($threshold * $warningPercent / 100);
+                        $q->orWhere(function ($sq) use ($status, $threshold, $warningAt, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $warningAt])
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $threshold]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'ok') {
+                $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $warningAt = (int) ($threshold * $warningPercent / 100);
+                        $q->orWhere(function ($sq) use ($status, $warningAt, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $warningAt]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'unresponded') {
+                $query->whereNull('first_response_at')
+                    ->whereIn('status', Conversation::ACTIVE_STATUSES);
+            }
+        }
+
         if ($request->string('snoozed')->toString() === 'active') {
             $query->whereNotNull('snoozed_until')->where('snoozed_until', '>', now());
         } elseif ($request->string('snoozed')->toString() === 'expired') {
@@ -860,7 +907,7 @@ class ShopController extends Controller
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
-            'filters' => $request->only(['page_id', 'page_ids', 'status', 'assigned_agent_id', 'priority', 'flagged', 'sentiment', 'tag_id', 'snoozed']),
+            'filters' => $request->only(['page_id', 'page_ids', 'status', 'assigned_agent_id', 'priority', 'flagged', 'sentiment', 'tag_id', 'snoozed', 'sla_status']),
         ]);
     }
 
@@ -5986,6 +6033,44 @@ class ShopController extends Controller
             'flagged' => $result['flagged'],
             'total' => $result['total'],
             'message' => "Analyzed {$result['analyzed']} conversations, flagged {$result['flagged']}.",
+        ]);
+    }
+
+    public function slaStats(): JsonResponse
+    {
+        return response()->json($this->slaService->getStats());
+    }
+
+    public function slaSettings(): JsonResponse
+    {
+        return response()->json($this->slaService->getSettings());
+    }
+
+    public function updateSlaSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'thresholds' => ['nullable', 'array'],
+            'thresholds.*' => ['nullable', 'integer', 'min:1', 'max:10080'],
+            'warning_percent' => ['nullable', 'integer', 'min:50', 'max:99'],
+            'breach_notifications' => ['nullable', 'boolean'],
+            'breach_notify_channel' => ['nullable', 'string', 'in:log,slack,webhook'],
+        ]);
+
+        $settings = $this->slaService->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => $settings,
+        ]);
+    }
+
+    public function slaBreached(Request $request): JsonResponse
+    {
+        $limit = $request->integer('limit', 50);
+        $limit = max(1, min(200, $limit));
+
+        return response()->json([
+            'breached' => $this->slaService->getBreachedConversations($limit),
         ]);
     }
 

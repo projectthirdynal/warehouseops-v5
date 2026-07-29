@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   ClipboardList,
+  Clock,
   FileText,
   FileSpreadsheet,
   Frown,
@@ -121,6 +122,18 @@ const risks = [
   'Encoder review is required for low-confidence addresses',
 ];
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h < 24) return remM > 0 ? `${h}h ${remM}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH > 0 ? `${d}d ${remH}h` : `${d}d`;
+}
+
 function statusVariant(status: string) {
   if (status === 'Live') return 'bg-success/10 text-success border-success/20';
   if (status === 'Ready') return 'bg-info/10 text-info border-info/20';
@@ -211,6 +224,52 @@ interface SentimentSettings {
   auto_unflag_enabled: boolean;
 }
 
+interface SlaStats {
+  active_total: number;
+  breached: number;
+  warning: number;
+  ok: number;
+  unresponded: number;
+  breach_rate: number;
+  first_response: {
+    count: number;
+    avg_seconds: number | null;
+    min_seconds: number | null;
+    max_seconds: number | null;
+    yesterday_avg_seconds: number | null;
+  };
+  resolution: {
+    count: number;
+    avg_seconds: number | null;
+    min_seconds: number | null;
+    max_seconds: number | null;
+    yesterday_avg_seconds: number | null;
+  };
+  trend: {
+    date: string;
+    avg_first_response_seconds: number | null;
+    responded: number;
+    avg_resolution_seconds: number | null;
+    resolved: number;
+    created: number;
+  }[];
+  agent_performance: {
+    agent_id: number;
+    agent_name: string;
+    avg_first_response_seconds: number;
+    responded_count: number;
+  }[];
+  thresholds: Record<string, number | null>;
+  warning_percent: number;
+}
+
+interface SlaSettings {
+  thresholds: Record<string, number | null>;
+  warning_percent: number;
+  breach_notifications: boolean;
+  breach_notify_channel: string;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -233,6 +292,9 @@ export default function ShopIndex({
   const [sentimentSettings, setSentimentSettings] = useState<SentimentSettings | null>(null);
   const [sentimentLoading, setSentimentLoading] = useState(false);
   const [bulkSentimentLoading, setBulkSentimentLoading] = useState(false);
+  const [slaStats, setSlaStats] = useState<SlaStats | null>(null);
+  const [slaSettings, setSlaSettings] = useState<SlaSettings | null>(null);
+  const [slaLoading, setSlaLoading] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -242,6 +304,8 @@ export default function ShopIndex({
     axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
     axios.get('/shop/sentiment/stats').then(({ data }) => setSentimentStats(data));
     axios.get('/shop/sentiment/settings').then(({ data }) => setSentimentSettings(data));
+    axios.get('/shop/sla/stats').then(({ data }) => setSlaStats(data));
+    axios.get('/shop/sla/settings').then(({ data }) => setSlaSettings(data));
   }, []);
 
   const refreshStats = () => {
@@ -258,6 +322,25 @@ export default function ShopIndex({
 
   const refreshSentimentStats = () => {
     axios.get('/shop/sentiment/stats').then(({ data }) => setSentimentStats(data));
+  };
+
+  const refreshSlaStats = () => {
+    axios.get('/shop/sla/stats').then(({ data }) => setSlaStats(data));
+  };
+
+  const saveSlaSetting = (
+    key: keyof SlaSettings,
+    value: boolean | number | string | Record<string, number | null>
+  ) => {
+    setSlaLoading(true);
+    axios
+      .patch('/shop/sla/settings', { [key]: value })
+      .then(({ data }) => {
+        setSlaSettings(data.settings);
+        toast.success('SLA settings updated');
+      })
+      .catch(() => toast.error('Failed to update SLA settings'))
+      .finally(() => setSlaLoading(false));
   };
 
   const saveSentimentSetting = (key: keyof SentimentSettings, value: boolean | number) => {
@@ -1058,6 +1141,232 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading sentiment data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-amber-600" />
+                  Conversation SLA
+                </CardTitle>
+                <CardDescription>
+                  First-response time, resolution time, breach alerts
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {slaStats && slaSettings ? (
+                  <>
+                    {/* SLA Status Distribution */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg border bg-success/5 p-2 text-center">
+                        <p className="text-lg font-bold text-success">{slaStats.ok}</p>
+                        <p className="text-[10px] text-muted-foreground">OK</p>
+                      </div>
+                      <div className="rounded-lg border bg-amber-50 p-2 text-center">
+                        <p className="text-lg font-bold text-amber-600">{slaStats.warning}</p>
+                        <p className="text-[10px] text-muted-foreground">Warning</p>
+                      </div>
+                      <div className="rounded-lg border bg-destructive/5 p-2 text-center">
+                        <p className="text-lg font-bold text-destructive">{slaStats.breached}</p>
+                        <p className="text-[10px] text-muted-foreground">Breached</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-2 text-center">
+                        <p className="text-lg font-bold text-muted-foreground">
+                          {slaStats.unresponded}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Unresponded</p>
+                      </div>
+                    </div>
+
+                    {/* First Response & Resolution Stats */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3 space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Avg First Response
+                        </p>
+                        <p className="text-xl font-bold tabular-nums">
+                          {slaStats.first_response.avg_seconds
+                            ? formatDuration(slaStats.first_response.avg_seconds)
+                            : '—'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {slaStats.first_response.count} responded today
+                        </p>
+                        {slaStats.first_response.yesterday_avg_seconds !== null && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Yesterday:{' '}
+                            {formatDuration(slaStats.first_response.yesterday_avg_seconds)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="rounded-lg border p-3 space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">Avg Resolution</p>
+                        <p className="text-xl font-bold tabular-nums">
+                          {slaStats.resolution.avg_seconds
+                            ? formatDuration(slaStats.resolution.avg_seconds)
+                            : '—'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {slaStats.resolution.count} resolved today
+                        </p>
+                        {slaStats.resolution.yesterday_avg_seconds !== null && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Yesterday: {formatDuration(slaStats.resolution.yesterday_avg_seconds)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Breach Rate */}
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
+                      <span className="text-sm font-medium">Breach Rate</span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-lg font-bold tabular-nums ${slaStats.breach_rate > 20 ? 'text-destructive' : slaStats.breach_rate > 10 ? 'text-amber-600' : 'text-success'}`}
+                        >
+                          {slaStats.breach_rate}%
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          ({slaStats.breached}/{slaStats.active_total})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 7-day Trend */}
+                    {slaStats.trend.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          7-Day Response Time Trend
+                        </p>
+                        <div className="flex items-end gap-1 h-20">
+                          {slaStats.trend.map((day) => {
+                            const maxFr = Math.max(
+                              ...slaStats.trend.map((d) => d.avg_first_response_seconds ?? 0),
+                              1
+                            );
+                            const fr = day.avg_first_response_seconds ?? 0;
+                            const heightPct = fr > 0 ? (fr / maxFr) * 100 : 0;
+                            return (
+                              <div
+                                key={day.date}
+                                className="flex flex-1 flex-col items-center gap-0.5"
+                                title={`${day.date}: ${fr > 0 ? formatDuration(fr) : 'no data'}, ${day.responded} responded, ${day.resolved} resolved`}
+                              >
+                                <div className="flex h-16 w-full flex-col justify-end overflow-hidden rounded-sm">
+                                  <div
+                                    className="bg-amber-500/60"
+                                    style={{ height: `${heightPct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {day.date.slice(5)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Agent Performance */}
+                    {slaStats.agent_performance.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Top Agent First-Response (today)
+                        </p>
+                        <div className="space-y-1">
+                          {slaStats.agent_performance.slice(0, 5).map((agent, i) => (
+                            <div
+                              key={agent.agent_id}
+                              className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                                  {i + 1}
+                                </span>
+                                <span className="font-medium">{agent.agent_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="tabular-nums text-muted-foreground">
+                                  {agent.responded_count} resp
+                                </span>
+                                <span className="tabular-nums font-medium">
+                                  {formatDuration(agent.avg_first_response_seconds)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Settings */}
+                    <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        SLA Thresholds (minutes)
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(slaSettings.thresholds).map(([status, minutes]) => (
+                          <div key={status} className="flex items-center justify-between">
+                            <Label className="text-xs capitalize">{status}</Label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={10080}
+                              value={minutes ?? ''}
+                              disabled={minutes === null || slaLoading}
+                              onChange={(e) => {
+                                const newThresholds = {
+                                  ...slaSettings.thresholds,
+                                  [status]: parseInt(e.target.value) || null,
+                                };
+                                saveSlaSetting('thresholds', newThresholds);
+                              }}
+                              className="w-20 rounded-md border bg-background px-2 py-1 text-xs tabular-nums"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">
+                          Warning threshold: {slaSettings.warning_percent}%
+                        </Label>
+                        <input
+                          type="range"
+                          min={50}
+                          max={99}
+                          value={slaSettings.warning_percent}
+                          onChange={(e) =>
+                            saveSlaSetting('warning_percent', parseInt(e.target.value))
+                          }
+                          disabled={slaLoading}
+                          className="w-24"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Breach notifications</Label>
+                        <Switch
+                          checked={slaSettings.breach_notifications}
+                          onCheckedChange={(v) => saveSlaSetting('breach_notifications', v)}
+                          disabled={slaLoading}
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={refreshSlaStats}
+                      disabled={slaLoading}
+                    >
+                      <RefreshCw className={`mr-1.5 h-4 w-4 ${slaLoading ? 'animate-spin' : ''}`} />
+                      Refresh SLA Stats
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading SLA data...</p>
                 )}
               </CardContent>
             </Card>
