@@ -42,6 +42,7 @@ class DashboardController extends Controller
             'operationHeatmap' => $this->buildOperationHeatmap(),
             'agentLeaderboard' => $this->buildAgentLeaderboard(),
             'weather'          => $this->buildWeather(),
+            'celebrations'     => $this->buildBirthdayAnniversary(),
         ]);
     }
 
@@ -403,6 +404,87 @@ class DashboardController extends Controller
         });
     }
 
+    public function birthdayAnniversary(Request $request): JsonResponse
+    {
+        return response()->json([
+            'celebrations' => $this->buildBirthdayAnniversary(),
+            'updated_at'   => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildBirthdayAnniversary(): array
+    {
+        $today = today();
+        $thirtyDaysAhead = $today->copy()->addDays(30);
+
+        // Fetch all active users with birthday or hire_date set
+        $users = User::where('is_active', true)
+            ->whereNotNull('birthday')
+            ->orWhereNotNull('hire_date')
+            ->get(['id', 'name', 'role', 'birthday', 'hire_date']);
+
+        $birthdays = [];
+        $anniversaries = [];
+
+        foreach ($users as $user) {
+            // Birthday check — compare month/day within next 30 days
+            if ($user->birthday) {
+                $birthdayThisYear = $user->birthday->copy()->year($today->year);
+                if ($birthdayThisYear->lt($today)) {
+                    $birthdayThisYear = $birthdayThisYear->copy()->year($today->year + 1);
+                }
+
+                if ($birthdayThisYear->between($today, $thirtyDaysAhead)) {
+                    $age = $birthdayThisYear->year - $user->birthday->year;
+                    $daysUntil = $today->diffInDays($birthdayThisYear);
+
+                    $birthdays[] = [
+                        'user_id'      => $user->id,
+                        'name'         => $user->name,
+                        'role'         => $user->role,
+                        'date'         => $birthdayThisYear->toDateString(),
+                        'days_until'   => (int) $daysUntil,
+                        'age_turning'  => $age > 0 ? $age : null,
+                        'is_today'     => $daysUntil === 0,
+                    ];
+                }
+            }
+
+            // Anniversary check — compare month/day within next 30 days
+            if ($user->hire_date) {
+                $annivThisYear = $user->hire_date->copy()->year($today->year);
+                if ($annivThisYear->lt($today)) {
+                    $annivThisYear = $annivThisYear->copy()->year($today->year + 1);
+                }
+
+                if ($annivThisYear->between($today, $thirtyDaysAhead)) {
+                    $years = $annivThisYear->year - $user->hire_date->year;
+                    $daysUntil = $today->diffInDays($annivThisYear);
+
+                    $anniversaries[] = [
+                        'user_id'      => $user->id,
+                        'name'         => $user->name,
+                        'role'         => $user->role,
+                        'date'         => $annivThisYear->toDateString(),
+                        'days_until'   => (int) $daysUntil,
+                        'years_at_company' => $years,
+                        'is_today'     => $daysUntil === 0,
+                    ];
+                }
+            }
+        }
+
+        // Sort by days until
+        $birthdays = collect($birthdays)->sortBy('days_until')->values()->all();
+        $anniversaries = collect($anniversaries)->sortBy('days_until')->values()->all();
+
+        return [
+            'birthdays'     => $birthdays,
+            'anniversaries' => $anniversaries,
+            'total_upcoming' => count($birthdays) + count($anniversaries),
+        ];
+    }
+
     private function buildAlerts(): array
     {
         $alerts = [];
@@ -656,6 +738,7 @@ class DashboardController extends Controller
             ['key' => 'ops_heatmap', 'label' => 'Operations Heatmap', 'description' => 'Hourly activity across days of week (30-day window)', 'category' => 'charts', 'default_visible' => true, 'default_order' => 9],
             ['key' => 'agent_leaderboard', 'label' => 'Agent Leaderboard', 'description' => 'Top 5 agents by sales today with rank change', 'category' => 'performance', 'default_visible' => true, 'default_order' => 10],
             ['key' => 'weather', 'label' => 'Weather', 'description' => 'Current weather + 3-day forecast for delivery planning', 'category' => 'info', 'default_visible' => true, 'default_order' => 11],
+            ['key' => 'birthday_anniversary', 'label' => 'Birthdays & Anniversaries', 'description' => 'Upcoming staff birthdays and work anniversaries (next 30 days)', 'category' => 'info', 'default_visible' => true, 'default_order' => 12],
         ];
     }
 

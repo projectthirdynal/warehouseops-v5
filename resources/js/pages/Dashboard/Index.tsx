@@ -39,6 +39,8 @@ import {
   CloudRain,
   Droplets,
   Wind,
+  Cake,
+  Gift,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -193,6 +195,23 @@ interface WeatherData {
   forecast: ForecastDay[];
 }
 
+interface CelebrationEntry {
+  user_id: number;
+  name: string;
+  role: string;
+  date: string;
+  days_until: number;
+  is_today: boolean;
+  age_turning?: number | null;
+  years_at_company?: number;
+}
+
+interface CelebrationsData {
+  birthdays: CelebrationEntry[];
+  anniversaries: CelebrationEntry[];
+  total_upcoming: number;
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -205,6 +224,7 @@ interface Props {
   operationHeatmap?: OperationHeatmapData;
   agentLeaderboard?: AgentLeaderboardData;
   weather?: WeatherData;
+  celebrations?: CelebrationsData;
 }
 
 function StatCard({
@@ -300,6 +320,7 @@ export default function Dashboard({
   operationHeatmap: initialHeatmap,
   agentLeaderboard: initialLeaderboard,
   weather: initialWeather,
+  celebrations: initialCelebrations,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -333,6 +354,11 @@ export default function Dashboard({
 
   // ── Weather state ──
   const [liveWeather, setLiveWeather] = useState<WeatherData | null>(initialWeather ?? null);
+
+  // ── Celebrations state ──
+  const [liveCelebrations, setLiveCelebrations] = useState<CelebrationsData | null>(
+    initialCelebrations ?? null
+  );
 
   const widgetVisible = (key: string): boolean =>
     widgets.find((w) => w.key === key)?.is_visible ?? true;
@@ -407,6 +433,14 @@ export default function Dashboard({
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d) setLiveWeather(d.weather);
+        })
+        .catch(() => {});
+
+      // Fetch birthdays/anniversaries in parallel (non-blocking)
+      fetch('/api/dashboard/birthday-anniversary', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveCelebrations(d.celebrations);
         })
         .catch(() => {});
     } catch {
@@ -2083,6 +2117,136 @@ export default function Dashboard({
                       ))}
                     </div>
                   </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Birthday & Anniversary Widget */}
+        {widgetVisible('birthday_anniversary') && liveCelebrations && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Cake className="h-5 w-5" />
+                    Birthdays & Anniversaries
+                  </CardTitle>
+                  <CardDescription>Upcoming staff celebrations — next 30 days</CardDescription>
+                </div>
+                {liveCelebrations.total_upcoming > 0 && (
+                  <Badge variant="secondary" className="tabular-nums">
+                    {liveCelebrations.total_upcoming} upcoming
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {liveCelebrations.total_upcoming === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No upcoming birthdays or anniversaries in the next 30 days
+                </p>
+              ) : (
+                <>
+                  {/* Birthdays */}
+                  {liveCelebrations.birthdays.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                        <Cake className="h-4 w-4 text-pink-500" />
+                        Birthdays
+                      </p>
+                      <div className="space-y-2">
+                        {liveCelebrations.birthdays.map((entry) => (
+                          <div
+                            key={`bday-${entry.user_id}`}
+                            className={`flex items-center gap-3 rounded-lg border p-2.5 ${
+                              entry.is_today
+                                ? 'border-pink-300 bg-pink-50 dark:border-pink-800 dark:bg-pink-950/30'
+                                : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 bg-pink-100 dark:bg-pink-900/30">
+                              <Cake className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{entry.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {entry.is_today ? (
+                                  <span className="text-pink-600 dark:text-pink-400 font-medium">
+                                    Today!
+                                  </span>
+                                ) : (
+                                  <>
+                                    {entry.days_until} day{entry.days_until !== 1 ? 's' : ''} away
+                                  </>
+                                )}
+                                {entry.age_turning && ` · turning ${entry.age_turning}`}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-xs text-muted-foreground tabular-nums">
+                                {new Date(entry.date).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Anniversaries */}
+                  {liveCelebrations.anniversaries.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                        <Gift className="h-4 w-4 text-purple-500" />
+                        Work Anniversaries
+                      </p>
+                      <div className="space-y-2">
+                        {liveCelebrations.anniversaries.map((entry) => (
+                          <div
+                            key={`anniv-${entry.user_id}`}
+                            className={`flex items-center gap-3 rounded-lg border p-2.5 ${
+                              entry.is_today
+                                ? 'border-purple-300 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/30'
+                                : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 bg-purple-100 dark:bg-purple-900/30">
+                              <Gift className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{entry.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {entry.is_today ? (
+                                  <span className="text-purple-600 dark:text-purple-400 font-medium">
+                                    Today!
+                                  </span>
+                                ) : (
+                                  <>
+                                    {entry.days_until} day{entry.days_until !== 1 ? 's' : ''} away
+                                  </>
+                                )}
+                                {entry.years_at_company !== undefined &&
+                                  ` · ${entry.years_at_company} year${entry.years_at_company !== 1 ? 's' : ''}`}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-xs text-muted-foreground tabular-nums">
+                                {new Date(entry.date).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>

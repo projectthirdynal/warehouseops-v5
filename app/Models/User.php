@@ -30,6 +30,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'theme',
         'language',
         'timezone',
+        'birthday',
+        'hire_date',
     ];
 
     protected $hidden = [
@@ -42,6 +44,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password' => 'hashed',
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
+        'birthday'       => 'date',
+        'hire_date'      => 'date',
     ];
 
     public function agentProfile(): HasOne
