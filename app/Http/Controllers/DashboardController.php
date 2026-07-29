@@ -38,6 +38,7 @@ class DashboardController extends Controller
             'widgetConfig'   => $this->getWidgetConfig($user?->id ?? 0, 'main'),
             'alerts'         => $this->buildAlerts(),
             'revenueSummary' => $this->buildRevenueSummary(),
+            'operationHeatmap' => $this->buildOperationHeatmap(),
         ]);
     }
 
@@ -160,6 +161,82 @@ class DashboardController extends Controller
             ],
             'conversion_trend' => $conversionTrend,
             'top_products'     => $topProducts,
+        ];
+    }
+
+    public function operationHeatmap(Request $request): JsonResponse
+    {
+        return response()->json([
+            'heatmap'     => $this->buildOperationHeatmap(),
+            'updated_at'  => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildOperationHeatmap(): array
+    {
+        // Aggregate waybill + order activity by day-of-week × hour over last 30 days
+        // PostgreSQL: EXTRACT(DOW FROM ...) returns 0=Sun..6=Sat, EXTRACT(HOUR FROM ...) returns 0-23
+
+        $waybillHeat = Waybill::selectRaw("
+                EXTRACT(DOW FROM created_at)::int AS dow,
+                EXTRACT(HOUR FROM created_at)::int AS hour,
+                COUNT(*) AS count
+            ")
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupByRaw('EXTRACT(DOW FROM created_at), EXTRACT(HOUR FROM created_at)')
+            ->get()
+            ->keyBy(fn ($r) => "{$r->dow}-{$r->hour}");
+
+        $orderHeat = Order::selectRaw("
+                EXTRACT(DOW FROM created_at)::int AS dow,
+                EXTRACT(HOUR FROM created_at)::int AS hour,
+                COUNT(*) AS count
+            ")
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupByRaw('EXTRACT(DOW FROM created_at), EXTRACT(HOUR FROM created_at)')
+            ->get()
+            ->keyBy(fn ($r) => "{$r->dow}-{$r->hour}");
+
+        // Build 7×24 grid (dow 0-6, hour 0-23)
+        $dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        $grid = [];
+        $maxCount = 1;
+
+        for ($dow = 0; $dow < 7; $dow++) {
+            $row = ['day' => $dayLabels[$dow], 'cells' => []];
+            for ($hour = 0; $hour < 24; $hour++) {
+                $key = "{$dow}-{$hour}";
+                $wb = (int) ($waybillHeat->get($key)?->count ?? 0);
+                $od = (int) ($orderHeat->get($key)?->count ?? 0);
+                $total = $wb + $od;
+                $maxCount = max($maxCount, $total);
+                $row['cells'][] = [
+                    'hour'  => $hour,
+                    'count' => $total,
+                ];
+            }
+            $grid[] = $row;
+        }
+
+        // Peak hours (top 5 by total activity)
+        $peakHours = [];
+        foreach ($grid as $row) {
+            foreach ($row['cells'] as $cell) {
+                $peakHours[] = [
+                    'day'   => $row['day'],
+                    'hour'  => $cell['hour'],
+                    'count' => $cell['count'],
+                ];
+            }
+        }
+        usort($peakHours, fn ($a, $b) => $b['count'] <=> $a['count']);
+        $peakHours = array_slice($peakHours, 0, 5);
+
+        return [
+            'grid'       => $grid,
+            'max_count'  => $maxCount,
+            'peak_hours' => $peakHours,
+            'period_days' => 30,
         ];
     }
 
@@ -413,6 +490,7 @@ class DashboardController extends Controller
             ['key' => 'quick_actions', 'label' => 'Quick Actions', 'description' => 'Role-based shortcut buttons', 'category' => 'actions', 'default_visible' => true, 'default_order' => 6],
             ['key' => 'alerts_widget', 'label' => 'Alerts', 'description' => 'Low stock, SLA breaches, failed imports, undelivered waybills', 'category' => 'alerts', 'default_visible' => true, 'default_order' => 7],
             ['key' => 'revenue_summary', 'label' => 'Revenue Summary', 'description' => 'Today/week/month revenue, top products, conversion trend', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 8],
+            ['key' => 'ops_heatmap', 'label' => 'Operations Heatmap', 'description' => 'Hourly activity across days of week (30-day window)', 'category' => 'charts', 'default_visible' => true, 'default_order' => 9],
         ];
     }
 

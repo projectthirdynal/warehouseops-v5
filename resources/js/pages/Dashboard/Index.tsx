@@ -33,6 +33,7 @@ import {
   FileWarning,
   TruckIcon,
   Wallet,
+  Grid3x3,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -122,6 +123,29 @@ interface RevenueSummaryData {
   top_products: TopProduct[];
 }
 
+interface HeatmapCell {
+  hour: number;
+  count: number;
+}
+
+interface HeatmapRow {
+  day: string;
+  cells: HeatmapCell[];
+}
+
+interface PeakHour {
+  day: string;
+  hour: number;
+  count: number;
+}
+
+interface OperationHeatmapData {
+  grid: HeatmapRow[];
+  max_count: number;
+  peak_hours: PeakHour[];
+  period_days: number;
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -131,6 +155,7 @@ interface Props {
   widgetConfig?: WidgetConfigData;
   alerts?: AlertItem[];
   revenueSummary?: RevenueSummaryData;
+  operationHeatmap?: OperationHeatmapData;
 }
 
 function StatCard({
@@ -223,6 +248,7 @@ export default function Dashboard({
   widgetConfig,
   alerts: initialAlerts,
   revenueSummary: initialRevenue,
+  operationHeatmap: initialHeatmap,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -243,6 +269,11 @@ export default function Dashboard({
 
   // ── Revenue summary state ──
   const [liveRevenue, setLiveRevenue] = useState<RevenueSummaryData | null>(initialRevenue ?? null);
+
+  // ── Operations heatmap state ──
+  const [liveHeatmap, setLiveHeatmap] = useState<OperationHeatmapData | null>(
+    initialHeatmap ?? null
+  );
 
   const widgetVisible = (key: string): boolean =>
     widgets.find((w) => w.key === key)?.is_visible ?? true;
@@ -293,6 +324,14 @@ export default function Dashboard({
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d) setLiveRevenue(d.revenue);
+        })
+        .catch(() => {});
+
+      // Fetch operation heatmap in parallel (non-blocking)
+      fetch('/api/dashboard/operation-heatmap', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveHeatmap(d.heatmap);
         })
         .catch(() => {});
     } catch {
@@ -1657,6 +1696,83 @@ export default function Dashboard({
                     ))}
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Operations Heatmap Widget */}
+        {widgetVisible('ops_heatmap') && liveHeatmap && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Grid3x3 className="h-5 w-5" />
+                    Operations Heatmap
+                  </CardTitle>
+                  <CardDescription>
+                    Activity by day × hour (last {liveHeatmap.period_days} days)
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Heatmap grid */}
+              <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
+                  {/* Hour labels */}
+                  <div className="flex gap-[2px] mb-1 pl-10">
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} className="flex-1 text-center text-[9px] text-muted-foreground">
+                        {h % 3 === 0 ? `${h}h` : ''}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Day rows */}
+                  {liveHeatmap.grid.map((row) => (
+                    <div key={row.day} className="flex items-center gap-[2px] mb-[2px]">
+                      <div className="w-10 text-[10px] font-medium text-muted-foreground shrink-0">
+                        {row.day}
+                      </div>
+                      {row.cells.map((cell) => {
+                        const intensity =
+                          liveHeatmap.max_count > 0 ? cell.count / liveHeatmap.max_count : 0;
+                        const opacity = cell.count === 0 ? 0.06 : Math.max(intensity, 0.1);
+                        return (
+                          <div
+                            key={cell.hour}
+                            className="flex-1 h-6 rounded-sm transition-all cursor-default group relative"
+                            style={{
+                              backgroundColor: `rgba(var(--primary-rgb, 59 130 246), ${opacity})`,
+                            }}
+                            title={`${row.day} ${cell.hour}:00 — ${cell.count} events`}
+                          >
+                            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-medium opacity-0 group-hover:opacity-100 transition-opacity text-white">
+                              {cell.count > 0 ? cell.count : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Peak hours */}
+              <div>
+                <p className="text-sm font-medium mb-2">Peak Hours</p>
+                <div className="flex flex-wrap gap-2">
+                  {liveHeatmap.peak_hours.map((peak, idx) => (
+                    <Badge
+                      key={`${peak.day}-${peak.hour}`}
+                      variant={idx === 0 ? 'destructive' : 'outline'}
+                      className="text-xs"
+                    >
+                      {peak.day} {peak.hour}:00 — {peak.count} events
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
