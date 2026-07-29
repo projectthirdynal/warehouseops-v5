@@ -14,6 +14,8 @@ import {
   Package,
   Zap,
   RefreshCw,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
@@ -84,6 +86,26 @@ interface CheckoutResult {
   items_count: number;
 }
 
+interface DuplicateOrder {
+  order_id: number;
+  order_number: string;
+  status: string;
+  receiver_name: string;
+  total_amount: number;
+  created_at: string;
+  created_at_formatted: string;
+  hours_ago: number;
+  matched_products: { product_id: number; product_name: string; quantity: number }[];
+  courier_code: string;
+}
+
+interface DuplicateCheck {
+  is_duplicate: boolean;
+  severity: string;
+  duplicate_count: number;
+  time_window_hours: number;
+}
+
 interface Props {
   products: POSProduct[];
   payment_methods: PaymentMethod[];
@@ -121,6 +143,13 @@ export default function POSIndex({ products, payment_methods }: Props) {
   const [discountAmount, setDiscountAmount] = useState('0');
   const [amountPaid, setAmountPaid] = useState('0');
   const [notes, setNotes] = useState('');
+
+  // Duplicate detection
+  const [dupCheck, setDupCheck] = useState<DuplicateCheck | null>(null);
+  const [dupDuplicates, setDupDuplicates] = useState<DuplicateOrder[]>([]);
+  const [dupChecking, setDupChecking] = useState(false);
+  const [forceOverride, setForceOverride] = useState(false);
+  const dupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cache status
   const [cacheStats, setCacheStats] = useState<{
@@ -328,6 +357,9 @@ export default function POSIndex({ products, payment_methods }: Props) {
     setDiscountAmount('0');
     setAmountPaid('0');
     setNotes('');
+    setDupCheck(null);
+    setDupDuplicates([]);
+    setForceOverride(false);
   }, []);
 
   /* ── Totals ── */
@@ -341,6 +373,51 @@ export default function POSIndex({ products, payment_methods }: Props) {
   const change = Math.max(0, paid - total);
   const totalItems = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
 
+  /* ── Real-time duplicate detection ── */
+  useEffect(() => {
+    if (dupTimer.current) clearTimeout(dupTimer.current);
+    if (!phone.trim() || cart.length === 0) {
+      setDupCheck(null);
+      setDupDuplicates([]);
+      setForceOverride(false);
+      return;
+    }
+    setDupChecking(true);
+    dupTimer.current = setTimeout(async () => {
+      try {
+        const csrfMeta = document.querySelector('meta[name=csrf-token]') as HTMLMetaElement | null;
+        const res = await fetch('/shop/pos/check-duplicates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfMeta?.content ?? '',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            phone: phone.trim(),
+            product_ids: cart.map((i) => i.productId),
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDupCheck(data.duplicate_check);
+          setDupDuplicates(data.duplicates);
+          if (!data.duplicate_check.is_duplicate) {
+            setForceOverride(false);
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setDupChecking(false);
+      }
+    }, 500);
+    return () => {
+      if (dupTimer.current) clearTimeout(dupTimer.current);
+    };
+  }, [phone, cart]);
+
   /* ── Checkout ── */
   const openCheckout = useCallback(() => {
     if (cart.length === 0) {
@@ -348,6 +425,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
       return;
     }
     setAmountPaid(total.toFixed(2));
+    setForceOverride(false);
     setCheckoutOpen(true);
   }, [cart.length, total]);
 
@@ -385,11 +463,19 @@ export default function POSIndex({ products, payment_methods }: Props) {
           discount_amount: discount > 0 ? discount : null,
           amount_paid: paymentMethod === 'COD' ? null : paid,
           notes: notes || null,
+          force: forceOverride ? 1 : 0,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 409 && data.duplicate_check?.is_duplicate) {
+          setDupCheck(data.duplicate_check);
+          setDupDuplicates(data.duplicates);
+          setForceOverride(false);
+          toast.warning('Possible duplicate order detected — review below');
+          return;
+        }
         const msg = data?.message ?? 'Checkout failed';
         toast.error(msg);
         return;
@@ -403,7 +489,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
     } finally {
       setProcessing(false);
     }
-  }, [customerName, phone, cart, paymentMethod, discount, paid, total, notes]);
+  }, [customerName, phone, cart, paymentMethod, discount, paid, total, notes, forceOverride]);
 
   const closeReceipt = useCallback(() => {
     setReceipt(null);
@@ -710,6 +796,71 @@ export default function POSIndex({ products, payment_methods }: Props) {
               </div>
             </div>
 
+            {/* Duplicate Warning */}
+            {dupChecking && phone.trim() && (
+              <div className="flex items-center gap-2 rounded-lg border border-muted bg-muted/50 p-2.5 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking for duplicate orders...
+              </div>
+            )}
+            {dupCheck?.is_duplicate && !dupChecking && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-semibold text-destructive">
+                      Possible Duplicate Detected ({dupCheck.severity})
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {dupCheck.duplicate_count} matching order(s) found in the last{' '}
+                      {dupCheck.time_window_hours}h with this phone number and product(s).
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {dupDuplicates.map((dup) => (
+                    <div
+                      key={dup.order_id}
+                      className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium">{dup.order_number}</span>
+                        <span className="ml-2 text-muted-foreground">
+                          {dup.created_at_formatted} · {dup.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="tabular-nums text-muted-foreground">
+                          {money(dup.total_amount)}
+                        </span>
+                        {dup.matched_products.length > 0 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {dup.matched_products.length} matching
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {forceOverride ? (
+                  <div className="flex items-center gap-2 rounded-md bg-success/10 px-2.5 py-1.5 text-xs text-success">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Override active — order will be created despite duplicate warning.
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                    onClick={() => setForceOverride(true)}
+                  >
+                    <ShieldAlert className="mr-2 h-3.5 w-3.5" />
+                    Proceed Anyway
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Summary */}
             <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
               <div className="flex justify-between">
@@ -733,11 +884,24 @@ export default function POSIndex({ products, payment_methods }: Props) {
             <Button variant="outline" onClick={() => setCheckoutOpen(false)} disabled={processing}>
               Cancel
             </Button>
-            <Button onClick={submitCheckout} disabled={processing}>
+            <Button
+              onClick={submitCheckout}
+              disabled={processing || (dupCheck?.is_duplicate && !forceOverride)}
+            >
               {processing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Processing...
+                </>
+              ) : dupCheck?.is_duplicate && !forceOverride ? (
+                <>
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Confirm Required
+                </>
+              ) : forceOverride ? (
+                <>
+                  <ShieldAlert className="mr-2 h-4 w-4" />
+                  Force Complete Sale
                 </>
               ) : (
                 <>

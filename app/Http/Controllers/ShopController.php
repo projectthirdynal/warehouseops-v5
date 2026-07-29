@@ -5682,6 +5682,42 @@ class ShopController extends Controller
         ]);
     }
 
+    public function posCheckDuplicates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['nullable', 'string', 'max:30'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $phone = $validated['phone'] ?? '';
+        $productIds = $validated['product_ids'] ?? [];
+
+        if (empty($phone) || empty($productIds)) {
+            return response()->json([
+                'duplicates' => [],
+                'duplicate_check' => [
+                    'is_duplicate' => false,
+                    'severity' => 'none',
+                    'duplicate_count' => 0,
+                    'time_window_hours' => 72,
+                ],
+            ]);
+        }
+
+        $result = $this->duplicateDetection->detectDuplicateOrders($phone, $productIds);
+
+        return response()->json([
+            'duplicates' => $result['duplicates'],
+            'duplicate_check' => [
+                'is_duplicate' => $result['is_duplicate'],
+                'severity' => $result['severity'],
+                'duplicate_count' => $result['duplicate_count'],
+                'time_window_hours' => $result['time_window_hours'],
+            ],
+        ]);
+    }
+
     public function posCheckout(Request $request)
     {
         $validated = $request->validate([
@@ -5696,6 +5732,7 @@ class ShopController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'amount_paid' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'force' => ['nullable', 'boolean'],
         ]);
 
         $productIds = collect($validated['items'])->pluck('product_id')->unique()->all();
@@ -5741,6 +5778,27 @@ class ShopController extends Controller
         $totalAmount = max(0, $subtotal - $discountAmount);
         $amountPaid = (float) ($validated['amount_paid'] ?? 0);
         $change = max(0, $amountPaid - $totalAmount);
+
+        // Server-side duplicate check (unless force=1)
+        if (empty($validated['force']) && ! empty($validated['phone'])) {
+            $dupCheck = $this->duplicateDetection->detectDuplicateOrders(
+                $validated['phone'],
+                $productIds,
+            );
+            if ($dupCheck['is_duplicate']) {
+                return response()->json([
+                    'success' => false,
+                    'duplicate_check' => [
+                        'is_duplicate' => true,
+                        'severity' => $dupCheck['severity'],
+                        'duplicate_count' => $dupCheck['duplicate_count'],
+                        'time_window_hours' => $dupCheck['time_window_hours'],
+                    ],
+                    'duplicates' => $dupCheck['duplicates'],
+                    'message' => 'Possible duplicate order(s) detected. Confirm to proceed anyway.',
+                ], 409);
+            }
+        }
 
         $order = DB::transaction(function () use ($validated, $preparedItems, $primaryItem, $discountAmount, $totalQuantity, $subtotal, $totalAmount, $amountPaid, $change) {
             $customer = null;

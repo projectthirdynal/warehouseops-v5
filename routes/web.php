@@ -489,6 +489,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');
     Route::get('/shop/pos', [ShopController::class, 'pos'])->name('shop.pos');
     Route::get('/shop/pos/search', [ShopController::class, 'posSearch'])->name('shop.pos.search');
+    Route::post('/shop/pos/check-duplicates', [ShopController::class, 'posCheckDuplicates'])->name('shop.pos.check-duplicates');
     Route::post('/shop/pos/checkout', [ShopController::class, 'posCheckout'])->name('shop.pos.checkout');
     Route::get('/shop/pos/cache-stats', [ShopController::class, 'posCacheStats'])->name('shop.pos.cache-stats');
     Route::post('/shop/pos/cache-clear', [ShopController::class, 'posCacheClear'])->name('shop.pos.cache-clear');
