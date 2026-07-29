@@ -31,6 +31,7 @@ use App\Domain\Shop\Services\CustomerAuditService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\AutoAssignmentService;
 use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
@@ -161,6 +162,45 @@ class ShopController extends Controller
                 'Add message labels and follow-up reminders per conversation.',
             ],
         ]);
+    }
+
+    public function autoAssignmentSettings(): JsonResponse
+    {
+        $service = app(AutoAssignmentService::class);
+
+        return response()->json($service->getSettings());
+    }
+
+    public function updateAutoAssignmentSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'strategy' => ['nullable', 'string', 'in:round_robin,skill_based,workload,hybrid'],
+            'enabled' => ['nullable', 'boolean'],
+            'fallback_agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'respect_shift_hours' => ['nullable', 'boolean'],
+            'respect_queue_limits' => ['nullable', 'boolean'],
+        ]);
+
+        app(AutoAssignmentService::class)->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => app(AutoAssignmentService::class)->getSettings(),
+        ]);
+    }
+
+    public function bulkAutoAssign(): JsonResponse
+    {
+        $result = app(AutoAssignmentService::class)->bulkAutoAssign();
+
+        return response()->json($result);
+    }
+
+    public function autoAssignmentStats(): JsonResponse
+    {
+        $stats = app(AutoAssignmentService::class)->getStats();
+
+        return response()->json($stats);
     }
 
     public function metaReadiness(): Response

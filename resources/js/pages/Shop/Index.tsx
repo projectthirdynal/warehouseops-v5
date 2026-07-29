@@ -1,4 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,11 +20,22 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
+  Users,
+  Zap,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +137,25 @@ function statusVariant(status: string) {
   return 'bg-muted text-muted-foreground border-border';
 }
 
+interface AutoAssignSettings {
+  strategy: string;
+  enabled: boolean;
+  fallback_agent_id: number | null;
+  respect_shift_hours: boolean;
+  respect_queue_limits: boolean;
+  strategies: Record<string, string>;
+}
+
+interface AutoAssignStats {
+  today_auto: number;
+  today_page_rule: number;
+  today_manual: number;
+  unassigned_count: number;
+  eligible_agents: number;
+  by_strategy: Record<string, number>;
+  current_strategy: string;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -131,6 +164,46 @@ export default function ShopIndex({
   next_actions,
   facebook_pages,
 }: Props) {
+  const [assignSettings, setAssignSettings] = useState<AutoAssignSettings | null>(null);
+  const [assignStats, setAssignStats] = useState<AutoAssignStats | null>(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  useEffect(() => {
+    axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
+    axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
+  }, []);
+
+  const refreshStats = () => {
+    axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
+  };
+
+  const saveSetting = (key: keyof AutoAssignSettings, value: string | boolean | number | null) => {
+    if (!assignSettings) return;
+    setAssignLoading(true);
+    axios
+      .patch('/shop/auto-assign/settings', { [key]: value })
+      .then(({ data }) => {
+        setAssignSettings(data.settings);
+        toast.success('Auto-assignment settings updated');
+      })
+      .catch(() => toast.error('Failed to update settings'))
+      .finally(() => setAssignLoading(false));
+  };
+
+  const handleBulkAssign = () => {
+    setBulkLoading(true);
+    axios
+      .post('/shop/auto-assign/bulk')
+      .then(({ data }) => {
+        toast.success(
+          `Assigned ${data.assigned} conversation(s)${data.skipped > 0 ? `, ${data.skipped} skipped` : ''}`
+        );
+        refreshStats();
+      })
+      .catch(() => toast.error('Bulk auto-assign failed'))
+      .finally(() => setBulkLoading(false));
+  };
   const workQueues = [
     {
       name: 'Inbox',
@@ -386,6 +459,121 @@ export default function ShopIndex({
                       </div>
                     </div>
                   ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-violet-600" />
+                  Auto-Assignment Engine
+                </CardTitle>
+                <CardDescription>Strategy, agent eligibility, and bulk assignment</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {assignSettings ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="aa-enabled" className="text-sm">
+                        Enabled
+                      </Label>
+                      <Switch
+                        id="aa-enabled"
+                        checked={assignSettings.enabled}
+                        onCheckedChange={(v) => saveSetting('enabled', v)}
+                        disabled={assignLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Strategy</Label>
+                      <Select
+                        value={assignSettings.strategy}
+                        onValueChange={(v) => saveSetting('strategy', v)}
+                        disabled={assignLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(assignSettings.strategies).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="aa-shift" className="text-sm">
+                        Respect shift hours
+                      </Label>
+                      <Switch
+                        id="aa-shift"
+                        checked={assignSettings.respect_shift_hours}
+                        onCheckedChange={(v) => saveSetting('respect_shift_hours', v)}
+                        disabled={assignLoading}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="aa-queue" className="text-sm">
+                        Respect queue limits
+                      </Label>
+                      <Switch
+                        id="aa-queue"
+                        checked={assignSettings.respect_queue_limits}
+                        onCheckedChange={(v) => saveSetting('respect_queue_limits', v)}
+                        disabled={assignLoading}
+                      />
+                    </div>
+
+                    {assignStats && (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Unassigned</p>
+                          <p className="text-lg font-bold font-display">
+                            {assignStats.unassigned_count}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Eligible agents</p>
+                          <p className="text-lg font-bold font-display flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" />
+                            {assignStats.eligible_agents}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Auto-assigned today</p>
+                          <p className="text-lg font-bold font-display text-success">
+                            {assignStats.today_auto}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Page-rule today</p>
+                          <p className="text-lg font-bold font-display text-info">
+                            {assignStats.today_page_rule}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      variant="default"
+                      onClick={handleBulkAssign}
+                      disabled={bulkLoading || !assignStats?.unassigned_count}
+                    >
+                      <Zap className="mr-1.5 h-4 w-4" />
+                      {bulkLoading
+                        ? 'Assigning...'
+                        : `Bulk Auto-Assign${assignStats ? ` (${assignStats.unassigned_count})` : ''}`}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading settings...</p>
                 )}
               </CardContent>
             </Card>

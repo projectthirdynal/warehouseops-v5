@@ -510,6 +510,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
     Route::post('/shop/inbox/bulk-status', [ShopController::class, 'bulkUpdateConversationStatus'])->name('shop.conversation.bulk-status');
     Route::post('/shop/inbox/bulk-assign', [ShopController::class, 'bulkAssignConversations'])->name('shop.conversation.bulk-assign');
+    Route::post('/shop/auto-assign/bulk', [ShopController::class, 'bulkAutoAssign'])->name('shop.auto-assign.bulk');
+    Route::get('/shop/auto-assign/settings', [ShopController::class, 'autoAssignmentSettings'])->name('shop.auto-assign.settings');
+    Route::patch('/shop/auto-assign/settings', [ShopController::class, 'updateAutoAssignmentSettings'])->name('shop.auto-assign.update');
+    Route::get('/shop/auto-assign/stats', [ShopController::class, 'autoAssignmentStats'])->name('shop.auto-assign.stats');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');
