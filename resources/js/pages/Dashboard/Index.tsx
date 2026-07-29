@@ -32,6 +32,7 @@ import {
   PackageX,
   FileWarning,
   TruckIcon,
+  Wallet,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -90,6 +91,37 @@ interface AlertItem {
   created_at: string;
 }
 
+interface RevenuePeriod {
+  value: number;
+  trend: number | null;
+}
+
+interface ConversionTrendDay {
+  date: string;
+  label: string;
+  leads: number;
+  sales: number;
+  conversion: number;
+}
+
+interface TopProduct {
+  id: number;
+  name: string;
+  sku: string;
+  revenue: number;
+  order_count: number;
+}
+
+interface RevenueSummaryData {
+  periods: {
+    today: RevenuePeriod;
+    week: RevenuePeriod;
+    month: RevenuePeriod;
+  };
+  conversion_trend: ConversionTrendDay[];
+  top_products: TopProduct[];
+}
+
 interface Props {
   stats: DashboardStats;
   recentActivity: DashboardActivity[];
@@ -98,6 +130,7 @@ interface Props {
   role?: string;
   widgetConfig?: WidgetConfigData;
   alerts?: AlertItem[];
+  revenueSummary?: RevenueSummaryData;
 }
 
 function StatCard({
@@ -189,6 +222,7 @@ export default function Dashboard({
   role,
   widgetConfig,
   alerts: initialAlerts,
+  revenueSummary: initialRevenue,
 }: Props) {
   const [liveStats, setLiveStats] = useState(stats);
   const [liveActivity, setLiveActivity] = useState(recentActivity);
@@ -206,6 +240,9 @@ export default function Dashboard({
 
   // ── Alerts state ──
   const [liveAlerts, setLiveAlerts] = useState<AlertItem[]>(initialAlerts ?? []);
+
+  // ── Revenue summary state ──
+  const [liveRevenue, setLiveRevenue] = useState<RevenueSummaryData | null>(initialRevenue ?? null);
 
   const widgetVisible = (key: string): boolean =>
     widgets.find((w) => w.key === key)?.is_visible ?? true;
@@ -248,6 +285,14 @@ export default function Dashboard({
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d) setLiveAlerts(d.alerts);
+        })
+        .catch(() => {});
+
+      // Fetch revenue summary in parallel (non-blocking)
+      fetch('/api/dashboard/revenue-summary', { headers: { Accept: 'application/json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d) setLiveRevenue(d.revenue);
         })
         .catch(() => {});
     } catch {
@@ -1492,6 +1537,127 @@ export default function Dashboard({
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Revenue Summary Widget */}
+        {widgetVisible('revenue_summary') && liveRevenue && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="h-5 w-5" />
+                    Revenue Summary
+                  </CardTitle>
+                  <CardDescription>Today / week / month with top products</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Period revenue cards */}
+              <div className="grid grid-cols-3 gap-4">
+                {(
+                  [
+                    { key: 'today', label: 'Today' },
+                    { key: 'week', label: 'This Week' },
+                    { key: 'month', label: 'This Month' },
+                  ] as const
+                ).map(({ key, label }) => {
+                  const period = liveRevenue.periods[key];
+                  const trend = period.trend;
+                  const TrendIcon = trend !== null && trend >= 0 ? TrendingUp : TrendingDown;
+                  return (
+                    <div key={key} className="rounded-lg border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                      <p className="text-2xl font-bold font-display tabular-nums">
+                        ₱
+                        {period.value.toLocaleString('en-PH', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                      {trend !== null && (
+                        <div
+                          className={`flex items-center gap-1 mt-1 text-xs ${
+                            trend >= 0 ? 'text-success' : 'text-destructive'
+                          }`}
+                        >
+                          <TrendIcon className="h-3 w-3" />
+                          <span>
+                            {trend >= 0 ? '+' : ''}
+                            {trend}% vs prev
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Conversion trend mini bar chart */}
+              <div>
+                <p className="text-sm font-medium mb-2">Conversion Trend (7 days)</p>
+                <div className="flex items-end gap-2 h-24">
+                  {liveRevenue.conversion_trend.map((day) => {
+                    const maxConversion = Math.max(
+                      ...liveRevenue.conversion_trend.map((d) => d.conversion),
+                      1
+                    );
+                    const heightPct = Math.max((day.conversion / maxConversion) * 100, 4);
+                    return (
+                      <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
+                        <span className="text-[9px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                          {day.conversion}%
+                        </span>
+                        <div
+                          className="w-full rounded-t bg-primary/30 hover:bg-primary/60 transition-colors"
+                          style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                        />
+                        <span className="text-[10px] text-muted-foreground">{day.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Top products */}
+              <div>
+                <p className="text-sm font-medium mb-2">Top Products (30 days)</p>
+                {liveRevenue.top_products.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No delivered orders in the last 30 days
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {liveRevenue.top_products.map((product, idx) => (
+                      <div
+                        key={product.id}
+                        className="flex items-center gap-3 rounded-lg border p-2.5"
+                      >
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {product.order_count} orders
+                            {product.sku && ` · ${product.sku}`}
+                          </p>
+                        </div>
+                        <p className="text-sm font-semibold tabular-nums shrink-0">
+                          ₱
+                          {product.revenue.toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

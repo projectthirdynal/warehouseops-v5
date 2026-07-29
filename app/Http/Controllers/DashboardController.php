@@ -11,11 +11,14 @@ use App\Models\Upload;
 use App\Models\User;
 use App\Models\Waybill;
 use App\Models\Invoice;
+use App\Domain\Order\Models\Order;
+use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -34,6 +37,7 @@ class DashboardController extends Controller
             'role'           => $role,
             'widgetConfig'   => $this->getWidgetConfig($user?->id ?? 0, 'main'),
             'alerts'         => $this->buildAlerts(),
+            'revenueSummary' => $this->buildRevenueSummary(),
         ]);
     }
 
@@ -58,6 +62,105 @@ class DashboardController extends Controller
             'alerts'     => $this->buildAlerts(),
             'updated_at' => now()->toIso8601String(),
         ]);
+    }
+
+    public function revenueSummary(Request $request): JsonResponse
+    {
+        return response()->json([
+            'revenue'    => $this->buildRevenueSummary(),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    private function buildRevenueSummary(): array
+    {
+        // Revenue from invoices (amount_paid) for today, this week, this month
+        $revenueToday = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereDate('updated_at', today())
+            ->sum('amount_paid');
+
+        $revenueWeek = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereBetween('updated_at', [now()->startOfWeek(), now()->endOfWeek()])
+            ->sum('amount_paid');
+
+        $revenueMonth = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereMonth('updated_at', now()->month)
+            ->whereYear('updated_at', now()->year)
+            ->sum('amount_paid');
+
+        // Previous period comparisons
+        $revenueYesterday = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereDate('updated_at', today()->subDay())
+            ->sum('amount_paid');
+
+        $revenueLastWeek = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereBetween('updated_at', [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()])
+            ->sum('amount_paid');
+
+        $revenueLastMonth = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
+            ->whereMonth('updated_at', now()->subMonth()->month)
+            ->whereYear('updated_at', now()->subMonth()->year)
+            ->sum('amount_paid');
+
+        // Conversion trend (last 7 days)
+        $conversionTrend = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = today()->subDays($i);
+            $totalLeads = Lead::whereDate('created_at', $date)->count();
+            $sales = Lead::where('status', 'SALE')->whereDate('updated_at', $date)->count();
+            $conversionTrend[] = [
+                'date'       => $date->toDateString(),
+                'label'      => $date->format('D'),
+                'leads'      => $totalLeads,
+                'sales'      => $sales,
+                'conversion' => $totalLeads > 0 ? round(($sales / $totalLeads) * 100, 1) : 0,
+            ];
+        }
+
+        // Top products by revenue (delivered orders, last 30 days)
+        $topProductsRaw = Order::select('product_id', DB::raw('SUM(total_amount) as revenue'), DB::raw('COUNT(*) as order_count'))
+            ->where('status', 'DELIVERED')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereNotNull('product_id')
+            ->groupBy('product_id')
+            ->orderByDesc('revenue')
+            ->limit(5)
+            ->get();
+
+        $productIds = $topProductsRaw->pluck('product_id')->unique()->values()->all();
+        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
+        $topProducts = $topProductsRaw->map(function ($row) use ($products) {
+            $product = $products->get($row->product_id);
+            return [
+                'id'          => $row->product_id,
+                'name'        => $product?->name ?? "Product #{$row->product_id}",
+                'sku'         => $product?->sku ?? '',
+                'revenue'     => round((float) $row->revenue, 2),
+                'order_count' => (int) $row->order_count,
+            ];
+        })->values()->all();
+
+        // Calculate trend percentages
+        $todayTrend = $revenueYesterday > 0
+            ? round((($revenueToday - $revenueYesterday) / $revenueYesterday) * 100, 1)
+            : null;
+        $weekTrend = $revenueLastWeek > 0
+            ? round((($revenueWeek - $revenueLastWeek) / $revenueLastWeek) * 100, 1)
+            : null;
+        $monthTrend = $revenueLastMonth > 0
+            ? round((($revenueMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1)
+            : null;
+
+        return [
+            'periods' => [
+                'today' => ['value' => round($revenueToday, 2), 'trend' => $todayTrend],
+                'week'  => ['value' => round($revenueWeek, 2), 'trend' => $weekTrend],
+                'month' => ['value' => round($revenueMonth, 2), 'trend' => $monthTrend],
+            ],
+            'conversion_trend' => $conversionTrend,
+            'top_products'     => $topProducts,
+        ];
     }
 
     private function buildAlerts(): array
@@ -309,6 +412,7 @@ class DashboardController extends Controller
             ['key' => 'summary_stats', 'label' => 'Summary Statistics', 'description' => 'Role-based summary metrics', 'category' => 'stats', 'default_visible' => true, 'default_order' => 5],
             ['key' => 'quick_actions', 'label' => 'Quick Actions', 'description' => 'Role-based shortcut buttons', 'category' => 'actions', 'default_visible' => true, 'default_order' => 6],
             ['key' => 'alerts_widget', 'label' => 'Alerts', 'description' => 'Low stock, SLA breaches, failed imports, undelivered waybills', 'category' => 'alerts', 'default_visible' => true, 'default_order' => 7],
+            ['key' => 'revenue_summary', 'label' => 'Revenue Summary', 'description' => 'Today/week/month revenue, top products, conversion trend', 'category' => 'revenue', 'default_visible' => true, 'default_order' => 8],
         ];
     }
 
