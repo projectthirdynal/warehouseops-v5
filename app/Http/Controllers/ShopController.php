@@ -46,6 +46,7 @@ use App\Domain\Shop\Services\ConversationSlaService;
 use App\Domain\Shop\Services\BroadcastCampaignService;
 use App\Domain\Shop\Services\ProductRecommendationService;
 use App\Domain\Shop\Services\ConversationMergePreviewService;
+use App\Domain\Shop\Services\ShopReportsEnhancementService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -109,6 +110,7 @@ class ShopController extends Controller
         private readonly BroadcastCampaignService $broadcastService,
         private readonly ProductRecommendationService $recommendationService,
         private readonly ConversationMergePreviewService $mergePreviewService,
+        private readonly ShopReportsEnhancementService $reportsEnhancementService,
     ) {}
 
     public function index(): Response
@@ -507,10 +509,39 @@ class ShopController extends Controller
             'order_statuses' => $this->orderStatusReport($filters),
             'top_products' => $this->topProductReport($filters),
             'daily_sales' => $this->dailySalesReport($filters),
+            'funnel' => $this->reportsEnhancementService->funnel($filters),
+            'response_time' => $this->reportsEnhancementService->responseTime($filters),
+            'peak_hours' => $this->reportsEnhancementService->peakHours($filters),
+            'retention' => $this->reportsEnhancementService->retention($filters),
             'filters' => $filters,
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_name']),
             'agents' => $this->shopAgents(),
         ]);
+    }
+
+    public function reportsEnhancement(Request $request): JsonResponse
+    {
+        $filters = [
+            'date_from' => $request->string('date_from')->toString() ?: today()->subDays(6)->toDateString(),
+            'date_to' => $request->string('date_to')->toString() ?: today()->toDateString(),
+            'page_id' => $request->string('page_id')->toString(),
+            'agent_id' => $request->string('agent_id')->toString(),
+        ];
+
+        $type = $request->string('type')->toString();
+
+        return match ($type) {
+            'funnel' => response()->json($this->reportsEnhancementService->funnel($filters)),
+            'response_time' => response()->json($this->reportsEnhancementService->responseTime($filters)),
+            'peak_hours' => response()->json($this->reportsEnhancementService->peakHours($filters)),
+            'retention' => response()->json($this->reportsEnhancementService->retention($filters)),
+            default => response()->json([
+                'funnel' => $this->reportsEnhancementService->funnel($filters),
+                'response_time' => $this->reportsEnhancementService->responseTime($filters),
+                'peak_hours' => $this->reportsEnhancementService->peakHours($filters),
+                'retention' => $this->reportsEnhancementService->retention($filters),
+            ]),
+        };
     }
 
     public function templates(): Response

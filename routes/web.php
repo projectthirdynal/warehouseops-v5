@@ -602,6 +602,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');
     Route::delete('/shop/templates/{template}', [ShopController::class, 'destroyTemplate'])->name('shop.templates.destroy');
     Route::get('/shop/reports', [ShopController::class, 'reports'])->name('shop.reports');
+    Route::get('/shop/reports/enhancement', [ShopController::class, 'reportsEnhancement'])->name('shop.reports.enhancement');
     Route::get('/shop/webhooks', [ShopController::class, 'webhooks'])->name('shop.webhooks');
     Route::get('/shop/meta-readiness', [ShopController::class, 'metaReadiness'])->name('shop.meta-readiness');
     Route::post('/shop/webhooks/simulate', [ShopController::class, 'simulateWebhook'])->name('shop.webhooks.simulate');
