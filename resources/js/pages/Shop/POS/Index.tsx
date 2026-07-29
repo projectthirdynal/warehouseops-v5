@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Loader2,
   Package,
+  Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
@@ -120,36 +122,134 @@ export default function POSIndex({ products, payment_methods }: Props) {
   const [amountPaid, setAmountPaid] = useState('0');
   const [notes, setNotes] = useState('');
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cache status
+  const [cacheStats, setCacheStats] = useState<{
+    products_cached: boolean;
+    products_count: number;
+  } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const displayedProducts = searchResults ?? products;
-
-  /* ── Live search with debounce ── */
-  const performSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    setSearching(true);
+  const fetchCacheStats = useCallback(async () => {
     try {
-      const res = await fetch(`/shop/pos/search?q=${encodeURIComponent(q)}`, {
+      const res = await fetch('/shop/pos/cache-stats', {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin',
       });
       if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data.products as POSProduct[]);
+        setCacheStats(await res.json());
       }
     } catch {
-      // ignore — keep showing initial products
-    } finally {
-      setSearching(false);
+      /* ignore */
     }
   }, []);
 
+  const refreshCache = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const csrfMeta = document.querySelector('meta[name=csrf-token]') as HTMLMetaElement | null;
+      const res = await fetch('/shop/pos/cache-clear', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': csrfMeta?.content ?? '',
+        },
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || 'Cache cleared');
+        apiCacheRef.current.clear();
+        await fetchCacheStats();
+      } else {
+        toast.error('Failed to clear cache');
+      }
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchCacheStats]);
+
+  useEffect(() => {
+    fetchCacheStats();
+  }, [fetchCacheStats]);
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastQueryRef = useRef<string>('');
+  const apiCacheRef = useRef<Map<string, POSProduct[]>>(new Map());
+
+  /* ── Client-side filter for short queries ── */
+  const clientFilter = useCallback(
+    (q: string): POSProduct[] | null => {
+      const query = q.trim().toLowerCase();
+      if (query.length === 0) return null;
+      if (query.length < 3) {
+        const filtered = products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(query) ||
+            p.sku.toLowerCase().includes(query) ||
+            (p.brand?.toLowerCase().includes(query) ?? false)
+        );
+        return filtered.length >= 5 ? filtered : null;
+      }
+      return null;
+    },
+    [products]
+  );
+
+  const displayedProducts = searchResults ?? products;
+
+  /* ── Live search with debounce + client-side + API cache ── */
+  const performSearch = useCallback(
+    async (q: string) => {
+      const query = q.trim();
+      if (!query) {
+        setSearchResults(null);
+        lastQueryRef.current = '';
+        return;
+      }
+
+      // Try client-side filter first for short queries
+      const clientResults = clientFilter(query);
+      if (clientResults !== null) {
+        setSearchResults(clientResults);
+        lastQueryRef.current = query;
+        return;
+      }
+
+      // Check API response cache
+      const cached = apiCacheRef.current.get(query);
+      if (cached) {
+        setSearchResults(cached);
+        lastQueryRef.current = query;
+        return;
+      }
+
+      setSearching(true);
+      try {
+        const res = await fetch(`/shop/pos/search?q=${encodeURIComponent(query)}`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.products as POSProduct[];
+          apiCacheRef.current.set(query, results);
+          setSearchResults(results);
+          lastQueryRef.current = query;
+        }
+      } catch {
+        // ignore — keep showing initial products
+      } finally {
+        setSearching(false);
+      }
+    },
+    [clientFilter]
+  );
+
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => performSearch(searchQuery), 300);
+    searchTimer.current = setTimeout(() => performSearch(searchQuery), 350);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
@@ -336,6 +436,22 @@ export default function POSIndex({ products, payment_methods }: Props) {
             <p className="text-sm text-muted-foreground">In-store checkout and order processing</p>
           </div>
           <div className="flex items-center gap-2">
+            {cacheStats && (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <Zap className="h-3 w-3 text-success" />
+                {cacheStats.products_cached ? `${cacheStats.products_count} cached` : 'No cache'}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={refreshCache}
+              disabled={refreshing}
+              title="Refresh product cache"
+            >
+              <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', refreshing && 'animate-spin')} />
+              Refresh
+            </Button>
             <Badge variant="secondary" className="tabular-nums">
               {totalItems} item{totalItems !== 1 ? 's' : ''}
             </Badge>

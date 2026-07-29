@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   FileSpreadsheet,
+  Gauge,
   Inbox,
   Radio,
   MapPinned,
@@ -16,6 +17,7 @@ import {
   MoreHorizontal,
   PackageCheck,
   Phone,
+  RefreshCw,
   Shield,
   ShieldCheck,
   ShoppingCart,
@@ -177,6 +179,14 @@ interface CourierSyncStats {
   auto_notify_customer: boolean;
 }
 
+interface PosCacheStats {
+  products_cached: boolean;
+  products_count: number;
+  cache_ttl: number;
+  search_cache_ttl: number;
+  customer_search_cache_ttl: number;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -193,12 +203,15 @@ export default function ShopIndex({
   const [syncStats, setSyncStats] = useState<CourierSyncStats | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [bulkSyncLoading, setBulkSyncLoading] = useState(false);
+  const [posCache, setPosCache] = useState<PosCacheStats | null>(null);
+  const [posCacheClearing, setPosCacheClearing] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
     axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
     axios.get('/shop/courier-sync/settings').then(({ data }) => setSyncSettings(data));
     axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
+    axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
   }, []);
 
   const refreshStats = () => {
@@ -207,6 +220,22 @@ export default function ShopIndex({
 
   const refreshSyncStats = () => {
     axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
+  };
+
+  const refreshPosCache = () => {
+    axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
+  };
+
+  const clearPosCache = () => {
+    setPosCacheClearing(true);
+    axios
+      .post('/shop/pos/cache-clear')
+      .then(({ data }) => {
+        toast.success(data.message || 'POS cache cleared');
+        refreshPosCache();
+      })
+      .catch(() => toast.error('Failed to clear cache'))
+      .finally(() => setPosCacheClearing(false));
   };
 
   const saveSyncSetting = (key: keyof CourierSyncSettings, value: boolean) => {
@@ -725,6 +754,69 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading settings...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gauge className="h-5 w-5 text-primary" />
+                  POS Checkout Performance
+                </CardTitle>
+                <CardDescription>Product list & customer lookup cache</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {posCache ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Product Cache</p>
+                        <p className="text-lg font-bold">
+                          {posCache.products_cached ? (
+                            <span className="text-success">{posCache.products_count} items</span>
+                          ) : (
+                            <span className="text-muted-foreground">Cold</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Cache TTL</p>
+                        <p className="text-lg font-bold">{posCache.cache_ttl}s</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Search Cache TTL</p>
+                        <p className="text-lg font-bold">{posCache.search_cache_ttl}s</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Customer Search TTL</p>
+                        <p className="text-lg font-bold">{posCache.customer_search_cache_ttl}s</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-success" />
+                        <span className="text-sm">
+                          {posCache.products_cached
+                            ? 'Product list served from cache'
+                            : 'Product list will cache on next load'}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={clearPosCache}
+                        disabled={posCacheClearing}
+                      >
+                        <RefreshCw
+                          className={`mr-1.5 h-3.5 w-3.5 ${posCacheClearing ? 'animate-spin' : ''}`}
+                        />
+                        Clear Cache
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading cache stats...</p>
                 )}
               </CardContent>
             </Card>

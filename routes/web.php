@@ -490,6 +490,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/pos', [ShopController::class, 'pos'])->name('shop.pos');
     Route::get('/shop/pos/search', [ShopController::class, 'posSearch'])->name('shop.pos.search');
     Route::post('/shop/pos/checkout', [ShopController::class, 'posCheckout'])->name('shop.pos.checkout');
+    Route::get('/shop/pos/cache-stats', [ShopController::class, 'posCacheStats'])->name('shop.pos.cache-stats');
+    Route::post('/shop/pos/cache-clear', [ShopController::class, 'posCacheClear'])->name('shop.pos.cache-clear');
     Route::get('/shop/inbox', [ShopController::class, 'inbox'])->name('shop.inbox');
     Route::get('/shop/inbox/export-statuses', [ShopController::class, 'exportConversationStatuses'])->name('shop.inbox.export-statuses');
     Route::post('/shop/inbox/page-favorite', [ShopController::class, 'togglePageFavorite'])->name('shop.page-favorite.toggle');

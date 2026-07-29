@@ -62,6 +62,7 @@ use App\Notifications\RemarkMentionedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -1546,29 +1547,34 @@ class ShopController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
-        $query = Customer::query();
-        $this->applyCustomerSearch($query, $validated['q']);
+        $limit = $validated['limit'] ?? 10;
+        $cacheKey = 'customer_search:' . md5($validated['q'] . ':' . $limit);
 
-        $customers = $query
-            ->limit($validated['limit'] ?? 10)
-            ->get([
-                'id',
-                'name',
-                'phone',
-                'normalized_phone',
-                'facebook_name',
-                'canonical_address',
-                'landmark',
-                'barangay',
-                'city_municipality',
-                'province',
-                'risk_level',
-                'is_blacklisted',
-                'total_orders',
-                'total_revenue',
-                'average_order_value',
-                'last_order_date',
-            ]);
+        $customers = Cache::remember($cacheKey, 120, function () use ($validated, $limit) {
+            $query = Customer::query();
+            $this->applyCustomerSearch($query, $validated['q']);
+
+            return $query
+                ->limit($limit)
+                ->get([
+                    'id',
+                    'name',
+                    'phone',
+                    'normalized_phone',
+                    'facebook_name',
+                    'canonical_address',
+                    'landmark',
+                    'barangay',
+                    'city_municipality',
+                    'province',
+                    'risk_level',
+                    'is_blacklisted',
+                    'total_orders',
+                    'total_revenue',
+                    'average_order_value',
+                    'last_order_date',
+                ]);
+        });
 
         return response()->json(['customers' => $customers]);
     }
@@ -5522,16 +5528,18 @@ class ShopController extends Controller
 
     public function pos(): Response
     {
-        $products = Product::query()
-            ->with([
-                'activeVariants:id,product_id,sku,variant_name,selling_price',
-                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
-                'stock:id,product_id,variant_id,current_stock,reserved_stock',
-            ])
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->limit(100)
-            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        $products = Cache::remember('pos_products', 300, function () {
+            return Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->limit(100)
+                ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        });
 
         return Inertia::render('Shop/POS/Index', [
             'products' => $products->map(fn (Product $p) => [
@@ -5564,17 +5572,25 @@ class ShopController extends Controller
         $request->validate(['q' => ['nullable', 'string', 'max:100']]);
         $q = $request->string('q')->toString();
 
-        $products = Product::query()
-            ->with([
-                'activeVariants:id,product_id,sku,variant_name,selling_price',
-                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
-                'stock:id,product_id,variant_id,current_stock,reserved_stock',
-            ])
-            ->where('is_active', true)
-            ->when($q !== '', fn ($query) => $query->search($q))
-            ->orderBy('name')
-            ->limit(30)
-            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        if ($q === '') {
+            return response()->json(['products' => []]);
+        }
+
+        $cacheKey = 'pos_search:' . md5($q);
+
+        $products = Cache::remember($cacheKey, 120, function () use ($q) {
+            return Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->when($q !== '', fn ($query) => $query->search($q))
+                ->orderBy('name')
+                ->limit(30)
+                ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        });
 
         return response()->json([
             'products' => $products->map(fn (Product $p) => [
@@ -5612,11 +5628,16 @@ class ShopController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $products = Product::query()
-            ->with(['variants:id,product_id,sku,variant_name,selling_price'])
-            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
-            ->get()
-            ->keyBy('id');
+        $productIds = collect($validated['items'])->pluck('product_id')->unique()->all();
+        $cacheKey = 'pos_checkout_products:' . md5(implode(',', $productIds));
+
+        $products = Cache::remember($cacheKey, 300, function () use ($productIds) {
+            return Product::query()
+                ->with(['variants:id,product_id,sku,variant_name,selling_price'])
+                ->whereIn('id', $productIds)
+                ->get()
+                ->keyBy('id');
+        });
 
         $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
             $product = $products->get((int) $item['product_id']);
@@ -5727,6 +5748,52 @@ class ShopController extends Controller
                 'payment_method' => $validated['payment_method'],
                 'items_count' => $totalQuantity,
             ],
+        ]);
+    }
+
+    public function posCacheStats(): JsonResponse
+    {
+        $productCache = Cache::get('pos_products');
+        $stats = [
+            'products_cached' => $productCache !== null,
+            'products_count' => $productCache ? $productCache->count() : 0,
+            'cache_ttl' => 300,
+            'search_cache_ttl' => 120,
+            'customer_search_cache_ttl' => 120,
+        ];
+
+        return response()->json($stats);
+    }
+
+    public function posCacheClear(): JsonResponse
+    {
+        Cache::forget('pos_products');
+
+        $cleared = 0;
+        $redis = Cache::getRedis();
+        if ($redis) {
+            $prefix = config('cache.prefix') ? config('cache.prefix') . ':' : '';
+            $keys = $redis->keys($prefix . 'pos_search:*');
+            foreach ($keys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+            $custKeys = $redis->keys($prefix . 'customer_search:*');
+            foreach ($custKeys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+            $checkoutKeys = $redis->keys($prefix . 'pos_checkout_products:*');
+            foreach ($checkoutKeys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'cleared_keys' => $cleared + 1,
+            'message' => 'POS cache cleared successfully.',
         ]);
     }
 
