@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
+  Truck,
   Users,
   Zap,
 } from 'lucide-react';
@@ -156,6 +157,26 @@ interface AutoAssignStats {
   current_strategy: string;
 }
 
+interface CourierSyncSettings {
+  auto_notify_customer: boolean;
+  sync_intermediate_statuses: boolean;
+  status_map: Array<{
+    waybill_status: string;
+    waybill_label: string;
+    order_status: string;
+    order_label: string;
+  }>;
+}
+
+interface CourierSyncStats {
+  today_synced: number;
+  pending_sync: number;
+  orders_with_waybills: number;
+  today_delivered_via_sync: number;
+  today_returned_via_sync: number;
+  auto_notify_customer: boolean;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -168,14 +189,50 @@ export default function ShopIndex({
   const [assignStats, setAssignStats] = useState<AutoAssignStats | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [syncSettings, setSyncSettings] = useState<CourierSyncSettings | null>(null);
+  const [syncStats, setSyncStats] = useState<CourierSyncStats | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [bulkSyncLoading, setBulkSyncLoading] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
     axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
+    axios.get('/shop/courier-sync/settings').then(({ data }) => setSyncSettings(data));
+    axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
   }, []);
 
   const refreshStats = () => {
     axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
+  };
+
+  const refreshSyncStats = () => {
+    axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
+  };
+
+  const saveSyncSetting = (key: keyof CourierSyncSettings, value: boolean) => {
+    setSyncLoading(true);
+    axios
+      .patch('/shop/courier-sync/settings', { [key]: value })
+      .then(({ data }) => {
+        setSyncSettings(data.settings);
+        toast.success('Courier sync settings updated');
+      })
+      .catch(() => toast.error('Failed to update sync settings'))
+      .finally(() => setSyncLoading(false));
+  };
+
+  const handleBulkSync = () => {
+    setBulkSyncLoading(true);
+    axios
+      .post('/shop/courier-sync/bulk')
+      .then(({ data }) => {
+        toast.success(
+          `Synced ${data.synced} waybill(s)${data.skipped > 0 ? `, ${data.skipped} skipped` : ''}`
+        );
+        refreshSyncStats();
+      })
+      .catch(() => toast.error('Bulk courier sync failed'))
+      .finally(() => setBulkSyncLoading(false));
   };
 
   const saveSetting = (key: keyof AutoAssignSettings, value: string | boolean | number | null) => {
@@ -570,6 +627,100 @@ export default function ShopIndex({
                       {bulkLoading
                         ? 'Assigning...'
                         : `Bulk Auto-Assign${assignStats ? ` (${assignStats.unassigned_count})` : ''}`}
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading settings...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-cyan-600" />
+                  Order-Courier Status Sync
+                </CardTitle>
+                <CardDescription>Waybill status auto-updates linked orders</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {syncSettings ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cs-notify" className="text-sm">
+                        Auto-notify customer
+                      </Label>
+                      <Switch
+                        id="cs-notify"
+                        checked={syncSettings.auto_notify_customer}
+                        onCheckedChange={(v) => saveSyncSetting('auto_notify_customer', v)}
+                        disabled={syncLoading}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cs-intermediate" className="text-sm">
+                        Sync intermediate statuses
+                      </Label>
+                      <Switch
+                        id="cs-intermediate"
+                        checked={syncSettings.sync_intermediate_statuses}
+                        onCheckedChange={(v) => saveSyncSetting('sync_intermediate_statuses', v)}
+                        disabled={syncLoading}
+                      />
+                    </div>
+
+                    {syncStats && (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Pending sync</p>
+                          <p className="text-lg font-bold font-display">{syncStats.pending_sync}</p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Orders w/ waybills</p>
+                          <p className="text-lg font-bold font-display">
+                            {syncStats.orders_with_waybills}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Synced today</p>
+                          <p className="text-lg font-bold font-display text-success">
+                            {syncStats.today_synced}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2">
+                          <p className="text-xs text-muted-foreground">Delivered via sync</p>
+                          <p className="text-lg font-bold font-display text-success">
+                            {syncStats.today_delivered_via_sync}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                        Status mapping ({syncSettings.status_map.length} statuses)
+                      </summary>
+                      <div className="mt-2 space-y-1 rounded-lg border p-2">
+                        {syncSettings.status_map.map((m) => (
+                          <div key={m.waybill_status} className="flex items-center justify-between">
+                            <span className="text-muted-foreground">{m.waybill_label}</span>
+                            <span className="font-medium">{m.order_label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+
+                    <Button
+                      className="w-full"
+                      variant="default"
+                      onClick={handleBulkSync}
+                      disabled={bulkSyncLoading || !syncStats?.pending_sync}
+                    >
+                      <Truck className="mr-1.5 h-4 w-4" />
+                      {bulkSyncLoading
+                        ? 'Syncing...'
+                        : `Bulk Sync${syncStats ? ` (${syncStats.pending_sync})` : ''}`}
                     </Button>
                   </>
                 ) : (

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Courier\Events\TrackingStatusUpdated;
+use App\Domain\Courier\Listeners\SyncOrderFromWaybillStatus;
 use App\Domain\Courier\Listeners\TriggerSmsOnStatusChange;
 use App\Events\ConversationStatusChanged;
 use App\Events\LeadAssigned;
@@ -28,6 +29,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         TrackingStatusUpdated::class => [
             TriggerSmsOnStatusChange::class,
+            SyncOrderFromWaybillStatus::class,
         ],
         LeadAssigned::class => [
             UpdateAgentWorkloadOnAssignment::class,

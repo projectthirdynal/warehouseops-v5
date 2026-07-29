@@ -514,6 +514,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/auto-assign/settings', [ShopController::class, 'autoAssignmentSettings'])->name('shop.auto-assign.settings');
     Route::patch('/shop/auto-assign/settings', [ShopController::class, 'updateAutoAssignmentSettings'])->name('shop.auto-assign.update');
     Route::get('/shop/auto-assign/stats', [ShopController::class, 'autoAssignmentStats'])->name('shop.auto-assign.stats');
+    Route::get('/shop/courier-sync/stats', [ShopController::class, 'courierSyncStats'])->name('shop.courier-sync.stats');
+    Route::get('/shop/courier-sync/settings', [ShopController::class, 'courierSyncSettings'])->name('shop.courier-sync.settings');
+    Route::patch('/shop/courier-sync/settings', [ShopController::class, 'updateCourierSyncSettings'])->name('shop.courier-sync.update');
+    Route::post('/shop/courier-sync/bulk', [ShopController::class, 'bulkCourierSync'])->name('shop.courier-sync.bulk');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');

@@ -32,6 +32,7 @@ use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
 use App\Domain\Shop\Services\AutoAssignmentService;
+use App\Domain\Courier\Services\CourierStatusSyncService;
 use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
@@ -201,6 +202,42 @@ class ShopController extends Controller
         $stats = app(AutoAssignmentService::class)->getStats();
 
         return response()->json($stats);
+    }
+
+    public function courierSyncStats(): JsonResponse
+    {
+        $stats = app(CourierStatusSyncService::class)->getStats();
+
+        return response()->json($stats);
+    }
+
+    public function courierSyncSettings(): JsonResponse
+    {
+        $settings = app(CourierStatusSyncService::class)->getSettings();
+
+        return response()->json($settings);
+    }
+
+    public function updateCourierSyncSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'auto_notify_customer' => ['nullable', 'boolean'],
+            'sync_intermediate_statuses' => ['nullable', 'boolean'],
+        ]);
+
+        app(CourierStatusSyncService::class)->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => app(CourierStatusSyncService::class)->getSettings(),
+        ]);
+    }
+
+    public function bulkCourierSync(): JsonResponse
+    {
+        $result = app(CourierStatusSyncService::class)->bulkSync();
+
+        return response()->json($result);
     }
 
     public function metaReadiness(): Response
