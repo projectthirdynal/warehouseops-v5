@@ -29,6 +29,7 @@ import {
   Truck,
   Users,
   Zap,
+  Sparkles,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -318,6 +319,40 @@ interface BroadcastTargeting {
   min_order_count?: number;
 }
 
+interface RecommendationProduct {
+  id: number;
+  sku: string;
+  name: string;
+  brand: string | null;
+  category: string | null;
+  selling_price: number;
+  image_url: string | null;
+  score: number;
+  frequency: number;
+}
+
+interface RecommendationStats {
+  total_products: number;
+  total_orders: number;
+  total_order_items: number;
+  unique_products_ordered: number;
+  avg_items_per_order: number;
+  top_recommended: { id: number; name: string; sku: string; selling_price: number }[];
+  top_co_occurring: { product_a: string; product_b: string; co_occurrence: number }[];
+  algorithm: string;
+  cache_enabled: boolean;
+  result_count: number;
+  coverage: number;
+}
+
+interface RecommendationSettings {
+  algorithm: string;
+  cache_enabled: boolean;
+  result_count: number;
+  min_co_occurrence: number;
+  lookback_days: number;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -357,6 +392,12 @@ export default function ShopIndex({
   });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [recStats, setRecStats] = useState<RecommendationStats | null>(null);
+  const [recSettings, setRecSettings] = useState<RecommendationSettings | null>(null);
+  const [recClearing, setRecClearing] = useState(false);
+  const [recResults, setRecResults] = useState<RecommendationProduct[]>([]);
+  const [recSearching, setRecSearching] = useState(false);
+  const [recProductInput, setRecProductInput] = useState('');
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -369,6 +410,8 @@ export default function ShopIndex({
     axios.get('/shop/sla/stats').then(({ data }) => setSlaStats(data));
     axios.get('/shop/sla/settings').then(({ data }) => setSlaSettings(data));
     axios.get('/shop/broadcast/stats').then(({ data }) => setBroadcastStats(data));
+    axios.get('/shop/recommendations/stats').then(({ data }) => setRecStats(data));
+    axios.get('/shop/recommendations/settings').then(({ data }) => setRecSettings(data));
   }, []);
 
   const refreshStats = () => {
@@ -490,6 +533,55 @@ export default function ShopIndex({
         refreshBroadcastStats();
       })
       .catch(() => toast.error('Failed to cancel campaign'));
+  };
+
+  const refreshRecStats = () => {
+    axios.get('/shop/recommendations/stats').then(({ data }) => setRecStats(data));
+  };
+
+  const searchRecProducts = () => {
+    const ids = recProductInput
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n) && n > 0);
+    if (ids.length === 0) {
+      toast.error('Enter at least one valid product ID');
+      return;
+    }
+    setRecSearching(true);
+    setRecResults([]);
+    axios
+      .post('/shop/recommendations/ai', { product_ids: ids, limit: recSettings?.result_count ?? 5 })
+      .then(({ data }) => {
+        setRecResults(data.recommendations);
+        if (data.recommendations.length === 0) {
+          toast.info('No recommendations found for these products');
+        }
+      })
+      .catch(() => toast.error('Failed to get recommendations'))
+      .finally(() => setRecSearching(false));
+  };
+
+  const saveRecSetting = (key: keyof RecommendationSettings, value: boolean | number | string) => {
+    axios
+      .patch('/shop/recommendations/settings', { [key]: value })
+      .then(({ data }) => {
+        setRecSettings(data.settings);
+        toast.success('Recommendation settings updated');
+      })
+      .catch(() => toast.error('Failed to update settings'));
+  };
+
+  const clearRecCache = () => {
+    setRecClearing(true);
+    axios
+      .post('/shop/recommendations/clear-cache')
+      .then(({ data }) => {
+        toast.success(`Cleared ${data.cleared} cached entries`);
+        refreshRecStats();
+      })
+      .catch(() => toast.error('Failed to clear cache'))
+      .finally(() => setRecClearing(false));
   };
 
   const saveSentimentSetting = (key: keyof SentimentSettings, value: boolean | number) => {
@@ -1832,6 +1924,198 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading broadcast data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-indigo-600" />
+                  AI Product Recommendations
+                </CardTitle>
+                <CardDescription>
+                  Collaborative filtering for smart product suggestions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {recStats ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg border bg-indigo-50 p-2 text-center">
+                        <p className="text-lg font-bold text-indigo-600">
+                          {recStats.total_products}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Products</p>
+                      </div>
+                      <div className="rounded-lg border bg-emerald-50 p-2 text-center">
+                        <p className="text-lg font-bold text-emerald-600">
+                          {recStats.total_orders}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Orders</p>
+                      </div>
+                      <div className="rounded-lg border bg-amber-50 p-2 text-center">
+                        <p className="text-lg font-bold text-amber-600">
+                          {recStats.avg_items_per_order}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Avg Items/Order</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-2 text-center">
+                        <p className="text-lg font-bold">{recStats.coverage}%</p>
+                        <p className="text-[10px] text-muted-foreground">Coverage</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border p-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        Top Co-occurring Products
+                      </p>
+                      {recStats.top_co_occurring.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {recStats.top_co_occurring.map((pair, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs">
+                              <span className="font-medium truncate flex-1">{pair.product_a}</span>
+                              <span className="text-muted-foreground">+</span>
+                              <span className="font-medium truncate flex-1">{pair.product_b}</span>
+                              <Badge variant="secondary" className="text-[9px]">
+                                {pair.co_occurrence}x
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No co-occurrence data yet</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border p-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        Try Recommendations
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={recProductInput}
+                          onChange={(e) => setRecProductInput(e.target.value)}
+                          placeholder="Product IDs (e.g. 1,2,3)"
+                          className="flex-1 rounded-md border px-3 py-1.5 text-sm"
+                          onKeyDown={(e) => e.key === 'Enter' && searchRecProducts()}
+                        />
+                        <Button size="sm" onClick={searchRecProducts} disabled={recSearching}>
+                          {recSearching ? 'Searching...' : 'Get'}
+                        </Button>
+                      </div>
+                      {recResults.length > 0 && (
+                        <div className="space-y-1.5 mt-2">
+                          {recResults.map((product, i) => (
+                            <div
+                              key={product.id}
+                              className="flex items-center gap-2 rounded-md border p-2"
+                            >
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600">
+                                {i + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{product.name}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {product.sku}
+                                  {product.brand ? ` · ${product.brand}` : ''}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold">
+                                  ₱{product.selling_price.toFixed(2)}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Score: {product.score.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                      <p className="text-xs font-semibold">Settings</p>
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs">Algorithm</Label>
+                          <Select
+                            value={recSettings?.algorithm ?? 'hybrid'}
+                            onValueChange={(v) => saveRecSetting('algorithm', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hybrid">Hybrid (Recommended)</SelectItem>
+                              <SelectItem value="item_based">Item-based CF</SelectItem>
+                              <SelectItem value="content_based">Content-based</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Cache enabled</Label>
+                          <Switch
+                            checked={recSettings?.cache_enabled ?? true}
+                            onCheckedChange={(v) => saveRecSetting('cache_enabled', v)}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">
+                            Result count: {recSettings?.result_count ?? 5}
+                          </Label>
+                          <input
+                            type="range"
+                            min={1}
+                            max={20}
+                            value={recSettings?.result_count ?? 5}
+                            onChange={(e) =>
+                              saveRecSetting('result_count', parseInt(e.target.value, 10))
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">
+                            Min co-occurrence: {recSettings?.min_co_occurrence ?? 2}
+                          </Label>
+                          <input
+                            type="range"
+                            min={1}
+                            max={20}
+                            value={recSettings?.min_co_occurrence ?? 2}
+                            onChange={(e) =>
+                              saveRecSetting('min_co_occurrence', parseInt(e.target.value, 10))
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={clearRecCache}
+                        disabled={recClearing}
+                      >
+                        {recClearing ? (
+                          <>
+                            <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                            Clearing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-3 w-3" />
+                            Clear Cache
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading recommendation data...</p>
                 )}
               </CardContent>
             </Card>

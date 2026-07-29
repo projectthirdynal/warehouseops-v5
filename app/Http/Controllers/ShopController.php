@@ -44,6 +44,7 @@ use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Services\SentimentReviewService;
 use App\Domain\Shop\Services\ConversationSlaService;
 use App\Domain\Shop\Services\BroadcastCampaignService;
+use App\Domain\Shop\Services\ProductRecommendationService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -105,6 +106,7 @@ class ShopController extends Controller
         private readonly SentimentReviewService $sentimentReview,
         private readonly ConversationSlaService $slaService,
         private readonly BroadcastCampaignService $broadcastService,
+        private readonly ProductRecommendationService $recommendationService,
     ) {}
 
     public function index(): Response
@@ -6209,6 +6211,65 @@ class ShopController extends Controller
             ->values();
 
         return response()->json(['recommendations' => $sorted]);
+    }
+
+    public function aiRecommendProducts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        $limit = (int) ($validated['limit'] ?? 5);
+        $recommendations = $this->recommendationService->recommend($validated['product_ids'], $limit);
+
+        return response()->json(['recommendations' => $recommendations]);
+    }
+
+    public function aiRecommendForCustomer(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        $limit = (int) ($validated['limit'] ?? 5);
+        $recommendations = $this->recommendationService->recommendForCustomer($validated['customer_id'], $limit);
+
+        return response()->json(['recommendations' => $recommendations]);
+    }
+
+    public function recommendationStats(): JsonResponse
+    {
+        return response()->json($this->recommendationService->getStats());
+    }
+
+    public function recommendationSettings(): JsonResponse
+    {
+        return response()->json($this->recommendationService->getSettings());
+    }
+
+    public function updateRecommendationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'algorithm' => ['nullable', 'string', 'in:hybrid,item_based,content_based'],
+            'cache_enabled' => ['nullable', 'boolean'],
+            'result_count' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'min_co_occurrence' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'lookback_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $settings = $this->recommendationService->updateSettings($validated);
+
+        return response()->json(['settings' => $settings]);
+    }
+
+    public function clearRecommendationCache(): JsonResponse
+    {
+        $cleared = $this->recommendationService->clearCache();
+
+        return response()->json(['cleared' => $cleared]);
     }
 
     public function listCartTemplates(): JsonResponse

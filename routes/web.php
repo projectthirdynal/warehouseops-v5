@@ -538,6 +538,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/broadcast/campaigns/{campaign}', [ShopController::class, 'broadcastShow'])->name('shop.broadcast.show');
     Route::post('/shop/broadcast/campaigns/{campaign}/send', [ShopController::class, 'broadcastSend'])->name('shop.broadcast.send');
     Route::post('/shop/broadcast/campaigns/{campaign}/cancel', [ShopController::class, 'broadcastCancel'])->name('shop.broadcast.cancel');
+    Route::post('/shop/recommendations/ai', [ShopController::class, 'aiRecommendProducts'])->name('shop.recommendations.ai');
+    Route::post('/shop/recommendations/customer', [ShopController::class, 'aiRecommendForCustomer'])->name('shop.recommendations.customer');
+    Route::get('/shop/recommendations/stats', [ShopController::class, 'recommendationStats'])->name('shop.recommendations.stats');
+    Route::get('/shop/recommendations/settings', [ShopController::class, 'recommendationSettings'])->name('shop.recommendations.settings');
+    Route::patch('/shop/recommendations/settings', [ShopController::class, 'updateRecommendationSettings'])->name('shop.recommendations.update');
+    Route::post('/shop/recommendations/clear-cache', [ShopController::class, 'clearRecommendationCache'])->name('shop.recommendations.clear-cache');
     Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
