@@ -19,6 +19,7 @@ import {
   MoreHorizontal,
   PackageCheck,
   Phone,
+  Megaphone,
   RefreshCw,
   Shield,
   ShieldCheck,
@@ -270,6 +271,53 @@ interface SlaSettings {
   breach_notify_channel: string;
 }
 
+interface BroadcastStats {
+  total_campaigns: number;
+  completed: number;
+  scheduled: number;
+  draft: number;
+  sending: number;
+  total_recipients: number;
+  total_sent: number;
+  total_replied: number;
+  total_failed: number;
+  avg_reply_rate: number;
+  recent_campaigns: BroadcastCampaignSummary[];
+}
+
+interface BroadcastCampaignSummary {
+  id: number;
+  name: string;
+  status: string;
+  split_type: string;
+  page_name: string | null;
+  total_recipients: number;
+  sent_count: number;
+  replied_count: number;
+  failed_count: number;
+  reply_rate: number;
+  created_at: string;
+  completed_at: string | null;
+  variants: {
+    id: number;
+    label: string;
+    sent_count: number;
+    replied_count: number;
+    reply_rate: number;
+  }[];
+}
+
+interface BroadcastTargeting {
+  page_id?: number;
+  assigned_agent_id?: string;
+  status?: string;
+  tags?: string[];
+  risk_level?: string;
+  opt_in_only?: boolean;
+  has_ordered?: boolean;
+  min_order_count?: number;
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -295,6 +343,20 @@ export default function ShopIndex({
   const [slaStats, setSlaStats] = useState<SlaStats | null>(null);
   const [slaSettings, setSlaSettings] = useState<SlaSettings | null>(null);
   const [slaLoading, setSlaLoading] = useState(false);
+  const [broadcastStats, setBroadcastStats] = useState<BroadcastStats | null>(null);
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({
+    name: '',
+    description: '',
+    split_type: 'single' as 'single' | 'ab_test',
+    split_percentage: 50,
+    variantA: '',
+    variantB: '',
+    targeting: {} as BroadcastTargeting,
+  });
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -306,6 +368,7 @@ export default function ShopIndex({
     axios.get('/shop/sentiment/settings').then(({ data }) => setSentimentSettings(data));
     axios.get('/shop/sla/stats').then(({ data }) => setSlaStats(data));
     axios.get('/shop/sla/settings').then(({ data }) => setSlaSettings(data));
+    axios.get('/shop/broadcast/stats').then(({ data }) => setBroadcastStats(data));
   }, []);
 
   const refreshStats = () => {
@@ -341,6 +404,92 @@ export default function ShopIndex({
       })
       .catch(() => toast.error('Failed to update SLA settings'))
       .finally(() => setSlaLoading(false));
+  };
+
+  const refreshBroadcastStats = () => {
+    axios.get('/shop/broadcast/stats').then(({ data }) => setBroadcastStats(data));
+  };
+
+  const previewBroadcastRecipients = () => {
+    setPreviewLoading(true);
+    axios
+      .post('/shop/broadcast/preview', broadcastForm.targeting)
+      .then(({ data }) => {
+        setPreviewCount(data.total);
+      })
+      .catch(() => toast.error('Failed to preview recipients'))
+      .finally(() => setPreviewLoading(false));
+  };
+
+  const createBroadcastCampaign = () => {
+    if (!broadcastForm.name.trim() || !broadcastForm.variantA.trim()) {
+      toast.error('Campaign name and message A are required');
+      return;
+    }
+    if (broadcastForm.split_type === 'ab_test' && !broadcastForm.variantB.trim()) {
+      toast.error('Message B is required for A/B test');
+      return;
+    }
+    setBroadcastLoading(true);
+    const variants =
+      broadcastForm.split_type === 'ab_test'
+        ? [
+            { label: 'A', body: broadcastForm.variantA },
+            { label: 'B', body: broadcastForm.variantB },
+          ]
+        : [{ label: 'A', body: broadcastForm.variantA }];
+
+    axios
+      .post('/shop/broadcast/campaigns', {
+        name: broadcastForm.name,
+        description: broadcastForm.description || null,
+        targeting: broadcastForm.targeting,
+        split_type: broadcastForm.split_type,
+        split_percentage:
+          broadcastForm.split_type === 'ab_test' ? broadcastForm.split_percentage : undefined,
+        variants,
+      })
+      .then(({ data }) => {
+        toast.success(`Campaign "${data.campaign.name}" created`);
+        setShowBroadcastForm(false);
+        setBroadcastForm({
+          name: '',
+          description: '',
+          split_type: 'single',
+          split_percentage: 50,
+          variantA: '',
+          variantB: '',
+          targeting: {},
+        });
+        setPreviewCount(null);
+        refreshBroadcastStats();
+      })
+      .catch(() => toast.error('Failed to create campaign'))
+      .finally(() => setBroadcastLoading(false));
+  };
+
+  const sendBroadcastCampaign = (campaignId: number) => {
+    setBroadcastLoading(true);
+    axios
+      .post(`/shop/broadcast/campaigns/${campaignId}/send`)
+      .then(({ data }) => {
+        toast.success(
+          `Campaign sent: ${data.result.sent} sent, ${data.result.failed} failed, ${data.result.skipped} skipped`
+        );
+        refreshBroadcastStats();
+      })
+      .catch(() => toast.error('Failed to send campaign'))
+      .finally(() => setBroadcastLoading(false));
+  };
+
+  const cancelBroadcastCampaign = (campaignId: number) => {
+    axios
+      .post(`/shop/broadcast/campaigns/${campaignId}/cancel`)
+      .then(() => {
+        toast.success('Campaign cancelled');
+        refreshBroadcastStats();
+      })
+      .catch(() => toast.error('Failed to cancel campaign'));
   };
 
   const saveSentimentSetting = (key: keyof SentimentSettings, value: boolean | number) => {
@@ -1367,6 +1516,322 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading SLA data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Megaphone className="h-5 w-5 text-violet-600" />
+                  Broadcast Enhancement
+                </CardTitle>
+                <CardDescription>
+                  Targeted by segment, A/B test content, campaign tracking
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {broadcastStats ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg border bg-muted/30 p-2 text-center">
+                        <p className="text-lg font-bold">{broadcastStats.total_campaigns}</p>
+                        <p className="text-[10px] text-muted-foreground">Total</p>
+                      </div>
+                      <div className="rounded-lg border bg-success/5 p-2 text-center">
+                        <p className="text-lg font-bold text-success">{broadcastStats.completed}</p>
+                        <p className="text-[10px] text-muted-foreground">Completed</p>
+                      </div>
+                      <div className="rounded-lg border bg-amber-50 p-2 text-center">
+                        <p className="text-lg font-bold text-amber-600">
+                          {broadcastStats.scheduled}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Scheduled</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-2 text-center">
+                        <p className="text-lg font-bold">{broadcastStats.draft}</p>
+                        <p className="text-[10px] text-muted-foreground">Drafts</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-md border px-2 py-1.5">
+                        <p className="text-xs text-muted-foreground">Recipients</p>
+                        <p className="text-sm font-bold tabular-nums">
+                          {broadcastStats.total_recipients}
+                        </p>
+                      </div>
+                      <div className="rounded-md border px-2 py-1.5">
+                        <p className="text-xs text-muted-foreground">Sent</p>
+                        <p className="text-sm font-bold tabular-nums">
+                          {broadcastStats.total_sent}
+                        </p>
+                      </div>
+                      <div className="rounded-md border px-2 py-1.5">
+                        <p className="text-xs text-muted-foreground">Reply Rate</p>
+                        <p className="text-sm font-bold tabular-nums text-success">
+                          {broadcastStats.avg_reply_rate}%
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Recent Campaigns */}
+                    {broadcastStats.recent_campaigns.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Recent Campaigns
+                        </p>
+                        <div className="space-y-1">
+                          {broadcastStats.recent_campaigns.slice(0, 5).map((c) => (
+                            <div
+                              key={c.id}
+                              className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={
+                                    c.status === 'completed'
+                                      ? 'default'
+                                      : c.status === 'sending'
+                                        ? 'secondary'
+                                        : 'outline'
+                                  }
+                                  className="text-[9px]"
+                                >
+                                  {c.status}
+                                </Badge>
+                                <span className="font-medium truncate max-w-[120px]">{c.name}</span>
+                                {c.split_type === 'ab_test' && (
+                                  <Badge variant="outline" className="text-[9px]">
+                                    A/B
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="tabular-nums text-muted-foreground">
+                                  {c.sent_count}/{c.total_recipients}
+                                </span>
+                                {c.status === 'draft' && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={broadcastLoading}
+                                    onClick={() => sendBroadcastCampaign(c.id)}
+                                  >
+                                    Send
+                                  </Button>
+                                )}
+                                {c.status === 'scheduled' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={() => cancelBroadcastCampaign(c.id)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Create Campaign Form */}
+                    {showBroadcastForm ? (
+                      <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold">New Campaign</p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowBroadcastForm(false);
+                              setPreviewCount(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Campaign Name</Label>
+                          <input
+                            type="text"
+                            value={broadcastForm.name}
+                            onChange={(e) =>
+                              setBroadcastForm({ ...broadcastForm, name: e.target.value })
+                            }
+                            placeholder="e.g., Summer Promo"
+                            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                          />
+                        </div>
+
+                        {/* Targeting */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground">
+                            Targeting (optional)
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={broadcastForm.targeting.opt_in_only ?? false}
+                              onCheckedChange={(v) =>
+                                setBroadcastForm({
+                                  ...broadcastForm,
+                                  targeting: { ...broadcastForm.targeting, opt_in_only: v },
+                                })
+                              }
+                            />
+                            <Label className="text-xs">Opt-in only (exclude opt-outs)</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={broadcastForm.targeting.has_ordered ?? false}
+                              onCheckedChange={(v) =>
+                                setBroadcastForm({
+                                  ...broadcastForm,
+                                  targeting: { ...broadcastForm.targeting, has_ordered: v },
+                                })
+                              }
+                            />
+                            <Label className="text-xs">Has ordered before</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">Risk level:</Label>
+                            <Select
+                              value={broadcastForm.targeting.risk_level ?? 'all'}
+                              onValueChange={(v) =>
+                                setBroadcastForm({
+                                  ...broadcastForm,
+                                  targeting: {
+                                    ...broadcastForm.targeting,
+                                    risk_level: v === 'all' ? undefined : v,
+                                  },
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-7 w-[100px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={previewBroadcastRecipients}
+                              disabled={previewLoading}
+                            >
+                              {previewLoading ? 'Counting...' : 'Preview Recipients'}
+                            </Button>
+                            {previewCount !== null && (
+                              <span className="text-xs font-medium">{previewCount} recipients</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Split Type */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Type:</Label>
+                          <Select
+                            value={broadcastForm.split_type}
+                            onValueChange={(v) =>
+                              setBroadcastForm({
+                                ...broadcastForm,
+                                split_type: v as 'single' | 'ab_test',
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-7 w-[120px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="single">Single</SelectItem>
+                              <SelectItem value="ab_test">A/B Test</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {broadcastForm.split_type === 'ab_test' && (
+                            <>
+                              <Label className="text-xs">
+                                Split A: {broadcastForm.split_percentage}%
+                              </Label>
+                              <input
+                                type="range"
+                                min={10}
+                                max={90}
+                                step={5}
+                                value={broadcastForm.split_percentage}
+                                onChange={(e) =>
+                                  setBroadcastForm({
+                                    ...broadcastForm,
+                                    split_percentage: parseInt(e.target.value),
+                                  })
+                                }
+                                className="w-20"
+                              />
+                            </>
+                          )}
+                        </div>
+
+                        {/* Message Variants */}
+                        <div>
+                          <Label className="text-xs">Message A</Label>
+                          <textarea
+                            value={broadcastForm.variantA}
+                            onChange={(e) =>
+                              setBroadcastForm({ ...broadcastForm, variantA: e.target.value })
+                            }
+                            placeholder="Hello! We have a special offer for you..."
+                            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm min-h-[60px]"
+                            maxLength={2000}
+                          />
+                        </div>
+                        {broadcastForm.split_type === 'ab_test' && (
+                          <div>
+                            <Label className="text-xs">Message B</Label>
+                            <textarea
+                              value={broadcastForm.variantB}
+                              onChange={(e) =>
+                                setBroadcastForm({ ...broadcastForm, variantB: e.target.value })
+                              }
+                              placeholder="Alternative message for A/B testing..."
+                              className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm min-h-[60px]"
+                              maxLength={2000}
+                            />
+                          </div>
+                        )}
+
+                        <Button
+                          size="sm"
+                          onClick={createBroadcastCampaign}
+                          disabled={
+                            broadcastLoading ||
+                            !broadcastForm.name.trim() ||
+                            !broadcastForm.variantA.trim()
+                          }
+                        >
+                          {broadcastLoading ? 'Creating...' : 'Create Campaign'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowBroadcastForm(true)}
+                      >
+                        <Megaphone className="mr-1.5 h-3 w-3" />
+                        New Campaign
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading broadcast data...</p>
                 )}
               </CardContent>
             </Card>

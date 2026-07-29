@@ -43,7 +43,9 @@ use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Services\SentimentReviewService;
 use App\Domain\Shop\Services\ConversationSlaService;
+use App\Domain\Shop\Services\BroadcastCampaignService;
 use App\Domain\Shop\Services\ShippingRateService;
+use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
@@ -102,6 +104,7 @@ class ShopController extends Controller
         private readonly CustomerAuditService $customerAudit,
         private readonly SentimentReviewService $sentimentReview,
         private readonly ConversationSlaService $slaService,
+        private readonly BroadcastCampaignService $broadcastService,
     ) {}
 
     public function index(): Response
@@ -6072,6 +6075,97 @@ class ShopController extends Controller
         return response()->json([
             'breached' => $this->slaService->getBreachedConversations($limit),
         ]);
+    }
+
+    public function broadcastStats(): JsonResponse
+    {
+        return response()->json($this->broadcastService->getStats());
+    }
+
+    public function broadcastList(): JsonResponse
+    {
+        return response()->json([
+            'campaigns' => $this->broadcastService->listCampaigns(20),
+        ]);
+    }
+
+    public function broadcastShow(BroadcastCampaign $campaign): JsonResponse
+    {
+        return response()->json($this->broadcastService->getCampaign($campaign));
+    }
+
+    public function broadcastPreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['nullable', 'integer', 'exists:facebook_pages,id'],
+            'assigned_agent_id' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+            'risk_level' => ['nullable', 'string'],
+            'opt_in_only' => ['nullable', 'boolean'],
+            'has_ordered' => ['nullable', 'boolean'],
+            'min_order_count' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json($this->broadcastService->previewRecipients($validated));
+    }
+
+    public function broadcastCreate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'facebook_page_id' => ['nullable', 'integer', 'exists:facebook_pages,id'],
+            'targeting' => ['nullable', 'array'],
+            'targeting.page_id' => ['nullable', 'integer'],
+            'targeting.assigned_agent_id' => ['nullable', 'string'],
+            'targeting.status' => ['nullable', 'string'],
+            'targeting.tags' => ['nullable', 'array'],
+            'targeting.risk_level' => ['nullable', 'string'],
+            'targeting.opt_in_only' => ['nullable', 'boolean'],
+            'targeting.has_ordered' => ['nullable', 'boolean'],
+            'targeting.min_order_count' => ['nullable', 'integer'],
+            'split_type' => ['required', 'string', 'in:single,ab_test'],
+            'split_percentage' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'scheduled_at' => ['nullable', 'date', 'after:now'],
+            'variants' => ['required', 'array', 'min:1', 'max:4'],
+            'variants.*.label' => ['required', 'string', 'max:5'],
+            'variants.*.body' => ['required', 'string', 'max:2000'],
+            'variants.*.quick_replies' => ['nullable', 'array', 'max:11'],
+        ]);
+
+        $campaign = $this->broadcastService->createCampaign($validated, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'campaign' => $this->broadcastService->getCampaign($campaign),
+        ], 201);
+    }
+
+    public function broadcastSend(BroadcastCampaign $campaign): JsonResponse
+    {
+        $result = $this->broadcastService->sendCampaign($campaign);
+
+        if (isset($result['error'])) {
+            return response()->json(['error' => $result['error']], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'result' => $result,
+        ]);
+    }
+
+    public function broadcastCancel(BroadcastCampaign $campaign): JsonResponse
+    {
+        $cancelled = $this->broadcastService->cancelCampaign($campaign);
+
+        if (! $cancelled) {
+            return response()->json(['error' => 'Cannot cancel a completed or already cancelled campaign'], 422);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function recommendProducts(Request $request): JsonResponse

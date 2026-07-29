@@ -531,6 +531,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/sla/settings', [ShopController::class, 'slaSettings'])->name('shop.sla.settings');
     Route::patch('/shop/sla/settings', [ShopController::class, 'updateSlaSettings'])->name('shop.sla.update');
     Route::get('/shop/sla/breached', [ShopController::class, 'slaBreached'])->name('shop.sla.breached');
+    Route::get('/shop/broadcast/stats', [ShopController::class, 'broadcastStats'])->name('shop.broadcast.stats');
+    Route::get('/shop/broadcast/campaigns', [ShopController::class, 'broadcastList'])->name('shop.broadcast.list');
+    Route::post('/shop/broadcast/preview', [ShopController::class, 'broadcastPreview'])->name('shop.broadcast.preview');
+    Route::post('/shop/broadcast/campaigns', [ShopController::class, 'broadcastCreate'])->name('shop.broadcast.create');
+    Route::get('/shop/broadcast/campaigns/{campaign}', [ShopController::class, 'broadcastShow'])->name('shop.broadcast.show');
+    Route::post('/shop/broadcast/campaigns/{campaign}/send', [ShopController::class, 'broadcastSend'])->name('shop.broadcast.send');
+    Route::post('/shop/broadcast/campaigns/{campaign}/cancel', [ShopController::class, 'broadcastCancel'])->name('shop.broadcast.cancel');
     Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
