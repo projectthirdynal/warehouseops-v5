@@ -31,6 +31,7 @@ import {
   Zap,
   Sparkles,
   Share2,
+  LayoutGrid,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -418,6 +419,7 @@ export default function ShopIndex({
   const [recSearching, setRecSearching] = useState(false);
   const [recProductInput, setRecProductInput] = useState('');
   const [cartTemplateStats, setCartTemplateStats] = useState<CartTemplateStats | null>(null);
+  const [richMediaStats, setRichMediaStats] = useState<any>(null);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -433,6 +435,10 @@ export default function ShopIndex({
     axios.get('/shop/recommendations/stats').then(({ data }) => setRecStats(data));
     axios.get('/shop/recommendations/settings').then(({ data }) => setRecSettings(data));
     axios.get('/shop/cart-templates/stats').then(({ data }) => setCartTemplateStats(data));
+    axios
+      .get('/shop/rich-media-templates/stats')
+      .then(({ data }) => setRichMediaStats(data))
+      .catch(() => {});
   }, []);
 
   const refreshStats = () => {
@@ -2240,6 +2246,88 @@ export default function ShopIndex({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading template data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LayoutGrid className="h-5 w-5 text-primary" />
+                  Rich Media Templates
+                </CardTitle>
+                <CardDescription>
+                  Interactive buttons, product cards, and carousels for Messenger
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {richMediaStats ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-5 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold">{richMediaStats.total}</p>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-primary">{richMediaStats.button}</p>
+                        <p className="text-xs text-muted-foreground">Buttons</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-info">{richMediaStats.card}</p>
+                        <p className="text-xs text-muted-foreground">Cards</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-success">{richMediaStats.carousel}</p>
+                        <p className="text-xs text-muted-foreground">Carousels</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-muted-foreground">
+                          {richMediaStats.rich_total}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Rich Total</p>
+                      </div>
+                    </div>
+
+                    {richMediaStats.recent && richMediaStats.recent.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Recent Rich Media Templates</p>
+                        <div className="space-y-1">
+                          {richMediaStats.recent.slice(0, 5).map((item: any) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <span className="font-medium">{item.title}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {item.media_type_label}
+                                </Badge>
+                                {item.card_count > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {item.card_count} cards
+                                  </span>
+                                )}
+                                {item.button_count > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {item.button_count} buttons
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <Link href="/shop/templates">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <LayoutGrid className="mr-2 h-3 w-3" />
+                        Manage Rich Media Templates
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading rich media data...</p>
                 )}
               </CardContent>
             </Card>

@@ -48,6 +48,7 @@ use App\Domain\Shop\Services\ProductRecommendationService;
 use App\Domain\Shop\Services\ConversationMergePreviewService;
 use App\Domain\Shop\Services\ShopReportsEnhancementService;
 use App\Domain\Shop\Services\CartTemplateSharingService;
+use App\Domain\Shop\Services\RichMediaTemplateService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -113,6 +114,7 @@ class ShopController extends Controller
         private readonly ConversationMergePreviewService $mergePreviewService,
         private readonly ShopReportsEnhancementService $reportsEnhancementService,
         private readonly CartTemplateSharingService $cartTemplateSharingService,
+        private readonly RichMediaTemplateService $richMediaTemplateService,
     ) {}
 
     public function index(): Response
@@ -548,12 +550,39 @@ class ShopController extends Controller
 
     public function templates(): Response
     {
+        $shopTemplates = ShopReplyTemplate::query()
+            ->with('creator:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->paginate(24);
+
+        $richMediaTemplates = ReplyTemplate::query()
+            ->whereIn('media_type', [ReplyTemplate::MEDIA_BUTTON, ReplyTemplate::MEDIA_CARD, ReplyTemplate::MEDIA_CAROUSEL])
+            ->with('creator:id,name')
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get(['id', 'title', 'content', 'media_type', 'media_config', 'category', 'is_active', 'created_by', 'updated_at'])
+            ->map(fn (ReplyTemplate $t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'content' => $t->content,
+                'media_type' => $t->media_type,
+                'media_type_label' => ReplyTemplate::MEDIA_TYPES[$t->media_type] ?? $t->media_type,
+                'media_config' => $t->media_config,
+                'category' => $t->category,
+                'is_active' => $t->is_active,
+                'creator' => $t->creator?->name,
+                'updated_at' => $t->updated_at?->toIso8601String(),
+            ])
+            ->all();
+
+        $richMediaStats = $this->richMediaTemplateService->stats();
+
         return Inertia::render('Shop/Templates', [
-            'templates' => ShopReplyTemplate::query()
-                ->with('creator:id,name')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->paginate(24),
+            'templates' => $shopTemplates,
+            'rich_media_templates' => $richMediaTemplates,
+            'rich_media_stats' => $richMediaStats,
+            'media_types' => ReplyTemplate::MEDIA_TYPES,
         ]);
     }
 
@@ -587,6 +616,130 @@ class ShopController extends Controller
         $template->delete();
 
         return back()->with('success', 'Shop reply template deleted.');
+    }
+
+    public function storeRichMediaTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string', 'max:2000'],
+            'media_type' => ['required', 'string', 'in:button,card,carousel'],
+            'media_config' => ['nullable', 'array'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $validation = $this->richMediaTemplateService->validateConfig(
+            $validated['media_type'],
+            $validated['media_config'] ?? null,
+        );
+
+        if (!$validation['valid']) {
+            return response()->json(['errors' => $validation['errors']], 422);
+        }
+
+        preg_match_all('/\{(\w+)\}/', $validated['content'], $matches);
+
+        $template = ReplyTemplate::query()->create([
+            'title' => $validated['title'],
+            'content' => $validated['content'],
+            'media_type' => $validated['media_type'],
+            'media_config' => $validated['media_config'] ?? null,
+            'variables' => $matches[0] ?? [],
+            'category' => $validated['category'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'id' => $template->id,
+            'title' => $template->title,
+            'media_type' => $template->media_type,
+            'message' => 'Rich media template created.',
+        ], 201);
+    }
+
+    public function updateRichMediaTemplate(Request $request, int $id): JsonResponse
+    {
+        $template = ReplyTemplate::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => ['sometimes', 'string', 'max:255'],
+            'content' => ['sometimes', 'string', 'max:2000'],
+            'media_type' => ['sometimes', 'string', 'in:text,button,card,carousel'],
+            'media_config' => ['nullable', 'array'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        if (isset($validated['media_type']) && $validated['media_type'] !== 'text') {
+            $validation = $this->richMediaTemplateService->validateConfig(
+                $validated['media_type'],
+                $validated['media_config'] ?? $template->media_config,
+            );
+
+            if (!$validation['valid']) {
+                return response()->json(['errors' => $validation['errors']], 422);
+            }
+        }
+
+        $template->update($validated);
+
+        return response()->json(['message' => 'Rich media template updated.']);
+    }
+
+    public function destroyRichMediaTemplate(int $id): JsonResponse
+    {
+        $template = ReplyTemplate::query()->findOrFail($id);
+        $template->delete();
+
+        return response()->json(['message' => 'Rich media template deleted.']);
+    }
+
+    public function previewRichMedia(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'media_type' => ['required', 'string', 'in:text,button,card,carousel'],
+            'content' => ['required', 'string', 'max:2000'],
+            'media_config' => ['nullable', 'array'],
+        ]);
+
+        $preview = $this->richMediaTemplateService->preview(
+            $validated['media_type'],
+            $validated['content'],
+            $validated['media_config'] ?? null,
+        );
+
+        return response()->json($preview);
+    }
+
+    public function generateCarousel(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1', 'max:10'],
+            'product_ids.*' => ['required', 'integer', 'exists:products,id'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $products = Product::query()
+            ->whereIn('id', $validated['product_ids'])
+            ->orderByRaw('array_position(ARRAY[' . implode(',', $validated['product_ids']) . '], id)')
+            ->get();
+
+        $config = $this->richMediaTemplateService->generateCarouselFromProducts(
+            $products,
+            isset($validated['discount_percent']) ? (float) $validated['discount_percent'] : null,
+        );
+
+        return response()->json([
+            'media_type' => 'carousel',
+            'media_config' => $config,
+        ]);
+    }
+
+    public function richMediaStats(): JsonResponse
+    {
+        return response()->json($this->richMediaTemplateService->stats());
     }
 
     public function simulateWebhook(Request $request): RedirectResponse

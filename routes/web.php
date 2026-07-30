@@ -601,6 +601,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');
     Route::delete('/shop/templates/{template}', [ShopController::class, 'destroyTemplate'])->name('shop.templates.destroy');
+    // Rich Media Templates
+    Route::post('/shop/rich-media-templates', [ShopController::class, 'storeRichMediaTemplate'])->name('shop.rich-media.store');
+    Route::patch('/shop/rich-media-templates/{id}', [ShopController::class, 'updateRichMediaTemplate'])->name('shop.rich-media.update');
+    Route::delete('/shop/rich-media-templates/{id}', [ShopController::class, 'destroyRichMediaTemplate'])->name('shop.rich-media.destroy');
+    Route::post('/shop/rich-media-templates/preview', [ShopController::class, 'previewRichMedia'])->name('shop.rich-media.preview');
+    Route::post('/shop/rich-media-templates/generate-carousel', [ShopController::class, 'generateCarousel'])->name('shop.rich-media.generate-carousel');
+    Route::get('/shop/rich-media-templates/stats', [ShopController::class, 'richMediaStats'])->name('shop.rich-media.stats');
     Route::get('/shop/reports', [ShopController::class, 'reports'])->name('shop.reports');
     Route::get('/shop/reports/enhancement', [ShopController::class, 'reportsEnhancement'])->name('shop.reports.enhancement');
     Route::get('/shop/webhooks', [ShopController::class, 'webhooks'])->name('shop.webhooks');
