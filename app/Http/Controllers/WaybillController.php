@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Courier\Services\BatchDispatchService;
 use App\Domain\Waybill\Models\DeliveryProof;
 use App\Domain\Waybill\Services\DeliveryProofService;
+use App\Domain\Waybill\Services\SlaDashboardService;
 use App\Models\Customer;
 use App\Models\Waybill;
 use App\Services\SmsSequenceService;
@@ -259,5 +260,37 @@ class WaybillController extends Controller
         $service->delete($proof);
 
         return response()->json(['success' => true, 'message' => 'Delivery proof deleted.']);
+    }
+
+    public function slaDashboard(Request $request): \Inertia\Response
+    {
+        $service = app(SlaDashboardService::class);
+        $data = $service->getDashboardData($request->only(['courier', 'from', 'to']));
+
+        return Inertia::render('Waybills/SlaDashboard', $data);
+    }
+
+    public function apiSlaDashboard(Request $request): JsonResponse
+    {
+        $service = app(SlaDashboardService::class);
+        $data = $service->getDashboardData($request->only(['courier', 'from', 'to']));
+
+        return response()->json($data);
+    }
+
+    public function updateSlaSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sla_return_days' => ['required', 'integer', 'min:1', 'max:30'],
+        ]);
+
+        $service = app(SlaDashboardService::class);
+        $settings = $service->updateSettings($validated);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'SLA settings updated.',
+            'settings' => $settings,
+        ]);
     }
 }
