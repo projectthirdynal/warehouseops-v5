@@ -187,12 +187,25 @@ interface AutoAssignStats {
 interface CourierSyncSettings {
   auto_notify_customer: boolean;
   sync_intermediate_statuses: boolean;
+  sync_interval_minutes: number;
+  max_waybills_per_run: number;
+  lookback_days: number;
   status_map: Array<{
     waybill_status: string;
     waybill_label: string;
     order_status: string;
     order_label: string;
   }>;
+}
+
+interface CourierPerCourierStats {
+  code: string;
+  total_waybills: number;
+  pending_sync: number;
+  delivered: number;
+  in_transit: number;
+  last_sync_at: string | null;
+  last_sync_updated: number;
 }
 
 interface CourierSyncStats {
@@ -202,6 +215,28 @@ interface CourierSyncStats {
   today_delivered_via_sync: number;
   today_returned_via_sync: number;
   auto_notify_customer: boolean;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_successful_sync_at: string | null;
+  today_runs: number;
+  today_updates: number;
+  today_errors: number;
+  per_courier: CourierPerCourierStats[];
+}
+
+interface CourierSyncHistoryEntry {
+  id: number;
+  run_id: string;
+  courier_code: string;
+  trigger: string;
+  waybills_checked: number;
+  waybills_updated: number;
+  waybills_unchanged: number;
+  errors_count: number;
+  duration_ms: number;
+  status: string;
+  created_at: string;
+  errors: string[];
 }
 
 interface PosCacheStats {
@@ -395,6 +430,8 @@ export default function ShopIndex({
   const [syncStats, setSyncStats] = useState<CourierSyncStats | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [bulkSyncLoading, setBulkSyncLoading] = useState(false);
+  const [syncHistory, setSyncHistory] = useState<CourierSyncHistoryEntry[]>([]);
+  const [perCourierSyncLoading, setPerCourierSyncLoading] = useState<string | null>(null);
   const [posCache, setPosCache] = useState<PosCacheStats | null>(null);
   const [posCacheClearing, setPosCacheClearing] = useState(false);
   const [sentimentStats, setSentimentStats] = useState<SentimentStats | null>(null);
@@ -440,6 +477,7 @@ export default function ShopIndex({
     axios.get('/shop/auto-assign/stats').then(({ data }) => setAssignStats(data));
     axios.get('/shop/courier-sync/settings').then(({ data }) => setSyncSettings(data));
     axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
+    axios.get('/shop/courier-sync/history?limit=10').then(({ data }) => setSyncHistory(data));
     axios.get('/shop/pos/cache-stats').then(({ data }) => setPosCache(data));
     axios.get('/shop/sentiment/stats').then(({ data }) => setSentimentStats(data));
     axios.get('/shop/sentiment/settings').then(({ data }) => setSentimentSettings(data));
@@ -481,6 +519,19 @@ export default function ShopIndex({
 
   const refreshSyncStats = () => {
     axios.get('/shop/courier-sync/stats').then(({ data }) => setSyncStats(data));
+    axios.get('/shop/courier-sync/history?limit=10').then(({ data }) => setSyncHistory(data));
+  };
+
+  const handlePerCourierSync = (courier: string) => {
+    setPerCourierSyncLoading(courier);
+    axios
+      .post('/shop/courier-sync/per-courier', { courier })
+      .then(({ data }) => {
+        toast.success(data.message);
+        setTimeout(() => refreshSyncStats(), 2000);
+      })
+      .catch(() => toast.error(`Failed to sync ${courier}`))
+      .finally(() => setPerCourierSyncLoading(null));
   };
 
   const refreshPosCache = () => {
@@ -681,7 +732,7 @@ export default function ShopIndex({
       .finally(() => setPosCacheClearing(false));
   };
 
-  const saveSyncSetting = (key: keyof CourierSyncSettings, value: boolean) => {
+  const saveSyncSetting = (key: keyof CourierSyncSettings, value: boolean | number) => {
     setSyncLoading(true);
     axios
       .patch('/shop/courier-sync/settings', { [key]: value })
@@ -1111,9 +1162,11 @@ export default function ShopIndex({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-cyan-600" />
-                  Order-Courier Status Sync
+                  Courier Tracking Sync
                 </CardTitle>
-                <CardDescription>Waybill status auto-updates linked orders</CardDescription>
+                <CardDescription>
+                  Scheduled job pulls tracking updates from all courier APIs every 15 minutes
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {syncSettings ? (
@@ -1143,30 +1196,184 @@ export default function ShopIndex({
                     </div>
 
                     {syncStats && (
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">Pending sync</p>
-                          <p className="text-lg font-bold font-display">{syncStats.pending_sync}</p>
+                      <>
+                        <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+                          <div className="rounded-lg border p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Pending</p>
+                            <p className="text-lg font-bold font-display">
+                              {syncStats.pending_sync}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Runs Today</p>
+                            <p className="text-lg font-bold font-display">{syncStats.today_runs}</p>
+                          </div>
+                          <div className="rounded-lg border p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Updated Today</p>
+                            <p className="text-lg font-bold font-display text-success">
+                              {syncStats.today_updates}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border p-2 text-center">
+                            <p className="text-xs text-muted-foreground">Errors Today</p>
+                            <p className="text-lg font-bold font-display text-destructive">
+                              {syncStats.today_errors}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">Orders w/ waybills</p>
-                          <p className="text-lg font-bold font-display">
-                            {syncStats.orders_with_waybills}
-                          </p>
+
+                        {syncStats.last_sync_at && (
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>
+                              Last sync: {new Date(syncStats.last_sync_at).toLocaleString()}
+                            </span>
+                            <Badge
+                              variant={
+                                syncStats.last_sync_status === 'completed' ? 'default' : 'secondary'
+                              }
+                              className="text-xs"
+                            >
+                              {syncStats.last_sync_status ?? 'unknown'}
+                            </Badge>
+                          </div>
+                        )}
+
+                        {syncStats.per_courier && syncStats.per_courier.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t">
+                            <p className="text-sm font-medium">Per-Courier Breakdown</p>
+                            {syncStats.per_courier.map((c) => (
+                              <div
+                                key={c.code}
+                                className="flex items-center justify-between rounded-lg border p-2"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {c.code}
+                                  </Badge>
+                                  <div className="flex gap-3 text-xs text-muted-foreground">
+                                    <span>{c.total_waybills} total</span>
+                                    <span className="text-cyan-600">{c.in_transit} in transit</span>
+                                    <span className="text-success">{c.delivered} delivered</span>
+                                    <span className="text-destructive">
+                                      {c.pending_sync} pending
+                                    </span>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  disabled={perCourierSyncLoading === c.code}
+                                  onClick={() => handlePerCourierSync(c.code)}
+                                >
+                                  {perCourierSyncLoading === c.code ? 'Syncing...' : 'Sync'}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {syncHistory.length > 0 && (
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                              Sync History ({syncHistory.length} recent runs)
+                            </summary>
+                            <div className="mt-2 space-y-1 rounded-lg border p-2 max-h-48 overflow-y-auto">
+                              {syncHistory.map((h) => (
+                                <div
+                                  key={h.id}
+                                  className="flex items-center justify-between border-b pb-1 last:border-0"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={h.status === 'completed' ? 'default' : 'secondary'}
+                                      className="text-xs"
+                                    >
+                                      {h.status}
+                                    </Badge>
+                                    <span className="font-mono text-muted-foreground">
+                                      {h.courier_code}
+                                    </span>
+                                    <span className="text-muted-foreground">{h.trigger}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-muted-foreground">
+                                    <span>{h.waybills_checked} checked</span>
+                                    <span className="text-success">
+                                      {h.waybills_updated} updated
+                                    </span>
+                                    {h.errors_count > 0 && (
+                                      <span className="text-destructive">
+                                        {h.errors_count} errors
+                                      </span>
+                                    )}
+                                    <span>{new Date(h.created_at).toLocaleTimeString()}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+                          <div>
+                            <Label htmlFor="cs-interval" className="text-xs text-muted-foreground">
+                              Interval (min)
+                            </Label>
+                            <input
+                              id="cs-interval"
+                              type="number"
+                              min={5}
+                              max={1440}
+                              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm"
+                              defaultValue={syncSettings.sync_interval_minutes}
+                              onBlur={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (v && v !== syncSettings.sync_interval_minutes) {
+                                  saveSyncSetting('sync_interval_minutes', v);
+                                }
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="cs-max" className="text-xs text-muted-foreground">
+                              Max per run
+                            </Label>
+                            <input
+                              id="cs-max"
+                              type="number"
+                              min={10}
+                              max={5000}
+                              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm"
+                              defaultValue={syncSettings.max_waybills_per_run}
+                              onBlur={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (v && v !== syncSettings.max_waybills_per_run) {
+                                  saveSyncSetting('max_waybills_per_run', v);
+                                }
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="cs-lookback" className="text-xs text-muted-foreground">
+                              Lookback (days)
+                            </Label>
+                            <input
+                              id="cs-lookback"
+                              type="number"
+                              min={1}
+                              max={90}
+                              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm"
+                              defaultValue={syncSettings.lookback_days}
+                              onBlur={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (v && v !== syncSettings.lookback_days) {
+                                  saveSyncSetting('lookback_days', v);
+                                }
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">Synced today</p>
-                          <p className="text-lg font-bold font-display text-success">
-                            {syncStats.today_synced}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border p-2">
-                          <p className="text-xs text-muted-foreground">Delivered via sync</p>
-                          <p className="text-lg font-bold font-display text-success">
-                            {syncStats.today_delivered_via_sync}
-                          </p>
-                        </div>
-                      </div>
+                      </>
                     )}
 
                     <details className="text-xs">

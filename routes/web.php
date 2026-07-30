@@ -544,6 +544,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/courier-sync/settings', [ShopController::class, 'courierSyncSettings'])->name('shop.courier-sync.settings');
     Route::patch('/shop/courier-sync/settings', [ShopController::class, 'updateCourierSyncSettings'])->name('shop.courier-sync.update');
     Route::post('/shop/courier-sync/bulk', [ShopController::class, 'bulkCourierSync'])->name('shop.courier-sync.bulk');
+    Route::get('/shop/courier-sync/history', [ShopController::class, 'courierSyncHistory'])->name('shop.courier-sync.history');
+    Route::post('/shop/courier-sync/per-courier', [ShopController::class, 'courierSyncPerCourier'])->name('shop.courier-sync.per-courier');
     Route::get('/shop/sentiment/stats', [ShopController::class, 'sentimentStats'])->name('shop.sentiment.stats');
     Route::get('/shop/sentiment/settings', [ShopController::class, 'sentimentSettings'])->name('shop.sentiment.settings');
     Route::patch('/shop/sentiment/settings', [ShopController::class, 'updateSentimentSettings'])->name('shop.sentiment.update');

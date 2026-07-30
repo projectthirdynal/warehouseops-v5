@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Courier\Services;
 
+use App\Domain\Courier\Models\CourierSyncLog;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Services\OrderFulfillmentService;
@@ -227,6 +228,15 @@ class CourierStatusSyncService
 
         $autoNotifyEnabled = SiteSetting::get('courier_status_sync_notify_customer', '1') === '1';
 
+        $lastSync = CourierSyncLog::latest('id')->first();
+        $lastSuccessfulSync = CourierSyncLog::where('status', 'completed')->latest('id')->first();
+
+        $todayRuns = CourierSyncLog::whereDate('created_at', $today)->count();
+        $todayUpdates = (int) CourierSyncLog::whereDate('created_at', $today)->sum('waybills_updated');
+        $todayErrors = (int) CourierSyncLog::whereDate('created_at', $today)->sum('errors_count');
+
+        $perCourier = $this->getPerCourierStats();
+
         return [
             'today_synced' => $syncedToday,
             'pending_sync' => $pendingSync,
@@ -234,7 +244,97 @@ class CourierStatusSyncService
             'today_delivered_via_sync' => $deliveredViaSync,
             'today_returned_via_sync' => $returnedViaSync,
             'auto_notify_customer' => $autoNotifyEnabled,
+            'last_sync_at' => $lastSync?->created_at?->toIso8601String(),
+            'last_sync_status' => $lastSync?->status,
+            'last_successful_sync_at' => $lastSuccessfulSync?->created_at?->toIso8601String(),
+            'today_runs' => $todayRuns,
+            'today_updates' => $todayUpdates,
+            'today_errors' => $todayErrors,
+            'per_courier' => $perCourier,
         ];
+    }
+
+    public function getPerCourierStats(): array
+    {
+        $couriers = ['FLASH', 'JNT'];
+        $result = [];
+
+        foreach ($couriers as $code) {
+            $pending = Waybill::query()
+                ->where('courier_provider', $code)
+                ->whereNotNull('waybill_number')
+                ->whereNotIn('status', [
+                    WaybillStatus::DELIVERED->value,
+                    WaybillStatus::RETURNED->value,
+                    WaybillStatus::CANCELLED->value,
+                    WaybillStatus::PENDING->value,
+                ])
+                ->count();
+
+            $total = Waybill::query()
+                ->where('courier_provider', $code)
+                ->whereNotNull('waybill_number')
+                ->count();
+
+            $delivered = Waybill::query()
+                ->where('courier_provider', $code)
+                ->where('status', WaybillStatus::DELIVERED->value)
+                ->count();
+
+            $inTransit = Waybill::query()
+                ->where('courier_provider', $code)
+                ->whereIn('status', [
+                    WaybillStatus::DISPATCHED->value,
+                    WaybillStatus::PICKED_UP->value,
+                    WaybillStatus::IN_TRANSIT->value,
+                    WaybillStatus::ARRIVED_HUB->value,
+                    WaybillStatus::OUT_FOR_DELIVERY->value,
+                ])
+                ->count();
+
+            $lastSync = CourierSyncLog::where('courier_code', $code)
+                ->latest('id')
+                ->first();
+
+            $result[] = [
+                'code' => $code,
+                'total_waybills' => $total,
+                'pending_sync' => $pending,
+                'delivered' => $delivered,
+                'in_transit' => $inTransit,
+                'last_sync_at' => $lastSync?->created_at?->toIso8601String(),
+                'last_sync_updated' => $lastSync?->waybills_updated ?? 0,
+            ];
+        }
+
+        return $result;
+    }
+
+    public function getSyncHistory(int $limit = 20): array
+    {
+        return CourierSyncLog::latest('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($log) => [
+                'id' => $log->id,
+                'run_id' => $log->run_id,
+                'courier_code' => $log->courier_code ?? 'ALL',
+                'trigger' => $log->trigger,
+                'waybills_checked' => $log->waybills_checked,
+                'waybills_updated' => $log->waybills_updated,
+                'waybills_unchanged' => $log->waybills_unchanged,
+                'errors_count' => $log->errors_count,
+                'duration_ms' => $log->duration_ms,
+                'status' => $log->status,
+                'created_at' => $log->created_at->toIso8601String(),
+                'errors' => $log->errors ? array_slice($log->errors, 0, 5) : [],
+            ])
+            ->toArray();
+    }
+
+    public function logSyncRun(array $data): CourierSyncLog
+    {
+        return CourierSyncLog::create($data);
     }
 
     public function getSettings(): array
@@ -242,6 +342,9 @@ class CourierStatusSyncService
         return [
             'auto_notify_customer' => SiteSetting::get('courier_status_sync_notify_customer', '1') === '1',
             'sync_intermediate_statuses' => SiteSetting::get('courier_status_sync_intermediate', '1') === '1',
+            'sync_interval_minutes' => (int) SiteSetting::get('courier_sync_interval_minutes', '15'),
+            'max_waybills_per_run' => (int) SiteSetting::get('courier_sync_max_waybills', '500'),
+            'lookback_days' => (int) SiteSetting::get('courier_sync_lookback_days', '21'),
             'status_map' => $this->getStatusMapDisplay(),
         ];
     }
@@ -253,6 +356,15 @@ class CourierStatusSyncService
         }
         if (array_key_exists('sync_intermediate_statuses', $settings)) {
             SiteSetting::set('courier_status_sync_intermediate', $settings['sync_intermediate_statuses'] ? '1' : '0');
+        }
+        if (array_key_exists('sync_interval_minutes', $settings)) {
+            SiteSetting::set('courier_sync_interval_minutes', (string) max(5, min(1440, (int) $settings['sync_interval_minutes'])));
+        }
+        if (array_key_exists('max_waybills_per_run', $settings)) {
+            SiteSetting::set('courier_sync_max_waybills', (string) max(10, min(5000, (int) $settings['max_waybills_per_run'])));
+        }
+        if (array_key_exists('lookback_days', $settings)) {
+            SiteSetting::set('courier_sync_lookback_days', (string) max(1, min(90, (int) $settings['lookback_days'])));
         }
     }
 

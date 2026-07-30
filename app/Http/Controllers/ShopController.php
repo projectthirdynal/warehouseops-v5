@@ -245,6 +245,9 @@ class ShopController extends Controller
         $validated = $request->validate([
             'auto_notify_customer' => ['nullable', 'boolean'],
             'sync_intermediate_statuses' => ['nullable', 'boolean'],
+            'sync_interval_minutes' => ['nullable', 'integer', 'min:5', 'max:1440'],
+            'max_waybills_per_run' => ['nullable', 'integer', 'min:10', 'max:5000'],
+            'lookback_days' => ['nullable', 'integer', 'min:1', 'max:90'],
         ]);
 
         app(CourierStatusSyncService::class)->updateSettings($validated);
@@ -260,6 +263,31 @@ class ShopController extends Controller
         $result = app(CourierStatusSyncService::class)->bulkSync();
 
         return response()->json($result);
+    }
+
+    public function courierSyncHistory(Request $request): JsonResponse
+    {
+        $limit = min((int) $request->get('limit', 20), 100);
+
+        return response()->json(
+            app(CourierStatusSyncService::class)->getSyncHistory($limit)
+        );
+    }
+
+    public function courierSyncPerCourier(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier' => ['required', 'string', 'in:FLASH,JNT'],
+        ]);
+
+        $courier = strtoupper($validated['courier']);
+
+        dispatch(new \App\Domain\Courier\Jobs\SyncTrackingStatusJob($courier, 'api'));
+
+        return response()->json([
+            'success' => true,
+            'message' => "Sync dispatched for {$courier}",
+        ]);
     }
 
     public function metaReadiness(): Response
