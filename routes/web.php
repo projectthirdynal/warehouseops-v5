@@ -505,6 +505,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/moderate-comment', [ShopController::class, 'moderateComment'])->name('shop.comment.moderate');
     Route::post('/shop/inbox/page-canned-responses', [ShopController::class, 'storePageCannedResponse'])->name('shop.page-canned-responses.store');
     Route::delete('/shop/inbox/page-canned-responses', [ShopController::class, 'destroyPageCannedResponse'])->name('shop.page-canned-responses.destroy');
+    Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
     Route::get('/shop/inbox/{conversation}/poll', [ShopController::class, 'pollMessages'])->name('shop.conversation.poll');
@@ -544,7 +545,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/recommendations/settings', [ShopController::class, 'recommendationSettings'])->name('shop.recommendations.settings');
     Route::patch('/shop/recommendations/settings', [ShopController::class, 'updateRecommendationSettings'])->name('shop.recommendations.update');
     Route::post('/shop/recommendations/clear-cache', [ShopController::class, 'clearRecommendationCache'])->name('shop.recommendations.clear-cache');
-    Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');
