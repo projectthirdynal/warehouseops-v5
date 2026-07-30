@@ -8,6 +8,7 @@ use App\Domain\Courier\Events\TrackingStatusUpdated;
 use App\Domain\Courier\Models\CourierApiLog;
 use App\Domain\Courier\Models\CourierProvider;
 use App\Domain\Courier\Services\CourierServiceManager;
+use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,6 +65,21 @@ class CourierWebhookController
 
             // Fire event for SMS triggers and other listeners
             event(new TrackingStatusUpdated($waybill->fresh(), $payload));
+        }
+
+        // Extract and store delivery proofs (photos/signatures) from webhook payload
+        $proofService = app(DeliveryProofService::class);
+        $proofs = $proofService->extractProofsFromWebhook($request->all());
+        if (!empty($proofs)) {
+            $domainWaybill = $domainWaybill ?? \App\Domain\Waybill\Models\Waybill::find($waybill->id);
+            foreach ($proofs as $proofData) {
+                $proofService->storeFromCourierCallback($domainWaybill, strtoupper($courier), $proofData);
+            }
+            Log::info('Delivery proofs stored from webhook', [
+                'courier'  => $courier,
+                'waybill'  => $waybill->waybill_number,
+                'count'    => count($proofs),
+            ]);
         }
 
         return $this->ack($courier);

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Courier\Services\BatchDispatchService;
+use App\Domain\Waybill\Models\DeliveryProof;
+use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Models\Customer;
 use App\Models\Waybill;
 use App\Services\SmsSequenceService;
@@ -57,7 +59,7 @@ class WaybillController extends Controller
 
     public function show(Waybill $waybill)
     {
-        $waybill->load(['trackingHistory', 'lead', 'uploadedBy']);
+        $waybill->load(['trackingHistory', 'lead', 'uploadedBy', 'deliveryProofs.uploader']);
 
         // Find or create customer by phone
         $customer = Customer::where('phone', $waybill->receiver_phone)->first();
@@ -94,6 +96,7 @@ class WaybillController extends Controller
             'orderHistory' => $orderHistory,
             'customerStats' => $customerStats,
             'customerRating' => $rating,
+            'deliveryProofs' => $waybill->deliveryProofs,
         ]);
     }
 
@@ -219,5 +222,42 @@ class WaybillController extends Controller
     {
         $service = app(BatchDispatchService::class);
         return response()->json($service->stats());
+    }
+
+    public function uploadDeliveryProof(Request $request, Waybill $waybill): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:jpeg,jpg,png,gif,webp,pdf', 'max:10240'],
+            'type' => ['nullable', 'string', 'in:photo,signature,pod_document,other'],
+        ]);
+
+        $service = app(DeliveryProofService::class);
+
+        try {
+            $proof = $service->storeUpload(
+                $waybill,
+                $request->file('file'),
+                $validated['type'] ?? 'photo',
+                $request->user()?->id,
+            );
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Delivery proof uploaded.',
+                'proof'    => $proof->load('uploader'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function deleteDeliveryProof(Waybill $waybill, int $proofId): JsonResponse
+    {
+        $proof = DeliveryProof::where('waybill_id', $waybill->id)->findOrFail($proofId);
+
+        $service = app(DeliveryProofService::class);
+        $service->delete($proof);
+
+        return response()->json(['success' => true, 'message' => 'Delivery proof deleted.']);
     }
 }

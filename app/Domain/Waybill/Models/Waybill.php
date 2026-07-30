@@ -82,6 +82,11 @@ class Waybill extends Model
         return $this->hasOne(ReturnReceipt::class);
     }
 
+    public function deliveryProofs(): HasMany
+    {
+        return $this->hasMany(DeliveryProof::class)->orderByDesc('created_at');
+    }
+
     // -------------------------------------------------------------------------
     // Scopes
     // -------------------------------------------------------------------------

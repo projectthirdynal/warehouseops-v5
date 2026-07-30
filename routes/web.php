@@ -793,6 +793,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/batch-dispatch', [WaybillController::class, 'batchDispatchPage'])->name('batch-dispatch');
         Route::post('/batch-dispatch', [WaybillController::class, 'batchDispatch'])->name('batch-dispatch.store');
         Route::get('/batch-dispatch/stats', [WaybillController::class, 'batchDispatchStats'])->name('batch-dispatch.stats');
+        Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
+        Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
