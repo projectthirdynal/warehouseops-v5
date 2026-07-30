@@ -680,6 +680,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/cart-templates', [ShopController::class, 'listCartTemplates'])->name('shop.cart-templates.index');
     Route::post('/shop/cart-templates', [ShopController::class, 'storeCartTemplate'])->name('shop.cart-templates.store');
     Route::delete('/shop/cart-templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.cart-templates.destroy')->whereNumber('template');
+    Route::patch('/shop/cart-templates/{template}/share', [ShopController::class, 'shareCartTemplate'])->name('shop.cart-templates.share')->whereNumber('template');
+    Route::post('/shop/cart-templates/{template}/clone', [ShopController::class, 'cloneCartTemplate'])->name('shop.cart-templates.clone')->whereNumber('template');
+    Route::get('/shop/cart-templates/{template}/apply', [ShopController::class, 'applyCartTemplate'])->name('shop.cart-templates.apply')->whereNumber('template');
+    Route::get('/shop/cart-templates/stats', [ShopController::class, 'cartTemplateStats'])->name('shop.cart-templates.stats');
+    Route::get('/shop/cart-templates/roles', [ShopController::class, 'cartTemplateRoles'])->name('shop.cart-templates.roles');
     Route::post('/shop/orders/calculate-shipping', [ShopController::class, 'calculateShipping'])->name('shop.orders.shipping');
     Route::post('/shop/orders/draft', [ShopController::class, 'storeDraft'])->name('shop.orders.draft.store');
     Route::get('/shop/orders/{order}/draft', [ShopController::class, 'loadDraft'])->name('shop.orders.draft.load')->whereNumber('order');

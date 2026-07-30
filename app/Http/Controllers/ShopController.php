@@ -47,6 +47,7 @@ use App\Domain\Shop\Services\BroadcastCampaignService;
 use App\Domain\Shop\Services\ProductRecommendationService;
 use App\Domain\Shop\Services\ConversationMergePreviewService;
 use App\Domain\Shop\Services\ShopReportsEnhancementService;
+use App\Domain\Shop\Services\CartTemplateSharingService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -111,6 +112,7 @@ class ShopController extends Controller
         private readonly ProductRecommendationService $recommendationService,
         private readonly ConversationMergePreviewService $mergePreviewService,
         private readonly ShopReportsEnhancementService $reportsEnhancementService,
+        private readonly CartTemplateSharingService $cartTemplateSharingService,
     ) {}
 
     public function index(): Response
@@ -6340,27 +6342,32 @@ class ShopController extends Controller
 
     public function listCartTemplates(): JsonResponse
     {
-        $templates = CartTemplate::query()
-            ->sharedOrOwned(auth()->id())
-            ->latest()
-            ->limit(50)
-            ->get(['id', 'name', 'items', 'courier_code', 'shipping_fee', 'discount_amount', 'tax_rate', 'remarks', 'is_shared', 'user_id', 'created_at'])
-            ->map(fn ($t) => [
-                'id'              => $t->id,
-                'name'            => $t->name,
-                'items'           => $t->items ?? [],
-                'courier_code'    => $t->courier_code,
-                'shipping_fee'    => (float) $t->shipping_fee,
-                'discount_amount' => (float) $t->discount_amount,
-                'tax_rate'        => (float) $t->tax_rate,
-                'remarks'         => $t->remarks,
-                'is_shared'       => $t->is_shared,
-                'is_owner'        => $t->user_id === auth()->id(),
-                'items_count'     => is_array($t->items) ? count($t->items) : 0,
-                'created_at'      => $t->created_at?->toIso8601String(),
-            ]);
+        $user = auth()->user();
+        $role = $user?->roles?->first()?->name ?? $user?->role ?? null;
 
-        return response()->json(['templates' => $templates]);
+        $templates = $this->cartTemplateSharingService->listForUser(auth()->id(), $role);
+
+        $result = $templates->map(fn ($t) => [
+            'id'              => $t->id,
+            'name'            => $t->name,
+            'items'           => $t->items ?? [],
+            'courier_code'    => $t->courier_code,
+            'shipping_fee'    => (float) $t->shipping_fee,
+            'discount_amount' => (float) $t->discount_amount,
+            'tax_rate'        => (float) $t->tax_rate,
+            'remarks'         => $t->remarks,
+            'is_shared'       => $t->is_shared,
+            'allowed_roles'   => $t->allowed_roles,
+            'is_owner'        => $t->user_id === auth()->id(),
+            'owner_name'      => $t->user?->name,
+            'items_count'     => is_array($t->items) ? count($t->items) : 0,
+            'cloned_from'     => $t->cloned_from,
+            'source_name'     => $t->clonedFrom?->name,
+            'last_used_at'     => $t->last_used_at?->toIso8601String(),
+            'created_at'      => $t->created_at?->toIso8601String(),
+        ]);
+
+        return response()->json(['templates' => $result]);
     }
 
     public function storeCartTemplate(Request $request): JsonResponse
@@ -6379,6 +6386,8 @@ class ShopController extends Controller
             'tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100'],
             'remarks'           => ['nullable', 'string', 'max:2000'],
             'is_shared'         => ['nullable', 'boolean'],
+            'allowed_roles'     => ['nullable', 'array'],
+            'allowed_roles.*'   => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
         ]);
 
         $template = CartTemplate::query()->create([
@@ -6391,6 +6400,7 @@ class ShopController extends Controller
             'tax_rate'        => $validated['tax_rate'] ?? 0,
             'remarks'         => $validated['remarks'] ?? null,
             'is_shared'       => $validated['is_shared'] ?? false,
+            'allowed_roles'   => ($validated['is_shared'] ?? false) ? ($validated['allowed_roles'] ?? null) : null,
         ]);
 
         return response()->json(['success' => true, 'template_id' => $template->id]);
@@ -6405,6 +6415,83 @@ class ShopController extends Controller
         $template->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function shareCartTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'is_shared'     => ['required', 'boolean'],
+            'allowed_roles' => ['nullable', 'array'],
+            'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
+        ]);
+
+        $updated = $this->cartTemplateSharingService->share(
+            $template->id,
+            auth()->id(),
+            $validated['is_shared'],
+            $validated['allowed_roles'] ?? null
+        );
+
+        return response()->json([
+            'success'       => true,
+            'is_shared'     => $updated->is_shared,
+            'allowed_roles' => $updated->allowed_roles,
+        ]);
+    }
+
+    public function cloneCartTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $clone = $this->cartTemplateSharingService->clone(
+            $template->id,
+            auth()->id(),
+            $validated['name'] ?? null
+        );
+
+        return response()->json([
+            'success'     => true,
+            'template_id'  => $clone->id,
+            'name'         => $clone->name,
+        ]);
+    }
+
+    public function applyCartTemplate(CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id() && ! $template->is_shared) {
+            abort(403);
+        }
+
+        $this->cartTemplateSharingService->markUsed($template->id);
+
+        return response()->json([
+            'id'              => $template->id,
+            'name'            => $template->name,
+            'items'           => $template->items ?? [],
+            'courier_code'    => $template->courier_code,
+            'shipping_fee'    => (float) $template->shipping_fee,
+            'discount_amount' => (float) $template->discount_amount,
+            'tax_rate'        => (float) $template->tax_rate,
+            'remarks'         => $template->remarks,
+        ]);
+    }
+
+    public function cartTemplateStats(): JsonResponse
+    {
+        return response()->json($this->cartTemplateSharingService->stats());
+    }
+
+    public function cartTemplateRoles(): JsonResponse
+    {
+        return response()->json([
+            'roles' => $this->cartTemplateSharingService->availableRoles(),
+        ]);
     }
 
     public function checkDuplicates(Request $request): JsonResponse

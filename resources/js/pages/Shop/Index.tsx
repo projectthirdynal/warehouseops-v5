@@ -30,6 +30,7 @@ import {
   Users,
   Zap,
   Sparkles,
+  Share2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -353,6 +354,24 @@ interface RecommendationSettings {
   lookback_days: number;
 }
 
+interface CartTemplateStats {
+  total: number;
+  shared: number;
+  private: number;
+  cloned: number;
+  by_role: Record<string, number>;
+  top_owners: { user_id: number; name: string; count: number }[];
+  recent_clones: {
+    id: number;
+    name: string;
+    cloned_from: number | null;
+    source_name: string | null;
+    source_owner: boolean;
+    user_name: string;
+    created_at: string;
+  }[];
+}
+
 export default function ShopIndex({
   stats,
   work_queues,
@@ -398,6 +417,7 @@ export default function ShopIndex({
   const [recResults, setRecResults] = useState<RecommendationProduct[]>([]);
   const [recSearching, setRecSearching] = useState(false);
   const [recProductInput, setRecProductInput] = useState('');
+  const [cartTemplateStats, setCartTemplateStats] = useState<CartTemplateStats | null>(null);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -412,6 +432,7 @@ export default function ShopIndex({
     axios.get('/shop/broadcast/stats').then(({ data }) => setBroadcastStats(data));
     axios.get('/shop/recommendations/stats').then(({ data }) => setRecStats(data));
     axios.get('/shop/recommendations/settings').then(({ data }) => setRecSettings(data));
+    axios.get('/shop/cart-templates/stats').then(({ data }) => setCartTemplateStats(data));
   }, []);
 
   const refreshStats = () => {
@@ -2116,6 +2137,109 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading recommendation data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Share2 className="h-5 w-5 text-primary" />
+                  Cart Template Sharing
+                </CardTitle>
+                <CardDescription>
+                  Share cart presets across agents with role-based access
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cartTemplateStats ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold">{cartTemplateStats.total}</p>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-success">
+                          {cartTemplateStats.shared}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Shared</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-muted-foreground">
+                          {cartTemplateStats.private}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Private</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-info">{cartTemplateStats.cloned}</p>
+                        <p className="text-xs text-muted-foreground">Cloned</p>
+                      </div>
+                    </div>
+
+                    {Object.keys(cartTemplateStats.by_role).length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Shared by Role Access</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(cartTemplateStats.by_role).map(([role, count]) => (
+                            <Badge key={role} variant={count > 0 ? 'default' : 'secondary'}>
+                              {role}: {count}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {cartTemplateStats.top_owners.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Top Template Owners</p>
+                        <div className="space-y-1">
+                          {cartTemplateStats.top_owners.map((owner, i) => (
+                            <div
+                              key={owner.user_id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                  {i + 1}
+                                </span>
+                                {owner.name}
+                              </span>
+                              <Badge variant="secondary">{owner.count} templates</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {cartTemplateStats.recent_clones.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Recent Clones</p>
+                        <div className="space-y-1">
+                          {cartTemplateStats.recent_clones.map((clone) => (
+                            <div
+                              key={clone.id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <span className="truncate">{clone.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                from {clone.source_name ?? '—'} · {clone.user_name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <Link href="/shop/orders/create">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Share2 className="mr-2 h-3 w-3" />
+                        Manage Templates in Create Order
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading template data...</p>
                 )}
               </CardContent>
             </Card>

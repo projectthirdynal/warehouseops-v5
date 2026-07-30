@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Calculator,
   CheckCircle2,
+  Copy,
   Download,
   Eye,
   FileText,
@@ -15,6 +16,7 @@ import {
   Phone,
   Plus,
   RotateCcw,
+  Share2,
   Sparkles,
   Trash2,
   Upload,
@@ -211,8 +213,13 @@ interface TemplateSummary {
   tax_rate: number;
   remarks: string | null;
   is_shared: boolean;
+  allowed_roles: string[] | null;
   is_owner: boolean;
+  owner_name: string | null;
   items_count: number;
+  cloned_from: number | null;
+  source_name: string | null;
+  last_used_at: string | null;
   created_at: string;
 }
 
@@ -904,6 +911,7 @@ export default function CreateShopOrder({
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [templateShared, setTemplateShared] = useState(false);
+  const [templateRoles, setTemplateRoles] = useState<string[]>([]);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   const fetchTemplates = () => {
@@ -937,6 +945,7 @@ export default function CreateShopOrder({
         tax_rate: data.tax_rate,
         remarks: data.remarks,
         is_shared: templateShared,
+        allowed_roles: templateShared ? (templateRoles.length > 0 ? templateRoles : null) : null,
       }),
     })
       .then((res) => res.json())
@@ -944,6 +953,7 @@ export default function CreateShopOrder({
         setShowTemplateModal(false);
         setTemplateName('');
         setTemplateShared(false);
+        setTemplateRoles([]);
         fetchTemplates();
       })
       .catch(() => undefined)
@@ -951,6 +961,12 @@ export default function CreateShopOrder({
   };
 
   const applyTemplate = (tpl: TemplateSummary) => {
+    fetch(`/shop/cart-templates/${tpl.id}/apply`, {
+      headers: { 'X-CSRF-TOKEN': csrfToken },
+    })
+      .then((res) => res.json())
+      .then(() => undefined)
+      .catch(() => undefined);
     setData({
       ...data,
       items: tpl.items.length > 0 ? tpl.items : [createEmptyItem()],
@@ -969,6 +985,41 @@ export default function CreateShopOrder({
     })
       .then(() => {
         setTemplates((prev) => prev.filter((t) => t.id !== id));
+      })
+      .catch(() => undefined);
+  };
+
+  const cloneTemplate = (id: number) => {
+    fetch(`/shop/cart-templates/${id}/clone`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({}),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        fetchTemplates();
+      })
+      .catch(() => undefined);
+  };
+
+  const toggleShare = (tpl: TemplateSummary, shared: boolean) => {
+    fetch(`/shop/cart-templates/${tpl.id}/share`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({
+        is_shared: shared,
+        allowed_roles: shared ? tpl.allowed_roles : null,
+      }),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        fetchTemplates();
       })
       .catch(() => undefined);
   };
@@ -2264,7 +2315,21 @@ export default function CreateShopOrder({
                         <p className="text-xs text-muted-foreground">
                           {tpl.items_count} item(s)
                           {tpl.is_shared ? ' · Shared' : ''}
+                          {tpl.owner_name && !tpl.is_owner ? ` · by ${tpl.owner_name}` : ''}
+                          {tpl.source_name ? ` · from ${tpl.source_name}` : ''}
                         </p>
+                        {tpl.is_shared && tpl.allowed_roles && tpl.allowed_roles.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {tpl.allowed_roles.map((role) => (
+                              <span
+                                key={role}
+                                className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary"
+                              >
+                                {role}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
@@ -2275,15 +2340,39 @@ export default function CreateShopOrder({
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                         </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => cloneTemplate(tpl.id)}
+                          title="Clone template"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
                         {tpl.is_owner && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteTemplate(tpl.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleShare(tpl, !tpl.is_shared)}
+                              title={tpl.is_shared ? 'Unshare' : 'Share'}
+                            >
+                              {tpl.is_shared ? (
+                                <Share2 className="h-3.5 w-3.5 text-success" />
+                              ) : (
+                                <Share2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteTemplate(tpl.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -2832,6 +2921,30 @@ export default function CreateShopOrder({
                   Share with other agents
                 </Label>
               </div>
+              {templateShared && (
+                <div className="space-y-2">
+                  <Label className="text-sm">Allowed roles (leave empty for all)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {['superadmin', 'admin', 'supervisor', 'agent', 'encoder'].map((role) => (
+                      <label key={role} className="flex items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={templateRoles.includes(role)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTemplateRoles([...templateRoles, role]);
+                            } else {
+                              setTemplateRoles(templateRoles.filter((r) => r !== role));
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        {role}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="rounded-md border p-3 text-xs text-muted-foreground">
                 Saves {data.items.length} item(s) with current pricing, discounts, shipping, and tax
                 settings.
