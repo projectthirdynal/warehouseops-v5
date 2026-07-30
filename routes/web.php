@@ -808,6 +808,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/courier-analytics', [CourierAnalyticsController::class, 'index'])->name('courier-analytics.index');
         Route::get('/courier-analytics/api', [CourierAnalyticsController::class, 'api'])->name('courier-analytics.api');
         Route::get('/courier-analytics/export', [CourierAnalyticsController::class, 'export'])->name('courier-analytics.export');
+        Route::get('/{waybill}/qr-code', [WaybillController::class, 'qrCode'])->name('qr-code');
+        Route::get('/{waybill}/qr-code/label', [WaybillController::class, 'qrCodeLabel'])->name('qr-code.label');
         Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
         Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');

@@ -6,6 +6,7 @@ use App\Domain\Courier\Services\BatchDispatchService;
 use App\Domain\Waybill\Models\DeliveryProof;
 use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Domain\Waybill\Services\GeolocationMapService;
+use App\Domain\Waybill\Services\QrCodeService;
 use App\Domain\Waybill\Services\SlaDashboardService;
 use App\Models\Customer;
 use App\Models\Waybill;
@@ -318,5 +319,21 @@ class WaybillController extends Controller
         $data = $service->getWaybillLocationHistory($waybill->id);
 
         return response()->json($data);
+    }
+
+    public function qrCode(Waybill $waybill): JsonResponse
+    {
+        $service = app(QrCodeService::class);
+        $data = $service->getQrData($waybill);
+
+        return response()->json($data);
+    }
+
+    public function qrCodeLabel(Waybill $waybill): \Illuminate\Http\Response
+    {
+        $service = app(QrCodeService::class);
+        $data = $service->getLabelData($waybill);
+
+        return response()->view('waybills.qr-label', $data);
     }
 }

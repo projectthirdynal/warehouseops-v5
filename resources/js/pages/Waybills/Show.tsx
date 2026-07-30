@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
+import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -17,6 +18,9 @@ import {
   AlertTriangle,
   Calendar,
   DollarSign,
+  QrCode as QrCodeIcon,
+  Printer,
+  Download,
   Camera,
   FileText,
   PenTool,
@@ -167,6 +171,47 @@ export default function WaybillShow({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  const generateQrCode = useCallback(async () => {
+    setQrLoading(true);
+    try {
+      const { data } = await axios.get(`/waybills/${waybill.id}/qr-code`);
+      if (qrCanvasRef.current) {
+        await QRCode.toCanvas(qrCanvasRef.current, data.qr_content, {
+          width: 200,
+          margin: 2,
+          color: { dark: '#000000', light: '#ffffff' },
+          errorCorrectionLevel: 'M',
+        });
+        const url = qrCanvasRef.current.toDataURL('image/png');
+        setQrDataUrl(url);
+      }
+    } catch {
+      toast.error('Failed to generate QR code.');
+    } finally {
+      setQrLoading(false);
+    }
+  }, [waybill.id]);
+
+  useEffect(() => {
+    generateQrCode();
+  }, [generateQrCode]);
+
+  function downloadQrCode() {
+    if (!qrDataUrl) return;
+    const link = document.createElement('a');
+    link.href = qrDataUrl;
+    link.download = `qr-${waybill.waybill_number}.png`;
+    link.click();
+  }
+
+  function printLabel() {
+    window.open(`/waybills/${waybill.id}/qr-code/label`, '_blank', 'width=500,height=700');
+  }
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -791,6 +836,44 @@ export default function WaybillShow({
                       </div>
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* QR Code */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCodeIcon className="h-5 w-5" />
+                  QR Code
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-3">
+                {qrLoading ? (
+                  <div className="h-[200px] w-[200px] flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <canvas ref={qrCanvasRef} className="rounded-lg border" />
+                )}
+                <p className="text-xs text-muted-foreground text-center font-mono break-all">
+                  {waybill.waybill_number}
+                </p>
+                <div className="flex gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={downloadQrCode}
+                    disabled={!qrDataUrl}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    PNG
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={printLabel}>
+                    <Printer className="h-4 w-4 mr-1" />
+                    Label
+                  </Button>
                 </div>
               </CardContent>
             </Card>
