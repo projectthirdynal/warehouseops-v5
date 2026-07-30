@@ -97,6 +97,11 @@ class Waybill extends Model
         return $this->belongsTo(Order::class, 'lead_id', 'lead_id');
     }
 
+    public function deliveryProofs(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Waybill\Models\DeliveryProof::class);
+    }
+
     /**
      * Map courier status to internal status using StatusMapper.
      */
