@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\Services\BatchDispatchService;
 use App\Models\Customer;
 use App\Models\Waybill;
 use App\Services\SmsSequenceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -152,5 +154,70 @@ class WaybillController extends Controller
             ->first();
 
         return response()->json(['waybill' => $waybill]);
+    }
+
+    public function batchDispatchPage(Request $request)
+    {
+        $pendingWaybills = Waybill::where('status', 'PENDING')
+            ->orderBy('created_at', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        $service = app(BatchDispatchService::class);
+        $stats = $service->stats();
+
+        $couriers = \App\Domain\Courier\Models\CourierProvider::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name']);
+
+        return Inertia::render('Waybills/BatchDispatch', [
+            'pendingWaybills' => $pendingWaybills,
+            'stats'           => $stats,
+            'couriers'        => $couriers,
+            'filters'         => $request->only(['search']),
+        ]);
+    }
+
+    public function batchDispatch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'waybill_ids'  => ['required', 'array', 'min:1', 'max:100'],
+            'waybill_ids.*' => ['required', 'integer', 'exists:waybills,id'],
+            'courier_code' => ['required', 'string', 'in:FLASH,JNT'],
+            'async'        => ['nullable', 'boolean'],
+        ]);
+
+        $senderDefaults = config('services.couriers.sender_defaults', []);
+
+        if ($validated['async'] ?? false) {
+            \App\Domain\Courier\Jobs\BatchDispatchJob::dispatch(
+                $validated['waybill_ids'],
+                $validated['courier_code'],
+                $senderDefaults,
+            );
+
+            return response()->json([
+                'success'  => true,
+                'async'    => true,
+                'message'  => 'Batch dispatch queued for processing.',
+                'count'    => count($validated['waybill_ids']),
+            ]);
+        }
+
+        $service = app(BatchDispatchService::class);
+        $result = $service->dispatch($validated['waybill_ids'], $validated['courier_code'], $senderDefaults);
+
+        return response()->json([
+            'success' => $result['success'] > 0,
+            'message' => "Dispatched {$result['success']}/{$result['total']} waybills to {$validated['courier_code']}."
+                . ($result['failed'] > 0 ? " {$result['failed']} failed." : ''),
+            'result'  => $result,
+        ]);
+    }
+
+    public function batchDispatchStats(): JsonResponse
+    {
+        $service = app(BatchDispatchService::class);
+        return response()->json($service->stats());
     }
 }

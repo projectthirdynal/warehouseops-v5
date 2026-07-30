@@ -5,6 +5,7 @@ import {
   Filter,
   Download,
   Upload,
+  Send,
   MoreHorizontal,
   Eye,
   Truck,
@@ -202,6 +203,12 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
             <p className="text-muted-foreground">Manage and track all shipment waybills</p>
           </div>
           <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/waybills/batch-dispatch">
+                <Send className="mr-1.5 h-4 w-4" />
+                Batch Dispatch
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/waybills/import">
                 <Upload className="mr-1.5 h-4 w-4" />
