@@ -796,6 +796,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/sla-dashboard', [WaybillController::class, 'slaDashboard'])->name('sla-dashboard');
         Route::get('/sla-dashboard/api', [WaybillController::class, 'apiSlaDashboard'])->name('sla-dashboard.api');
         Route::patch('/sla-dashboard/settings', [WaybillController::class, 'updateSlaSettings'])->name('sla-dashboard.settings');
+        Route::get('/geo-map', [WaybillController::class, 'geoMap'])->name('geo-map');
+        Route::get('/geo-map/api', [WaybillController::class, 'apiGeoMap'])->name('geo-map.api');
+        Route::get('/geo-map/{waybill}/history', [WaybillController::class, 'geoMapHistory'])->name('geo-map.history');
         Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
         Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');

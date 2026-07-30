@@ -161,6 +161,12 @@ class SyncTrackingStatusJob implements ShouldQueue
             ]);
         }
 
+        // Update waybill's last-known location
+        $domainWaybill->update([
+            'last_location_description' => $result->location,
+            'last_location_at'          => now(),
+        ]);
+
         // Fire event for SMS triggers
         $payload = new WebhookPayloadDTO(
             waybillNumber: $result->waybillNumber,

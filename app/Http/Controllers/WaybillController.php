@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Courier\Services\BatchDispatchService;
 use App\Domain\Waybill\Models\DeliveryProof;
 use App\Domain\Waybill\Services\DeliveryProofService;
+use App\Domain\Waybill\Services\GeolocationMapService;
 use App\Domain\Waybill\Services\SlaDashboardService;
 use App\Models\Customer;
 use App\Models\Waybill;
@@ -292,5 +293,30 @@ class WaybillController extends Controller
             'message'  => 'SLA settings updated.',
             'settings' => $settings,
         ]);
+    }
+
+    public function geoMap(Request $request): \Inertia\Response
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getMapData($request->only(['courier', 'status']));
+        $stats = $service->getStats();
+
+        return Inertia::render('Waybills/GeoMap', array_merge($data, ['stats' => $stats]));
+    }
+
+    public function apiGeoMap(Request $request): JsonResponse
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getMapData($request->only(['courier', 'status']));
+
+        return response()->json($data);
+    }
+
+    public function geoMapHistory(Waybill $waybill): JsonResponse
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getWaybillLocationHistory($waybill->id);
+
+        return response()->json($data);
     }
 }

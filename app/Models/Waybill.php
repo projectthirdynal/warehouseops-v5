@@ -50,6 +50,10 @@ class Waybill extends Model
         'dispatched_at',
         'delivered_at',
         'returned_at',
+        'latitude',
+        'longitude',
+        'last_location_at',
+        'last_location_description',
     ];
 
     protected $casts = [
@@ -65,6 +69,7 @@ class Waybill extends Model
         'dispatched_at' => 'datetime',
         'delivered_at' => 'datetime',
         'returned_at' => 'datetime',
+        'last_location_at' => 'datetime',
     ];
 
     public function lead(): BelongsTo
@@ -85,6 +90,11 @@ class Waybill extends Model
     public function upload(): BelongsTo
     {
         return $this->belongsTo(Upload::class);
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'lead_id', 'lead_id');
     }
 
     /**

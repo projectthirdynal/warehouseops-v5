@@ -17,6 +17,8 @@ class WaybillTrackingHistory extends Model
         'location',
         'raw_data',
         'tracked_at',
+        'latitude',
+        'longitude',
     ];
 
     protected $casts = [

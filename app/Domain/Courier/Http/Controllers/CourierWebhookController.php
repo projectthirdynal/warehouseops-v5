@@ -63,6 +63,12 @@ class CourierWebhookController
                 ]);
             }
 
+            // Update waybill's last-known location
+            $domainWaybill->update([
+                'last_location_description' => $payload->location,
+                'last_location_at'          => now(),
+            ]);
+
             // Fire event for SMS triggers and other listeners
             event(new TrackingStatusUpdated($waybill->fresh(), $payload));
         }
