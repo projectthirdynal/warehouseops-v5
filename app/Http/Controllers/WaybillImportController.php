@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ProcessWaybillImport;
+use App\Jobs\RetryFailedRowsJob;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
@@ -360,6 +361,8 @@ class WaybillImportController extends Controller
             'updated_rows'   => $upload->updated_rows,
             'skipped_rows'   => $upload->skipped_rows,
             'error_rows'     => $upload->error_rows,
+            'retry_status'   => $upload->retry_status,
+            'retry_count'    => $upload->retry_count,
         ]);
     }
 
@@ -420,5 +423,66 @@ class WaybillImportController extends Controller
         );
 
         return back()->with('success', 'Retry queued. Processing in the background — check the status below.');
+    }
+
+    public function retryFailedRows(Request $request, Upload $upload)
+    {
+        abort_unless($upload->type === 'waybill', 404);
+
+        if (!in_array($upload->status, [Upload::STATUS_COMPLETED_WITH_ERRORS, Upload::STATUS_FAILED])) {
+            return response()->json(['error' => 'Only completed-with-errors or failed uploads can retry failed rows.'], 422);
+        }
+
+        if ($upload->retry_status === 'processing') {
+            return response()->json(['error' => 'A retry is already in progress.'], 422);
+        }
+
+        $errors = $upload->errors ?? [];
+        $failedRowCount = count(array_filter($errors, fn ($e) => is_numeric($e['row'] ?? null)));
+
+        if ($failedRowCount === 0) {
+            return response()->json(['error' => 'No retryable row errors found. The errors may be batch-level failures.'], 422);
+        }
+
+        $path = 'uploads/waybills/' . $upload->filename;
+        if (!Storage::disk('local')->exists($path)) {
+            return response()->json(['error' => 'Original file not found. Please re-upload.'], 422);
+        }
+
+        $upload->update([
+            'retry_status' => 'queued',
+        ]);
+
+        RetryFailedRowsJob::dispatch($upload->id, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Retry queued for {$failedRowCount} failed rows.",
+        ]);
+    }
+
+    public function errorDetails(Upload $upload)
+    {
+        abort_unless($upload->type === 'waybill', 404);
+
+        $errors = $upload->errors ?? [];
+
+        if (empty($errors)) {
+            return response()->json(['errors' => [], 'retry_status' => $upload->retry_status]);
+        }
+
+        $rowErrors = array_filter($errors, fn ($e) => is_numeric($e['row'] ?? null));
+        $batchErrors = array_filter($errors, fn ($e) => !is_numeric($e['row'] ?? null));
+
+        return response()->json([
+            'errors' => array_values($errors),
+            'row_errors_count' => count($rowErrors),
+            'batch_errors_count' => count($batchErrors),
+            'retry_status' => $upload->retry_status,
+            'retry_count' => $upload->retry_count,
+            'can_retry' => in_array($upload->status, [Upload::STATUS_COMPLETED_WITH_ERRORS, Upload::STATUS_FAILED])
+                && $upload->retry_status !== 'processing'
+                && count($rowErrors) > 0,
+        ]);
     }
 }

@@ -770,6 +770,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import/{upload}/preview', [WaybillImportController::class, 'preview'])->name('import.preview');
         Route::get('/import/{upload}/errors/download', [WaybillImportController::class, 'errorsDownload'])->name('import.errors.download');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
+        Route::post('/import/{upload}/retry-failed-rows', [WaybillImportController::class, 'retryFailedRows'])->name('import.retry-failed-rows');
+        Route::get('/import/{upload}/error-details', [WaybillImportController::class, 'errorDetails'])->name('import.error-details');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
         Route::prefix('claims')->name('claims.')->group(function () {
