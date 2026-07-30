@@ -25,6 +25,7 @@ use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ReturnReceiptController;
 use App\Http\Controllers\ReturnWorkflowController;
+use App\Http\Controllers\CourierAnalyticsController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\FinanceController;
@@ -804,6 +805,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/returns/api', [ReturnWorkflowController::class, 'apiDashboard'])->name('returns.api');
         Route::post('/returns/scan', [ReturnWorkflowController::class, 'scan'])->name('returns.scan');
         Route::post('/returns/batch-scan', [ReturnWorkflowController::class, 'batchScan'])->name('returns.batch-scan');
+        Route::get('/courier-analytics', [CourierAnalyticsController::class, 'index'])->name('courier-analytics.index');
+        Route::get('/courier-analytics/api', [CourierAnalyticsController::class, 'api'])->name('courier-analytics.api');
+        Route::get('/courier-analytics/export', [CourierAnalyticsController::class, 'export'])->name('courier-analytics.export');
         Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
         Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
