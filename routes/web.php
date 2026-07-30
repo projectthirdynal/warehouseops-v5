@@ -867,6 +867,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/{provider}/sync', [CourierProviderController::class, 'syncTracking'])->name('sync');
         Route::get('/{provider}/logs', [CourierProviderController::class, 'logs'])->name('logs');
         Route::post('/create-order', [CourierProviderController::class, 'createOrder'])->name('create-order');
+        Route::get('/compare-rates', [CourierProviderController::class, 'compareRates'])->name('compare-rates');
+        Route::post('/compare-rates', [CourierProviderController::class, 'apiCompareRates'])->name('compare-rates.api');
+        Route::get('/rate-management', [CourierProviderController::class, 'rateManagement'])->name('rate-management');
+        Route::post('/rates', [CourierProviderController::class, 'storeRate'])->name('rates.store');
+        Route::patch('/rates/{rate}', [CourierProviderController::class, 'updateRate'])->name('rates.update');
+        Route::delete('/rates/{rate}', [CourierProviderController::class, 'destroyRate'])->name('rates.destroy');
     });
 
     // Sales Tracking
