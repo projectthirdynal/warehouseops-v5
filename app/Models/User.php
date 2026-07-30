@@ -109,4 +109,19 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(ReplyTemplate::class, 'reply_template_favorites')->withTimestamps();
     }
+
+    public function badges(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentBadge::class);
+    }
+
+    public function streaks(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentStreak::class);
+    }
+
+    public function milestones(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentMilestone::class);
+    }
 }

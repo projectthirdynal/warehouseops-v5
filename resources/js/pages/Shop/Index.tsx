@@ -33,6 +33,11 @@ import {
   Share2,
   LayoutGrid,
   Archive,
+  Trophy,
+  Flame,
+  Award,
+  Star,
+  Target,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -425,6 +430,10 @@ export default function ShopIndex({
   const [archiveSettings, setArchiveSettings] = useState<any>(null);
   const [archiving, setArchiving] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [gamificationStats, setGamificationStats] = useState<any>(null);
+  const [gamificationSettings, setGamificationSettings] = useState<any>(null);
+  const [gamificationLeaderboard, setGamificationLeaderboard] = useState<any[]>([]);
+  const [gamificationChecking, setGamificationChecking] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -451,6 +460,18 @@ export default function ShopIndex({
     axios
       .get('/shop/archive/settings')
       .then(({ data }) => setArchiveSettings(data))
+      .catch(() => {});
+    axios
+      .get('/shop/gamification/stats')
+      .then(({ data }) => setGamificationStats(data))
+      .catch(() => {});
+    axios
+      .get('/shop/gamification/settings')
+      .then(({ data }) => setGamificationSettings(data))
+      .catch(() => {});
+    axios
+      .get('/shop/gamification/leaderboard')
+      .then(({ data }) => setGamificationLeaderboard(data))
       .catch(() => {});
   }, []);
 
@@ -2535,6 +2556,263 @@ export default function ShopIndex({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading archive data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-muted-foreground" />
+                  Gamification
+                </CardTitle>
+                <CardDescription>
+                  Badges, streaks, and milestones for agent engagement
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {gamificationStats ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold">{gamificationStats.total_badges}</p>
+                        <p className="text-xs text-muted-foreground">Badges</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-warning">
+                          {gamificationStats.total_awarded}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Awarded</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-destructive">
+                          {gamificationStats.active_streaks}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Active Streaks</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-success">
+                          {gamificationStats.total_milestone_completions}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Milestones</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-destructive">
+                          {gamificationStats.longest_active_streak}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Longest Active Streak (days)
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-muted-foreground">
+                          {gamificationStats.longest_ever_streak}
+                        </p>
+                        <p className="text-xs text-muted-foreground">All-Time Record (days)</p>
+                      </div>
+                    </div>
+
+                    {gamificationStats.top_streaks && gamificationStats.top_streaks.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Top Streaks</p>
+                        <div className="space-y-1">
+                          {gamificationStats.top_streaks.map((streak: any, idx: number) => (
+                            <div
+                              key={streak.user_id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Flame
+                                  className={`h-4 w-4 ${
+                                    idx === 0 ? 'text-destructive' : 'text-muted-foreground'
+                                  }`}
+                                />
+                                <span>{streak.user_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary">{streak.current_streak}d</Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  best: {streak.longest_streak}d
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {gamificationStats.recent_awards &&
+                      gamificationStats.recent_awards.length > 0 && (
+                        <div>
+                          <p className="mb-2 text-sm font-medium">Recent Badge Awards</p>
+                          <div className="space-y-1">
+                            {gamificationStats.recent_awards.slice(0, 5).map((award: any) => (
+                              <div
+                                key={award.id}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Award className={`h-4 w-4 text-${award.badge_color}`} />
+                                  <span>{award.badge_name}</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {award.user_name}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {gamificationLeaderboard.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Leaderboard</p>
+                        <div className="space-y-1">
+                          {gamificationLeaderboard.slice(0, 5).map((agent: any, idx: number) => (
+                            <div
+                              key={agent.user_id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                                    idx === 0
+                                      ? 'bg-yellow-500/20 text-yellow-600'
+                                      : idx === 1
+                                        ? 'bg-gray-400/20 text-gray-500'
+                                        : idx === 2
+                                          ? 'bg-orange-700/20 text-orange-700'
+                                          : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  {idx + 1}
+                                </span>
+                                <span>{agent.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">
+                                  <Star className="mr-1 h-3 w-3" />
+                                  {agent.badge_count}
+                                </Badge>
+                                {agent.current_streak > 0 && (
+                                  <Badge variant="secondary">
+                                    <Flame className="mr-1 h-3 w-3" />
+                                    {agent.current_streak}d
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {gamificationSettings && (
+                      <div className="space-y-2 border-t pt-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="gamification-enabled" className="text-sm">
+                            Gamification Enabled
+                          </Label>
+                          <Switch
+                            id="gamification-enabled"
+                            checked={gamificationSettings.gamification_enabled === 'true'}
+                            onCheckedChange={(checked) => {
+                              axios
+                                .patch('/shop/gamification/settings', {
+                                  gamification_enabled: checked,
+                                })
+                                .then(({ data }) => setGamificationSettings(data))
+                                .catch(() => toast.error('Failed to update setting'));
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="auto-award-badges" className="text-sm">
+                            Auto-Award Badges
+                          </Label>
+                          <Switch
+                            id="auto-award-badges"
+                            checked={gamificationSettings.auto_award_badges === 'true'}
+                            onCheckedChange={(checked) => {
+                              axios
+                                .patch('/shop/gamification/settings', {
+                                  auto_award_badges: checked,
+                                })
+                                .then(({ data }) => setGamificationSettings(data))
+                                .catch(() => toast.error('Failed to update setting'));
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="auto-track-streaks" className="text-sm">
+                            Auto-Track Streaks
+                          </Label>
+                          <Switch
+                            id="auto-track-streaks"
+                            checked={gamificationSettings.auto_track_streaks === 'true'}
+                            onCheckedChange={(checked) => {
+                              axios
+                                .patch('/shop/gamification/settings', {
+                                  auto_track_streaks: checked,
+                                })
+                                .then(({ data }) => setGamificationSettings(data))
+                                .catch(() => toast.error('Failed to update setting'));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={gamificationChecking}
+                        onClick={() => {
+                          setGamificationChecking(true);
+                          axios
+                            .post('/shop/gamification/bulk-check')
+                            .then(({ data }) => {
+                              toast.success(data.message);
+                              axios
+                                .get('/shop/gamification/stats')
+                                .then(({ data }) => setGamificationStats(data));
+                              axios
+                                .get('/shop/gamification/leaderboard')
+                                .then(({ data }) => setGamificationLeaderboard(data));
+                            })
+                            .catch(() => toast.error('Gamification check failed'))
+                            .finally(() => setGamificationChecking(false));
+                        }}
+                      >
+                        <Target className="mr-2 h-3 w-3" />
+                        {gamificationChecking ? 'Checking...' : 'Check & Award All'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          axios
+                            .post('/shop/gamification/seed-defaults')
+                            .then(({ data }) => {
+                              toast.success(data.message);
+                              axios
+                                .get('/shop/gamification/stats')
+                                .then(({ data }) => setGamificationStats(data));
+                            })
+                            .catch(() => toast.error('Failed to seed defaults'));
+                        }}
+                      >
+                        <Award className="mr-2 h-3 w-3" />
+                        Seed Defaults
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading gamification data...</p>
                 )}
               </CardContent>
             </Card>

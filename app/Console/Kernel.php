@@ -41,6 +41,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('shop:apply-status-rules')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:send-order-followups')->dailyAt('09:00')->withoutOverlapping()->onOneServer();
         $schedule->command('shop:archive-stale-conversations')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
+        $schedule->command('shop:check-gamification')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
         $schedule->command('sales-dashboard:generate-scheduled-reports')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min

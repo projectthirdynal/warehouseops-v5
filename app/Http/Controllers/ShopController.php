@@ -50,6 +50,7 @@ use App\Domain\Shop\Services\ShopReportsEnhancementService;
 use App\Domain\Shop\Services\CartTemplateSharingService;
 use App\Domain\Shop\Services\RichMediaTemplateService;
 use App\Domain\Shop\Services\ConversationArchiveService;
+use App\Domain\Shop\Services\GamificationService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -117,6 +118,7 @@ class ShopController extends Controller
         private readonly CartTemplateSharingService $cartTemplateSharingService,
         private readonly RichMediaTemplateService $richMediaTemplateService,
         private readonly ConversationArchiveService $archiveService,
+        private readonly GamificationService $gamificationService,
     ) {}
 
     public function index(): Response
@@ -8762,6 +8764,71 @@ class ShopController extends Controller
     public function restoreConversation(Conversation $conversation): JsonResponse
     {
         return response()->json($this->archiveService->restore($conversation));
+    }
+
+    public function gamificationStats(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getStats());
+    }
+
+    public function gamificationLeaderboard(): JsonResponse
+    {
+        $limit = (int) request()->input('limit', 10);
+
+        return response()->json($this->gamificationService->getLeaderboard($limit));
+    }
+
+    public function gamificationAgentProfile(int $userId): JsonResponse
+    {
+        return response()->json($this->gamificationService->getAgentProfile($userId));
+    }
+
+    public function gamificationBadges(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getBadges());
+    }
+
+    public function gamificationMilestones(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getMilestones());
+    }
+
+    public function gamificationSettings(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getSettings());
+    }
+
+    public function updateGamificationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'gamification_enabled' => ['nullable', 'boolean'],
+            'auto_award_badges' => ['nullable', 'boolean'],
+            'auto_track_streaks' => ['nullable', 'boolean'],
+            'streak_grace_period_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
+            'leaderboard_size' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return response()->json($this->gamificationService->updateSettings($validated));
+    }
+
+    public function gamificationBulkCheck(): JsonResponse
+    {
+        return response()->json($this->gamificationService->bulkCheckAndAward());
+    }
+
+    public function gamificationTrackStreak(): JsonResponse
+    {
+        $userId = (int) request()->input('user_id', auth()->id());
+        $streakType = (string) request()->input('streak_type', 'daily_activity');
+
+        return response()->json($this->gamificationService->trackStreak($userId, $streakType));
+    }
+
+    public function gamificationSeedDefaults(): JsonResponse
+    {
+        $this->gamificationService->seedDefaults();
+
+        return response()->json(['message' => 'Default badges and milestones seeded successfully']);
     }
 
 }

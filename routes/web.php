@@ -515,6 +515,19 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/archive/{conversation}/archive', [ShopController::class, 'archiveConversation'])->name('shop.archive.conversation.archive');
     Route::post('/shop/archive/{conversation}/compress', [ShopController::class, 'compressConversation'])->name('shop.archive.conversation.compress');
     Route::post('/shop/archive/{conversation}/restore', [ShopController::class, 'restoreConversation'])->name('shop.archive.conversation.restore');
+
+    // Gamification
+    Route::get('/shop/gamification/stats', [ShopController::class, 'gamificationStats'])->name('shop.gamification.stats');
+    Route::get('/shop/gamification/leaderboard', [ShopController::class, 'gamificationLeaderboard'])->name('shop.gamification.leaderboard');
+    Route::get('/shop/gamification/agent/{userId}', [ShopController::class, 'gamificationAgentProfile'])->name('shop.gamification.agent');
+    Route::get('/shop/gamification/badges', [ShopController::class, 'gamificationBadges'])->name('shop.gamification.badges');
+    Route::get('/shop/gamification/milestones', [ShopController::class, 'gamificationMilestones'])->name('shop.gamification.milestones');
+    Route::get('/shop/gamification/settings', [ShopController::class, 'gamificationSettings'])->name('shop.gamification.settings');
+    Route::patch('/shop/gamification/settings', [ShopController::class, 'updateGamificationSettings'])->name('shop.gamification.settings.update');
+    Route::post('/shop/gamification/bulk-check', [ShopController::class, 'gamificationBulkCheck'])->name('shop.gamification.bulk-check');
+    Route::post('/shop/gamification/track-streak', [ShopController::class, 'gamificationTrackStreak'])->name('shop.gamification.track-streak');
+    Route::post('/shop/gamification/seed-defaults', [ShopController::class, 'gamificationSeedDefaults'])->name('shop.gamification.seed-defaults');
+
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
     Route::get('/shop/inbox/{conversation}/poll', [ShopController::class, 'pollMessages'])->name('shop.conversation.poll');
