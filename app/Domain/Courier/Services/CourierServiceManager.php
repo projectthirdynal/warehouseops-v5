@@ -19,6 +19,7 @@ class CourierServiceManager
         return match ($normalized) {
             'FLASH'       => app(FlashExpressService::class),
             'JNT', 'JT'  => app(JntExpressService::class),
+            'MOCK'        => app(MockCourierService::class),
             default       => throw new \InvalidArgumentException("Unknown courier: {$code}"),
         };
     }
