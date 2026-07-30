@@ -24,6 +24,7 @@ use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ReturnReceiptController;
+use App\Http\Controllers\ReturnWorkflowController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\FinanceController;
@@ -789,7 +790,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
             Route::post('/auto-create/bulk', [ClaimController::class, 'bulkAutoCreate'])->name('auto-create.bulk');
             Route::patch('/auto-create/toggle', [ClaimController::class, 'toggleAutoCreate'])->name('auto-create.toggle');
         });
-        Route::post('/returns/scan', [ReturnReceiptController::class, 'store'])->name('returns.scan');
+        Route::post('/returns/legacy-scan', [ReturnReceiptController::class, 'store'])->name('returns.legacy-scan');
         Route::get('/batch-dispatch', [WaybillController::class, 'batchDispatchPage'])->name('batch-dispatch');
         Route::post('/batch-dispatch', [WaybillController::class, 'batchDispatch'])->name('batch-dispatch.store');
         Route::get('/batch-dispatch/stats', [WaybillController::class, 'batchDispatchStats'])->name('batch-dispatch.stats');
@@ -799,6 +800,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/geo-map', [WaybillController::class, 'geoMap'])->name('geo-map');
         Route::get('/geo-map/api', [WaybillController::class, 'apiGeoMap'])->name('geo-map.api');
         Route::get('/geo-map/{waybill}/history', [WaybillController::class, 'geoMapHistory'])->name('geo-map.history');
+        Route::get('/returns', [ReturnWorkflowController::class, 'index'])->name('returns.index');
+        Route::get('/returns/api', [ReturnWorkflowController::class, 'apiDashboard'])->name('returns.api');
+        Route::post('/returns/scan', [ReturnWorkflowController::class, 'scan'])->name('returns.scan');
+        Route::post('/returns/batch-scan', [ReturnWorkflowController::class, 'batchScan'])->name('returns.batch-scan');
         Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
         Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
