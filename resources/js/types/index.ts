@@ -69,6 +69,8 @@ export interface Claim {
   waybill?: Waybill;
   type: ClaimType;
   status: ClaimStatus;
+  auto_created: boolean;
+  source: string;
   description: string | null;
   claim_amount: number;
   approved_amount: number | null;

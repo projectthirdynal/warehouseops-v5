@@ -785,6 +785,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
             Route::post('/{claim}/approve', [ClaimController::class, 'approve'])->name('approve');
             Route::post('/{claim}/reject', [ClaimController::class, 'reject'])->name('reject');
             Route::post('/{claim}/settle', [ClaimController::class, 'settle'])->name('settle');
+            Route::get('/auto-create/stats', [ClaimController::class, 'autoCreateStats'])->name('auto-create.stats');
+            Route::post('/auto-create/bulk', [ClaimController::class, 'bulkAutoCreate'])->name('auto-create.bulk');
+            Route::patch('/auto-create/toggle', [ClaimController::class, 'toggleAutoCreate'])->name('auto-create.toggle');
         });
         Route::post('/returns/scan', [ReturnReceiptController::class, 'store'])->name('returns.scan');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');

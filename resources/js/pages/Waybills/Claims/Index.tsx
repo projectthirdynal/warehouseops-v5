@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
+import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,11 +35,24 @@ import {
   Plus,
   Download,
   ChevronDown,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { usePersistedDateRange } from '@/hooks/use-persisted-date-range';
 import type { Claim, ClaimStatus, ClaimType, PaginatedResponse } from '@/types';
+
+interface AutoCreateStats {
+  auto_created: number;
+  auto_draft: number;
+  auto_filed: number;
+  auto_resolved: number;
+  auto_rejected: number;
+  pending_returned: number;
+  auto_create_enabled: boolean;
+  total_claim_amount: number;
+}
 
 interface Props {
   claims: PaginatedResponse<Claim>;
@@ -47,6 +62,12 @@ interface Props {
     pending_review: number;
     approved: number;
     rejected: number;
+    auto_created: number;
+    auto_draft: number;
+    auto_filed: number;
+    auto_resolved: number;
+    pending_returned: number;
+    auto_create_enabled: boolean;
   };
   filters: {
     status?: string;
@@ -90,6 +111,20 @@ const TYPE_COLORS: Record<ClaimType, string> = {
 export default function ClaimsIndex({ claims, stats, filters }: Props) {
   const [search, setSearch] = useState(filters.search ?? '');
   const dateRange = usePersistedDateRange('claims-index-range', filters.from, filters.to);
+  const [autoCreateStats, setAutoCreateStats] = useState<AutoCreateStats | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [togglingAuto, setTogglingAuto] = useState(false);
+
+  const fetchAutoCreateStats = useCallback(() => {
+    axios
+      .get('/waybills/claims/auto-create/stats')
+      .then(({ data }) => setAutoCreateStats(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchAutoCreateStats();
+  }, [fetchAutoCreateStats]);
 
   function applyFilters(overrides: Record<string, string>) {
     router.get(
@@ -102,6 +137,32 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     applyFilters({ search, page: '1' });
+  }
+
+  function handleBulkAutoCreate() {
+    setBulkLoading(true);
+    axios
+      .post('/waybills/claims/auto-create/bulk', { days: 30 })
+      .then(({ data }) => {
+        toast.success(data.message);
+        fetchAutoCreateStats();
+        router.reload({ only: ['claims', 'stats'] });
+      })
+      .catch(() => toast.error('Failed to bulk create claims'))
+      .finally(() => setBulkLoading(false));
+  }
+
+  function handleToggleAutoCreate() {
+    setTogglingAuto(true);
+    const newEnabled = !stats.auto_create_enabled;
+    axios
+      .patch('/waybills/claims/auto-create/toggle', { enabled: newEnabled })
+      .then(() => {
+        toast.success(`Auto-create ${newEnabled ? 'enabled' : 'disabled'}`);
+        router.reload({ only: ['stats'] });
+      })
+      .catch(() => toast.error('Failed to toggle auto-create'))
+      .finally(() => setTogglingAuto(false));
   }
 
   function exportUrl(format: string) {
@@ -257,6 +318,98 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
           </Card>
         </div>
 
+        {/* Auto-Create Stats */}
+        {autoCreateStats && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Claim Auto-Creation
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={stats.auto_create_enabled ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={handleToggleAutoCreate}
+                  disabled={togglingAuto}
+                >
+                  {stats.auto_create_enabled ? 'Auto-Create ON' : 'Auto-Create OFF'}
+                </Button>
+                {autoCreateStats.pending_returned > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleBulkAutoCreate}
+                    disabled={bulkLoading}
+                  >
+                    {bulkLoading ? (
+                      <>
+                        <Zap className="h-4 w-4 mr-1 animate-pulse" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-1" />
+                        Bulk Create ({autoCreateStats.pending_returned} pending)
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Auto-Created
+                  </p>
+                  <p className="text-lg font-bold font-display">{autoCreateStats.auto_created}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Auto Drafts
+                  </p>
+                  <p className="text-lg font-bold font-display text-muted-foreground">
+                    {autoCreateStats.auto_draft}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Auto Filed
+                  </p>
+                  <p className="text-lg font-bold font-display text-info">
+                    {autoCreateStats.auto_filed}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Auto Resolved
+                  </p>
+                  <p className="text-lg font-bold font-display text-success">
+                    {autoCreateStats.auto_resolved}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Pending Returned
+                  </p>
+                  <p className="text-lg font-bold font-display text-warning">
+                    {autoCreateStats.pending_returned}
+                  </p>
+                </div>
+              </div>
+              {autoCreateStats.total_claim_amount > 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Total auto-created claim amount: ₱
+                  {Number(autoCreateStats.total_claim_amount).toLocaleString('en-PH', {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -330,12 +483,20 @@ export default function ClaimsIndex({ claims, stats, filters }: Props) {
                 claims.data.map((claim) => (
                   <TableRow key={claim.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell>
-                      <Link
-                        href={`/waybills/claims/${claim.id}`}
-                        className="font-mono text-sm font-medium text-primary hover:underline"
-                      >
-                        {claim.claim_number}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/waybills/claims/${claim.id}`}
+                          className="font-mono text-sm font-medium text-primary hover:underline"
+                        >
+                          {claim.claim_number}
+                        </Link>
+                        {claim.auto_created && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                            <Sparkles className="h-3 w-3" />
+                            Auto
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Link

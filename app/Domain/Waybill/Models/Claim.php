@@ -20,6 +20,8 @@ class Claim extends Model
         'waybill_id',
         'type',
         'status',
+        'auto_created',
+        'source',
         'description',
         'claim_amount',
         'approved_amount',
@@ -35,6 +37,7 @@ class Claim extends Model
     protected $casts = [
         'type'            => ClaimType::class,
         'status'          => ClaimStatus::class,
+        'auto_created'    => 'boolean',
         'claim_amount'    => 'decimal:2',
         'approved_amount' => 'decimal:2',
         'filed_at'        => 'datetime',
