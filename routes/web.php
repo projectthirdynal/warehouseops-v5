@@ -506,6 +506,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/page-canned-responses', [ShopController::class, 'storePageCannedResponse'])->name('shop.page-canned-responses.store');
     Route::delete('/shop/inbox/page-canned-responses', [ShopController::class, 'destroyPageCannedResponse'])->name('shop.page-canned-responses.destroy');
     Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
+    // Archive Compression
+    Route::get('/shop/archive/stats', [ShopController::class, 'archiveStats'])->name('shop.archive.stats');
+    Route::get('/shop/archive/settings', [ShopController::class, 'archiveSettings'])->name('shop.archive.settings');
+    Route::patch('/shop/archive/settings', [ShopController::class, 'updateArchiveSettings'])->name('shop.archive.settings.update');
+    Route::post('/shop/archive/bulk-archive', [ShopController::class, 'bulkArchiveConversations'])->name('shop.archive.bulk-archive');
+    Route::post('/shop/archive/bulk-compress', [ShopController::class, 'bulkCompressConversations'])->name('shop.archive.bulk-compress');
+    Route::post('/shop/archive/{conversation}/archive', [ShopController::class, 'archiveConversation'])->name('shop.archive.conversation.archive');
+    Route::post('/shop/archive/{conversation}/compress', [ShopController::class, 'compressConversation'])->name('shop.archive.conversation.compress');
+    Route::post('/shop/archive/{conversation}/restore', [ShopController::class, 'restoreConversation'])->name('shop.archive.conversation.restore');
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
     Route::get('/shop/inbox/{conversation}/poll', [ShopController::class, 'pollMessages'])->name('shop.conversation.poll');

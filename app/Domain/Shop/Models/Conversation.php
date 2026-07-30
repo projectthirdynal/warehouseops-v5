@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Models;
 
 use App\Models\Customer;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -90,6 +91,9 @@ class Conversation extends Model
         'merged_into_id',
         'first_response_at',
         'resolved_at',
+        'archived_at',
+        'compressed_at',
+        'message_count',
         'first_response_time_seconds',
         'resolution_time_seconds',
         'sentiment',
@@ -111,6 +115,8 @@ class Conversation extends Model
         'reminder_at' => 'datetime',
         'first_response_at' => 'datetime',
         'resolved_at' => 'datetime',
+        'archived_at' => 'datetime',
+        'compressed_at' => 'datetime',
         'sentiment_score' => 'float',
         'is_flagged' => 'boolean',
         'metadata' => 'array',
@@ -190,5 +196,22 @@ class Conversation extends Model
     public function statusHistories(): HasMany
     {
         return $this->hasMany(ConversationStatusHistory::class)->latest();
+    }
+
+    public function scopeArchivable(Builder $query, int $days = 90): Builder
+    {
+        return $query->whereIn('status', [self::STATUS_RESOLVED, self::STATUS_ARCHIVED])
+            ->whereNull('archived_at')
+            ->where('updated_at', '<', now()->subDays($days));
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    public function scopeCompressed(Builder $query): Builder
+    {
+        return $query->whereNotNull('compressed_at');
     }
 }

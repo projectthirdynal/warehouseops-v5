@@ -32,6 +32,7 @@ import {
   Sparkles,
   Share2,
   LayoutGrid,
+  Archive,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -420,6 +421,10 @@ export default function ShopIndex({
   const [recProductInput, setRecProductInput] = useState('');
   const [cartTemplateStats, setCartTemplateStats] = useState<CartTemplateStats | null>(null);
   const [richMediaStats, setRichMediaStats] = useState<any>(null);
+  const [archiveStats, setArchiveStats] = useState<any>(null);
+  const [archiveSettings, setArchiveSettings] = useState<any>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [compressing, setCompressing] = useState(false);
 
   useEffect(() => {
     axios.get('/shop/auto-assign/settings').then(({ data }) => setAssignSettings(data));
@@ -438,6 +443,14 @@ export default function ShopIndex({
     axios
       .get('/shop/rich-media-templates/stats')
       .then(({ data }) => setRichMediaStats(data))
+      .catch(() => {});
+    axios
+      .get('/shop/archive/stats')
+      .then(({ data }) => setArchiveStats(data))
+      .catch(() => {});
+    axios
+      .get('/shop/archive/settings')
+      .then(({ data }) => setArchiveSettings(data))
       .catch(() => {});
   }, []);
 
@@ -2328,6 +2341,200 @@ export default function ShopIndex({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Loading rich media data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Archive className="h-5 w-5 text-muted-foreground" />
+                  Archive Compression
+                </CardTitle>
+                <CardDescription>Cold storage for conversations older than 90 days</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {archiveStats ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold">{archiveStats.total_conversations}</p>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-warning">
+                          {archiveStats.archivable_count}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Archivable</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-info">
+                          {archiveStats.archived_count}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Archived</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-2xl font-bold text-success">
+                          {archiveStats.compressed_count}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Compressed</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Messages in Archived</p>
+                        <p className="text-lg font-semibold">
+                          {archiveStats.total_messages_in_archived?.toLocaleString() ?? 0}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Compressible</p>
+                        <p className="text-lg font-semibold">{archiveStats.compressible_count}</p>
+                      </div>
+                    </div>
+
+                    {archiveStats.recent_archives && archiveStats.recent_archives.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Recent Archives</p>
+                        <div className="space-y-1">
+                          {archiveStats.recent_archives.slice(0, 5).map((item: any) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  #{item.id}
+                                </Badge>
+                                <span className="truncate">{item.customer_name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {item.page_name}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {item.message_count} msgs
+                                </span>
+                                {item.is_compressed ? (
+                                  <Badge variant="success" className="text-xs">
+                                    Compressed
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Archived
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {archiveSettings && (
+                      <div className="space-y-3 rounded-lg border p-3">
+                        <p className="text-sm font-medium">Settings</p>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Auto-archive enabled</Label>
+                          <Switch
+                            checked={archiveSettings.auto_archive_enabled}
+                            onCheckedChange={(checked) => {
+                              const updated = {
+                                ...archiveSettings,
+                                auto_archive_enabled: checked,
+                              };
+                              setArchiveSettings(updated);
+                              axios
+                                .patch('/shop/archive/settings', { auto_archive_enabled: checked })
+                                .then(() => toast.success('Archive setting updated'))
+                                .catch(() => toast.error('Failed to update setting'));
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Auto-compress enabled</Label>
+                          <Switch
+                            checked={archiveSettings.auto_compress_enabled}
+                            onCheckedChange={(checked) => {
+                              const updated = {
+                                ...archiveSettings,
+                                auto_compress_enabled: checked,
+                              };
+                              setArchiveSettings(updated);
+                              axios
+                                .patch('/shop/archive/settings', { auto_compress_enabled: checked })
+                                .then(() => toast.success('Compress setting updated'))
+                                .catch(() => toast.error('Failed to update setting'));
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Archive after (days)</Label>
+                          <span className="text-sm font-medium">
+                            {archiveSettings.archive_after_days}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Compress after (days)</Label>
+                          <span className="text-sm font-medium">
+                            {archiveSettings.compress_after_days}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        disabled={archiving || archiveStats.archivable_count === 0}
+                        onClick={() => {
+                          setArchiving(true);
+                          axios
+                            .post('/shop/archive/bulk-archive')
+                            .then(({ data }) => {
+                              toast.success(data.message);
+                              axios
+                                .get('/shop/archive/stats')
+                                .then(({ data }) => setArchiveStats(data));
+                            })
+                            .catch(() => toast.error('Bulk archive failed'))
+                            .finally(() => setArchiving(false));
+                        }}
+                      >
+                        <Archive className="mr-2 h-3 w-3" />
+                        {archiving ? 'Archiving...' : `Archive (${archiveStats.archivable_count})`}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        disabled={compressing || archiveStats.compressible_count === 0}
+                        onClick={() => {
+                          setCompressing(true);
+                          axios
+                            .post('/shop/archive/bulk-compress')
+                            .then(({ data }) => {
+                              toast.success(data.message);
+                              axios
+                                .get('/shop/archive/stats')
+                                .then(({ data }) => setArchiveStats(data));
+                            })
+                            .catch(() => toast.error('Bulk compress failed'))
+                            .finally(() => setCompressing(false));
+                        }}
+                      >
+                        <Archive className="mr-2 h-3 w-3" />
+                        {compressing
+                          ? 'Compressing...'
+                          : `Compress (${archiveStats.compressible_count})`}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading archive data...</p>
                 )}
               </CardContent>
             </Card>

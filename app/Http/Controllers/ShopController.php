@@ -49,6 +49,7 @@ use App\Domain\Shop\Services\ConversationMergePreviewService;
 use App\Domain\Shop\Services\ShopReportsEnhancementService;
 use App\Domain\Shop\Services\CartTemplateSharingService;
 use App\Domain\Shop\Services\RichMediaTemplateService;
+use App\Domain\Shop\Services\ConversationArchiveService;
 use App\Domain\Shop\Services\ShippingRateService;
 use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
@@ -115,6 +116,7 @@ class ShopController extends Controller
         private readonly ShopReportsEnhancementService $reportsEnhancementService,
         private readonly CartTemplateSharingService $cartTemplateSharingService,
         private readonly RichMediaTemplateService $richMediaTemplateService,
+        private readonly ConversationArchiveService $archiveService,
     ) {}
 
     public function index(): Response
@@ -8706,6 +8708,60 @@ class ShopController extends Controller
         $remark->delete();
 
         return back()->with('success', 'Remark deleted.');
+    }
+
+    public function archiveStats(): JsonResponse
+    {
+        return response()->json($this->archiveService->getStats());
+    }
+
+    public function archiveSettings(): JsonResponse
+    {
+        return response()->json($this->archiveService->getSettings());
+    }
+
+    public function updateArchiveSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'archive_after_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'compress_after_days' => ['nullable', 'integer', 'min:1', 'max:730'],
+            'auto_archive_enabled' => ['nullable', 'boolean'],
+            'auto_compress_enabled' => ['nullable', 'boolean'],
+            'archive_batch_size' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        return response()->json($this->archiveService->updateSettings($validated));
+    }
+
+    public function bulkArchiveConversations(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 50);
+        $result = $this->archiveService->bulkArchive($limit);
+
+        return response()->json($result);
+    }
+
+    public function bulkCompressConversations(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 50);
+        $result = $this->archiveService->bulkCompress($limit);
+
+        return response()->json($result);
+    }
+
+    public function archiveConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->archive($conversation));
+    }
+
+    public function compressConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->compress($conversation));
+    }
+
+    public function restoreConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->restore($conversation));
     }
 
 }
