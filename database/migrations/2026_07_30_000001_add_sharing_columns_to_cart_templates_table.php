@@ -11,11 +11,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('cart_templates', function (Blueprint $table) {
-            $table->json('allowed_roles')->nullable()->after('is_shared');
-            $table->foreignId('cloned_from')->nullable()->constrained('cart_templates', 'id')->nullOnDelete()->after('allowed_roles');
-            $table->timestamp('last_used_at')->nullable()->after('cloned_from');
-            $table->index(['is_shared', 'allowed_roles']);
+            if (! Schema::hasColumn('cart_templates', 'allowed_roles')) {
+                $table->json('allowed_roles')->nullable()->after('is_shared');
+            }
+            if (! Schema::hasColumn('cart_templates', 'cloned_from')) {
+                $table->foreignId('cloned_from')->nullable()->constrained('cart_templates', 'id')->nullOnDelete()->after('allowed_roles');
+            }
+            if (! Schema::hasColumn('cart_templates', 'last_used_at')) {
+                $table->timestamp('last_used_at')->nullable()->after('cloned_from');
+            }
         });
+
+        // Add index only if columns exist
+        if (Schema::hasColumn('cart_templates', 'allowed_roles')) {
+            try {
+                Schema::table('cart_templates', function (Blueprint $table) {
+                    $table->index(['is_shared', 'allowed_roles']);
+                });
+            } catch (\Exception $e) {
+                // Index already exists — ignore
+            }
+        }
     }
 
     public function down(): void

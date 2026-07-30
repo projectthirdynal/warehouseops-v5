@@ -347,7 +347,7 @@ class ProductRecommendationService
     {
         $pairs = DB::table('shop_order_items as a')
             ->join('shop_order_items as b', 'a.order_id', '=', 'b.order_id')
-            ->where('a.product_id', '<', 'b.product_id')
+            ->whereColumn('a.product_id', '<', 'b.product_id')
             ->select('a.product_id as pid_a', 'b.product_id as pid_b', DB::raw('COUNT(*) as co_occurrence'))
             ->groupBy('a.product_id', 'b.product_id')
             ->orderByDesc('co_occurrence')
