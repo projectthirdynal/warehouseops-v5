@@ -15,6 +15,8 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
+use App\Domain\Shop\Services\AutoAssignmentService;
+
 class MetaConversationIngestor
 {
     public function __construct(
@@ -127,10 +129,33 @@ class MetaConversationIngestor
                     ->toArray();
 
                 $sentiment = $this->sentimentAnalyzer->analyze(implode(' ', $recentMessages));
-                $conversation->forceFill([
+
+                $updateData = [
                     'sentiment' => $sentiment['sentiment'],
                     'sentiment_score' => $sentiment['score'],
-                ])->save();
+                ];
+
+                // Auto-flag if negative sentiment meets threshold and not already flagged
+                if ($this->sentimentAnalyzer->shouldFlag($sentiment) && ! $conversation->is_flagged) {
+                    $flaggedWords = $sentiment['flagged_words'] ?? [];
+                    $reason = 'Negative sentiment detected';
+                    if (! empty($flaggedWords)) {
+                        $reason .= ' (keywords: ' . implode(', ', array_slice($flaggedWords, 0, 5)) . ')';
+                    }
+
+                    $updateData['is_flagged'] = true;
+                    $updateData['flag_reason'] = $reason;
+                    $updateData['flagged_at'] = now();
+                }
+
+                // Auto-unflag if sentiment improves and was auto-flagged
+                if ($sentiment['sentiment'] !== 'negative' && $conversation->is_flagged && str_starts_with($conversation->flag_reason ?? '', 'Negative sentiment detected')) {
+                    $updateData['is_flagged'] = false;
+                    $updateData['flag_reason'] = null;
+                    $updateData['flagged_at'] = null;
+                }
+
+                $conversation->forceFill($updateData)->save();
             }
 
             $webhookEvent->forceFill([
@@ -354,195 +379,6 @@ class MetaConversationIngestor
 
     private function applyAssignmentRules(Conversation $conversation): void
     {
-        // 1. Check for a page-specific assignment rule first
-        $rule = PageAssignmentRule::query()
-            ->where('facebook_page_id', $conversation->facebook_page_id)
-            ->where('is_active', true)
-            ->latest('id')
-            ->first();
-
-        if ($rule !== null) {
-            $conversation->forceFill([
-                'assigned_agent_id' => $rule->user_id,
-                'status' => Conversation::STATUS_ASSIGNED,
-            ])->save();
-
-            ConversationAssignmentHistory::create([
-                'conversation_id' => $conversation->id,
-                'from_agent_id' => null,
-                'to_agent_id' => $rule->user_id,
-                'assigned_by_id' => null,
-                'reason' => 'page_rule',
-            ]);
-
-            return;
-        }
-
-        // 2. Fall back to round-robin auto-assignment
-        $this->roundRobinAssign($conversation);
-    }
-
-    private function roundRobinAssign(Conversation $conversation): void
-    {
-        $activeStatuses = Conversation::ACTIVE_STATUSES;
-
-        $agents = User::query()
-            ->where('users.is_active', true)
-            ->whereIn('users.role', ['agent', 'supervisor'])
-            ->join('agent_profiles', 'agent_profiles.user_id', '=', 'users.id')
-            ->where('agent_profiles.auto_assign_enabled', true)
-            ->where('agent_profiles.is_available', true)
-            ->leftJoin('conversations', function ($join) use ($activeStatuses) {
-                $join->on('conversations.assigned_agent_id', '=', 'users.id')
-                    ->whereIn('conversations.status', $activeStatuses)
-                    ->whereNull('conversations.merged_into_id');
-            })
-            ->groupBy(
-                'users.id',
-                'users.name',
-                'agent_profiles.last_assignment_at',
-                'agent_profiles.product_skills',
-                'agent_profiles.regions',
-                'agent_profiles.category_skills',
-                'agent_profiles.max_active_conversations',
-                'agent_profiles.overflow_enabled',
-                'agent_profiles.shift_start',
-                'agent_profiles.shift_end',
-            )
-            ->selectRaw(
-                'users.id, users.name, agent_profiles.last_assignment_at, '
-                . 'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
-                . 'agent_profiles.max_active_conversations, agent_profiles.overflow_enabled, '
-                . 'agent_profiles.shift_start, agent_profiles.shift_end, '
-                . 'COUNT(conversations.id) as active_count'
-            )
-            ->get();
-
-        if ($agents->isEmpty()) {
-            return;
-        }
-
-        $pageCategory = $conversation->facebookPage?->category;
-        $customerRegion = $conversation->customer?->region
-            ?? $conversation->customer?->province
-            ?? $conversation->customer?->city_municipality
-            ?? null;
-        $messageBody = $conversation->last_message_preview ?? '';
-
-        $scored = $agents->map(function ($agent) use ($pageCategory, $customerRegion, $messageBody) {
-            $score = 0;
-
-            $categorySkills = $agent->category_skills ?? [];
-            $regions = $agent->regions ?? [];
-            $productSkills = $agent->product_skills ?? [];
-
-            // Category match (page category → agent category_skills)
-            if ($pageCategory && ! empty($categorySkills)) {
-                $pageCatUpper = strtoupper($pageCategory);
-                foreach ($categorySkills as $skill) {
-                    if (str_contains($pageCatUpper, strtoupper($skill))) {
-                        $score += 3;
-                        break;
-                    }
-                }
-            }
-
-            // Region match (customer region → agent regions)
-            if ($customerRegion && ! empty($regions)) {
-                $custRegionUpper = strtoupper($customerRegion);
-                foreach ($regions as $region) {
-                    if (str_contains($custRegionUpper, strtoupper($region))) {
-                        $score += 2;
-                        break;
-                    }
-                }
-            }
-
-            // Product keyword match (message body → agent product_skills)
-            if ($messageBody !== '' && ! empty($productSkills)) {
-                $bodyUpper = strtoupper($messageBody);
-                foreach ($productSkills as $skill) {
-                    if (str_contains($bodyUpper, strtoupper($skill))) {
-                        $score += 2;
-                        break;
-                    }
-                }
-            }
-
-            return [
-                'id' => $agent->id,
-                'name' => $agent->name,
-                'last_assignment_at' => $agent->last_assignment_at,
-                'active_count' => (int) $agent->active_count,
-                'skill_score' => $score,
-                'max_active_conversations' => (int) ($agent->max_active_conversations ?? 15),
-                'overflow_enabled' => (bool) ($agent->overflow_enabled ?? true),
-                'shift_start' => $agent->shift_start,
-                'shift_end' => $agent->shift_end,
-            ];
-        });
-
-        // Filter out agents outside their shift hours (null shift = always available)
-        $nowTime = now()->format('H:i');
-        $inShift = $scored->filter(function ($agent) use ($nowTime) {
-            $start = $agent['shift_start'];
-            $end = $agent['shift_end'];
-            if (! $start || ! $end) {
-                return true; // No shift defined = always available
-            }
-            $startTime = \Carbon\Carbon::parse($start)->format('H:i');
-            $endTime = \Carbon\Carbon::parse($end)->format('H:i');
-            if ($endTime < $startTime) {
-                // Overnight shift (e.g. 22:00 - 06:00)
-                return $nowTime >= $startTime || $nowTime < $endTime;
-            }
-            return $nowTime >= $startTime && $nowTime < $endTime;
-        });
-
-        // If all agents are outside shift, fall back to all agents (don't leave unassigned)
-        $shiftPool = $inShift->isNotEmpty() ? $inShift : $scored;
-
-        // Filter out agents who have hit their queue limit (unless overflow is enabled)
-        $available = $shiftPool->filter(function ($agent) {
-            $atLimit = $agent['active_count'] >= $agent['max_active_conversations'];
-            if ($atLimit && ! $agent['overflow_enabled']) {
-                return false;
-            }
-            return true;
-        });
-
-        // If all agents are at limit and none allow overflow, fall back to all agents
-        // (assign to the least-loaded one rather than leaving unassigned)
-        if ($available->isEmpty()) {
-            $available = $shiftPool;
-        }
-
-        // Sort by: highest skill score first, then never-assigned first,
-        // then oldest last_assignment_at, then fewest active conversations
-        $best = $available
-            ->sortByDesc('skill_score')
-            ->sortBy(fn ($a) => $a['last_assignment_at'] === null ? 0 : 1)
-            ->sortBy('last_assignment_at')
-            ->sortBy('active_count')
-            ->first();
-
-        if ($best !== null) {
-            $conversation->forceFill([
-                'assigned_agent_id' => $best['id'],
-                'status' => Conversation::STATUS_ASSIGNED,
-            ])->save();
-
-            ConversationAssignmentHistory::create([
-                'conversation_id' => $conversation->id,
-                'from_agent_id' => null,
-                'to_agent_id' => $best['id'],
-                'assigned_by_id' => null,
-                'reason' => 'auto_round_robin',
-            ]);
-
-            AgentProfile::query()
-                ->where('user_id', $best['id'])
-                ->update(['last_assignment_at' => now()]);
-        }
+        app(AutoAssignmentService::class)->assign($conversation);
     }
 }

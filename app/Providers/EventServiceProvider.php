@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Domain\Courier\Events\TrackingStatusUpdated;
+use App\Domain\Courier\Listeners\SyncOrderFromWaybillStatus;
 use App\Domain\Courier\Listeners\TriggerSmsOnStatusChange;
+use App\Domain\Waybill\Listeners\AutoCreateClaimOnReturn;
 use App\Events\ConversationStatusChanged;
 use App\Events\LeadAssigned;
 use App\Events\LeadCreated;
@@ -28,6 +30,8 @@ class EventServiceProvider extends ServiceProvider
         ],
         TrackingStatusUpdated::class => [
             TriggerSmsOnStatusChange::class,
+            SyncOrderFromWaybillStatus::class,
+            AutoCreateClaimOnReturn::class,
         ],
         LeadAssigned::class => [
             UpdateAgentWorkloadOnAssignment::class,

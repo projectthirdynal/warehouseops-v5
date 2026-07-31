@@ -34,6 +34,8 @@ class ReplyTemplate extends Model
         'approved_at',
         'rejection_reason',
         'language',
+        'media_type',
+        'media_config',
     ];
 
     protected $casts = [
@@ -42,6 +44,19 @@ class ReplyTemplate extends Model
         'variables' => 'array',
         'allowed_roles' => 'array',
         'approved_at' => 'datetime',
+        'media_config' => 'array',
+    ];
+
+    public const MEDIA_TEXT = 'text';
+    public const MEDIA_BUTTON = 'button';
+    public const MEDIA_CARD = 'card';
+    public const MEDIA_CAROUSEL = 'carousel';
+
+    public const MEDIA_TYPES = [
+        self::MEDIA_TEXT => 'Plain Text',
+        self::MEDIA_BUTTON => 'Buttons',
+        self::MEDIA_CARD => 'Product Card',
+        self::MEDIA_CAROUSEL => 'Carousel',
     ];
 
     public const APPROVAL_PENDING = 'pending';

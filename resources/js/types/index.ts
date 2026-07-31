@@ -69,6 +69,8 @@ export interface Claim {
   waybill?: Waybill;
   type: ClaimType;
   status: ClaimStatus;
+  auto_created: boolean;
+  source: string;
   description: string | null;
   claim_amount: number;
   approved_amount: number | null;
@@ -382,6 +384,16 @@ export interface DashboardStats {
   conversion_rate: number;
   qc_pending: number;
   agents_online: number;
+  open_tickets?: number;
+  my_tickets?: number;
+  invoices_overdue?: number;
+  invoices_unpaid?: number;
+  total_revenue?: number;
+  revenue_today?: number;
+  low_stock_count?: number;
+  total_products?: number;
+  claims_pending?: number;
+  beyond_sla_count?: number;
 }
 
 export interface DashboardHourlyItem {

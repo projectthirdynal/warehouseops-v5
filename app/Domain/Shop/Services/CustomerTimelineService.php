@@ -34,9 +34,8 @@ class CustomerTimelineService
                     'status' => $order->status,
                     'amount' => $order->total_amount,
                 ],
-            ]);
-
-        $activities = $activities->merge($orders);
+            ])
+            ->toArray();
 
         $notes = $customer->notes()
             ->with('user:id,name')
@@ -53,9 +52,8 @@ class CustomerTimelineService
                     'author' => $note->user?->name ?? 'System',
                     'tags' => $note->tags,
                 ],
-            ]);
-
-        $activities = $activities->merge($notes);
+            ])
+            ->toArray();
 
         $messages = $customer->identities()
             ->with(['messages' => fn ($q) => $q->with('conversation:id,channel')->latest('sent_at')->latest('created_at')->limit($limit ?? 50)])
@@ -72,9 +70,8 @@ class CustomerTimelineService
                     'direction' => $message->direction,
                     'channel' => $message->conversation?->channel,
                 ],
-            ]);
-
-        $activities = $activities->merge($messages);
+            ])
+            ->toArray();
 
         $conversations = $customer->identities()
             ->with(['conversations' => fn ($q) => $q->latest('created_at')->limit($limit ?? 50)])
@@ -91,13 +88,13 @@ class CustomerTimelineService
                     'channel' => $conversation->channel,
                     'status' => $conversation->status,
                 ],
-            ]);
+            ])
+            ->toArray();
 
-        $activities = $activities->merge($conversations);
+        $all = array_merge($orders, $notes, $messages, $conversations);
+        usort($all, fn ($a, $b) => strcmp($b['occurred_at'] ?? '', $a['occurred_at'] ?? ''));
+        $all = array_slice($all, 0, $limit ?? count($all));
 
-        return $activities
-            ->sortByDesc('occurred_at')
-            ->values()
-            ->when($limit, fn ($collection) => $collection->take($limit));
+        return collect($all);
     }
 }

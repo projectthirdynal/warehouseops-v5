@@ -30,6 +30,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'theme',
         'language',
         'timezone',
+        'birthday',
+        'hire_date',
     ];
 
     protected $hidden = [
@@ -42,6 +44,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password' => 'hashed',
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
+        'birthday'       => 'date',
+        'hire_date'      => 'date',
     ];
 
     public function agentProfile(): HasOne
@@ -104,5 +108,20 @@ class User extends Authenticatable implements MustVerifyEmail
     public function favoriteTemplates(): BelongsToMany
     {
         return $this->belongsToMany(ReplyTemplate::class, 'reply_template_favorites')->withTimestamps();
+    }
+
+    public function badges(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentBadge::class);
+    }
+
+    public function streaks(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentStreak::class);
+    }
+
+    public function milestones(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Shop\Models\AgentMilestone::class);
     }
 }

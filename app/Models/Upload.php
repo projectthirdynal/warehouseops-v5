@@ -36,6 +36,9 @@ class Upload extends Model
         'uploaded_by',
         'started_at',
         'completed_at',
+        'retry_count',
+        'retry_of',
+        'retry_status',
     ];
 
     protected $casts = [
@@ -53,6 +56,7 @@ class Upload extends Model
         'processed_chunks' => 'integer',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'retry_count' => 'integer',
     ];
 
     public const STATUS_PENDING = 'pending';

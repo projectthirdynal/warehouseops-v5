@@ -7,7 +7,12 @@ import {
   Package,
   AlertTriangle,
   Download,
+  RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,11 +43,22 @@ interface Upload {
   skipped_rows: number;
   error_rows: number;
   status: string;
-  errors: Array<{ row: number; error: string }> | null;
+  errors: Array<{ row: number | string; error: string }> | null;
   uploaded_by: { name: string } | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  retry_status: string | null;
+  retry_count: number;
+}
+
+interface ErrorDetails {
+  errors: Array<{ row: number | string; error: string }>;
+  row_errors_count: number;
+  batch_errors_count: number;
+  retry_status: string | null;
+  retry_count: number;
+  can_retry: boolean;
 }
 
 interface Props {
@@ -63,6 +79,66 @@ const formatImportType = (type: string | null) => {
 };
 
 export default function ImportDetail({ upload, waybills }: Props) {
+  const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [retryPolling, setRetryPolling] = useState(false);
+
+  const fetchErrorDetails = useCallback(() => {
+    axios
+      .get(`/waybills/import/${upload.id}/error-details`)
+      .then(({ data }) => setErrorDetails(data))
+      .catch(() => {});
+  }, [upload.id]);
+
+  useEffect(() => {
+    if (upload.error_rows > 0) {
+      fetchErrorDetails();
+    }
+  }, [upload.error_rows, fetchErrorDetails]);
+
+  useEffect(() => {
+    if (!retryPolling) return;
+    const interval = setInterval(() => {
+      fetchErrorDetails();
+      if (errorDetails?.retry_status === 'completed' || errorDetails?.retry_status === 'failed') {
+        setRetryPolling(false);
+        router.reload({ only: ['upload'] });
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [retryPolling, errorDetails?.retry_status, fetchErrorDetails]);
+
+  const handleRetryFailedRows = () => {
+    setRetryLoading(true);
+    axios
+      .post(`/waybills/import/${upload.id}/retry-failed-rows`)
+      .then(({ data }) => {
+        toast.success(data.message);
+        setRetryPolling(true);
+      })
+      .catch((err) => {
+        const msg = err.response?.data?.error || 'Failed to retry failed rows';
+        toast.error(msg);
+      })
+      .finally(() => setRetryLoading(false));
+  };
+
+  const getRetryStatusBadge = (status: string | null) => {
+    if (!status) return null;
+    const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> =
+      {
+        queued: { label: 'Queued', variant: 'secondary' },
+        processing: { label: 'Processing', variant: 'secondary' },
+        completed: { label: 'Completed', variant: 'default' },
+        completed_with_errors: { label: 'Completed with Errors', variant: 'secondary' },
+        completed_no_rows: { label: 'No Rows Found', variant: 'secondary' },
+        failed: { label: 'Failed', variant: 'destructive' },
+        failed_no_file: { label: 'File Missing', variant: 'destructive' },
+      };
+    const config = map[status] ?? { label: status, variant: 'secondary' as const };
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DELIVERED':
@@ -215,38 +291,94 @@ export default function ImportDetail({ upload, waybills }: Props) {
                   <AlertTriangle className="h-5 w-5" />
                   Import Errors ({upload.error_rows} rows)
                 </CardTitle>
-                {upload.error_rows > 0 && (
+                <div className="flex items-center gap-2">
+                  {errorDetails?.can_retry && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleRetryFailedRows}
+                      disabled={retryLoading || retryPolling}
+                    >
+                      {retryLoading || retryPolling ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                          Retrying...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                          Retry Failed Rows
+                        </>
+                      )}
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" asChild>
                     <a href={`/waybills/import/${upload.id}/errors/download`}>
                       <Download className="h-4 w-4 mr-1" />
                       Download CSV
                     </a>
                   </Button>
-                )}
+                </div>
               </div>
-              <CardDescription>The following rows had errors during import</CardDescription>
+              <CardDescription>
+                The following rows had errors during import
+                {errorDetails && (
+                  <span className="ml-2">
+                    — {errorDetails.row_errors_count} row errors, {errorDetails.batch_errors_count}{' '}
+                    batch errors
+                  </span>
+                )}
+              </CardDescription>
             </CardHeader>
-            {upload.errors && upload.errors.length > 0 ? (
-              <CardContent>
+            <CardContent className="space-y-3">
+              {/* Retry status */}
+              {upload.retry_status && (
+                <div className="flex items-center gap-2 rounded-lg border p-2 bg-muted/50">
+                  <span className="text-sm font-medium">Retry status:</span>
+                  {getRetryStatusBadge(upload.retry_status)}
+                  {upload.retry_count > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      ({upload.retry_count} {upload.retry_count === 1 ? 'retry' : 'retries'})
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Error list */}
+              {upload.errors && upload.errors.length > 0 ? (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {upload.errors.map((error, index) => (
                     <div
                       key={index}
                       className="flex items-start gap-3 p-2 bg-destructive/5 rounded-lg text-sm"
                     >
-                      <span className="font-mono text-destructive">Row {error.row}</span>
+                      <span className="font-mono text-destructive whitespace-nowrap">
+                        Row {error.row}
+                      </span>
                       <span className="text-destructive">{error.error}</span>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            ) : (
-              <CardContent>
+              ) : (
                 <p className="text-sm text-muted-foreground">
                   {upload.error_rows} rows failed. Download the error report for details.
                 </p>
-              </CardContent>
-            )}
+              )}
+
+              {/* Retry hint */}
+              {errorDetails && errorDetails.can_retry && (
+                <p className="text-xs text-muted-foreground">
+                  Click "Retry Failed Rows" to re-process only the failed rows from the original
+                  file without re-uploading.
+                </p>
+              )}
+              {errorDetails && !errorDetails.can_retry && errorDetails.row_errors_count === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Batch-level errors cannot be retried per-row. Use "Retry" to re-process the entire
+                  file.
+                </p>
+              )}
+            </CardContent>
           </Card>
         )}
 

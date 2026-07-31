@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   Loader2,
   Package,
+  Zap,
+  RefreshCw,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/AppLayout';
@@ -82,6 +86,26 @@ interface CheckoutResult {
   items_count: number;
 }
 
+interface DuplicateOrder {
+  order_id: number;
+  order_number: string;
+  status: string;
+  receiver_name: string;
+  total_amount: number;
+  created_at: string;
+  created_at_formatted: string;
+  hours_ago: number;
+  matched_products: { product_id: number; product_name: string; quantity: number }[];
+  courier_code: string;
+}
+
+interface DuplicateCheck {
+  is_duplicate: boolean;
+  severity: string;
+  duplicate_count: number;
+  time_window_hours: number;
+}
+
 interface Props {
   products: POSProduct[];
   payment_methods: PaymentMethod[];
@@ -120,36 +144,141 @@ export default function POSIndex({ products, payment_methods }: Props) {
   const [amountPaid, setAmountPaid] = useState('0');
   const [notes, setNotes] = useState('');
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Duplicate detection
+  const [dupCheck, setDupCheck] = useState<DuplicateCheck | null>(null);
+  const [dupDuplicates, setDupDuplicates] = useState<DuplicateOrder[]>([]);
+  const [dupChecking, setDupChecking] = useState(false);
+  const [forceOverride, setForceOverride] = useState(false);
+  const dupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const displayedProducts = searchResults ?? products;
+  // Cache status
+  const [cacheStats, setCacheStats] = useState<{
+    products_cached: boolean;
+    products_count: number;
+  } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  /* ── Live search with debounce ── */
-  const performSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    setSearching(true);
+  const fetchCacheStats = useCallback(async () => {
     try {
-      const res = await fetch(`/shop/pos/search?q=${encodeURIComponent(q)}`, {
+      const res = await fetch('/shop/pos/cache-stats', {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin',
       });
       if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data.products as POSProduct[]);
+        setCacheStats(await res.json());
       }
     } catch {
-      // ignore — keep showing initial products
-    } finally {
-      setSearching(false);
+      /* ignore */
     }
   }, []);
 
+  const refreshCache = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const csrfMeta = document.querySelector('meta[name=csrf-token]') as HTMLMetaElement | null;
+      const res = await fetch('/shop/pos/cache-clear', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': csrfMeta?.content ?? '',
+        },
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || 'Cache cleared');
+        apiCacheRef.current.clear();
+        await fetchCacheStats();
+      } else {
+        toast.error('Failed to clear cache');
+      }
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchCacheStats]);
+
+  useEffect(() => {
+    fetchCacheStats();
+  }, [fetchCacheStats]);
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastQueryRef = useRef<string>('');
+  const apiCacheRef = useRef<Map<string, POSProduct[]>>(new Map());
+
+  /* ── Client-side filter for short queries ── */
+  const clientFilter = useCallback(
+    (q: string): POSProduct[] | null => {
+      const query = q.trim().toLowerCase();
+      if (query.length === 0) return null;
+      if (query.length < 3) {
+        const filtered = products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(query) ||
+            p.sku.toLowerCase().includes(query) ||
+            (p.brand?.toLowerCase().includes(query) ?? false)
+        );
+        return filtered.length >= 5 ? filtered : null;
+      }
+      return null;
+    },
+    [products]
+  );
+
+  const displayedProducts = searchResults ?? products;
+
+  /* ── Live search with debounce + client-side + API cache ── */
+  const performSearch = useCallback(
+    async (q: string) => {
+      const query = q.trim();
+      if (!query) {
+        setSearchResults(null);
+        lastQueryRef.current = '';
+        return;
+      }
+
+      // Try client-side filter first for short queries
+      const clientResults = clientFilter(query);
+      if (clientResults !== null) {
+        setSearchResults(clientResults);
+        lastQueryRef.current = query;
+        return;
+      }
+
+      // Check API response cache
+      const cached = apiCacheRef.current.get(query);
+      if (cached) {
+        setSearchResults(cached);
+        lastQueryRef.current = query;
+        return;
+      }
+
+      setSearching(true);
+      try {
+        const res = await fetch(`/shop/pos/search?q=${encodeURIComponent(query)}`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.products as POSProduct[];
+          apiCacheRef.current.set(query, results);
+          setSearchResults(results);
+          lastQueryRef.current = query;
+        }
+      } catch {
+        // ignore — keep showing initial products
+      } finally {
+        setSearching(false);
+      }
+    },
+    [clientFilter]
+  );
+
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => performSearch(searchQuery), 300);
+    searchTimer.current = setTimeout(() => performSearch(searchQuery), 350);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
@@ -228,6 +357,9 @@ export default function POSIndex({ products, payment_methods }: Props) {
     setDiscountAmount('0');
     setAmountPaid('0');
     setNotes('');
+    setDupCheck(null);
+    setDupDuplicates([]);
+    setForceOverride(false);
   }, []);
 
   /* ── Totals ── */
@@ -241,6 +373,51 @@ export default function POSIndex({ products, payment_methods }: Props) {
   const change = Math.max(0, paid - total);
   const totalItems = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
 
+  /* ── Real-time duplicate detection ── */
+  useEffect(() => {
+    if (dupTimer.current) clearTimeout(dupTimer.current);
+    if (!phone.trim() || cart.length === 0) {
+      setDupCheck(null);
+      setDupDuplicates([]);
+      setForceOverride(false);
+      return;
+    }
+    setDupChecking(true);
+    dupTimer.current = setTimeout(async () => {
+      try {
+        const csrfMeta = document.querySelector('meta[name=csrf-token]') as HTMLMetaElement | null;
+        const res = await fetch('/shop/pos/check-duplicates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfMeta?.content ?? '',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            phone: phone.trim(),
+            product_ids: cart.map((i) => i.productId),
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDupCheck(data.duplicate_check);
+          setDupDuplicates(data.duplicates);
+          if (!data.duplicate_check.is_duplicate) {
+            setForceOverride(false);
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setDupChecking(false);
+      }
+    }, 500);
+    return () => {
+      if (dupTimer.current) clearTimeout(dupTimer.current);
+    };
+  }, [phone, cart]);
+
   /* ── Checkout ── */
   const openCheckout = useCallback(() => {
     if (cart.length === 0) {
@@ -248,6 +425,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
       return;
     }
     setAmountPaid(total.toFixed(2));
+    setForceOverride(false);
     setCheckoutOpen(true);
   }, [cart.length, total]);
 
@@ -285,11 +463,19 @@ export default function POSIndex({ products, payment_methods }: Props) {
           discount_amount: discount > 0 ? discount : null,
           amount_paid: paymentMethod === 'COD' ? null : paid,
           notes: notes || null,
+          force: forceOverride ? 1 : 0,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 409 && data.duplicate_check?.is_duplicate) {
+          setDupCheck(data.duplicate_check);
+          setDupDuplicates(data.duplicates);
+          setForceOverride(false);
+          toast.warning('Possible duplicate order detected — review below');
+          return;
+        }
         const msg = data?.message ?? 'Checkout failed';
         toast.error(msg);
         return;
@@ -303,7 +489,7 @@ export default function POSIndex({ products, payment_methods }: Props) {
     } finally {
       setProcessing(false);
     }
-  }, [customerName, phone, cart, paymentMethod, discount, paid, total, notes]);
+  }, [customerName, phone, cart, paymentMethod, discount, paid, total, notes, forceOverride]);
 
   const closeReceipt = useCallback(() => {
     setReceipt(null);
@@ -336,6 +522,22 @@ export default function POSIndex({ products, payment_methods }: Props) {
             <p className="text-sm text-muted-foreground">In-store checkout and order processing</p>
           </div>
           <div className="flex items-center gap-2">
+            {cacheStats && (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <Zap className="h-3 w-3 text-success" />
+                {cacheStats.products_cached ? `${cacheStats.products_count} cached` : 'No cache'}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={refreshCache}
+              disabled={refreshing}
+              title="Refresh product cache"
+            >
+              <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', refreshing && 'animate-spin')} />
+              Refresh
+            </Button>
             <Badge variant="secondary" className="tabular-nums">
               {totalItems} item{totalItems !== 1 ? 's' : ''}
             </Badge>
@@ -594,6 +796,71 @@ export default function POSIndex({ products, payment_methods }: Props) {
               </div>
             </div>
 
+            {/* Duplicate Warning */}
+            {dupChecking && phone.trim() && (
+              <div className="flex items-center gap-2 rounded-lg border border-muted bg-muted/50 p-2.5 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking for duplicate orders...
+              </div>
+            )}
+            {dupCheck?.is_duplicate && !dupChecking && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-semibold text-destructive">
+                      Possible Duplicate Detected ({dupCheck.severity})
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {dupCheck.duplicate_count} matching order(s) found in the last{' '}
+                      {dupCheck.time_window_hours}h with this phone number and product(s).
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {dupDuplicates.map((dup) => (
+                    <div
+                      key={dup.order_id}
+                      className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium">{dup.order_number}</span>
+                        <span className="ml-2 text-muted-foreground">
+                          {dup.created_at_formatted} · {dup.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="tabular-nums text-muted-foreground">
+                          {money(dup.total_amount)}
+                        </span>
+                        {dup.matched_products.length > 0 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {dup.matched_products.length} matching
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {forceOverride ? (
+                  <div className="flex items-center gap-2 rounded-md bg-success/10 px-2.5 py-1.5 text-xs text-success">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Override active — order will be created despite duplicate warning.
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                    onClick={() => setForceOverride(true)}
+                  >
+                    <ShieldAlert className="mr-2 h-3.5 w-3.5" />
+                    Proceed Anyway
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Summary */}
             <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
               <div className="flex justify-between">
@@ -617,11 +884,24 @@ export default function POSIndex({ products, payment_methods }: Props) {
             <Button variant="outline" onClick={() => setCheckoutOpen(false)} disabled={processing}>
               Cancel
             </Button>
-            <Button onClick={submitCheckout} disabled={processing}>
+            <Button
+              onClick={submitCheckout}
+              disabled={processing || (dupCheck?.is_duplicate && !forceOverride)}
+            >
               {processing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Processing...
+                </>
+              ) : dupCheck?.is_duplicate && !forceOverride ? (
+                <>
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Confirm Required
+                </>
+              ) : forceOverride ? (
+                <>
+                  <ShieldAlert className="mr-2 h-4 w-4" />
+                  Force Complete Sale
                 </>
               ) : (
                 <>

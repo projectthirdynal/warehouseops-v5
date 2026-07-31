@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Services;
 
+use App\Models\SiteSetting;
+
 class SentimentAnalysisService
 {
     private const POSITIVE_WORDS = [
@@ -36,6 +38,7 @@ class SentimentAnalysisService
 
         $positiveHits = 0;
         $negativeHits = 0;
+        $flaggedWords = [];
 
         foreach ($words as $word) {
             if (in_array($word, self::POSITIVE_WORDS, true)) {
@@ -43,6 +46,7 @@ class SentimentAnalysisService
             }
             if (in_array($word, self::NEGATIVE_WORDS, true)) {
                 $negativeHits++;
+                $flaggedWords[] = $word;
             }
         }
 
@@ -54,14 +58,17 @@ class SentimentAnalysisService
                 'score' => 0.0,
                 'positive_hits' => 0,
                 'negative_hits' => 0,
+                'flagged_words' => [],
             ];
         }
 
         $score = (($positiveHits * self::POSITIVE_WEIGHT) + ($negativeHits * self::NEGATIVE_WEIGHT)) / $totalHits;
 
+        $threshold = (float) (SiteSetting::get('sentiment_negative_threshold', -0.15));
+
         $sentiment = match (true) {
-            $score > 0.15 => 'positive',
-            $score < -0.15 => 'negative',
+            $score > abs($threshold) => 'positive',
+            $score < $threshold => 'negative',
             default => 'neutral',
         };
 
@@ -70,6 +77,7 @@ class SentimentAnalysisService
             'score' => round($score, 4),
             'positive_hits' => $positiveHits,
             'negative_hits' => $negativeHits,
+            'flagged_words' => array_unique($flaggedWords),
         ];
     }
 
@@ -77,5 +85,36 @@ class SentimentAnalysisService
     {
         $combined = implode(' ', array_map(fn ($m) => $m['body'] ?? '', $messages));
         return $this->analyze($combined);
+    }
+
+    public function shouldFlag(array $analysis): bool
+    {
+        if ($analysis['sentiment'] !== 'negative') {
+            return false;
+        }
+
+        $autoFlagEnabled = SiteSetting::get('sentiment_auto_flag_enabled', true);
+        if (! $autoFlagEnabled) {
+            return false;
+        }
+
+        $minNegativeHits = (int) SiteSetting::get('sentiment_min_negative_hits', 2);
+
+        return $analysis['negative_hits'] >= $minNegativeHits;
+    }
+
+    public function getThreshold(): float
+    {
+        return (float) (SiteSetting::get('sentiment_negative_threshold', -0.15));
+    }
+
+    public function getMinNegativeHits(): int
+    {
+        return (int) SiteSetting::get('sentiment_min_negative_hits', 2);
+    }
+
+    public function isAutoFlagEnabled(): bool
+    {
+        return (bool) SiteSetting::get('sentiment_auto_flag_enabled', true);
     }
 }

@@ -24,6 +24,9 @@ use App\Domain\Courier\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ReturnReceiptController;
+use App\Http\Controllers\ReturnWorkflowController;
+use App\Http\Controllers\CourierAnalyticsController;
+use App\Http\Controllers\MockCourierController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\FinanceController;
@@ -120,9 +123,48 @@ Route::middleware(['auth'])->group(function () {
 // ── SHARED: all staff roles can access dashboard, settings, tickets ──────────
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,warehouse'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
+    Route::get('/api/dashboard/alerts', [DashboardController::class, 'alerts'])->name('dashboard.alerts');
+    Route::get('/api/dashboard/revenue-summary', [DashboardController::class, 'revenueSummary'])->name('dashboard.revenue-summary');
+    Route::get('/api/dashboard/operation-heatmap', [DashboardController::class, 'operationHeatmap'])->name('dashboard.operation-heatmap');
+    Route::get('/api/dashboard/agent-leaderboard', [DashboardController::class, 'agentLeaderboard'])->name('dashboard.agent-leaderboard');
+    Route::get('/api/dashboard/weather', [DashboardController::class, 'weather'])->name('dashboard.weather');
+    Route::get('/api/dashboard/birthday-anniversary', [DashboardController::class, 'birthdayAnniversary'])->name('dashboard.birthday-anniversary');
+    Route::get('/api/dashboard/widgets', [DashboardController::class, 'widgetConfig'])->name('dashboard.widgets');
+    Route::post('/api/dashboard/widgets', [DashboardController::class, 'saveWidgetConfig'])->name('dashboard.widgets.save');
+    Route::post('/api/dashboard/widgets/reset', [DashboardController::class, 'resetWidgetConfig'])->name('dashboard.widgets.reset');
 
     Route::prefix('tickets')->name('tickets.')->group(function () {
         Route::get('/', [TicketController::class, 'index'])->name('index');
+        Route::post('/', [TicketController::class, 'store'])->name('store');
+        // Category & Priority Management (admin only) — must be before {ticket} wildcard
+        Route::get('/settings', [TicketController::class, 'settings'])->name('settings');
+        Route::get('/analytics', [TicketController::class, 'analytics'])->name('analytics');
+        Route::get('/export/csv', [TicketController::class, 'exportCsv'])->name('export.csv');
+        Route::post('/categories', [TicketController::class, 'storeCategory'])->name('categories.store');
+        Route::patch('/categories/{category}', [TicketController::class, 'updateCategory'])->name('categories.update');
+        Route::delete('/categories/{category}', [TicketController::class, 'destroyCategory'])->name('categories.destroy');
+        Route::post('/priorities', [TicketController::class, 'storePriority'])->name('priorities.store');
+        Route::patch('/priorities/{priority}', [TicketController::class, 'updatePriority'])->name('priorities.update');
+        Route::delete('/priorities/{priority}', [TicketController::class, 'destroyPriority'])->name('priorities.destroy');
+
+        // Canned Responses
+        Route::post('/canned-responses', [TicketController::class, 'storeCannedResponse'])->name('canned-responses.store');
+        Route::patch('/canned-responses/{cannedResponse}', [TicketController::class, 'updateCannedResponse'])->name('canned-responses.update');
+        Route::delete('/canned-responses/{cannedResponse}', [TicketController::class, 'destroyCannedResponse'])->name('canned-responses.destroy');
+        Route::post('/canned-responses/{cannedResponse}/use', [TicketController::class, 'useCannedResponse'])->name('canned-responses.use');
+
+        // Bulk actions — must be before {ticket} wildcard
+        Route::post('/bulk/assign', [TicketController::class, 'bulkAssign'])->name('bulk.assign');
+        Route::post('/bulk/close', [TicketController::class, 'bulkClose'])->name('bulk.close');
+        Route::post('/bulk/priority', [TicketController::class, 'bulkPriorityChange'])->name('bulk.priority');
+
+        Route::get('/{ticket}', [TicketController::class, 'show'])->name('show')->whereNumber('ticket');
+        Route::post('/{ticket}/comments', [TicketController::class, 'storeComment'])->name('comments.store')->whereNumber('ticket');
+        Route::delete('/{ticket}/comments/{comment}', [TicketController::class, 'destroyComment'])->name('comments.destroy')->whereNumber('ticket')->whereNumber('comment');
+        Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus'])->name('status.update')->whereNumber('ticket');
+        Route::patch('/{ticket}/assign', [TicketController::class, 'assign'])->name('assign')->whereNumber('ticket');
+        Route::post('/{ticket}/survey', [TicketController::class, 'submitSurvey'])->name('survey.submit')->whereNumber('ticket');
     });
 
     Route::prefix('settings')->name('settings.')->group(function () {
@@ -135,6 +177,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting,
         Route::post('/email/test', [SettingsController::class, 'testEmail'])->name('email.test');
         Route::patch('/printer', [SettingsController::class, 'updateLabelPrinter'])->name('printer.update');
         Route::patch('/scanner', [SettingsController::class, 'updateScannerSettings'])->name('scanner.update');
+        Route::post('/integrations/toggle', [SettingsController::class, 'toggleIntegration'])->name('integrations.toggle');
+        Route::patch('/integrations/update', [SettingsController::class, 'updateIntegrationSettings'])->name('integrations.update');
     });
 });
 
@@ -448,7 +492,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/metrics', [ShopController::class, 'metrics'])->name('shop.metrics');
     Route::get('/shop/pos', [ShopController::class, 'pos'])->name('shop.pos');
     Route::get('/shop/pos/search', [ShopController::class, 'posSearch'])->name('shop.pos.search');
+    Route::post('/shop/pos/check-duplicates', [ShopController::class, 'posCheckDuplicates'])->name('shop.pos.check-duplicates');
     Route::post('/shop/pos/checkout', [ShopController::class, 'posCheckout'])->name('shop.pos.checkout');
+    Route::get('/shop/pos/cache-stats', [ShopController::class, 'posCacheStats'])->name('shop.pos.cache-stats');
+    Route::post('/shop/pos/cache-clear', [ShopController::class, 'posCacheClear'])->name('shop.pos.cache-clear');
     Route::get('/shop/inbox', [ShopController::class, 'inbox'])->name('shop.inbox');
     Route::get('/shop/inbox/export-statuses', [ShopController::class, 'exportConversationStatuses'])->name('shop.inbox.export-statuses');
     Route::post('/shop/inbox/page-favorite', [ShopController::class, 'togglePageFavorite'])->name('shop.page-favorite.toggle');
@@ -461,6 +508,29 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/inbox/moderate-comment', [ShopController::class, 'moderateComment'])->name('shop.comment.moderate');
     Route::post('/shop/inbox/page-canned-responses', [ShopController::class, 'storePageCannedResponse'])->name('shop.page-canned-responses.store');
     Route::delete('/shop/inbox/page-canned-responses', [ShopController::class, 'destroyPageCannedResponse'])->name('shop.page-canned-responses.destroy');
+    Route::get('/shop/inbox/unified-stats', [ShopController::class, 'unifiedInboxStats'])->name('shop.inbox.unified-stats');
+    // Archive Compression
+    Route::get('/shop/archive/stats', [ShopController::class, 'archiveStats'])->name('shop.archive.stats');
+    Route::get('/shop/archive/settings', [ShopController::class, 'archiveSettings'])->name('shop.archive.settings');
+    Route::patch('/shop/archive/settings', [ShopController::class, 'updateArchiveSettings'])->name('shop.archive.settings.update');
+    Route::post('/shop/archive/bulk-archive', [ShopController::class, 'bulkArchiveConversations'])->name('shop.archive.bulk-archive');
+    Route::post('/shop/archive/bulk-compress', [ShopController::class, 'bulkCompressConversations'])->name('shop.archive.bulk-compress');
+    Route::post('/shop/archive/{conversation}/archive', [ShopController::class, 'archiveConversation'])->name('shop.archive.conversation.archive');
+    Route::post('/shop/archive/{conversation}/compress', [ShopController::class, 'compressConversation'])->name('shop.archive.conversation.compress');
+    Route::post('/shop/archive/{conversation}/restore', [ShopController::class, 'restoreConversation'])->name('shop.archive.conversation.restore');
+
+    // Gamification
+    Route::get('/shop/gamification/stats', [ShopController::class, 'gamificationStats'])->name('shop.gamification.stats');
+    Route::get('/shop/gamification/leaderboard', [ShopController::class, 'gamificationLeaderboard'])->name('shop.gamification.leaderboard');
+    Route::get('/shop/gamification/agent/{userId}', [ShopController::class, 'gamificationAgentProfile'])->name('shop.gamification.agent');
+    Route::get('/shop/gamification/badges', [ShopController::class, 'gamificationBadges'])->name('shop.gamification.badges');
+    Route::get('/shop/gamification/milestones', [ShopController::class, 'gamificationMilestones'])->name('shop.gamification.milestones');
+    Route::get('/shop/gamification/settings', [ShopController::class, 'gamificationSettings'])->name('shop.gamification.settings');
+    Route::patch('/shop/gamification/settings', [ShopController::class, 'updateGamificationSettings'])->name('shop.gamification.settings.update');
+    Route::post('/shop/gamification/bulk-check', [ShopController::class, 'gamificationBulkCheck'])->name('shop.gamification.bulk-check');
+    Route::post('/shop/gamification/track-streak', [ShopController::class, 'gamificationTrackStreak'])->name('shop.gamification.track-streak');
+    Route::post('/shop/gamification/seed-defaults', [ShopController::class, 'gamificationSeedDefaults'])->name('shop.gamification.seed-defaults');
+
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
     Route::get('/shop/inbox/{conversation}/poll', [ShopController::class, 'pollMessages'])->name('shop.conversation.poll');
@@ -469,6 +539,39 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::patch('/shop/inbox/{conversation}/status', [ShopController::class, 'updateConversationStatus'])->name('shop.conversation.status');
     Route::post('/shop/inbox/bulk-status', [ShopController::class, 'bulkUpdateConversationStatus'])->name('shop.conversation.bulk-status');
     Route::post('/shop/inbox/bulk-assign', [ShopController::class, 'bulkAssignConversations'])->name('shop.conversation.bulk-assign');
+    Route::post('/shop/auto-assign/bulk', [ShopController::class, 'bulkAutoAssign'])->name('shop.auto-assign.bulk');
+    Route::get('/shop/auto-assign/settings', [ShopController::class, 'autoAssignmentSettings'])->name('shop.auto-assign.settings');
+    Route::patch('/shop/auto-assign/settings', [ShopController::class, 'updateAutoAssignmentSettings'])->name('shop.auto-assign.update');
+    Route::get('/shop/auto-assign/stats', [ShopController::class, 'autoAssignmentStats'])->name('shop.auto-assign.stats');
+    Route::get('/shop/courier-sync/stats', [ShopController::class, 'courierSyncStats'])->name('shop.courier-sync.stats');
+    Route::get('/shop/courier-sync/settings', [ShopController::class, 'courierSyncSettings'])->name('shop.courier-sync.settings');
+    Route::patch('/shop/courier-sync/settings', [ShopController::class, 'updateCourierSyncSettings'])->name('shop.courier-sync.update');
+    Route::post('/shop/courier-sync/bulk', [ShopController::class, 'bulkCourierSync'])->name('shop.courier-sync.bulk');
+    Route::get('/shop/courier-sync/history', [ShopController::class, 'courierSyncHistory'])->name('shop.courier-sync.history');
+    Route::post('/shop/courier-sync/per-courier', [ShopController::class, 'courierSyncPerCourier'])->name('shop.courier-sync.per-courier');
+    Route::get('/shop/sentiment/stats', [ShopController::class, 'sentimentStats'])->name('shop.sentiment.stats');
+    Route::get('/shop/sentiment/settings', [ShopController::class, 'sentimentSettings'])->name('shop.sentiment.settings');
+    Route::patch('/shop/sentiment/settings', [ShopController::class, 'updateSentimentSettings'])->name('shop.sentiment.update');
+    Route::get('/shop/sentiment/review-queue', [ShopController::class, 'sentimentReviewQueue'])->name('shop.sentiment.review-queue');
+    Route::post('/shop/sentiment/resolve-flag', [ShopController::class, 'resolveSentimentFlag'])->name('shop.sentiment.resolve-flag');
+    Route::post('/shop/sentiment/bulk-analyze', [ShopController::class, 'bulkSentimentAnalyze'])->name('shop.sentiment.bulk-analyze');
+    Route::get('/shop/sla/stats', [ShopController::class, 'slaStats'])->name('shop.sla.stats');
+    Route::get('/shop/sla/settings', [ShopController::class, 'slaSettings'])->name('shop.sla.settings');
+    Route::patch('/shop/sla/settings', [ShopController::class, 'updateSlaSettings'])->name('shop.sla.update');
+    Route::get('/shop/sla/breached', [ShopController::class, 'slaBreached'])->name('shop.sla.breached');
+    Route::get('/shop/broadcast/stats', [ShopController::class, 'broadcastStats'])->name('shop.broadcast.stats');
+    Route::get('/shop/broadcast/campaigns', [ShopController::class, 'broadcastList'])->name('shop.broadcast.list');
+    Route::post('/shop/broadcast/preview', [ShopController::class, 'broadcastPreview'])->name('shop.broadcast.preview');
+    Route::post('/shop/broadcast/campaigns', [ShopController::class, 'broadcastCreate'])->name('shop.broadcast.create');
+    Route::get('/shop/broadcast/campaigns/{campaign}', [ShopController::class, 'broadcastShow'])->name('shop.broadcast.show');
+    Route::post('/shop/broadcast/campaigns/{campaign}/send', [ShopController::class, 'broadcastSend'])->name('shop.broadcast.send');
+    Route::post('/shop/broadcast/campaigns/{campaign}/cancel', [ShopController::class, 'broadcastCancel'])->name('shop.broadcast.cancel');
+    Route::post('/shop/recommendations/ai', [ShopController::class, 'aiRecommendProducts'])->name('shop.recommendations.ai');
+    Route::post('/shop/recommendations/customer', [ShopController::class, 'aiRecommendForCustomer'])->name('shop.recommendations.customer');
+    Route::get('/shop/recommendations/stats', [ShopController::class, 'recommendationStats'])->name('shop.recommendations.stats');
+    Route::get('/shop/recommendations/settings', [ShopController::class, 'recommendationSettings'])->name('shop.recommendations.settings');
+    Route::patch('/shop/recommendations/settings', [ShopController::class, 'updateRecommendationSettings'])->name('shop.recommendations.update');
+    Route::post('/shop/recommendations/clear-cache', [ShopController::class, 'clearRecommendationCache'])->name('shop.recommendations.clear-cache');
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');
@@ -477,6 +580,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::delete('/shop/inbox/{conversation}/snooze', [ShopController::class, 'unsnoozeConversation'])->name('shop.conversation.unsnooze');
     Route::post('/shop/inbox/{conversation}/reminder', [ShopController::class, 'setConversationReminder'])->name('shop.conversation.reminder');
     Route::delete('/shop/inbox/{conversation}/reminder', [ShopController::class, 'clearConversationReminder'])->name('shop.conversation.reminder.clear');
+    Route::post('/shop/inbox/{conversation}/merge/preview', [ShopController::class, 'mergePreview'])->name('shop.conversation.merge.preview');
+    Route::post('/shop/inbox/{conversation}/merge/execute', [ShopController::class, 'mergeExecute'])->name('shop.conversation.merge.execute');
     Route::post('/shop/inbox/{conversation}/merge', [ShopController::class, 'mergeConversations'])->name('shop.conversation.merge');
     Route::post('/shop/inbox/{conversation}/block', [ShopController::class, 'toggleBlock'])->name('shop.conversation.block');
     Route::post('/shop/inbox/{conversation}/remarks', [ShopController::class, 'storeConversationRemark'])->name('shop.conversation.remarks.store');
@@ -523,7 +628,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
     Route::post('/shop/templates', [ShopController::class, 'storeTemplate'])->name('shop.templates.store');
     Route::delete('/shop/templates/{template}', [ShopController::class, 'destroyTemplate'])->name('shop.templates.destroy');
+    // Rich Media Templates
+    Route::post('/shop/rich-media-templates', [ShopController::class, 'storeRichMediaTemplate'])->name('shop.rich-media.store');
+    Route::patch('/shop/rich-media-templates/{id}', [ShopController::class, 'updateRichMediaTemplate'])->name('shop.rich-media.update');
+    Route::delete('/shop/rich-media-templates/{id}', [ShopController::class, 'destroyRichMediaTemplate'])->name('shop.rich-media.destroy');
+    Route::post('/shop/rich-media-templates/preview', [ShopController::class, 'previewRichMedia'])->name('shop.rich-media.preview');
+    Route::post('/shop/rich-media-templates/generate-carousel', [ShopController::class, 'generateCarousel'])->name('shop.rich-media.generate-carousel');
+    Route::get('/shop/rich-media-templates/stats', [ShopController::class, 'richMediaStats'])->name('shop.rich-media.stats');
     Route::get('/shop/reports', [ShopController::class, 'reports'])->name('shop.reports');
+    Route::get('/shop/reports/enhancement', [ShopController::class, 'reportsEnhancement'])->name('shop.reports.enhancement');
     Route::get('/shop/webhooks', [ShopController::class, 'webhooks'])->name('shop.webhooks');
     Route::get('/shop/meta-readiness', [ShopController::class, 'metaReadiness'])->name('shop.meta-readiness');
     Route::post('/shop/webhooks/simulate', [ShopController::class, 'simulateWebhook'])->name('shop.webhooks.simulate');
@@ -601,6 +714,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/cart-templates', [ShopController::class, 'listCartTemplates'])->name('shop.cart-templates.index');
     Route::post('/shop/cart-templates', [ShopController::class, 'storeCartTemplate'])->name('shop.cart-templates.store');
     Route::delete('/shop/cart-templates/{template}', [ShopController::class, 'deleteCartTemplate'])->name('shop.cart-templates.destroy')->whereNumber('template');
+    Route::patch('/shop/cart-templates/{template}/share', [ShopController::class, 'shareCartTemplate'])->name('shop.cart-templates.share')->whereNumber('template');
+    Route::post('/shop/cart-templates/{template}/clone', [ShopController::class, 'cloneCartTemplate'])->name('shop.cart-templates.clone')->whereNumber('template');
+    Route::get('/shop/cart-templates/{template}/apply', [ShopController::class, 'applyCartTemplate'])->name('shop.cart-templates.apply')->whereNumber('template');
+    Route::get('/shop/cart-templates/stats', [ShopController::class, 'cartTemplateStats'])->name('shop.cart-templates.stats');
+    Route::get('/shop/cart-templates/roles', [ShopController::class, 'cartTemplateRoles'])->name('shop.cart-templates.roles');
     Route::post('/shop/orders/calculate-shipping', [ShopController::class, 'calculateShipping'])->name('shop.orders.shipping');
     Route::post('/shop/orders/draft', [ShopController::class, 'storeDraft'])->name('shop.orders.draft.store');
     Route::get('/shop/orders/{order}/draft', [ShopController::class, 'loadDraft'])->name('shop.orders.draft.load')->whereNumber('order');
@@ -655,6 +773,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import/{upload}/preview', [WaybillImportController::class, 'preview'])->name('import.preview');
         Route::get('/import/{upload}/errors/download', [WaybillImportController::class, 'errorsDownload'])->name('import.errors.download');
         Route::post('/import/{upload}/retry', [WaybillImportController::class, 'retry'])->name('import.retry');
+        Route::post('/import/{upload}/retry-failed-rows', [WaybillImportController::class, 'retryFailedRows'])->name('import.retry-failed-rows');
+        Route::get('/import/{upload}/error-details', [WaybillImportController::class, 'errorDetails'])->name('import.error-details');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
         Route::prefix('claims')->name('claims.')->group(function () {
@@ -668,8 +788,42 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
             Route::post('/{claim}/approve', [ClaimController::class, 'approve'])->name('approve');
             Route::post('/{claim}/reject', [ClaimController::class, 'reject'])->name('reject');
             Route::post('/{claim}/settle', [ClaimController::class, 'settle'])->name('settle');
+            Route::get('/auto-create/stats', [ClaimController::class, 'autoCreateStats'])->name('auto-create.stats');
+            Route::post('/auto-create/bulk', [ClaimController::class, 'bulkAutoCreate'])->name('auto-create.bulk');
+            Route::patch('/auto-create/toggle', [ClaimController::class, 'toggleAutoCreate'])->name('auto-create.toggle');
         });
-        Route::post('/returns/scan', [ReturnReceiptController::class, 'store'])->name('returns.scan');
+        Route::post('/returns/legacy-scan', [ReturnReceiptController::class, 'store'])->name('returns.legacy-scan');
+        Route::get('/batch-dispatch', [WaybillController::class, 'batchDispatchPage'])->name('batch-dispatch');
+        Route::post('/batch-dispatch', [WaybillController::class, 'batchDispatch'])->name('batch-dispatch.store');
+        Route::get('/batch-dispatch/stats', [WaybillController::class, 'batchDispatchStats'])->name('batch-dispatch.stats');
+        Route::get('/sla-dashboard', [WaybillController::class, 'slaDashboard'])->name('sla-dashboard');
+        Route::get('/sla-dashboard/api', [WaybillController::class, 'apiSlaDashboard'])->name('sla-dashboard.api');
+        Route::patch('/sla-dashboard/settings', [WaybillController::class, 'updateSlaSettings'])->name('sla-dashboard.settings');
+        Route::get('/geo-map', [WaybillController::class, 'geoMap'])->name('geo-map');
+        Route::get('/geo-map/api', [WaybillController::class, 'apiGeoMap'])->name('geo-map.api');
+        Route::get('/geo-map/{waybill}/history', [WaybillController::class, 'geoMapHistory'])->name('geo-map.history');
+        Route::get('/returns', [ReturnWorkflowController::class, 'index'])->name('returns.index');
+        Route::get('/returns/api', [ReturnWorkflowController::class, 'apiDashboard'])->name('returns.api');
+        Route::post('/returns/scan', [ReturnWorkflowController::class, 'scan'])->name('returns.scan');
+        Route::post('/returns/batch-scan', [ReturnWorkflowController::class, 'batchScan'])->name('returns.batch-scan');
+        Route::get('/courier-analytics', [CourierAnalyticsController::class, 'index'])->name('courier-analytics.index');
+        Route::get('/courier-analytics/api', [CourierAnalyticsController::class, 'api'])->name('courier-analytics.api');
+        Route::get('/courier-analytics/export', [CourierAnalyticsController::class, 'export'])->name('courier-analytics.export');
+        Route::get('/mock-courier', [MockCourierController::class, 'index'])->name('mock-courier.index');
+        Route::get('/mock-courier/api/orders', [MockCourierController::class, 'apiOrders'])->name('mock-courier.orders');
+        Route::post('/mock-courier/create', [MockCourierController::class, 'createOrder'])->name('mock-courier.create');
+        Route::post('/mock-courier/create-from-waybill/{waybill}', [MockCourierController::class, 'createFromWaybill'])->name('mock-courier.create-from-waybill');
+        Route::get('/mock-courier/{trackingNumber}/track', [MockCourierController::class, 'trackOrder'])->name('mock-courier.track');
+        Route::post('/mock-courier/{trackingNumber}/advance', [MockCourierController::class, 'advanceStatus'])->name('mock-courier.advance');
+        Route::post('/mock-courier/{trackingNumber}/status', [MockCourierController::class, 'setStatus'])->name('mock-courier.set-status');
+        Route::post('/mock-courier/{trackingNumber}/cancel', [MockCourierController::class, 'cancelOrder'])->name('mock-courier.cancel');
+        Route::post('/mock-courier/{trackingNumber}/webhook', [MockCourierController::class, 'simulateWebhook'])->name('mock-courier.webhook');
+        Route::delete('/mock-courier/{trackingNumber}', [MockCourierController::class, 'resetOrder'])->name('mock-courier.delete');
+        Route::post('/mock-courier/reset-all', [MockCourierController::class, 'resetAll'])->name('mock-courier.reset-all');
+        Route::get('/{waybill}/qr-code', [WaybillController::class, 'qrCode'])->name('qr-code');
+        Route::get('/{waybill}/qr-code/label', [WaybillController::class, 'qrCodeLabel'])->name('qr-code.label');
+        Route::post('/{waybill}/delivery-proofs', [WaybillController::class, 'uploadDeliveryProof'])->name('delivery-proofs.store');
+        Route::delete('/{waybill}/delivery-proofs/{proofId}', [WaybillController::class, 'deleteDeliveryProof'])->name('delivery-proofs.destroy');
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
@@ -712,6 +866,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Agents & User Management
     Route::prefix('agents')->name('agents.')->group(function () {
         Route::get('/governance', [AgentController::class, 'index'])->name('governance');
+        Route::get('/{user}', [AgentController::class, 'show'])->name('show')->whereNumber('user');
         Route::post('/', [AgentController::class, 'store'])->name('store');
         Route::patch('/{user}/profile', [AgentController::class, 'updateProfile'])->name('update-profile')->whereNumber('user');
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active')->whereNumber('user');
@@ -746,6 +901,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/{provider}/sync', [CourierProviderController::class, 'syncTracking'])->name('sync');
         Route::get('/{provider}/logs', [CourierProviderController::class, 'logs'])->name('logs');
         Route::post('/create-order', [CourierProviderController::class, 'createOrder'])->name('create-order');
+        Route::get('/compare-rates', [CourierProviderController::class, 'compareRates'])->name('compare-rates');
+        Route::post('/compare-rates', [CourierProviderController::class, 'apiCompareRates'])->name('compare-rates.api');
+        Route::get('/rate-management', [CourierProviderController::class, 'rateManagement'])->name('rate-management');
+        Route::post('/rates', [CourierProviderController::class, 'storeRate'])->name('rates.store');
+        Route::patch('/rates/{rate}', [CourierProviderController::class, 'updateRate'])->name('rates.update');
+        Route::delete('/rates/{rate}', [CourierProviderController::class, 'destroyRate'])->name('rates.destroy');
     });
 
     // Sales Tracking

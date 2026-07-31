@@ -2,9 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\Services\BatchDispatchService;
+use App\Domain\Waybill\Models\DeliveryProof;
+use App\Domain\Waybill\Services\DeliveryProofService;
+use App\Domain\Waybill\Services\GeolocationMapService;
+use App\Domain\Waybill\Services\QrCodeService;
+use App\Domain\Waybill\Services\SlaDashboardService;
 use App\Models\Customer;
 use App\Models\Waybill;
 use App\Services\SmsSequenceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -55,7 +62,7 @@ class WaybillController extends Controller
 
     public function show(Waybill $waybill)
     {
-        $waybill->load(['trackingHistory', 'lead', 'uploadedBy']);
+        $waybill->load(['trackingHistory', 'lead', 'uploadedBy', 'deliveryProofs.uploader']);
 
         // Find or create customer by phone
         $customer = Customer::where('phone', $waybill->receiver_phone)->first();
@@ -92,6 +99,7 @@ class WaybillController extends Controller
             'orderHistory' => $orderHistory,
             'customerStats' => $customerStats,
             'customerRating' => $rating,
+            'deliveryProofs' => $waybill->deliveryProofs,
         ]);
     }
 
@@ -152,5 +160,180 @@ class WaybillController extends Controller
             ->first();
 
         return response()->json(['waybill' => $waybill]);
+    }
+
+    public function batchDispatchPage(Request $request)
+    {
+        $pendingWaybills = Waybill::where('status', 'PENDING')
+            ->orderBy('created_at', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        $service = app(BatchDispatchService::class);
+        $stats = $service->stats();
+
+        $couriers = \App\Domain\Courier\Models\CourierProvider::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name']);
+
+        return Inertia::render('Waybills/BatchDispatch', [
+            'pendingWaybills' => $pendingWaybills,
+            'stats'           => $stats,
+            'couriers'        => $couriers,
+            'filters'         => $request->only(['search']),
+        ]);
+    }
+
+    public function batchDispatch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'waybill_ids'  => ['required', 'array', 'min:1', 'max:100'],
+            'waybill_ids.*' => ['required', 'integer', 'exists:waybills,id'],
+            'courier_code' => ['required', 'string', 'in:FLASH,JNT'],
+            'async'        => ['nullable', 'boolean'],
+        ]);
+
+        $senderDefaults = config('services.couriers.sender_defaults', []);
+
+        if ($validated['async'] ?? false) {
+            \App\Domain\Courier\Jobs\BatchDispatchJob::dispatch(
+                $validated['waybill_ids'],
+                $validated['courier_code'],
+                $senderDefaults,
+            );
+
+            return response()->json([
+                'success'  => true,
+                'async'    => true,
+                'message'  => 'Batch dispatch queued for processing.',
+                'count'    => count($validated['waybill_ids']),
+            ]);
+        }
+
+        $service = app(BatchDispatchService::class);
+        $result = $service->dispatch($validated['waybill_ids'], $validated['courier_code'], $senderDefaults);
+
+        return response()->json([
+            'success' => $result['success'] > 0,
+            'message' => "Dispatched {$result['success']}/{$result['total']} waybills to {$validated['courier_code']}."
+                . ($result['failed'] > 0 ? " {$result['failed']} failed." : ''),
+            'result'  => $result,
+        ]);
+    }
+
+    public function batchDispatchStats(): JsonResponse
+    {
+        $service = app(BatchDispatchService::class);
+        return response()->json($service->stats());
+    }
+
+    public function uploadDeliveryProof(Request $request, Waybill $waybill): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:jpeg,jpg,png,gif,webp,pdf', 'max:10240'],
+            'type' => ['nullable', 'string', 'in:photo,signature,pod_document,other'],
+        ]);
+
+        $service = app(DeliveryProofService::class);
+
+        try {
+            $proof = $service->storeUpload(
+                $waybill,
+                $request->file('file'),
+                $validated['type'] ?? 'photo',
+                $request->user()?->id,
+            );
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Delivery proof uploaded.',
+                'proof'    => $proof->load('uploader'),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function deleteDeliveryProof(Waybill $waybill, int $proofId): JsonResponse
+    {
+        $proof = DeliveryProof::where('waybill_id', $waybill->id)->findOrFail($proofId);
+
+        $service = app(DeliveryProofService::class);
+        $service->delete($proof);
+
+        return response()->json(['success' => true, 'message' => 'Delivery proof deleted.']);
+    }
+
+    public function slaDashboard(Request $request): \Inertia\Response
+    {
+        $service = app(SlaDashboardService::class);
+        $data = $service->getDashboardData($request->only(['courier', 'from', 'to']));
+
+        return Inertia::render('Waybills/SlaDashboard', $data);
+    }
+
+    public function apiSlaDashboard(Request $request): JsonResponse
+    {
+        $service = app(SlaDashboardService::class);
+        $data = $service->getDashboardData($request->only(['courier', 'from', 'to']));
+
+        return response()->json($data);
+    }
+
+    public function updateSlaSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sla_return_days' => ['required', 'integer', 'min:1', 'max:30'],
+        ]);
+
+        $service = app(SlaDashboardService::class);
+        $settings = $service->updateSettings($validated);
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'SLA settings updated.',
+            'settings' => $settings,
+        ]);
+    }
+
+    public function geoMap(Request $request): \Inertia\Response
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getMapData($request->only(['courier', 'status']));
+        $stats = $service->getStats();
+
+        return Inertia::render('Waybills/GeoMap', array_merge($data, ['stats' => $stats]));
+    }
+
+    public function apiGeoMap(Request $request): JsonResponse
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getMapData($request->only(['courier', 'status']));
+
+        return response()->json($data);
+    }
+
+    public function geoMapHistory(Waybill $waybill): JsonResponse
+    {
+        $service = app(GeolocationMapService::class);
+        $data = $service->getWaybillLocationHistory($waybill->id);
+
+        return response()->json($data);
+    }
+
+    public function qrCode(Waybill $waybill): JsonResponse
+    {
+        $service = app(QrCodeService::class);
+        $data = $service->getQrData($waybill);
+
+        return response()->json($data);
+    }
+
+    public function qrCodeLabel(Waybill $waybill): \Illuminate\Http\Response
+    {
+        $service = app(QrCodeService::class);
+        $data = $service->getLabelData($waybill);
+
+        return response()->view('waybills.qr-label', $data);
     }
 }

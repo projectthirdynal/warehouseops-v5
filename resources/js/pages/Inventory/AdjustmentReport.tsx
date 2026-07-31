@@ -156,20 +156,52 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 export default function AdjustmentReport({
-  summary,
-  by_reason,
-  by_warehouse,
-  by_submitter,
-  by_hour,
-  top_impact,
-  pending_rows,
-  rows,
-  warehouses,
-  filters,
-  period,
+  summary: summaryProp,
+  by_reason: byReasonProp,
+  by_warehouse: byWarehouseProp,
+  by_submitter: bySubmitterProp,
+  by_hour: byHourProp,
+  top_impact: topImpactProp,
+  pending_rows: pendingRowsProp,
+  rows: rowsProp,
+  warehouses: warehousesProp,
+  filters: filtersProp,
+  period: periodProp,
 }: Props) {
-  const isToday =
-    period.from === period.to && period.from === new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const period = periodProp ?? { from: today, to: today };
+  const summary = summaryProp ?? {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    positive_count: 0,
+    negative_count: 0,
+    zero_count: 0,
+    total_added: 0,
+    total_deducted: 0,
+    total_units_moved: 0,
+  };
+  const by_reason = byReasonProp ?? [];
+  const by_warehouse = byWarehouseProp ?? [];
+  const by_submitter = bySubmitterProp ?? [];
+  const by_hour = byHourProp ?? [];
+  const top_impact = topImpactProp ?? [];
+  const pending_rows = pendingRowsProp ?? [];
+  const rows = rowsProp ?? {
+    data: [],
+    current_page: 1,
+    last_page: 1,
+    per_page: 50,
+    total: 0,
+    from: null,
+    to: null,
+    links: [],
+  };
+  const warehouses = warehousesProp ?? [];
+  const filters = filtersProp ?? {};
+
+  const isToday = period.from === period.to && period.from === today;
 
   function apply(overrides: Record<string, string>) {
     router.get(

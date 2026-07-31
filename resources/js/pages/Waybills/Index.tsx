@@ -1,10 +1,11 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import {
   Search,
   Filter,
   Download,
   Upload,
+  Send,
   MoreHorizontal,
   Eye,
   Truck,
@@ -27,6 +28,16 @@ import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,7 +96,35 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerWaybill, setDrawerWaybill] = useState<Waybill | null>(null);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusWaybill, setStatusWaybill] = useState<Waybill | null>(null);
   const { success, error } = useToast();
+
+  const statusForm = useForm({
+    status: '' as string,
+    reason: '',
+  });
+
+  const openStatusDialog = (waybill: Waybill) => {
+    setStatusWaybill(waybill);
+    statusForm.reset();
+    statusForm.setData('status', waybill.status);
+    setStatusDialogOpen(true);
+  };
+
+  const submitStatusUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusWaybill) return;
+    statusForm.patch(`/waybills/${statusWaybill.id}/status`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setStatusDialogOpen(false);
+        setStatusWaybill(null);
+        success('Waybill status updated successfully');
+      },
+      onError: () => error('Failed to update status'),
+    });
+  };
   const { apply: applyFilters } = useSavedFilters('/waybills');
 
   const waybillIds = waybills?.data?.map((w) => String(w.id)) || [];
@@ -164,6 +203,12 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
             <p className="text-muted-foreground">Manage and track all shipment waybills</p>
           </div>
           <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/waybills/batch-dispatch">
+                <Send className="mr-1.5 h-4 w-4" />
+                Batch Dispatch
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/waybills/import">
                 <Upload className="mr-1.5 h-4 w-4" />
@@ -401,7 +446,7 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
                                       <Eye className="mr-1.5 h-4 w-4" />
                                       View Details
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openStatusDialog(waybill)}>
                                       <Truck className="mr-1.5 h-4 w-4" />
                                       Update Status
                                     </DropdownMenuItem>
@@ -596,18 +641,65 @@ export default function WaybillsIndex({ waybills, filters, stats }: Props) {
               >
                 Open Full Page
               </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  success('Status update dialog would open here');
-                }}
-              >
+              <Button size="sm" onClick={() => openStatusDialog(drawerWaybill)}>
                 Update Status
               </Button>
             </div>
           </div>
         )}
       </DetailDrawer>
+
+      {/* Status Update Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Status — {statusWaybill?.waybill_number}</DialogTitle>
+            <DialogDescription>
+              Select a new status and optionally provide a reason for this update.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitStatusUpdate} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={statusForm.data.status}
+                onValueChange={(v) => statusForm.setData('status', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="DISPATCHED">Dispatched</SelectItem>
+                  <SelectItem value="PICKED_UP">Picked Up</SelectItem>
+                  <SelectItem value="IN_TRANSIT">In Transit</SelectItem>
+                  <SelectItem value="OUT_FOR_DELIVERY">Out for Delivery</SelectItem>
+                  <SelectItem value="DELIVERED">Delivered</SelectItem>
+                  <SelectItem value="RETURNED">Returned</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                value={statusForm.data.reason}
+                onChange={(e) => statusForm.setData('reason', e.target.value)}
+                rows={3}
+                placeholder="e.g. Customer not available"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setStatusDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={statusForm.processing}>
+                Update Status
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

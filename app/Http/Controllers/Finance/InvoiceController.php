@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\InvoicePayment;
-use App\Models\Order;
-use App\Models\Product;
+use App\Domain\Order\Models\Order;
+use App\Domain\Product\Models\Product;
 use App\Models\ThirdParty;
 use App\Services\Finance\InvoiceCalculator;
 use Illuminate\Http\Request;
@@ -50,7 +50,7 @@ class InvoiceController extends Controller
     public function create(Request $request)
     {
         $thirdParties = ThirdParty::select('id', 'name', 'type')->orderBy('name')->get();
-        $products     = Product::select('id', 'name', 'sku', 'unit_price')->orderBy('name')->get();
+        $products     = Product::select('id', 'name', 'sku', 'selling_price as unit_price')->orderBy('name')->get();
 
         return Inertia::render('Finance/Invoices/Create', [
             'thirdParties' => $thirdParties,

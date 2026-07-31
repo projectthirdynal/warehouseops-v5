@@ -1,6 +1,7 @@
 import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   ArrowLeft,
@@ -36,6 +37,9 @@ import {
   Video as VideoIcon,
   X,
   Lightbulb,
+  GitMerge,
+  Eye,
+  AlertTriangle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Badge } from '@/components/ui/badge';
@@ -478,13 +482,22 @@ export default function ShopConversation({
     if (!pollingEnabled || !conversation?.id) return;
 
     let failCount = 0;
+    let cancelled = false;
+    let timeoutRef: ReturnType<typeof setTimeout> | null = null;
 
-    const interval = setInterval(() => {
+    const doLongPoll = () => {
+      if (cancelled) return;
+
       axios
         .get(`/shop/inbox/${conversation.id}/poll`, {
-          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+          params: {
+            ...(lastMessageId > 0 ? { after_message_id: lastMessageId } : {}),
+            wait: 1,
+          },
+          timeout: 35000,
         })
         .then(({ data }) => {
+          if (cancelled) return;
           setConnectionStatus('connected');
           failCount = 0;
           if (data.messages?.length > 0) {
@@ -502,18 +515,71 @@ export default function ShopConversation({
             }
           }
           setIsTyping(Boolean(data.is_typing));
+          // Re-issue immediately — server held the request if no messages
+          timeoutRef = setTimeout(doLongPoll, 500);
         })
         .catch(() => {
+          if (cancelled) return;
           failCount++;
           if (failCount >= 3) {
+            setConnectionStatus('offline');
+            // Fall back to short-polling every 5s
+            timeoutRef = setTimeout(doShortPoll, 5000);
+          } else {
+            setConnectionStatus('reconnecting');
+            // Retry long-poll after brief delay
+            timeoutRef = setTimeout(doLongPoll, 2000);
+          }
+        });
+    };
+
+    const doShortPoll = () => {
+      if (cancelled) return;
+
+      axios
+        .get(`/shop/inbox/${conversation.id}/poll`, {
+          params: lastMessageId > 0 ? { after_message_id: lastMessageId } : {},
+        })
+        .then(({ data }) => {
+          if (cancelled) return;
+          setConnectionStatus('connected');
+          failCount = 0;
+          if (data.messages?.length > 0) {
+            const inboundCount = data.messages.filter(
+              (m: Message) => m.direction === 'inbound'
+            ).length;
+            setMessages((prev) => [...prev, ...data.messages]);
+            const maxId = data.messages.reduce(
+              (max: number, m: Message) => (m.id > max ? m.id : max),
+              lastMessageId
+            );
+            setLastMessageId(maxId);
+            if (inboundCount > 0) {
+              setNewMessageCount((c) => c + inboundCount);
+            }
+          }
+          setIsTyping(Boolean(data.is_typing));
+          // Try long-polling again after successful short-poll
+          timeoutRef = setTimeout(doLongPoll, 1000);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          failCount++;
+          if (failCount >= 5) {
             setConnectionStatus('offline');
           } else {
             setConnectionStatus('reconnecting');
           }
+          timeoutRef = setTimeout(doShortPoll, 5000);
         });
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
+    doLongPoll();
+
+    return () => {
+      cancelled = true;
+      if (timeoutRef) clearTimeout(timeoutRef);
+    };
   }, [conversation?.id, lastMessageId, pollingEnabled]);
 
   useEffect(() => {
@@ -799,6 +865,10 @@ export default function ShopConversation({
   };
 
   const [mergeSourceId, setMergeSourceId] = useState<number | ''>('');
+  const [mergePreviewData, setMergePreviewData] = useState<any>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeExecuting, setMergeExecuting] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
 
   const submitMerge = (event: FormEvent) => {
     event.preventDefault();
@@ -811,6 +881,44 @@ export default function ShopConversation({
         onSuccess: () => setMergeSourceId(''),
       }
     );
+  };
+
+  const fetchMergePreview = (sourceId: number) => {
+    setMergeLoading(true);
+    setMergePreviewData(null);
+    setShowMergeModal(true);
+    axios
+      .post(`/shop/inbox/${conversation.id}/merge/preview`, {
+        source_conversation_id: sourceId,
+      })
+      .then(({ data }) => setMergePreviewData(data))
+      .catch(() => {
+        toast.error('Failed to load merge preview');
+        setShowMergeModal(false);
+      })
+      .finally(() => setMergeLoading(false));
+  };
+
+  const executeMerge = () => {
+    if (!mergeSourceId) return;
+    setMergeExecuting(true);
+    axios
+      .post(`/shop/inbox/${conversation.id}/merge/execute`, {
+        source_conversation_id: mergeSourceId,
+      })
+      .then(({ data }) => {
+        if (data.success) {
+          toast.success(data.message || 'Conversations merged successfully');
+          setShowMergeModal(false);
+          setMergePreviewData(null);
+          setMergeSourceId('');
+          router.reload();
+        } else {
+          toast.error(data.error || 'Merge failed');
+        }
+      })
+      .catch(() => toast.error('Failed to execute merge'))
+      .finally(() => setMergeExecuting(false));
   };
 
   const updateStatus = (status: string) => {
@@ -1244,7 +1352,13 @@ export default function ShopConversation({
                   {conversation.priority ?? 'normal'}
                 </Badge>
               )}
-              {conversation.is_flagged && <Badge variant="destructive">Flagged</Badge>}
+              {conversation.is_flagged && (
+                <Badge variant="destructive" title={conversation.flag_reason ?? undefined}>
+                  {conversation.flag_reason?.startsWith('Negative sentiment detected')
+                    ? 'Auto-Flagged'
+                    : 'Flagged'}
+                </Badge>
+              )}
               {conversation.facebook_page && <Badge>{conversation.facebook_page.page_name}</Badge>}
               {conversation.sentiment !== 'neutral' && (
                 <Badge
@@ -1288,7 +1402,7 @@ export default function ShopConversation({
                           ? 'Connection lost — retrying'
                           : connectionStatus === 'reconnecting'
                             ? 'Reconnecting...'
-                            : 'Polling every 5s'
+                            : 'Long-polling (real-time)'
                     }
                   >
                     {!pollingEnabled ? (
@@ -3082,7 +3196,10 @@ export default function ShopConversation({
 
             <Card>
               <CardHeader>
-                <CardTitle>Merge Duplicate</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <GitMerge className="h-4 w-4" />
+                  Merge Duplicate
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {conversation.merged_into_id ? (
@@ -3093,9 +3210,9 @@ export default function ShopConversation({
                   <>
                     <p className="text-sm text-muted-foreground">
                       Merge another conversation into this one. All messages and tags will be
-                      transferred.
+                      transferred. Preview before executing.
                     </p>
-                    <form onSubmit={submitMerge} className="space-y-2">
+                    <div className="space-y-2">
                       <select
                         value={mergeSourceId}
                         onChange={(e) =>
@@ -3114,10 +3231,32 @@ export default function ShopConversation({
                           </option>
                         ))}
                       </select>
-                      <Button type="submit" size="sm" disabled={!mergeSourceId}>
-                        Merge into this conversation
-                      </Button>
-                    </form>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!mergeSourceId || mergeLoading}
+                          onClick={() => fetchMergePreview(Number(mergeSourceId))}
+                        >
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          Preview Merge
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!mergeSourceId}
+                          onClick={() => {
+                            if (confirm('Merge without preview? This action cannot be undone.')) {
+                              submitMerge({ preventDefault: () => {} } as FormEvent);
+                            }
+                          }}
+                        >
+                          <GitMerge className="mr-1 h-3.5 w-3.5" />
+                          Quick Merge
+                        </Button>
+                      </div>
+                    </div>
                     {merge_candidates.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         No duplicate conversations found.
@@ -3127,6 +3266,238 @@ export default function ShopConversation({
                 )}
               </CardContent>
             </Card>
+
+            {showMergeModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg border bg-background p-6 shadow-lg">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-lg font-semibold">
+                      <GitMerge className="h-5 w-5" />
+                      Merge Preview
+                    </h2>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowMergeModal(false);
+                        setMergePreviewData(null);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {mergeLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    </div>
+                  ) : mergePreviewData ? (
+                    <div className="space-y-4">
+                      {mergePreviewData.conflicts.length > 0 && (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
+                          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+                            <AlertTriangle className="h-4 w-4" />
+                            {mergePreviewData.conflicts.length} Conflict
+                            {mergePreviewData.conflicts.length > 1 ? 's' : ''} Detected
+                          </p>
+                          {mergePreviewData.conflicts.map((conflict: any, i: number) => (
+                            <div key={i} className="text-xs text-amber-700">
+                              <Badge variant="outline" className="mr-1.5 text-[10px]">
+                                {conflict.type.replace(/_/g, ' ')}
+                              </Badge>
+                              {conflict.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-md border p-3">
+                          <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                            Target (This Conversation)
+                          </p>
+                          <dl className="space-y-1 text-sm">
+                            <div>
+                              <dt className="inline font-medium">ID:</dt>{' '}
+                              <dd className="inline">#{mergePreviewData.target.id}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Status:</dt>{' '}
+                              <dd className="inline">
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {mergePreviewData.target.status}
+                                </Badge>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Customer:</dt>{' '}
+                              <dd className="inline">
+                                {mergePreviewData.target.customer_name ??
+                                  mergePreviewData.target.identity_name ??
+                                  'Unknown'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Messages:</dt>{' '}
+                              <dd className="inline">{mergePreviewData.target.message_count}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Unread:</dt>{' '}
+                              <dd className="inline">{mergePreviewData.target.unread_count}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Tags:</dt>{' '}
+                              <dd className="inline">
+                                {mergePreviewData.target.tags.length > 0
+                                  ? mergePreviewData.target.tags.join(', ')
+                                  : 'None'}
+                              </dd>
+                            </div>
+                          </dl>
+                        </div>
+                        <div className="rounded-md border p-3">
+                          <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                            Source (To Be Merged)
+                          </p>
+                          <dl className="space-y-1 text-sm">
+                            <div>
+                              <dt className="inline font-medium">ID:</dt>{' '}
+                              <dd className="inline">#{mergePreviewData.source.id}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Status:</dt>{' '}
+                              <dd className="inline">
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {mergePreviewData.source.status}
+                                </Badge>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Customer:</dt>{' '}
+                              <dd className="inline">
+                                {mergePreviewData.source.customer_name ??
+                                  mergePreviewData.source.identity_name ??
+                                  'Unknown'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Messages:</dt>{' '}
+                              <dd className="inline">{mergePreviewData.source.message_count}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Unread:</dt>{' '}
+                              <dd className="inline">{mergePreviewData.source.unread_count}</dd>
+                            </div>
+                            <div>
+                              <dt className="inline font-medium">Tags:</dt>{' '}
+                              <dd className="inline">
+                                {mergePreviewData.source.tags.length > 0
+                                  ? mergePreviewData.source.tags.join(', ')
+                                  : 'None'}
+                              </dd>
+                            </div>
+                          </dl>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border bg-muted/30 p-3">
+                        <p className="mb-2 text-xs font-semibold">After Merge</p>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Total Messages</p>
+                            <p className="font-bold">
+                              {mergePreviewData.merge_summary.total_messages_after}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Unread After</p>
+                            <p className="font-bold">
+                              {mergePreviewData.merge_summary.unread_after}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Source Status</p>
+                            <p className="font-bold text-amber-600">Archived</p>
+                          </div>
+                        </div>
+                        {mergePreviewData.merge_summary.tags_to_add.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-[10px] text-muted-foreground">
+                              Tags to be added from source:
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {mergePreviewData.merge_summary.tags_to_add.map((tag: string) => (
+                                <Badge key={tag} variant="outline" className="text-[10px]">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {mergePreviewData.source.recent_messages?.length > 0 && (
+                        <div className="rounded-md border p-3">
+                          <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                            Recent Messages in Source (Preview)
+                          </p>
+                          <div className="space-y-1.5">
+                            {mergePreviewData.source.recent_messages.map((msg: any) => (
+                              <div key={msg.id} className="flex items-start gap-2 text-xs">
+                                <Badge
+                                  variant={msg.direction === 'inbound' ? 'default' : 'secondary'}
+                                  className="text-[9px] shrink-0"
+                                >
+                                  {msg.direction === 'inbound' ? 'IN' : 'OUT'}
+                                </Badge>
+                                <span className="text-muted-foreground">{msg.body}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setShowMergeModal(false);
+                            setMergePreviewData(null);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={executeMerge}
+                          disabled={mergeExecuting || !mergePreviewData.can_merge}
+                        >
+                          {mergeExecuting ? (
+                            <>
+                              <div className="mr-1 h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                              Merging...
+                            </>
+                          ) : (
+                            <>
+                              <GitMerge className="mr-1 h-3.5 w-3.5" />
+                              Confirm Merge
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {!mergePreviewData.can_merge && (
+                        <p className="text-center text-xs text-destructive">
+                          Cannot merge due to conflicts. Please resolve them first.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No preview data available.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Card>
               <CardHeader>

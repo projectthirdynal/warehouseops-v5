@@ -55,6 +55,39 @@ class AgentController extends Controller
         ]);
     }
 
+    public function show(User $user)
+    {
+        $user->load('agentProfile');
+
+        $totalLeads = Lead::where('assigned_to', $user->id)->count();
+        $totalSales = Lead::where('assigned_to', $user->id)->where('status', 'SALE')->count();
+        $activeLeads = Lead::where('assigned_to', $user->id)
+            ->whereNotIn('status', ['SALE', 'DELIVERED', 'RETURNED', 'CANCELLED', 'ARCHIVED'])
+            ->count();
+        $totalRevenue = Lead::where('assigned_to', $user->id)->where('status', 'SALE')->sum('amount');
+
+        $stats = [
+            'total_leads' => $totalLeads,
+            'total_sales' => $totalSales,
+            'active_leads' => $activeLeads,
+            'conversion_rate' => $totalLeads > 0 ? round(($totalSales / $totalLeads) * 100, 1) : 0,
+            'total_revenue' => $totalRevenue,
+            'leads_today' => Lead::where('assigned_to', $user->id)->whereDate('created_at', today())->count(),
+            'sales_today' => Lead::where('assigned_to', $user->id)->where('status', 'SALE')->whereDate('updated_at', today())->count(),
+        ];
+
+        $recentLeads = Lead::where('assigned_to', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get(['id', 'name', 'status', 'amount', 'created_at', 'updated_at']);
+
+        return Inertia::render('Agents/Show', [
+            'agent' => $user,
+            'stats' => $stats,
+            'recentLeads' => $recentLeads,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

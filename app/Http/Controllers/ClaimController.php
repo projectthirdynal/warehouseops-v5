@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Domain\Waybill\Enums\ClaimStatus;
 use App\Domain\Waybill\Enums\ClaimType;
+use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Domain\Waybill\Models\Claim;
 use App\Domain\Waybill\Models\Waybill;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,6 +36,14 @@ class ClaimController extends Controller
             'pending_review' => Claim::whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
             'approved'       => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
             'rejected'       => Claim::where('status', ClaimStatus::REJECTED->value)->count(),
+            'auto_created'   => Claim::where('auto_created', true)->count(),
+            'auto_draft'     => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
+            'auto_filed'     => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
+            'auto_resolved'  => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
+            'pending_returned' => Waybill::where('status', WaybillStatus::RETURNED->value)
+                ->whereDoesntHave('claims')
+                ->count(),
+            'auto_create_enabled' => SiteSetting::get('claim_auto_create_enabled', '1') === '1',
         ];
 
         return Inertia::render('Waybills/Claims/Index', [
@@ -227,6 +237,88 @@ class ClaimController extends Controller
                 'from'   => $from,
                 'to'     => $to,
             ],
+        ]);
+    }
+
+    public function autoCreateStats()
+    {
+        $stats = [
+            'auto_created'   => Claim::where('auto_created', true)->count(),
+            'auto_draft'     => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
+            'auto_filed'     => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
+            'auto_resolved'  => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
+            'auto_rejected'  => Claim::where('auto_created', true)->where('status', ClaimStatus::REJECTED->value)->count(),
+            'pending_returned' => Waybill::where('status', WaybillStatus::RETURNED->value)
+                ->whereDoesntHave('claims')
+                ->count(),
+            'auto_create_enabled' => SiteSetting::get('claim_auto_create_enabled', '1') === '1',
+            'total_claim_amount' => Claim::where('auto_created', true)->sum('claim_amount'),
+        ];
+
+        return response()->json($stats);
+    }
+
+    public function bulkAutoCreate(Request $request)
+    {
+        $days = (int) $request->input('days', 30);
+
+        $waybills = Waybill::where('status', WaybillStatus::RETURNED->value)
+            ->whereDoesntHave('claims')
+            ->where('returned_at', '>=', now()->subDays($days))
+            ->get();
+
+        if ($waybills->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'created' => 0,
+                'message' => 'No returned waybills without claims found.',
+            ]);
+        }
+
+        $created = 0;
+        $errors = 0;
+
+        foreach ($waybills as $waybill) {
+            try {
+                $claimAmount = (float) ($waybill->cod_amount ?? $waybill->amount ?? 0);
+
+                Claim::create([
+                    'claim_number'  => Claim::generateClaimNumber(),
+                    'waybill_id'    => $waybill->id,
+                    'type'          => ClaimType::BEYOND_SLA->value,
+                    'status'        => ClaimStatus::DRAFT->value,
+                    'auto_created'  => true,
+                    'source'        => 'bulk_manual',
+                    'description'   => "Auto-created via bulk trigger. Waybill {$waybill->waybill_number} marked as RETURNED.",
+                    'claim_amount'  => $claimAmount,
+                    'filed_by'      => $request->user()->id,
+                ]);
+
+                $created++;
+            } catch (\Throwable $e) {
+                $errors++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'created' => $created,
+            'errors'  => $errors,
+            'message' => "Created {$created} draft claims." . ($errors > 0 ? " {$errors} errors." : ''),
+        ]);
+    }
+
+    public function toggleAutoCreate(Request $request)
+    {
+        $data = $request->validate([
+            'enabled' => 'required|boolean',
+        ]);
+
+        SiteSetting::set('claim_auto_create_enabled', $data['enabled'] ? '1' : '0');
+
+        return response()->json([
+            'success' => true,
+            'auto_create_enabled' => $data['enabled'],
         ]);
     }
 }

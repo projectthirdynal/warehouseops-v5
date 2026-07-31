@@ -1,4 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import axios from 'axios';
+import QRCode from 'qrcode';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Package,
@@ -14,10 +18,20 @@ import {
   AlertTriangle,
   Calendar,
   DollarSign,
+  QrCode as QrCodeIcon,
+  Printer,
+  Download,
+  Camera,
+  FileText,
+  PenTool,
+  Upload,
+  Trash2,
+  Loader2,
+  ImageIcon,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
@@ -88,12 +102,30 @@ interface CustomerRating {
   color: string;
 }
 
+interface DeliveryProofItem {
+  id: number;
+  waybill_id: number;
+  type: 'photo' | 'signature' | 'pod_document' | 'other';
+  file_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  source: 'courier_callback' | 'manual_upload' | 'courier_api';
+  courier_code: string | null;
+  metadata: Record<string, unknown> | null;
+  uploaded_by: { name: string } | null;
+  uploader: { name: string } | null;
+  created_at: string;
+  url: string;
+}
+
 interface Props {
   waybill: Waybill;
   customer: Customer | null;
   orderHistory: OrderHistoryItem[];
   customerStats: CustomerStats;
   customerRating: CustomerRating;
+  deliveryProofs?: DeliveryProofItem[];
 }
 
 const statusConfig: Record<
@@ -129,9 +161,107 @@ export default function WaybillShow({
   orderHistory,
   customerStats,
   customerRating,
+  deliveryProofs = [],
 }: Props) {
   const config = statusConfig[waybill.status] || statusConfig.PENDING;
   const StatusIcon = config.icon;
+
+  const [proofs, setProofs] = useState<DeliveryProofItem[]>(deliveryProofs);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  const generateQrCode = useCallback(async () => {
+    setQrLoading(true);
+    try {
+      const { data } = await axios.get(`/waybills/${waybill.id}/qr-code`);
+      if (qrCanvasRef.current) {
+        await QRCode.toCanvas(qrCanvasRef.current, data.qr_content, {
+          width: 200,
+          margin: 2,
+          color: { dark: '#000000', light: '#ffffff' },
+          errorCorrectionLevel: 'M',
+        });
+        const url = qrCanvasRef.current.toDataURL('image/png');
+        setQrDataUrl(url);
+      }
+    } catch {
+      toast.error('Failed to generate QR code.');
+    } finally {
+      setQrLoading(false);
+    }
+  }, [waybill.id]);
+
+  useEffect(() => {
+    generateQrCode();
+  }, [generateQrCode]);
+
+  function downloadQrCode() {
+    if (!qrDataUrl) return;
+    const link = document.createElement('a');
+    link.href = qrDataUrl;
+    link.download = `qr-${waybill.waybill_number}.png`;
+    link.click();
+  }
+
+  function printLabel() {
+    window.open(`/waybills/${waybill.id}/qr-code/label`, '_blank', 'width=500,height=700');
+  }
+
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'photo');
+
+    axios
+      .post(`/waybills/${waybill.id}/delivery-proofs`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then(({ data }) => {
+        if (data.success) {
+          setProofs((prev) => [data.proof, ...prev]);
+          toast.success('Delivery proof uploaded.');
+        } else {
+          toast.error(data.message || 'Upload failed.');
+        }
+      })
+      .catch(() => toast.error('Failed to upload delivery proof.'))
+      .finally(() => {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      });
+  }
+
+  function handleDelete(proofId: number) {
+    setDeletingId(proofId);
+    axios
+      .delete(`/waybills/${waybill.id}/delivery-proofs/${proofId}`)
+      .then(() => {
+        setProofs((prev) => prev.filter((p) => p.id !== proofId));
+        toast.success('Delivery proof deleted.');
+      })
+      .catch(() => toast.error('Failed to delete delivery proof.'))
+      .finally(() => setDeletingId(null));
+  }
+
+  const photos = proofs.filter((p) => p.type === 'photo');
+  const signatures = proofs.filter((p) => p.type === 'signature');
+  const documents = proofs.filter((p) => p.type === 'pod_document' || p.type === 'other');
+
+  const typeIcon = (type: string) => {
+    if (type === 'signature') return PenTool;
+    if (type === 'pod_document' || type === 'other') return FileText;
+    return Camera;
+  };
 
   return (
     <AppLayout>
@@ -317,6 +447,229 @@ export default function WaybillShow({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Delivery Proofs */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Camera className="h-5 w-5" />
+                      Delivery Proofs
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Photos, signatures, and POD documents from courier callbacks or manual uploads
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                      onChange={handleUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload Proof
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {proofs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <ImageIcon className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      No delivery proofs yet. Upload manually or they will appear here when the
+                      courier sends callback data.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Photos */}
+                    {photos.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+                          <Camera className="h-4 w-4" />
+                          Photos ({photos.length})
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                          {photos.map((proof) => {
+                            const isImage = proof.mime_type?.startsWith('image/');
+                            return (
+                              <div
+                                key={proof.id}
+                                className="group relative rounded-lg border overflow-hidden bg-muted"
+                              >
+                                {isImage ? (
+                                  <img
+                                    src={proof.url}
+                                    alt={proof.original_filename ?? 'Delivery photo'}
+                                    className="w-full h-32 object-cover cursor-pointer"
+                                    onClick={() => setLightboxUrl(proof.url)}
+                                  />
+                                ) : (
+                                  <div className="w-full h-32 flex items-center justify-center">
+                                    <FileText className="h-8 w-8 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <div className="p-2">
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {proof.source === 'courier_callback' ? (
+                                      <Badge variant="secondary" className="text-xs mr-1">
+                                        Courier
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-xs mr-1">
+                                        Manual
+                                      </Badge>
+                                    )}
+                                    {formatDate(proof.created_at)}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleDelete(proof.id)}
+                                  disabled={deletingId === proof.id}
+                                  className="absolute top-1 right-1 rounded-full bg-destructive/90 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  {deletingId === proof.id ? (
+                                    <Loader2 className="h-3 w-3 text-white animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3 w-3 text-white" />
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Signatures */}
+                    {signatures.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+                          <PenTool className="h-4 w-4" />
+                          Signatures ({signatures.length})
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                          {signatures.map((proof) => (
+                            <div
+                              key={proof.id}
+                              className="group relative rounded-lg border overflow-hidden bg-muted"
+                            >
+                              <img
+                                src={proof.url}
+                                alt={proof.original_filename ?? 'Signature'}
+                                className="w-full h-32 object-cover cursor-pointer"
+                                onClick={() => setLightboxUrl(proof.url)}
+                              />
+                              <div className="p-2">
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {proof.source === 'courier_callback' ? (
+                                    <Badge variant="secondary" className="text-xs mr-1">
+                                      Courier
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs mr-1">
+                                      Manual
+                                    </Badge>
+                                  )}
+                                  {formatDate(proof.created_at)}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleDelete(proof.id)}
+                                disabled={deletingId === proof.id}
+                                className="absolute top-1 right-1 rounded-full bg-destructive/90 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                {deletingId === proof.id ? (
+                                  <Loader2 className="h-3 w-3 text-white animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3 text-white" />
+                                )}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Documents */}
+                    {documents.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+                          <FileText className="h-4 w-4" />
+                          Documents ({documents.length})
+                        </h4>
+                        <div className="space-y-2">
+                          {documents.map((proof) => {
+                            const Icon = typeIcon(proof.type);
+                            return (
+                              <div
+                                key={proof.id}
+                                className="group flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50"
+                              >
+                                <Icon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <a
+                                    href={proof.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm font-medium hover:underline truncate block"
+                                  >
+                                    {proof.original_filename ?? 'Document'}
+                                  </a>
+                                  <p className="text-xs text-muted-foreground">
+                                    {proof.source === 'courier_callback' ? (
+                                      <Badge variant="secondary" className="text-xs mr-1">
+                                        Courier
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-xs mr-1">
+                                        Manual
+                                      </Badge>
+                                    )}
+                                    {proof.uploader?.name ?? 'Unknown'} ·{' '}
+                                    {formatDate(proof.created_at)}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleDelete(proof.id)}
+                                  disabled={deletingId === proof.id}
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  {deletingId === proof.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar - Customer Info */}
@@ -486,9 +839,70 @@ export default function WaybillShow({
                 </div>
               </CardContent>
             </Card>
+
+            {/* QR Code */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCodeIcon className="h-5 w-5" />
+                  QR Code
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-3">
+                {qrLoading ? (
+                  <div className="h-[200px] w-[200px] flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <canvas ref={qrCanvasRef} className="rounded-lg border" />
+                )}
+                <p className="text-xs text-muted-foreground text-center font-mono break-all">
+                  {waybill.waybill_number}
+                </p>
+                <div className="flex gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={downloadQrCode}
+                    disabled={!qrDataUrl}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    PNG
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={printLabel}>
+                    <Printer className="h-4 w-4 mr-1" />
+                    Label
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="Delivery proof"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg"
+          />
+          <button
+            className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxUrl(null);
+            }}
+          >
+            <XCircle className="h-6 w-6" />
+          </button>
+        </div>
+      )}
     </AppLayout>
   );
 }

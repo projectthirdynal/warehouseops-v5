@@ -31,6 +31,8 @@ use App\Domain\Shop\Services\CustomerAuditService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
+use App\Domain\Shop\Services\AutoAssignmentService;
+use App\Domain\Courier\Services\CourierStatusSyncService;
 use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
@@ -39,7 +41,18 @@ use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Domain\Shop\Services\ConversationExportService;
 use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
+use App\Domain\Shop\Services\SentimentReviewService;
+use App\Domain\Shop\Services\ConversationSlaService;
+use App\Domain\Shop\Services\BroadcastCampaignService;
+use App\Domain\Shop\Services\ProductRecommendationService;
+use App\Domain\Shop\Services\ConversationMergePreviewService;
+use App\Domain\Shop\Services\ShopReportsEnhancementService;
+use App\Domain\Shop\Services\CartTemplateSharingService;
+use App\Domain\Shop\Services\RichMediaTemplateService;
+use App\Domain\Shop\Services\ConversationArchiveService;
+use App\Domain\Shop\Services\GamificationService;
 use App\Domain\Shop\Services\ShippingRateService;
+use App\Domain\Shop\Models\BroadcastCampaign;
 use App\Domain\Shop\Models\ConversationExport;
 use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\ConversationStatusHistory;
@@ -60,6 +73,7 @@ use App\Notifications\RemarkMentionedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -95,6 +109,16 @@ class ShopController extends Controller
         private readonly DuplicateDetectionService $duplicateDetection,
         private readonly CustomerRiskService $customerRisk,
         private readonly CustomerAuditService $customerAudit,
+        private readonly SentimentReviewService $sentimentReview,
+        private readonly ConversationSlaService $slaService,
+        private readonly BroadcastCampaignService $broadcastService,
+        private readonly ProductRecommendationService $recommendationService,
+        private readonly ConversationMergePreviewService $mergePreviewService,
+        private readonly ShopReportsEnhancementService $reportsEnhancementService,
+        private readonly CartTemplateSharingService $cartTemplateSharingService,
+        private readonly RichMediaTemplateService $richMediaTemplateService,
+        private readonly ConversationArchiveService $archiveService,
+        private readonly GamificationService $gamificationService,
     ) {}
 
     public function index(): Response
@@ -160,6 +184,109 @@ class ShopController extends Controller
                 'Add stock-aware validation before Shop order confirmation.',
                 'Add message labels and follow-up reminders per conversation.',
             ],
+        ]);
+    }
+
+    public function autoAssignmentSettings(): JsonResponse
+    {
+        $service = app(AutoAssignmentService::class);
+
+        return response()->json($service->getSettings());
+    }
+
+    public function updateAutoAssignmentSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'strategy' => ['nullable', 'string', 'in:round_robin,skill_based,workload,hybrid'],
+            'enabled' => ['nullable', 'boolean'],
+            'fallback_agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'respect_shift_hours' => ['nullable', 'boolean'],
+            'respect_queue_limits' => ['nullable', 'boolean'],
+        ]);
+
+        app(AutoAssignmentService::class)->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => app(AutoAssignmentService::class)->getSettings(),
+        ]);
+    }
+
+    public function bulkAutoAssign(): JsonResponse
+    {
+        $result = app(AutoAssignmentService::class)->bulkAutoAssign();
+
+        return response()->json($result);
+    }
+
+    public function autoAssignmentStats(): JsonResponse
+    {
+        $stats = app(AutoAssignmentService::class)->getStats();
+
+        return response()->json($stats);
+    }
+
+    public function courierSyncStats(): JsonResponse
+    {
+        $stats = app(CourierStatusSyncService::class)->getStats();
+
+        return response()->json($stats);
+    }
+
+    public function courierSyncSettings(): JsonResponse
+    {
+        $settings = app(CourierStatusSyncService::class)->getSettings();
+
+        return response()->json($settings);
+    }
+
+    public function updateCourierSyncSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'auto_notify_customer' => ['nullable', 'boolean'],
+            'sync_intermediate_statuses' => ['nullable', 'boolean'],
+            'sync_interval_minutes' => ['nullable', 'integer', 'min:5', 'max:1440'],
+            'max_waybills_per_run' => ['nullable', 'integer', 'min:10', 'max:5000'],
+            'lookback_days' => ['nullable', 'integer', 'min:1', 'max:90'],
+        ]);
+
+        app(CourierStatusSyncService::class)->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => app(CourierStatusSyncService::class)->getSettings(),
+        ]);
+    }
+
+    public function bulkCourierSync(): JsonResponse
+    {
+        $result = app(CourierStatusSyncService::class)->bulkSync();
+
+        return response()->json($result);
+    }
+
+    public function courierSyncHistory(Request $request): JsonResponse
+    {
+        $limit = min((int) $request->get('limit', 20), 100);
+
+        return response()->json(
+            app(CourierStatusSyncService::class)->getSyncHistory($limit)
+        );
+    }
+
+    public function courierSyncPerCourier(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'courier' => ['required', 'string', 'in:FLASH,JNT'],
+        ]);
+
+        $courier = strtoupper($validated['courier']);
+
+        dispatch(new \App\Domain\Courier\Jobs\SyncTrackingStatusJob($courier, 'api'));
+
+        return response()->json([
+            'success' => true,
+            'message' => "Sync dispatched for {$courier}",
         ]);
     }
 
@@ -418,20 +545,76 @@ class ShopController extends Controller
             'order_statuses' => $this->orderStatusReport($filters),
             'top_products' => $this->topProductReport($filters),
             'daily_sales' => $this->dailySalesReport($filters),
+            'funnel' => $this->reportsEnhancementService->funnel($filters),
+            'response_time' => $this->reportsEnhancementService->responseTime($filters),
+            'peak_hours' => $this->reportsEnhancementService->peakHours($filters),
+            'retention' => $this->reportsEnhancementService->retention($filters),
             'filters' => $filters,
             'pages' => FacebookPage::query()->orderBy('page_name')->get(['id', 'page_name']),
             'agents' => $this->shopAgents(),
         ]);
     }
 
+    public function reportsEnhancement(Request $request): JsonResponse
+    {
+        $filters = [
+            'date_from' => $request->string('date_from')->toString() ?: today()->subDays(6)->toDateString(),
+            'date_to' => $request->string('date_to')->toString() ?: today()->toDateString(),
+            'page_id' => $request->string('page_id')->toString(),
+            'agent_id' => $request->string('agent_id')->toString(),
+        ];
+
+        $type = $request->string('type')->toString();
+
+        return match ($type) {
+            'funnel' => response()->json($this->reportsEnhancementService->funnel($filters)),
+            'response_time' => response()->json($this->reportsEnhancementService->responseTime($filters)),
+            'peak_hours' => response()->json($this->reportsEnhancementService->peakHours($filters)),
+            'retention' => response()->json($this->reportsEnhancementService->retention($filters)),
+            default => response()->json([
+                'funnel' => $this->reportsEnhancementService->funnel($filters),
+                'response_time' => $this->reportsEnhancementService->responseTime($filters),
+                'peak_hours' => $this->reportsEnhancementService->peakHours($filters),
+                'retention' => $this->reportsEnhancementService->retention($filters),
+            ]),
+        };
+    }
+
     public function templates(): Response
     {
+        $shopTemplates = ShopReplyTemplate::query()
+            ->with('creator:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->paginate(24);
+
+        $richMediaTemplates = ReplyTemplate::query()
+            ->whereIn('media_type', [ReplyTemplate::MEDIA_BUTTON, ReplyTemplate::MEDIA_CARD, ReplyTemplate::MEDIA_CAROUSEL])
+            ->with('creator:id,name')
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get(['id', 'title', 'content', 'media_type', 'media_config', 'category', 'is_active', 'created_by', 'updated_at'])
+            ->map(fn (ReplyTemplate $t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'content' => $t->content,
+                'media_type' => $t->media_type,
+                'media_type_label' => ReplyTemplate::MEDIA_TYPES[$t->media_type] ?? $t->media_type,
+                'media_config' => $t->media_config,
+                'category' => $t->category,
+                'is_active' => $t->is_active,
+                'creator' => $t->creator?->name,
+                'updated_at' => $t->updated_at?->toIso8601String(),
+            ])
+            ->all();
+
+        $richMediaStats = $this->richMediaTemplateService->stats();
+
         return Inertia::render('Shop/Templates', [
-            'templates' => ShopReplyTemplate::query()
-                ->with('creator:id,name')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->paginate(24),
+            'templates' => $shopTemplates,
+            'rich_media_templates' => $richMediaTemplates,
+            'rich_media_stats' => $richMediaStats,
+            'media_types' => ReplyTemplate::MEDIA_TYPES,
         ]);
     }
 
@@ -465,6 +648,130 @@ class ShopController extends Controller
         $template->delete();
 
         return back()->with('success', 'Shop reply template deleted.');
+    }
+
+    public function storeRichMediaTemplate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string', 'max:2000'],
+            'media_type' => ['required', 'string', 'in:button,card,carousel'],
+            'media_config' => ['nullable', 'array'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $validation = $this->richMediaTemplateService->validateConfig(
+            $validated['media_type'],
+            $validated['media_config'] ?? null,
+        );
+
+        if (!$validation['valid']) {
+            return response()->json(['errors' => $validation['errors']], 422);
+        }
+
+        preg_match_all('/\{(\w+)\}/', $validated['content'], $matches);
+
+        $template = ReplyTemplate::query()->create([
+            'title' => $validated['title'],
+            'content' => $validated['content'],
+            'media_type' => $validated['media_type'],
+            'media_config' => $validated['media_config'] ?? null,
+            'variables' => $matches[0] ?? [],
+            'category' => $validated['category'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'id' => $template->id,
+            'title' => $template->title,
+            'media_type' => $template->media_type,
+            'message' => 'Rich media template created.',
+        ], 201);
+    }
+
+    public function updateRichMediaTemplate(Request $request, int $id): JsonResponse
+    {
+        $template = ReplyTemplate::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => ['sometimes', 'string', 'max:255'],
+            'content' => ['sometimes', 'string', 'max:2000'],
+            'media_type' => ['sometimes', 'string', 'in:text,button,card,carousel'],
+            'media_config' => ['nullable', 'array'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        if (isset($validated['media_type']) && $validated['media_type'] !== 'text') {
+            $validation = $this->richMediaTemplateService->validateConfig(
+                $validated['media_type'],
+                $validated['media_config'] ?? $template->media_config,
+            );
+
+            if (!$validation['valid']) {
+                return response()->json(['errors' => $validation['errors']], 422);
+            }
+        }
+
+        $template->update($validated);
+
+        return response()->json(['message' => 'Rich media template updated.']);
+    }
+
+    public function destroyRichMediaTemplate(int $id): JsonResponse
+    {
+        $template = ReplyTemplate::query()->findOrFail($id);
+        $template->delete();
+
+        return response()->json(['message' => 'Rich media template deleted.']);
+    }
+
+    public function previewRichMedia(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'media_type' => ['required', 'string', 'in:text,button,card,carousel'],
+            'content' => ['required', 'string', 'max:2000'],
+            'media_config' => ['nullable', 'array'],
+        ]);
+
+        $preview = $this->richMediaTemplateService->preview(
+            $validated['media_type'],
+            $validated['content'],
+            $validated['media_config'] ?? null,
+        );
+
+        return response()->json($preview);
+    }
+
+    public function generateCarousel(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1', 'max:10'],
+            'product_ids.*' => ['required', 'integer', 'exists:products,id'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $products = Product::query()
+            ->whereIn('id', $validated['product_ids'])
+            ->orderByRaw('array_position(ARRAY[' . implode(',', $validated['product_ids']) . '], id)')
+            ->get();
+
+        $config = $this->richMediaTemplateService->generateCarouselFromProducts(
+            $products,
+            isset($validated['discount_percent']) ? (float) $validated['discount_percent'] : null,
+        );
+
+        return response()->json([
+            'media_type' => 'carousel',
+            'media_config' => $config,
+        ]);
+    }
+
+    public function richMediaStats(): JsonResponse
+    {
+        return response()->json($this->richMediaTemplateService->stats());
     }
 
     public function simulateWebhook(Request $request): RedirectResponse
@@ -611,6 +918,13 @@ class ShopController extends Controller
             $query->where('facebook_page_id', $request->integer('page_id'));
         }
 
+        if ($request->filled('page_ids')) {
+            $pageIds = array_filter(explode(',', $request->string('page_ids')), fn ($v) => $v !== '');
+            if (! empty($pageIds)) {
+                $query->whereIn('facebook_page_id', array_map('intval', $pageIds));
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
@@ -630,6 +944,55 @@ class ShopController extends Controller
 
         if ($request->boolean('flagged')) {
             $query->where('is_flagged', true);
+        }
+
+        if ($request->filled('sentiment')) {
+            $query->where('sentiment', $request->string('sentiment'));
+        }
+
+        if ($request->filled('sla_status')) {
+            $slaStatus = $request->string('sla_status')->toString();
+            $thresholds = Conversation::slaThresholds();
+            $warningPercent = (int) SiteSetting::get('conversation_sla_warning_percent', (string) Conversation::SLA_WARNING_PERCENT);
+            $now = now();
+
+            if ($slaStatus === 'breached') {
+                $query->where(function ($q) use ($thresholds, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $q->orWhere(function ($sq) use ($status, $threshold, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $threshold]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'warning') {
+                $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $warningAt = (int) ($threshold * $warningPercent / 100);
+                        $q->orWhere(function ($sq) use ($status, $threshold, $warningAt, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $warningAt])
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $threshold]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'ok') {
+                $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
+                    foreach ($thresholds as $status => $threshold) {
+                        if ($threshold === null) continue;
+                        $warningAt = (int) ($threshold * $warningPercent / 100);
+                        $q->orWhere(function ($sq) use ($status, $warningAt, $now) {
+                            $sq->where('status', $status)
+                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $warningAt]);
+                        });
+                    }
+                });
+            } elseif ($slaStatus === 'unresponded') {
+                $query->whereNull('first_response_at')
+                    ->whereIn('status', Conversation::ACTIVE_STATUSES);
+            }
         }
 
         if ($request->string('snoozed')->toString() === 'active') {
@@ -769,7 +1132,64 @@ class ShopController extends Controller
             'priorities' => ['low', 'normal', 'high', 'urgent'],
             'tags' => Tag::query()->orderBy('name')->get(['id', 'name', 'color']),
             'workload_report' => $canViewAll ? $this->workloadReport() : null,
-            'filters' => $request->only(['page_id', 'status', 'assigned_agent_id', 'priority', 'flagged', 'tag_id', 'snoozed']),
+            'filters' => $request->only(['page_id', 'page_ids', 'status', 'assigned_agent_id', 'priority', 'flagged', 'sentiment', 'tag_id', 'snoozed', 'sla_status']),
+        ]);
+    }
+
+    public function unifiedInboxStats(Request $request): JsonResponse
+    {
+        $pageIds = [];
+        if ($request->filled('page_ids')) {
+            $pageIds = array_filter(explode(',', $request->string('page_ids')), fn ($v) => $v !== '');
+            $pageIds = array_map('intval', $pageIds);
+        }
+
+        $baseQuery = Conversation::query()->whereNull('merged_into_id');
+
+        if (! empty($pageIds)) {
+            $baseQuery->whereIn('facebook_page_id', $pageIds);
+        }
+
+        $total = (clone $baseQuery)->count();
+        $unread = (clone $baseQuery)->where('unread_count', '>', 0)->count();
+        $flagged = (clone $baseQuery)->where('is_flagged', true)->whereNull('resolved_at')->count();
+        $unassigned = (clone $baseQuery)->whereNull('assigned_agent_id')->whereNotIn('status', ['resolved', 'archived', 'closed'])->count();
+
+        $statusCounts = (clone $baseQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $perPageStats = FacebookPage::query()
+            ->orderBy('page_name')
+            ->get(['id', 'page_name', 'page_id'])
+            ->map(function (FacebookPage $page) use ($pageIds) {
+                $q = Conversation::query()
+                    ->whereNull('merged_into_id')
+                    ->where('facebook_page_id', $page->id);
+                $total = (clone $q)->count();
+                return [
+                    'id' => $page->id,
+                    'page_name' => $page->page_name,
+                    'total' => $total,
+                    'unread' => (clone $q)->where('unread_count', '>', 0)->count(),
+                    'unassigned' => (clone $q)->whereNull('assigned_agent_id')->whereNotIn('status', ['resolved', 'archived', 'closed'])->count(),
+                    'flagged' => (clone $q)->where('is_flagged', true)->whereNull('resolved_at')->count(),
+                    'active' => ! empty($pageIds) ? in_array($page->id, $pageIds, true) : false,
+                ];
+            })
+            ->filter(fn ($p) => $p['total'] > 0)
+            ->values()
+            ->toArray();
+
+        return response()->json([
+            'total' => $total,
+            'unread' => $unread,
+            'flagged' => $flagged,
+            'unassigned' => $unassigned,
+            'status_counts' => $statusCounts,
+            'per_page' => $perPageStats,
         ]);
     }
 
@@ -1469,29 +1889,34 @@ class ShopController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
-        $query = Customer::query();
-        $this->applyCustomerSearch($query, $validated['q']);
+        $limit = $validated['limit'] ?? 10;
+        $cacheKey = 'customer_search:' . md5($validated['q'] . ':' . $limit);
 
-        $customers = $query
-            ->limit($validated['limit'] ?? 10)
-            ->get([
-                'id',
-                'name',
-                'phone',
-                'normalized_phone',
-                'facebook_name',
-                'canonical_address',
-                'landmark',
-                'barangay',
-                'city_municipality',
-                'province',
-                'risk_level',
-                'is_blacklisted',
-                'total_orders',
-                'total_revenue',
-                'average_order_value',
-                'last_order_date',
-            ]);
+        $customers = Cache::remember($cacheKey, 120, function () use ($validated, $limit) {
+            $query = Customer::query();
+            $this->applyCustomerSearch($query, $validated['q']);
+
+            return $query
+                ->limit($limit)
+                ->get([
+                    'id',
+                    'name',
+                    'phone',
+                    'normalized_phone',
+                    'facebook_name',
+                    'canonical_address',
+                    'landmark',
+                    'barangay',
+                    'city_municipality',
+                    'province',
+                    'risk_level',
+                    'is_blacklisted',
+                    'total_orders',
+                    'total_revenue',
+                    'average_order_value',
+                    'last_order_date',
+                ]);
+        });
 
         return response()->json(['customers' => $customers]);
     }
@@ -2195,6 +2620,39 @@ class ShopController extends Controller
         return back()->with('success', 'Reminder cleared.');
     }
 
+    public function mergePreview(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+
+        if ($source->id === $conversation->id) {
+            return response()->json(['error' => 'Cannot merge a conversation into itself.'], 422);
+        }
+
+        $preview = $this->mergePreviewService->preview($conversation, $source);
+
+        return response()->json($preview);
+    }
+
+    public function mergeExecute(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'source_conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
+        $result = $this->mergePreviewService->executeMerge($conversation, $source);
+
+        if (!$result['success']) {
+            return response()->json($result, 422);
+        }
+
+        return response()->json($result);
+    }
+
     public function mergeConversations(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
@@ -2497,43 +2955,109 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'after_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+            'wait'             => ['nullable', 'integer', 'in:0,1'],
         ]);
 
-        $query = Message::query()
-            ->where('conversation_id', $conversation->id)
-            ->orderBy('sent_at')
-            ->orderBy('id');
+        $afterId = $validated['after_message_id'] ?? null;
+        $longPoll = ($validated['wait'] ?? 0) === 1;
+        $maxWait = 30; // seconds
+        $checkInterval = 2; // seconds
 
-        if ($validated['after_message_id'] ?? null) {
-            $query->where('id', '>', $validated['after_message_id']);
+        $fetchNewMessages = function () use ($conversation, $afterId) {
+            $query = Message::query()
+                ->where('conversation_id', $conversation->id)
+                ->orderBy('sent_at')
+                ->orderBy('id');
+
+            if ($afterId) {
+                $query->where('id', '>', $afterId);
+            }
+
+            return $query
+                ->with(['sender:id,name'])
+                ->get([
+                    'id',
+                    'sent_by',
+                    'direction',
+                    'body',
+                    'message_type',
+                    'attachments',
+                    'metadata',
+                    'reactions',
+                    'is_flagged',
+                    'flag_reason',
+                    'translated_body',
+                    'translated_lang',
+                    'sent_at',
+                    'raw_payload',
+                    'phone_candidates',
+                ])
+                ->map(fn (Message $m) => array_merge($m->toArray(), [
+                    'sender_name' => $m->sender?->name,
+                ]));
+        };
+
+        // Long-polling: hold the request for up to 30s waiting for new messages
+        if ($longPoll) {
+            $elapsed = 0;
+            while ($elapsed < $maxWait) {
+                $messages = $fetchNewMessages();
+
+                if ($messages->isNotEmpty()) {
+                    $conversation->refresh();
+                    $isTyping = $conversation->typing_at !== null
+                        && $conversation->typing_at->gt(now()->subSeconds(15));
+
+                    return response()->json([
+                        'messages' => $messages,
+                        'last_message_preview' => $conversation->last_message_preview,
+                        'last_message_at' => $conversation->last_message_at,
+                        'unread_count' => $conversation->unread_count,
+                        'status' => $conversation->status,
+                        'is_typing' => $isTyping,
+                        'long_poll' => true,
+                    ]);
+                }
+
+                // Check typing indicator even if no new messages
+                $conversation->refresh();
+                $isTyping = $conversation->typing_at !== null
+                    && $conversation->typing_at->gt(now()->subSeconds(15));
+
+                // If typing status changed, return early so frontend can update
+                if ($isTyping) {
+                    return response()->json([
+                        'messages' => [],
+                        'last_message_preview' => $conversation->last_message_preview,
+                        'last_message_at' => $conversation->last_message_at,
+                        'unread_count' => $conversation->unread_count,
+                        'status' => $conversation->status,
+                        'is_typing' => true,
+                        'long_poll' => true,
+                    ]);
+                }
+
+                sleep($checkInterval);
+                $elapsed += $checkInterval;
+            }
+
+            // Timeout — return empty response so client re-issues
+            return response()->json([
+                'messages' => [],
+                'last_message_preview' => $conversation->last_message_preview,
+                'last_message_at' => $conversation->last_message_at,
+                'unread_count' => $conversation->unread_count,
+                'status' => $conversation->status,
+                'is_typing' => false,
+                'long_poll' => true,
+            ]);
         }
 
-        $messages = $query
-            ->with(['sender:id,name'])
-            ->get([
-                'id',
-                'sent_by',
-                'direction',
-                'body',
-                'message_type',
-                'attachments',
-                'metadata',
-                'reactions',
-                'is_flagged',
-                'flag_reason',
-                'translated_body',
-                'translated_lang',
-                'sent_at',
-                'raw_payload',
-                'phone_candidates',
-            ])
-            ->map(fn (Message $m) => array_merge($m->toArray(), [
-                'sender_name' => $m->sender?->name,
-            ]));
+        // Short-polling (backward compatible — original behavior)
+        $messages = $fetchNewMessages();
 
         $conversation->refresh();
 
-        // Customer is typing if typing_at was set within the last 15 seconds
         $isTyping = $conversation->typing_at !== null
             && $conversation->typing_at->gt(now()->subSeconds(15));
 
@@ -5379,16 +5903,18 @@ class ShopController extends Controller
 
     public function pos(): Response
     {
-        $products = Product::query()
-            ->with([
-                'activeVariants:id,product_id,sku,variant_name,selling_price',
-                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
-                'stock:id,product_id,variant_id,current_stock,reserved_stock',
-            ])
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->limit(100)
-            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        $products = Cache::remember('pos_products', 300, function () {
+            return Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->limit(100)
+                ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        });
 
         return Inertia::render('Shop/POS/Index', [
             'products' => $products->map(fn (Product $p) => [
@@ -5421,17 +5947,25 @@ class ShopController extends Controller
         $request->validate(['q' => ['nullable', 'string', 'max:100']]);
         $q = $request->string('q')->toString();
 
-        $products = Product::query()
-            ->with([
-                'activeVariants:id,product_id,sku,variant_name,selling_price',
-                'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
-                'stock:id,product_id,variant_id,current_stock,reserved_stock',
-            ])
-            ->where('is_active', true)
-            ->when($q !== '', fn ($query) => $query->search($q))
-            ->orderBy('name')
-            ->limit(30)
-            ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        if ($q === '') {
+            return response()->json(['products' => []]);
+        }
+
+        $cacheKey = 'pos_search:' . md5($q);
+
+        $products = Cache::remember($cacheKey, 120, function () use ($q) {
+            return Product::query()
+                ->with([
+                    'activeVariants:id,product_id,sku,variant_name,selling_price',
+                    'activeVariants.stock:id,product_id,variant_id,current_stock,reserved_stock',
+                    'stock:id,product_id,variant_id,current_stock,reserved_stock',
+                ])
+                ->where('is_active', true)
+                ->when($q !== '', fn ($query) => $query->search($q))
+                ->orderBy('name')
+                ->limit(30)
+                ->get(['id', 'sku', 'name', 'brand', 'selling_price', 'image_url']);
+        });
 
         return response()->json([
             'products' => $products->map(fn (Product $p) => [
@@ -5453,6 +5987,42 @@ class ShopController extends Controller
         ]);
     }
 
+    public function posCheckDuplicates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['nullable', 'string', 'max:30'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
+        ]);
+
+        $phone = $validated['phone'] ?? '';
+        $productIds = $validated['product_ids'] ?? [];
+
+        if (empty($phone) || empty($productIds)) {
+            return response()->json([
+                'duplicates' => [],
+                'duplicate_check' => [
+                    'is_duplicate' => false,
+                    'severity' => 'none',
+                    'duplicate_count' => 0,
+                    'time_window_hours' => 72,
+                ],
+            ]);
+        }
+
+        $result = $this->duplicateDetection->detectDuplicateOrders($phone, $productIds);
+
+        return response()->json([
+            'duplicates' => $result['duplicates'],
+            'duplicate_check' => [
+                'is_duplicate' => $result['is_duplicate'],
+                'severity' => $result['severity'],
+                'duplicate_count' => $result['duplicate_count'],
+                'time_window_hours' => $result['time_window_hours'],
+            ],
+        ]);
+    }
+
     public function posCheckout(Request $request)
     {
         $validated = $request->validate([
@@ -5467,13 +6037,19 @@ class ShopController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'amount_paid' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'force' => ['nullable', 'boolean'],
         ]);
 
-        $products = Product::query()
-            ->with(['variants:id,product_id,sku,variant_name,selling_price'])
-            ->whereIn('id', collect($validated['items'])->pluck('product_id')->all())
-            ->get()
-            ->keyBy('id');
+        $productIds = collect($validated['items'])->pluck('product_id')->unique()->all();
+        $cacheKey = 'pos_checkout_products:' . md5(implode(',', $productIds));
+
+        $products = Cache::remember($cacheKey, 300, function () use ($productIds) {
+            return Product::query()
+                ->with(['variants:id,product_id,sku,variant_name,selling_price'])
+                ->whereIn('id', $productIds)
+                ->get()
+                ->keyBy('id');
+        });
 
         $preparedItems = collect($validated['items'])->map(function (array $item) use ($products) {
             $product = $products->get((int) $item['product_id']);
@@ -5507,6 +6083,27 @@ class ShopController extends Controller
         $totalAmount = max(0, $subtotal - $discountAmount);
         $amountPaid = (float) ($validated['amount_paid'] ?? 0);
         $change = max(0, $amountPaid - $totalAmount);
+
+        // Server-side duplicate check (unless force=1)
+        if (empty($validated['force']) && ! empty($validated['phone'])) {
+            $dupCheck = $this->duplicateDetection->detectDuplicateOrders(
+                $validated['phone'],
+                $productIds,
+            );
+            if ($dupCheck['is_duplicate']) {
+                return response()->json([
+                    'success' => false,
+                    'duplicate_check' => [
+                        'is_duplicate' => true,
+                        'severity' => $dupCheck['severity'],
+                        'duplicate_count' => $dupCheck['duplicate_count'],
+                        'time_window_hours' => $dupCheck['time_window_hours'],
+                    ],
+                    'duplicates' => $dupCheck['duplicates'],
+                    'message' => 'Possible duplicate order(s) detected. Confirm to proceed anyway.',
+                ], 409);
+            }
+        }
 
         $order = DB::transaction(function () use ($validated, $preparedItems, $primaryItem, $discountAmount, $totalQuantity, $subtotal, $totalAmount, $amountPaid, $change) {
             $customer = null;
@@ -5587,6 +6184,245 @@ class ShopController extends Controller
         ]);
     }
 
+    public function posCacheStats(): JsonResponse
+    {
+        $productCache = Cache::get('pos_products');
+        $stats = [
+            'products_cached' => $productCache !== null,
+            'products_count' => $productCache ? $productCache->count() : 0,
+            'cache_ttl' => 300,
+            'search_cache_ttl' => 120,
+            'customer_search_cache_ttl' => 120,
+        ];
+
+        return response()->json($stats);
+    }
+
+    public function posCacheClear(): JsonResponse
+    {
+        Cache::forget('pos_products');
+
+        $cleared = 0;
+        $redis = Cache::getRedis();
+        if ($redis) {
+            $prefix = config('cache.prefix') ? config('cache.prefix') . ':' : '';
+            $keys = $redis->keys($prefix . 'pos_search:*');
+            foreach ($keys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+            $custKeys = $redis->keys($prefix . 'customer_search:*');
+            foreach ($custKeys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+            $checkoutKeys = $redis->keys($prefix . 'pos_checkout_products:*');
+            foreach ($checkoutKeys as $key) {
+                $redis->del(str_replace($prefix, '', $key));
+                $cleared++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'cleared_keys' => $cleared + 1,
+            'message' => 'POS cache cleared successfully.',
+        ]);
+    }
+
+    public function sentimentStats(): JsonResponse
+    {
+        return response()->json($this->sentimentReview->getStats());
+    }
+
+    public function sentimentSettings(): JsonResponse
+    {
+        return response()->json($this->sentimentReview->getSettings());
+    }
+
+    public function updateSentimentSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'auto_flag_enabled' => ['nullable', 'boolean'],
+            'negative_threshold' => ['nullable', 'numeric', 'min:-1', 'max:0'],
+            'min_negative_hits' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'auto_unflag_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $this->sentimentReview->updateSettings($validated);
+
+        return response()->json([
+            'settings' => $settings,
+            'message' => 'Sentiment analysis settings updated.',
+        ]);
+    }
+
+    public function sentimentReviewQueue(Request $request): JsonResponse
+    {
+        $limit = $request->integer('limit', 50);
+        $limit = max(1, min(100, $limit));
+
+        return response()->json([
+            'conversations' => $this->sentimentReview->getReviewQueue($limit),
+        ]);
+    }
+
+    public function resolveSentimentFlag(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'conversation_id' => ['required', 'integer', 'exists:conversations,id'],
+        ]);
+
+        $resolved = $this->sentimentReview->resolveFlag($validated['conversation_id']);
+
+        return response()->json([
+            'success' => $resolved,
+            'message' => $resolved ? 'Sentiment flag resolved.' : 'Conversation not found.',
+        ]);
+    }
+
+    public function bulkSentimentAnalyze(): JsonResponse
+    {
+        $result = $this->sentimentReview->bulkAnalyze(100);
+
+        return response()->json([
+            'success' => true,
+            'analyzed' => $result['analyzed'],
+            'flagged' => $result['flagged'],
+            'total' => $result['total'],
+            'message' => "Analyzed {$result['analyzed']} conversations, flagged {$result['flagged']}.",
+        ]);
+    }
+
+    public function slaStats(): JsonResponse
+    {
+        return response()->json($this->slaService->getStats());
+    }
+
+    public function slaSettings(): JsonResponse
+    {
+        return response()->json($this->slaService->getSettings());
+    }
+
+    public function updateSlaSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'thresholds' => ['nullable', 'array'],
+            'thresholds.*' => ['nullable', 'integer', 'min:1', 'max:10080'],
+            'warning_percent' => ['nullable', 'integer', 'min:50', 'max:99'],
+            'breach_notifications' => ['nullable', 'boolean'],
+            'breach_notify_channel' => ['nullable', 'string', 'in:log,slack,webhook'],
+        ]);
+
+        $settings = $this->slaService->updateSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'settings' => $settings,
+        ]);
+    }
+
+    public function slaBreached(Request $request): JsonResponse
+    {
+        $limit = $request->integer('limit', 50);
+        $limit = max(1, min(200, $limit));
+
+        return response()->json([
+            'breached' => $this->slaService->getBreachedConversations($limit),
+        ]);
+    }
+
+    public function broadcastStats(): JsonResponse
+    {
+        return response()->json($this->broadcastService->getStats());
+    }
+
+    public function broadcastList(): JsonResponse
+    {
+        return response()->json([
+            'campaigns' => $this->broadcastService->listCampaigns(20),
+        ]);
+    }
+
+    public function broadcastShow(BroadcastCampaign $campaign): JsonResponse
+    {
+        return response()->json($this->broadcastService->getCampaign($campaign));
+    }
+
+    public function broadcastPreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'page_id' => ['nullable', 'integer', 'exists:facebook_pages,id'],
+            'assigned_agent_id' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:50'],
+            'risk_level' => ['nullable', 'string'],
+            'opt_in_only' => ['nullable', 'boolean'],
+            'has_ordered' => ['nullable', 'boolean'],
+            'min_order_count' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json($this->broadcastService->previewRecipients($validated));
+    }
+
+    public function broadcastCreate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'facebook_page_id' => ['nullable', 'integer', 'exists:facebook_pages,id'],
+            'targeting' => ['nullable', 'array'],
+            'targeting.page_id' => ['nullable', 'integer'],
+            'targeting.assigned_agent_id' => ['nullable', 'string'],
+            'targeting.status' => ['nullable', 'string'],
+            'targeting.tags' => ['nullable', 'array'],
+            'targeting.risk_level' => ['nullable', 'string'],
+            'targeting.opt_in_only' => ['nullable', 'boolean'],
+            'targeting.has_ordered' => ['nullable', 'boolean'],
+            'targeting.min_order_count' => ['nullable', 'integer'],
+            'split_type' => ['required', 'string', 'in:single,ab_test'],
+            'split_percentage' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'scheduled_at' => ['nullable', 'date', 'after:now'],
+            'variants' => ['required', 'array', 'min:1', 'max:4'],
+            'variants.*.label' => ['required', 'string', 'max:5'],
+            'variants.*.body' => ['required', 'string', 'max:2000'],
+            'variants.*.quick_replies' => ['nullable', 'array', 'max:11'],
+        ]);
+
+        $campaign = $this->broadcastService->createCampaign($validated, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'campaign' => $this->broadcastService->getCampaign($campaign),
+        ], 201);
+    }
+
+    public function broadcastSend(BroadcastCampaign $campaign): JsonResponse
+    {
+        $result = $this->broadcastService->sendCampaign($campaign);
+
+        if (isset($result['error'])) {
+            return response()->json(['error' => $result['error']], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'result' => $result,
+        ]);
+    }
+
+    public function broadcastCancel(BroadcastCampaign $campaign): JsonResponse
+    {
+        $cancelled = $this->broadcastService->cancelCampaign($campaign);
+
+        if (! $cancelled) {
+            return response()->json(['error' => 'Cannot cancel a completed or already cancelled campaign'], 422);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
     public function recommendProducts(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -5630,29 +6466,93 @@ class ShopController extends Controller
         return response()->json(['recommendations' => $sorted]);
     }
 
+    public function aiRecommendProducts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        $limit = (int) ($validated['limit'] ?? 5);
+        $recommendations = $this->recommendationService->recommend($validated['product_ids'], $limit);
+
+        return response()->json(['recommendations' => $recommendations]);
+    }
+
+    public function aiRecommendForCustomer(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+        ]);
+
+        $limit = (int) ($validated['limit'] ?? 5);
+        $recommendations = $this->recommendationService->recommendForCustomer($validated['customer_id'], $limit);
+
+        return response()->json(['recommendations' => $recommendations]);
+    }
+
+    public function recommendationStats(): JsonResponse
+    {
+        return response()->json($this->recommendationService->getStats());
+    }
+
+    public function recommendationSettings(): JsonResponse
+    {
+        return response()->json($this->recommendationService->getSettings());
+    }
+
+    public function updateRecommendationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'algorithm' => ['nullable', 'string', 'in:hybrid,item_based,content_based'],
+            'cache_enabled' => ['nullable', 'boolean'],
+            'result_count' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'min_co_occurrence' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'lookback_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $settings = $this->recommendationService->updateSettings($validated);
+
+        return response()->json(['settings' => $settings]);
+    }
+
+    public function clearRecommendationCache(): JsonResponse
+    {
+        $cleared = $this->recommendationService->clearCache();
+
+        return response()->json(['cleared' => $cleared]);
+    }
+
     public function listCartTemplates(): JsonResponse
     {
-        $templates = CartTemplate::query()
-            ->sharedOrOwned(auth()->id())
-            ->latest()
-            ->limit(50)
-            ->get(['id', 'name', 'items', 'courier_code', 'shipping_fee', 'discount_amount', 'tax_rate', 'remarks', 'is_shared', 'user_id', 'created_at'])
-            ->map(fn ($t) => [
-                'id'              => $t->id,
-                'name'            => $t->name,
-                'items'           => $t->items ?? [],
-                'courier_code'    => $t->courier_code,
-                'shipping_fee'    => (float) $t->shipping_fee,
-                'discount_amount' => (float) $t->discount_amount,
-                'tax_rate'        => (float) $t->tax_rate,
-                'remarks'         => $t->remarks,
-                'is_shared'       => $t->is_shared,
-                'is_owner'        => $t->user_id === auth()->id(),
-                'items_count'     => is_array($t->items) ? count($t->items) : 0,
-                'created_at'      => $t->created_at?->toIso8601String(),
-            ]);
+        $user = auth()->user();
+        $role = $user?->roles?->first()?->name ?? $user?->role ?? null;
 
-        return response()->json(['templates' => $templates]);
+        $templates = $this->cartTemplateSharingService->listForUser(auth()->id(), $role);
+
+        $result = $templates->map(fn ($t) => [
+            'id'              => $t->id,
+            'name'            => $t->name,
+            'items'           => $t->items ?? [],
+            'courier_code'    => $t->courier_code,
+            'shipping_fee'    => (float) $t->shipping_fee,
+            'discount_amount' => (float) $t->discount_amount,
+            'tax_rate'        => (float) $t->tax_rate,
+            'remarks'         => $t->remarks,
+            'is_shared'       => $t->is_shared,
+            'allowed_roles'   => $t->allowed_roles,
+            'is_owner'        => $t->user_id === auth()->id(),
+            'owner_name'      => $t->user?->name,
+            'items_count'     => is_array($t->items) ? count($t->items) : 0,
+            'cloned_from'     => $t->cloned_from,
+            'source_name'     => $t->clonedFrom?->name,
+            'last_used_at'     => $t->last_used_at?->toIso8601String(),
+            'created_at'      => $t->created_at?->toIso8601String(),
+        ]);
+
+        return response()->json(['templates' => $result]);
     }
 
     public function storeCartTemplate(Request $request): JsonResponse
@@ -5671,6 +6571,8 @@ class ShopController extends Controller
             'tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100'],
             'remarks'           => ['nullable', 'string', 'max:2000'],
             'is_shared'         => ['nullable', 'boolean'],
+            'allowed_roles'     => ['nullable', 'array'],
+            'allowed_roles.*'   => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
         ]);
 
         $template = CartTemplate::query()->create([
@@ -5683,6 +6585,7 @@ class ShopController extends Controller
             'tax_rate'        => $validated['tax_rate'] ?? 0,
             'remarks'         => $validated['remarks'] ?? null,
             'is_shared'       => $validated['is_shared'] ?? false,
+            'allowed_roles'   => ($validated['is_shared'] ?? false) ? ($validated['allowed_roles'] ?? null) : null,
         ]);
 
         return response()->json(['success' => true, 'template_id' => $template->id]);
@@ -5697,6 +6600,83 @@ class ShopController extends Controller
         $template->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function shareCartTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'is_shared'     => ['required', 'boolean'],
+            'allowed_roles' => ['nullable', 'array'],
+            'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
+        ]);
+
+        $updated = $this->cartTemplateSharingService->share(
+            $template->id,
+            auth()->id(),
+            $validated['is_shared'],
+            $validated['allowed_roles'] ?? null
+        );
+
+        return response()->json([
+            'success'       => true,
+            'is_shared'     => $updated->is_shared,
+            'allowed_roles' => $updated->allowed_roles,
+        ]);
+    }
+
+    public function cloneCartTemplate(Request $request, CartTemplate $template): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $clone = $this->cartTemplateSharingService->clone(
+            $template->id,
+            auth()->id(),
+            $validated['name'] ?? null
+        );
+
+        return response()->json([
+            'success'     => true,
+            'template_id'  => $clone->id,
+            'name'         => $clone->name,
+        ]);
+    }
+
+    public function applyCartTemplate(CartTemplate $template): JsonResponse
+    {
+        if ($template->user_id !== auth()->id() && ! $template->is_shared) {
+            abort(403);
+        }
+
+        $this->cartTemplateSharingService->markUsed($template->id);
+
+        return response()->json([
+            'id'              => $template->id,
+            'name'            => $template->name,
+            'items'           => $template->items ?? [],
+            'courier_code'    => $template->courier_code,
+            'shipping_fee'    => (float) $template->shipping_fee,
+            'discount_amount' => (float) $template->discount_amount,
+            'tax_rate'        => (float) $template->tax_rate,
+            'remarks'         => $template->remarks,
+        ]);
+    }
+
+    public function cartTemplateStats(): JsonResponse
+    {
+        return response()->json($this->cartTemplateSharingService->stats());
+    }
+
+    public function cartTemplateRoles(): JsonResponse
+    {
+        return response()->json([
+            'roles' => $this->cartTemplateSharingService->availableRoles(),
+        ]);
     }
 
     public function checkDuplicates(Request $request): JsonResponse
@@ -7758,6 +8738,125 @@ class ShopController extends Controller
         $remark->delete();
 
         return back()->with('success', 'Remark deleted.');
+    }
+
+    public function archiveStats(): JsonResponse
+    {
+        return response()->json($this->archiveService->getStats());
+    }
+
+    public function archiveSettings(): JsonResponse
+    {
+        return response()->json($this->archiveService->getSettings());
+    }
+
+    public function updateArchiveSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'archive_after_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'compress_after_days' => ['nullable', 'integer', 'min:1', 'max:730'],
+            'auto_archive_enabled' => ['nullable', 'boolean'],
+            'auto_compress_enabled' => ['nullable', 'boolean'],
+            'archive_batch_size' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        return response()->json($this->archiveService->updateSettings($validated));
+    }
+
+    public function bulkArchiveConversations(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 50);
+        $result = $this->archiveService->bulkArchive($limit);
+
+        return response()->json($result);
+    }
+
+    public function bulkCompressConversations(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 50);
+        $result = $this->archiveService->bulkCompress($limit);
+
+        return response()->json($result);
+    }
+
+    public function archiveConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->archive($conversation));
+    }
+
+    public function compressConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->compress($conversation));
+    }
+
+    public function restoreConversation(Conversation $conversation): JsonResponse
+    {
+        return response()->json($this->archiveService->restore($conversation));
+    }
+
+    public function gamificationStats(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getStats());
+    }
+
+    public function gamificationLeaderboard(): JsonResponse
+    {
+        $limit = (int) request()->input('limit', 10);
+
+        return response()->json($this->gamificationService->getLeaderboard($limit));
+    }
+
+    public function gamificationAgentProfile(int $userId): JsonResponse
+    {
+        return response()->json($this->gamificationService->getAgentProfile($userId));
+    }
+
+    public function gamificationBadges(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getBadges());
+    }
+
+    public function gamificationMilestones(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getMilestones());
+    }
+
+    public function gamificationSettings(): JsonResponse
+    {
+        return response()->json($this->gamificationService->getSettings());
+    }
+
+    public function updateGamificationSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'gamification_enabled' => ['nullable', 'boolean'],
+            'auto_award_badges' => ['nullable', 'boolean'],
+            'auto_track_streaks' => ['nullable', 'boolean'],
+            'streak_grace_period_hours' => ['nullable', 'integer', 'min:1', 'max:168'],
+            'leaderboard_size' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        return response()->json($this->gamificationService->updateSettings($validated));
+    }
+
+    public function gamificationBulkCheck(): JsonResponse
+    {
+        return response()->json($this->gamificationService->bulkCheckAndAward());
+    }
+
+    public function gamificationTrackStreak(): JsonResponse
+    {
+        $userId = (int) request()->input('user_id', auth()->id());
+        $streakType = (string) request()->input('streak_type', 'daily_activity');
+
+        return response()->json($this->gamificationService->trackStreak($userId, $streakType));
+    }
+
+    public function gamificationSeedDefaults(): JsonResponse
+    {
+        $this->gamificationService->seedDefaults();
+
+        return response()->json(['message' => 'Default badges and milestones seeded successfully']);
     }
 
 }

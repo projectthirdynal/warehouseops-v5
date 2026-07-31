@@ -8,7 +8,9 @@ use App\Domain\Courier\DTOs\TrackingResultDTO;
 use App\Domain\Courier\DTOs\WebhookPayloadDTO;
 use App\Domain\Courier\Events\TrackingStatusUpdated;
 use App\Domain\Courier\Services\CourierServiceManager;
+use App\Domain\Courier\Services\CourierStatusSyncService;
 use App\Domain\Waybill\Enums\WaybillStatus;
+use App\Models\SiteSetting;
 use App\Models\Waybill;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,15 +27,21 @@ class SyncTrackingStatusJob implements ShouldQueue
     public int $tries = 1;
 
     public function __construct(
-        private ?string $courierCode = null
+        private ?string $courierCode = null,
+        private string $trigger = 'scheduled',
     ) {}
 
-    public function handle(CourierServiceManager $manager): void
+    public function handle(CourierServiceManager $manager, CourierStatusSyncService $syncService): void
     {
         if (empty(config('services.couriers.jnt.api_key')) && empty(config('services.couriers.flash.api_key'))) {
             Log::warning('SyncTrackingStatusJob: no courier API keys configured, skipping.');
             return;
         }
+
+        $startTime = microtime(true);
+        $runId = str()->uuid()->toString();
+        $lookbackDays = (int) SiteSetting::get('courier_sync_lookback_days', '21');
+        $maxWaybills = (int) SiteSetting::get('courier_sync_max_waybills', '500');
 
         // Skip terminal statuses (DELIVERED, RETURNED, CANCELLED) and PENDING (not yet dispatched).
         $skipStatuses = [
@@ -47,17 +55,27 @@ class SyncTrackingStatusJob implements ShouldQueue
             ->whereNotIn('status', $skipStatuses)
             ->where('courier_provider', '!=', 'MANUAL')
             ->whereNotNull('waybill_number')
-            ->where('submitted_at', '>=', now()->subDays(21));
+            ->where('submitted_at', '>=', now()->subDays($lookbackDays));
 
         if ($this->courierCode) {
             $query->where('courier_provider', $this->courierCode);
         }
 
+        $totalChecked = 0;
+        $totalUpdated = 0;
+        $totalUnchanged = 0;
+        $allErrors = [];
+        $perCourierStats = [];
+
         $query->select('id', 'waybill_number', 'courier_provider', 'status')
-            ->chunkById(60, function ($waybills) use ($manager) {
+            ->chunkById(60, function ($waybills) use ($manager, &$totalChecked, &$totalUpdated, &$totalUnchanged, &$allErrors, &$perCourierStats) {
                 $grouped = $waybills->groupBy('courier_provider');
 
                 foreach ($grouped as $code => $batch) {
+                    $batchChecked = $batch->count();
+                    $batchUpdated = 0;
+                    $batchUnchanged = 0;
+
                     try {
                         $service = $manager->driver($code);
                         $numbers = $batch->pluck('waybill_number')->toArray();
@@ -65,33 +83,69 @@ class SyncTrackingStatusJob implements ShouldQueue
                         $results = $service->queryTracking($numbers);
 
                         foreach ($results as $result) {
-                            $this->processTrackingResult($result, $batch);
+                            $wasUpdated = $this->processTrackingResult($result, $batch);
+                            if ($wasUpdated) {
+                                $batchUpdated++;
+                            } else {
+                                $batchUnchanged++;
+                            }
                         }
                     } catch (\Exception $e) {
                         Log::error("Tracking sync failed for {$code}", [
                             'error'      => $e->getMessage(),
                             'batch_size' => $batch->count(),
                         ]);
+                        $allErrors[] = "{$code}: {$e->getMessage()}";
+                        $batchUnchanged = $batchChecked;
                     }
+
+                    $totalChecked += $batchChecked;
+                    $totalUpdated += $batchUpdated;
+                    $totalUnchanged += $batchUnchanged;
+
+                    if (!isset($perCourierStats[$code])) {
+                        $perCourierStats[$code] = ['checked' => 0, 'updated' => 0, 'unchanged' => 0];
+                    }
+                    $perCourierStats[$code]['checked'] += $batchChecked;
+                    $perCourierStats[$code]['updated'] += $batchUpdated;
+                    $perCourierStats[$code]['unchanged'] += $batchUnchanged;
                 }
             });
+
+        $durationMs = (int) ((microtime(true) - $startTime) * 1000);
+
+        $syncService->logSyncRun([
+            'run_id' => $runId,
+            'courier_code' => $this->courierCode,
+            'trigger' => $this->trigger,
+            'waybills_checked' => $totalChecked,
+            'waybills_updated' => $totalUpdated,
+            'waybills_unchanged' => $totalUnchanged,
+            'errors_count' => count($allErrors),
+            'errors' => $allErrors ?: null,
+            'per_courier' => $perCourierStats ?: null,
+            'duration_ms' => $durationMs,
+            'status' => count($allErrors) > 0 ? 'completed_with_errors' : 'completed',
+        ]);
+
+        Log::info("SyncTrackingStatusJob completed: {$totalChecked} checked, {$totalUpdated} updated, {$totalUnchanged} unchanged, {$durationMs}ms");
     }
 
-    private function processTrackingResult(TrackingResultDTO $result, $waybills): void
+    private function processTrackingResult(TrackingResultDTO $result, $waybills): bool
     {
         $waybill = $waybills->firstWhere('waybill_number', $result->waybillNumber);
         if (!$waybill) {
-            return;
+            return false;
         }
 
         $currentStatus = WaybillStatus::tryFrom($waybill->status);
 
         // Skip if status hasn't changed or current is terminal
         if ($currentStatus === $result->mappedStatus) {
-            return;
+            return false;
         }
         if ($currentStatus?->isTerminal()) {
-            return;
+            return false;
         }
 
         // Use domain model for consistent tracking history creation
@@ -107,6 +161,12 @@ class SyncTrackingStatusJob implements ShouldQueue
             ]);
         }
 
+        // Update waybill's last-known location
+        $domainWaybill->update([
+            'last_location_description' => $result->location,
+            'last_location_at'          => now(),
+        ]);
+
         // Fire event for SMS triggers
         $payload = new WebhookPayloadDTO(
             waybillNumber: $result->waybillNumber,
@@ -118,5 +178,7 @@ class SyncTrackingStatusJob implements ShouldQueue
         );
 
         event(new TrackingStatusUpdated($waybill->fresh(), $payload));
+
+        return true;
     }
 }

@@ -35,6 +35,7 @@ class StatusMapper
             $filename = match ($key) {
                 'JNT'   => 'jnt_express.php',
                 'FLASH' => 'flash_express.php',
+                'MOCK'  => 'mock_courier.php',
                 default => null,
             };
 

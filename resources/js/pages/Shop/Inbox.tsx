@@ -1,15 +1,18 @@
-import { CSSProperties, useMemo, useState } from 'react';
+import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
 import {
   AlertTriangle,
   BarChart3,
   CheckCheck,
   Check,
+  ChevronDown,
   Circle,
   Download,
   EyeOff,
   Flag,
   Inbox,
+  Layers,
   MessageSquare,
   MessageCircleWarning,
   MessagesSquare,
@@ -185,12 +188,15 @@ interface Props {
   tags: { id: number; name: string; color: string }[];
   filters: {
     page_id?: string;
+    page_ids?: string;
     status?: string;
     assigned_agent_id?: string;
     priority?: string;
     flagged?: string;
+    sentiment?: string;
     tag_id?: string;
     snoozed?: string;
+    sla_status?: string;
   };
   workload_report?: {
     total_active: number;
@@ -276,6 +282,30 @@ export default function ShopInbox({
   const [bulkPriority, setBulkPriority] = useState<string>('normal');
   const [bulkTagId, setBulkTagId] = useState<string>('');
   const [pageSearch, setPageSearch] = useState('');
+  const [showPageMultiSelect, setShowPageMultiSelect] = useState(false);
+  const [selectedPageIds, setSelectedPageIds] = useState<number[]>(() => {
+    if (filters.page_ids) {
+      return filters.page_ids.split(',').map(Number).filter(Boolean);
+    }
+    return [];
+  });
+  const [unifiedStats, setUnifiedStats] = useState<{
+    total: number;
+    unread: number;
+    flagged: number;
+    unassigned: number;
+    status_counts: Record<string, number>;
+    per_page: {
+      id: number;
+      page_name: string;
+      total: number;
+      unread: number;
+      unassigned: number;
+      flagged: number;
+      active: boolean;
+    }[];
+  } | null>(null);
+  const pageMultiSelectRef = useRef<HTMLDivElement>(null);
   const [showRules, setShowRules] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
@@ -461,6 +491,45 @@ export default function ShopInbox({
   const updateFilter = (next: Record<string, string | undefined>) => {
     router.get('/shop/inbox', { ...filters, ...next }, { preserveState: true });
   };
+
+  const togglePageSelection = (pageId: number) => {
+    setSelectedPageIds((prev) => {
+      const next = prev.includes(pageId) ? prev.filter((id) => id !== pageId) : [...prev, pageId];
+      const pageIdsStr = next.length > 0 ? next.join(',') : undefined;
+      updateFilter({ page_ids: pageIdsStr, page_id: undefined });
+      return next;
+    });
+  };
+
+  const clearPageSelection = () => {
+    setSelectedPageIds([]);
+    updateFilter({ page_ids: undefined, page_id: undefined });
+  };
+
+  const selectAllPages = () => {
+    const allIds = pages.map((p) => p.id);
+    setSelectedPageIds(allIds);
+    updateFilter({ page_ids: allIds.join(','), page_id: undefined });
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pageMultiSelectRef.current && !pageMultiSelectRef.current.contains(e.target as Node)) {
+        setShowPageMultiSelect(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.page_ids) params.set('page_ids', filters.page_ids);
+    axios
+      .get(`/shop/inbox/unified-stats${params.toString() ? '?' + params.toString() : ''}`)
+      .then(({ data }) => setUnifiedStats(data))
+      .catch(() => {});
+  }, [filters.page_ids]);
 
   const changeStatus = (conversationId: number, status: string) => {
     router.patch(
@@ -817,36 +886,61 @@ export default function ShopInbox({
               <AgentStatusDot status={my_status} className="mr-1" />
               {my_status === 'online' ? 'Online' : my_status === 'away' ? 'Away' : 'Offline'}
             </Button>
-            <Select
-              value={filters.page_id ?? 'all'}
-              onValueChange={(value) =>
-                updateFilter({ page_id: value === 'all' ? undefined : value })
-              }
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All Pages" />
-              </SelectTrigger>
-              <SelectContent>
-                <div className="p-2 border-b sticky top-0 bg-background z-10">
-                  <Input
-                    placeholder="Search pages..."
-                    value={pageSearch}
-                    onChange={(e) => setPageSearch(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <SelectItem value="all">All Pages</SelectItem>
-                {filteredPages.map((page) => {
-                  const isFavorite = favorite_page_ids.includes(page.id);
-                  return (
-                    <SelectItem key={page.id} value={page.id.toString()}>
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1.5">
+            <div className="relative" ref={pageMultiSelectRef}>
+              <Button
+                variant={selectedPageIds.length > 0 ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowPageMultiSelect((v) => !v)}
+                className="gap-1.5"
+              >
+                <Layers className="h-4 w-4" />
+                {selectedPageIds.length === 0
+                  ? 'All Pages'
+                  : `${selectedPageIds.length} page${selectedPageIds.length > 1 ? 's' : ''}`}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+              {showPageMultiSelect && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-md border bg-popover p-0 shadow-md">
+                  <div className="border-b p-2">
+                    <Input
+                      placeholder="Search pages..."
+                      value={pageSearch}
+                      onChange={(e) => setPageSearch(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between border-b px-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={selectAllPages}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearPageSelection}
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {filteredPages.map((page) => {
+                      const isSelected = selectedPageIds.includes(page.id);
+                      const isFavorite = favorite_page_ids.includes(page.id);
+                      return (
+                        <label
+                          key={page.id}
+                          className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted/50"
+                        >
                           <button
                             type="button"
-                            onClick={(e) => toggleFavorite(page.id, e)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              toggleFavorite(page.id, e);
+                            }}
                             className="shrink-0"
                           >
                             <Star
@@ -857,42 +951,44 @@ export default function ShopInbox({
                               }`}
                             />
                           </button>
+                          <div
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                              isSelected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-muted-foreground/30'
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => togglePageSelection(page.id)}
+                            className="sr-only"
+                          />
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
                               page.connected_status === 'connected' ? 'bg-green-500' : 'bg-red-500'
                             }`}
-                            title={
-                              page.connected_status === 'connected' ? 'Connected' : 'Disconnected'
-                            }
                           />
-                          {page.page_name}
-                          {page.webhook_status && page.webhook_status !== 'subscribed' && (
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                page.webhook_status === 'needs_retry'
-                                  ? 'bg-orange-500'
-                                  : 'bg-yellow-500'
-                              }`}
-                              title={`Webhook: ${page.webhook_status}`}
-                            />
+                          <span className="flex-1 truncate">{page.page_name}</span>
+                          {(page.unread_count ?? 0) > 0 && (
+                            <Badge className="shrink-0 bg-primary text-primary-foreground text-[10px]">
+                              {page.unread_count}
+                            </Badge>
                           )}
-                        </span>
-                        {(page.unread_count ?? 0) > 0 && (
-                          <Badge className="ml-auto bg-primary text-primary-foreground">
-                            {page.unread_count}
-                          </Badge>
-                        )}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-                {filteredPages.length === 0 && (
-                  <div className="py-4 text-center text-sm text-muted-foreground">
-                    No pages found
+                        </label>
+                      );
+                    })}
+                    {filteredPages.length === 0 && (
+                      <div className="py-4 text-center text-sm text-muted-foreground">
+                        No pages found
+                      </div>
+                    )}
                   </div>
-                )}
-              </SelectContent>
-            </Select>
+                </div>
+              )}
+            </div>
             <Select
               value={filters.status ?? 'all'}
               onValueChange={(value) =>
@@ -1034,6 +1130,39 @@ export default function ShopInbox({
               <Flag className="h-4 w-4" />
               Flagged
             </Button>
+            <Select
+              value={filters.sentiment ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ sentiment: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sentiment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sentiment</SelectItem>
+                <SelectItem value="positive">Positive</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+                <SelectItem value="negative">Negative</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.sla_status ?? 'all'}
+              onValueChange={(value) =>
+                updateFilter({ sla_status: value === 'all' ? undefined : value })
+              }
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="SLA" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All SLA</SelectItem>
+                <SelectItem value="ok">OK</SelectItem>
+                <SelectItem value="warning">Warning</SelectItem>
+                <SelectItem value="breached">Breached</SelectItem>
+                <SelectItem value="unresponded">Unresponded</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -2168,6 +2297,90 @@ export default function ShopInbox({
           </Card>
         )}
 
+        {unifiedStats && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Layers className="h-4 w-4" />
+                Unified Inbox Overview
+                {selectedPageIds.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {selectedPageIds.length} page{selectedPageIds.length > 1 ? 's' : ''} selected
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-4 gap-3">
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="text-lg font-bold">{unifiedStats.total}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-xs text-muted-foreground">Unread</p>
+                  <p className="text-lg font-bold text-primary">{unifiedStats.unread}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-xs text-muted-foreground">Unassigned</p>
+                  <p className="text-lg font-bold text-amber-600">{unifiedStats.unassigned}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-xs text-muted-foreground">Flagged</p>
+                  <p className="text-lg font-bold text-destructive">{unifiedStats.flagged}</p>
+                </div>
+              </div>
+              {unifiedStats.per_page.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {unifiedStats.per_page.map((pg) => {
+                    const isActive = selectedPageIds.includes(pg.id);
+                    return (
+                      <button
+                        key={pg.id}
+                        onClick={() => togglePageSelection(pg.id)}
+                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-muted-foreground/20 hover:bg-muted/50'
+                        }`}
+                      >
+                        <Store className="h-3 w-3" />
+                        <span className="font-medium">{pg.page_name}</span>
+                        <span
+                          className={`rounded-full px-1.5 text-[10px] ${
+                            isActive ? 'bg-primary-foreground/20' : 'bg-muted'
+                          }`}
+                        >
+                          {pg.total}
+                        </span>
+                        {pg.unread > 0 && (
+                          <span
+                            className={`rounded-full px-1.5 text-[10px] ${
+                              isActive ? 'bg-primary-foreground/20' : 'bg-primary/10 text-primary'
+                            }`}
+                          >
+                            {pg.unread} unread
+                          </span>
+                        )}
+                        {pg.flagged > 0 && (
+                          <span
+                            className={`rounded-full px-1.5 text-[10px] ${
+                              isActive
+                                ? 'bg-primary-foreground/20'
+                                : 'bg-destructive/10 text-destructive'
+                            }`}
+                          >
+                            {pg.flagged} flagged
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => updateFilter({ status: undefined })}
@@ -2489,8 +2702,29 @@ export default function ShopInbox({
                       </CardHeader>
                       <CardContent className="grid gap-3 text-sm md:grid-cols-5">
                         <div className="flex items-center gap-2 text-muted-foreground">
-                          <Store className="h-4 w-4" />
-                          {conversation.facebook_page?.page_name ?? 'Unknown Page'}
+                          <Store className="h-4 w-4 shrink-0" />
+                          {conversation.facebook_page ? (
+                            <Badge
+                              variant="outline"
+                              className="cursor-pointer gap-1 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                togglePageSelection(conversation.facebook_page!.id);
+                              }}
+                            >
+                              <span
+                                className={`h-2 w-2 rounded-full ${
+                                  selectedPageIds.includes(conversation.facebook_page.id)
+                                    ? 'bg-primary'
+                                    : 'bg-muted-foreground/40'
+                                }`}
+                              />
+                              {conversation.facebook_page.page_name}
+                            </Badge>
+                          ) : (
+                            'Unknown Page'
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Phone className="h-4 w-4" />
