@@ -176,8 +176,9 @@ class SentimentReviewService
     {
         $conversations = Conversation::query()
             ->whereNull('merged_into_id')
-            ->whereNull('sentiment')
-            ->orWhere('sentiment', 'neutral')
+            ->where(function ($q) {
+                $q->whereNull('sentiment')->orWhere('sentiment', 'neutral');
+            })
             ->where('last_message_at', '>=', now()->subDays(30))
             ->limit($limit)
             ->get(['id']);

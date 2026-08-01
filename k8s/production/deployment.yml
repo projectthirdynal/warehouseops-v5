@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warehouseops-production
+  namespace: warehouseops-production
+  labels:
+    app: warehouseops
+    environment: production
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: warehouseops
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: warehouseops
+        environment: production
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          # IMAGE_PLACEHOLDER — replaced by GitHub Actions with immutable digest
+          image: ghcr.io/owner/warehouseops-v5-main:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: warehouseops-production-config
+            - secretRef:
+                name: warehouseops-production-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warehouseops-production-config
+  namespace: warehouseops-production
+data:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: https://warehouseops.thirdynals.org
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres-production
+  DB_PORT: "5432"
+  DB_DATABASE: warehouseops
+  REDIS_HOST: redis-production
+  REDIS_PORT: "6379"
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis

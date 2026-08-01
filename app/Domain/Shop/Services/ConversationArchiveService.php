@@ -109,26 +109,28 @@ class ConversationArchiveService
             ])->toArray(),
         ], JSON_PRETTY_PRINT);
 
-        $disk = Storage::disk('local');
-        $disk->put($filename, $payload);
-        $fileSize = $disk->size($filename);
-
+        $disk = Storage::disk($this->archiveDisk());
         $dbBytes = $messages->sum(function ($m) {
             return strlen((string) $m->body) + strlen((string) json_encode($m->attachments ?? [])) + strlen((string) json_encode($m->metadata ?? []));
         });
 
-        $conversation->forceFill(['compressed_at' => now()])->save();
+        return DB::transaction(function () use ($conversation, $messages, $filename, $payload, $disk, $dbBytes) {
+            $disk->put($filename, $payload);
+            $fileSize = $disk->size($filename);
 
-        $conversation->messages()->delete();
+            $conversation->forceFill(['compressed_at' => now()])->save();
 
-        return [
-            'success' => true,
-            'conversation_id' => $conversation->id,
-            'messages_compressed' => $messages->count(),
-            'bytes_saved' => max(0, $dbBytes - $fileSize),
-            'archive_file' => $filename,
-            'message' => "Conversation #{$conversation->id} compressed ({$messages->count()} messages, " . number_format(max(0, $dbBytes - $fileSize)) . ' bytes saved).',
-        ];
+            $conversation->messages()->delete();
+
+            return [
+                'success' => true,
+                'conversation_id' => $conversation->id,
+                'messages_compressed' => $messages->count(),
+                'bytes_saved' => max(0, $dbBytes - $fileSize),
+                'archive_file' => $filename,
+                'message' => "Conversation #{$conversation->id} compressed ({$messages->count()} messages, " . number_format(max(0, $dbBytes - $fileSize)) . ' bytes saved).',
+            ];
+        });
     }
 
     public function bulkCompress(int $limit = self::BATCH_SIZE): array
@@ -173,7 +175,7 @@ class ConversationArchiveService
         }
 
         $filename = "archived-conversations/conversation_{$conversation->id}.json";
-        $disk = Storage::disk('local');
+        $disk = Storage::disk($this->archiveDisk());
 
         if (! $disk->exists($filename)) {
             return ['success' => false, 'message' => 'Archive file not found.'];
@@ -181,29 +183,33 @@ class ConversationArchiveService
 
         $data = json_decode($disk->get($filename), true);
         $messages = $data['messages'] ?? [];
-        $restored = 0;
 
-        foreach ($messages as $msgData) {
-            Message::create([
-                'conversation_id' => $conversation->id,
-                'facebook_page_id' => $conversation->facebook_page_id,
-                'customer_identity_id' => $msgData['metadata']['customer_identity_id'] ?? $conversation->customer_identity_id,
-                'sent_by' => $msgData['sent_by'] ?? null,
-                'direction' => $msgData['direction'],
-                'message_type' => $msgData['message_type'],
-                'body' => $msgData['body'],
-                'attachments' => $msgData['attachments'] ?? null,
-                'metadata' => $msgData['metadata'] ?? null,
-                'sent_at' => $msgData['sent_at'] ?? null,
-            ]);
-            $restored++;
-        }
+        $restored = DB::transaction(function () use ($conversation, $messages) {
+            $count = 0;
+            foreach ($messages as $msgData) {
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'facebook_page_id' => $conversation->facebook_page_id,
+                    'customer_identity_id' => $msgData['metadata']['customer_identity_id'] ?? $conversation->customer_identity_id,
+                    'sent_by' => $msgData['sent_by'] ?? null,
+                    'direction' => $msgData['direction'],
+                    'message_type' => $msgData['message_type'],
+                    'body' => $msgData['body'],
+                    'attachments' => $msgData['attachments'] ?? null,
+                    'metadata' => $msgData['metadata'] ?? null,
+                    'sent_at' => $msgData['sent_at'] ?? null,
+                ]);
+                $count++;
+            }
 
-        $conversation->forceFill([
-            'compressed_at' => null,
-            'status' => Conversation::STATUS_RESOLVED,
-            'archived_at' => null,
-        ])->save();
+            $conversation->forceFill([
+                'compressed_at' => null,
+                'status' => Conversation::STATUS_RESOLVED,
+                'archived_at' => null,
+            ])->save();
+
+            return $count;
+        });
 
         $disk->delete($filename);
 
@@ -301,5 +307,10 @@ class ConversationArchiveService
             'participants' => $messages->pluck('sent_by')->filter()->unique()->values()->all(),
             'has_attachments' => $messages->contains(fn ($m) => ! empty($m->attachments)),
         ];
+    }
+
+    private function archiveDisk(): string
+    {
+        return (string) SiteSetting::get('archive_storage_disk', 'local');
     }
 }
