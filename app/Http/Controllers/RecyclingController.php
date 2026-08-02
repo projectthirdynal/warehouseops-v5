@@ -182,12 +182,17 @@ class RecyclingController extends Controller
             ->where('total_cycles', '>', 0)
             ->count();
 
+        $driver = Lead::query()->getConnection()->getDriverName();
+        $avgDaysExpr = $driver === 'sqlite'
+            ? "AVG(JULIANDAY('now') - JULIANDAY(updated_at))"
+            : 'AVG(EXTRACT(EPOCH FROM (NOW() - updated_at)) / 86400)';
+
         $avgDaysInPool = (float) Lead::whereNotIn('pool_status', [PoolStatus::ASSIGNED, PoolStatus::EXHAUSTED])
             ->whereIn('status', [
                 LeadStatus::NO_ANSWER,
                 LeadStatus::CALLBACK,
             ])
-            ->selectRaw('AVG(EXTRACT(EPOCH FROM (NOW() - updated_at)) / 86400) as avg_days')
+            ->selectRaw($avgDaysExpr.' as avg_days')
             ->value('avg_days');
 
         $reassignedToday = LeadCycle::whereDate('created_at', today())
