@@ -3,7 +3,6 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Support\Facades\DB;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -18,8 +17,8 @@ abstract class TestCase extends BaseTestCase
 
         if ($dbName === 'warehouseops' && app()->environment('testing')) {
             throw new \RuntimeException(
-                "REFUSING TO RUN TESTS: Test database is 'warehouseops' (production). "
-                . "Tests must use 'warehouseops_test'. Check phpunit.xml and .env.testing."
+                'REFUSING TO RUN TESTS: Test database is "warehouseops" (production). '
+                .'Tests must use "warehouseops_test". Check phpunit.xml and .env.testing.'
             );
         }
 
