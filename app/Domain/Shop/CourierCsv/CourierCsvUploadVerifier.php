@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Shop\CourierCsv;
 
 use App\Domain\Shop\Models\CourierExportBatch;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Verifies uploaded CSV files against courier schemas and existing export batches.
@@ -63,7 +62,7 @@ final class CourierCsvUploadVerifier
         $warnings = [];
 
         if ($headerCheck['extra_columns'] !== []) {
-            $warnings[] = 'Extra columns detected: ' . implode(', ', $headerCheck['extra_columns']) . '. These will be ignored by the courier.';
+            $warnings[] = 'Extra columns detected: '.implode(', ', $headerCheck['extra_columns']).'. These will be ignored by the courier.';
         }
 
         if ($dataCheck['empty_row_count'] > 0) {
@@ -71,7 +70,7 @@ final class CourierCsvUploadVerifier
         }
 
         $errors = array_merge(
-            $headerCheck['missing_columns'] !== [] ? ['Missing required columns: ' . implode(', ', $headerCheck['missing_columns'])] : [],
+            $headerCheck['missing_columns'] !== [] ? ['Missing required columns: '.implode(', ', $headerCheck['missing_columns'])] : [],
             $encoding['issues'],
             $dataCheck['errors'],
         );
@@ -197,8 +196,8 @@ final class CourierCsvUploadVerifier
     }
 
     /**
-     * @param array<int, string> $headers
-     * @param array<int, string> $expectedHeaders
+     * @param  array<int, string>  $headers
+     * @param  array<int, string>  $expectedHeaders
      * @return array<string, mixed>
      */
     private function checkHeaders(array $headers, array $expectedHeaders): array
@@ -228,8 +227,8 @@ final class CourierCsvUploadVerifier
     }
 
     /**
-     * @param array<int, array<int, string>> $rows
-     * @param array<int, string> $headers
+     * @param  array<int, array<int, string>>  $rows
+     * @param  array<int, string>  $headers
      * @return array<string, mixed>
      */
     private function checkRowData(array $rows, array $headers, CourierCsvSchema $schema, string $courierCode): array
@@ -251,13 +250,14 @@ final class CourierCsvUploadVerifier
 
             if ($nonEmpty === []) {
                 $emptyRowCount++;
+
                 continue;
             }
 
             $rowErrors = [];
 
             if (count($row) !== $expectedColumnCount) {
-                $rowErrors[] = "Column count mismatch: expected {$expectedColumnCount}, got " . count($row);
+                $rowErrors[] = "Column count mismatch: expected {$expectedColumnCount}, got ".count($row);
             }
 
             foreach ($schema->columns as $colIndex => $col) {
@@ -265,6 +265,7 @@ final class CourierCsvUploadVerifier
                     if ($col->required) {
                         $rowErrors[] = "Missing column: {$col->header}";
                     }
+
                     continue;
                 }
 
@@ -296,7 +297,7 @@ final class CourierCsvUploadVerifier
 
             if ($rowErrors !== []) {
                 $invalidRowCount++;
-                $errors[] = "Row {$rowNumber}: " . implode('; ', $rowErrors);
+                $errors[] = "Row {$rowNumber}: ".implode('; ', $rowErrors);
                 $rowIssues[] = [
                     'row_number' => $rowNumber,
                     'errors' => $rowErrors,
@@ -318,7 +319,7 @@ final class CourierCsvUploadVerifier
     }
 
     /**
-     * @param array<int, string> $uploadedRow
+     * @param  array<int, string>  $uploadedRow
      * @return array<int, array{field: string, expected: string, actual: string}>
      */
     private function compareRowValues(array $uploadedRow, CourierCsvSchema $schema, $batchRow): array

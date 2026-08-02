@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DistributionAnalyticsService
@@ -111,7 +111,7 @@ class DistributionAnalyticsService
 
         foreach ($items as $item) {
             // DATE_TRUNC returns a plain string; parse to Carbon before formatting
-            $key = \Illuminate\Support\Carbon::parse($item->hour)->format('Y-m-d H:00');
+            $key = Carbon::parse($item->hour)->format('Y-m-d H:00');
             if (isset($buckets[$key]) && in_array($item->status, ['pending', 'assigned', 'failed'])) {
                 $buckets[$key][$item->status] = (int) $item->count;
             }

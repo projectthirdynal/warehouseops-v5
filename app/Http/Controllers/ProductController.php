@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductVariant;
 use App\Domain\Product\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -41,16 +40,16 @@ class ProductController extends Controller
         $products = $query->orderBy('name')->paginate(20)->withQueryString();
 
         $stats = [
-            'total'      => Product::count(),
-            'active'     => Product::where('is_active', true)->count(),
-            'low_stock'  => $this->inventory->getLowStockProducts()->count(),
+            'total' => Product::count(),
+            'active' => Product::where('is_active', true)->count(),
+            'low_stock' => $this->inventory->getLowStockProducts()->count(),
             'categories' => Product::distinct()->pluck('category')->filter()->values(),
         ];
 
         return Inertia::render('Products/Index', [
             'products' => $products,
-            'stats'    => $stats,
-            'filters'  => $request->only(['search', 'category', 'status', 'stock']),
+            'stats' => $stats,
+            'filters' => $request->only(['search', 'category', 'status', 'stock']),
         ]);
     }
 
@@ -61,37 +60,37 @@ class ProductController extends Controller
 
         return Inertia::render('Products/Create', [
             'categories' => $categories,
-            'brands'     => $brands,
+            'brands' => $brands,
         ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'sku'            => ['required', 'string', 'max:50', 'unique:products,sku'],
-            'name'           => ['required', 'string', 'max:255'],
-            'brand'          => ['nullable', 'string', 'max:100'],
-            'category'       => ['nullable', 'string', 'max:100'],
-            'selling_price'  => ['required', 'numeric', 'min:0'],
-            'cost_price'     => ['required', 'numeric', 'min:0'],
-            'weight_grams'   => ['required', 'integer', 'min:0'],
-            'description'    => ['nullable', 'string'],
-            'is_active'      => ['boolean'],
-            'requires_qa'    => ['boolean'],
-            'initial_stock'  => ['nullable', 'integer', 'min:0'],
-            'reorder_point'  => ['nullable', 'integer', 'min:0'],
-            'variants'       => ['nullable', 'array'],
-            'variants.*.variant_name'   => ['required_with:variants', 'string', 'max:100'],
-            'variants.*.sku'            => ['required_with:variants', 'string', 'max:50', 'distinct', 'unique:product_variants,sku'],
-            'variants.*.selling_price'  => ['nullable', 'numeric', 'min:0'],
-            'variants.*.cost_price'     => ['nullable', 'numeric', 'min:0'],
-            'variants.*.weight_grams'   => ['nullable', 'integer', 'min:0'],
+            'sku' => ['required', 'string', 'max:50', 'unique:products,sku'],
+            'name' => ['required', 'string', 'max:255'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'selling_price' => ['required', 'numeric', 'min:0'],
+            'cost_price' => ['required', 'numeric', 'min:0'],
+            'weight_grams' => ['required', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
+            'requires_qa' => ['boolean'],
+            'initial_stock' => ['nullable', 'integer', 'min:0'],
+            'reorder_point' => ['nullable', 'integer', 'min:0'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.variant_name' => ['required_with:variants', 'string', 'max:100'],
+            'variants.*.sku' => ['required_with:variants', 'string', 'max:50', 'distinct', 'unique:product_variants,sku'],
+            'variants.*.selling_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.cost_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.weight_grams' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $product = Product::create($validated);
 
         // Create variants
-        if (!empty($validated['variants'])) {
+        if (! empty($validated['variants'])) {
             foreach ($validated['variants'] as $variantData) {
                 $product->variants()->create($variantData);
             }
@@ -130,8 +129,8 @@ class ProductController extends Controller
             ->paginate(20);
 
         return Inertia::render('Products/Show', [
-            'product'    => $product,
-            'movements'  => $movements,
+            'product' => $product,
+            'movements' => $movements,
             'warehouses' => Warehouse::where('is_active', true)->orderByDesc('is_default')->get(['id', 'name', 'is_default']),
         ]);
     }
@@ -143,25 +142,25 @@ class ProductController extends Controller
         $brands = Product::distinct()->pluck('brand')->filter()->values();
 
         return Inertia::render('Products/Edit', [
-            'product'    => $product,
+            'product' => $product,
             'categories' => $categories,
-            'brands'     => $brands,
+            'brands' => $brands,
         ]);
     }
 
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
-            'sku'            => ['required', 'string', 'max:50', 'unique:products,sku,' . $product->id],
-            'name'           => ['required', 'string', 'max:255'],
-            'brand'          => ['nullable', 'string', 'max:100'],
-            'category'       => ['nullable', 'string', 'max:100'],
-            'selling_price'  => ['required', 'numeric', 'min:0'],
-            'cost_price'     => ['required', 'numeric', 'min:0'],
-            'weight_grams'   => ['required', 'integer', 'min:0'],
-            'description'    => ['nullable', 'string'],
-            'is_active'      => ['boolean'],
-            'requires_qa'    => ['boolean'],
+            'sku' => ['required', 'string', 'max:50', 'unique:products,sku,'.$product->id],
+            'name' => ['required', 'string', 'max:255'],
+            'brand' => ['nullable', 'string', 'max:100'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'selling_price' => ['required', 'numeric', 'min:0'],
+            'cost_price' => ['required', 'numeric', 'min:0'],
+            'weight_grams' => ['required', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
+            'requires_qa' => ['boolean'],
         ]);
 
         $product->update($validated);
@@ -183,12 +182,12 @@ class ProductController extends Controller
     {
         $isAdjustment = $request->input('type') === 'adjustment';
         $validated = $request->validate([
-            'type'         => ['required', 'in:stock_in,stock_out,adjustment'],
+            'type' => ['required', 'in:stock_in,stock_out,adjustment'],
             // For stock_in/stock_out: quantity is a delta (must be >= 1).
             // For adjustment: quantity is the new absolute stock level (can be 0).
-            'quantity'     => ['required', 'integer', $isAdjustment ? 'min:0' : 'min:1'],
-            'variant_id'   => ['nullable', 'exists:product_variants,id'],
-            'notes'        => ['nullable', 'string', 'max:500'],
+            'quantity' => ['required', 'integer', $isAdjustment ? 'min:0' : 'min:1'],
+            'variant_id' => ['nullable', 'exists:product_variants,id'],
+            'notes' => ['nullable', 'string', 'max:500'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
         ]);
 

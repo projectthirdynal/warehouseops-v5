@@ -8,7 +8,6 @@ use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\RecyclingRule;
 use App\Models\User;
-use App\Services\CapacityManager;
 
 class LeadRecyclingService
 {
@@ -46,6 +45,7 @@ class LeadRecyclingService
                     metadata: ['callback_at' => $callbackAt->format('c'), 'notes' => $remarks]
                 );
             }
+
             return; // Don't change pool status
         }
 

@@ -37,15 +37,15 @@ return [
     ],
 
     'qbo' => [
-        'client_id'     => env('QBO_CLIENT_ID'),
+        'client_id' => env('QBO_CLIENT_ID'),
         'client_secret' => env('QBO_CLIENT_SECRET'),
-        'environment'   => env('QBO_ENVIRONMENT', 'sandbox'),
-        'sandbox'       => [
-            'client_id'     => env('QBO_SANDBOX_CLIENT_ID', env('QBO_CLIENT_ID')),
+        'environment' => env('QBO_ENVIRONMENT', 'sandbox'),
+        'sandbox' => [
+            'client_id' => env('QBO_SANDBOX_CLIENT_ID', env('QBO_CLIENT_ID')),
             'client_secret' => env('QBO_SANDBOX_CLIENT_SECRET', env('QBO_CLIENT_SECRET')),
         ],
-        'production'    => [
-            'client_id'     => env('QBO_PRODUCTION_CLIENT_ID', env('QBO_CLIENT_ID')),
+        'production' => [
+            'client_id' => env('QBO_PRODUCTION_CLIENT_ID', env('QBO_CLIENT_ID')),
             'client_secret' => env('QBO_PRODUCTION_CLIENT_SECRET', env('QBO_CLIENT_SECRET')),
         ],
     ],
@@ -55,30 +55,30 @@ return [
         'app_secret' => env('META_APP_SECRET'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         'graph_version' => env('META_GRAPH_VERSION', 'v20.0'),
-        'redirect_uri' => env('META_REDIRECT_URI', env('APP_URL') . '/shop/facebook/callback'),
+        'redirect_uri' => env('META_REDIRECT_URI', env('APP_URL').'/shop/facebook/callback'),
         'login_config_id' => env('META_LOGIN_CONFIG_ID'),
         'support_email' => env('META_SUPPORT_EMAIL', env('MAIL_FROM_ADDRESS', 'support@warehouseops.local')),
     ],
 
     'couriers' => [
         'flash' => [
-            'base_url'       => env('FLASH_API_URL', 'https://open-api.flashexpress.com'),
-            'mch_id'         => env('FLASH_MCH_ID'),
-            'secret_key'     => env('FLASH_SECRET_KEY'),
+            'base_url' => env('FLASH_API_URL', 'https://open-api.flashexpress.com'),
+            'mch_id' => env('FLASH_MCH_ID'),
+            'secret_key' => env('FLASH_SECRET_KEY'),
         ],
         'jnt' => [
-            'base_url'       => env('JNT_API_URL', 'https://openapi.jtexpress.ph/api'),
-            'api_key'        => env('JNT_API_KEY'),
-            'api_secret'     => env('JNT_API_SECRET'),
+            'base_url' => env('JNT_API_URL', 'https://openapi.jtexpress.ph/api'),
+            'api_key' => env('JNT_API_KEY'),
+            'api_secret' => env('JNT_API_SECRET'),
             'webhook_secret' => env('JNT_WEBHOOK_SECRET'),
         ],
     ],
 
     'shop' => [
-        'sender_name'    => env('SHOP_SENDER_NAME', 'WarehouseOps Shop'),
-        'sender_phone'   => env('SHOP_SENDER_PHONE', ''),
+        'sender_name' => env('SHOP_SENDER_NAME', 'WarehouseOps Shop'),
+        'sender_phone' => env('SHOP_SENDER_PHONE', ''),
         'sender_address' => env('SHOP_SENDER_ADDRESS', ''),
-        'sender_city'    => env('SHOP_SENDER_CITY', ''),
+        'sender_city' => env('SHOP_SENDER_CITY', ''),
         'sender_province' => env('SHOP_SENDER_PROVINCE', ''),
     ],
 

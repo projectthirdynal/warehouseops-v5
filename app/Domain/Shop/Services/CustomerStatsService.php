@@ -19,11 +19,11 @@ class CustomerStatsService
             ->where('customer_id', $customer->id)
             ->selectRaw(
                 'count(*) as total_orders, '
-                . 'sum(case when status = ? then 1 else 0 end) as successful_orders, '
-                . 'sum(case when status = ? then 1 else 0 end) as returned_orders, '
-                . 'sum(case when status = ? then 1 else 0 end) as cancelled_orders, '
-                . 'coalesce(sum(total_amount), 0) as total_revenue, '
-                . 'max(created_at) as last_order_at',
+                .'sum(case when status = ? then 1 else 0 end) as successful_orders, '
+                .'sum(case when status = ? then 1 else 0 end) as returned_orders, '
+                .'sum(case when status = ? then 1 else 0 end) as cancelled_orders, '
+                .'coalesce(sum(total_amount), 0) as total_revenue, '
+                .'max(created_at) as last_order_at',
                 [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value, OrderStatus::CANCELLED->value]
             )
             ->first();

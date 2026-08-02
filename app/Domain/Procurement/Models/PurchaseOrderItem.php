@@ -19,11 +19,11 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'quantity_ordered'  => 'integer',
+        'quantity_ordered' => 'integer',
         'quantity_received' => 'integer',
-        'unit_price'        => 'decimal:4',
-        'tax_rate'          => 'decimal:2',
-        'line_total'        => 'decimal:2',
+        'unit_price' => 'decimal:4',
+        'tax_rate' => 'decimal:2',
+        'line_total' => 'decimal:2',
     ];
 
     public function purchaseOrder(): BelongsTo

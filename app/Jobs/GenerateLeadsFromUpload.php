@@ -25,6 +25,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 300;
 
     public function __construct(
@@ -34,7 +35,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
     public function handle(LeadAuditService $auditService): void
     {
         $upload = Upload::find($this->uploadId);
-        if (!$upload) {
+        if (! $upload) {
             return;
         }
 
@@ -53,6 +54,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
 
             if (empty($phone)) {
                 $skipped++;
+
                 continue;
             }
 
@@ -79,6 +81,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
             // Skip blacklisted customers
             if ($customer->is_blacklisted) {
                 $skipped++;
+
                 continue;
             }
 

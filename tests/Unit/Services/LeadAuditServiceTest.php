@@ -18,7 +18,7 @@ class LeadAuditServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new LeadAuditService();
+        $this->service = new LeadAuditService;
     }
 
     public function test_logs_action_with_user(): void

@@ -31,7 +31,7 @@ class ConversationStatusChanged implements ShouldBroadcast
         ];
 
         if ($this->conversation->assigned_agent_id) {
-            $channels[] = new PrivateChannel('agent.' . $this->conversation->assigned_agent_id);
+            $channels[] = new PrivateChannel('agent.'.$this->conversation->assigned_agent_id);
         }
 
         return $channels;

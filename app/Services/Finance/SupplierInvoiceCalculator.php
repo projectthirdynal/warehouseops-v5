@@ -22,16 +22,16 @@ class SupplierInvoiceCalculator
     ): array {
         if ($taxRate <= 0 || $totalAmount <= 0) {
             return [
-                'subtotal'   => round($totalAmount, 2),
+                'subtotal' => round($totalAmount, 2),
                 'tax_amount' => 0.0,
             ];
         }
 
-        $subtotal  = $totalAmount / (1 + $taxRate / 100);
+        $subtotal = $totalAmount / (1 + $taxRate / 100);
         $taxAmount = $totalAmount - $subtotal;
 
         return [
-            'subtotal'   => round($subtotal, 2),
+            'subtotal' => round($subtotal, 2),
             'tax_amount' => round($taxAmount, 2),
         ];
     }

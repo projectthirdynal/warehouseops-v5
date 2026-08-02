@@ -24,10 +24,10 @@ class ReceivingReport extends Model
     ];
 
     protected $casts = [
-        'status'             => GrnStatus::class,
-        'received_at'        => 'datetime',
-        'confirmed_at'       => 'datetime',
-        'exchange_rate'      => 'decimal:6',
+        'status' => GrnStatus::class,
+        'received_at' => 'datetime',
+        'confirmed_at' => 'datetime',
+        'exchange_rate' => 'decimal:6',
         'exchange_rate_date' => 'date',
     ];
 
@@ -59,7 +59,8 @@ class ReceivingReport extends Model
     public static function generateNumber(): string
     {
         $date = now()->format('Ymd');
-        $seq  = self::whereDate('created_at', now()->toDateString())->count() + 1;
-        return 'GRN-' . $date . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+        $seq = self::whereDate('created_at', now()->toDateString())->count() + 1;
+
+        return 'GRN-'.$date.'-'.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
     }
 }

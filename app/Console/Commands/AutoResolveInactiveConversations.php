@@ -9,12 +9,12 @@ use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Events\ConversationStatusChanged;
 use App\Models\SiteSetting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class AutoResolveInactiveConversations extends Command
 {
     protected $signature = 'shop:auto-resolve-inactive';
+
     protected $description = 'Auto-resolve conversations that have been inactive beyond configured thresholds.';
 
     public function handle(): int

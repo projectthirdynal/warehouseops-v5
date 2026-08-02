@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Domain\Product\Models\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\InvoicePayment;
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Models\Product;
 use App\Models\ThirdParty;
 use App\Services\Finance\InvoiceCalculator;
 use Illuminate\Http\Request;
@@ -41,20 +40,20 @@ class InvoiceController extends Controller
 
         return Inertia::render('Finance/Invoices/Index', [
             'invoices' => $invoices,
-            'filters'  => $request->only(['status', 'type', 'search', 'date_from', 'date_to']),
+            'filters' => $request->only(['status', 'type', 'search', 'date_from', 'date_to']),
             'statuses' => ['DRAFT', 'VALIDATED', 'SENT', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED'],
-            'types'    => ['standard', 'credit_note', 'deposit', 'proforma'],
+            'types' => ['standard', 'credit_note', 'deposit', 'proforma'],
         ]);
     }
 
     public function create(Request $request)
     {
         $thirdParties = ThirdParty::select('id', 'name', 'type')->orderBy('name')->get();
-        $products     = Product::select('id', 'name', 'sku', 'selling_price as unit_price')->orderBy('name')->get();
+        $products = Product::select('id', 'name', 'sku', 'selling_price as unit_price')->orderBy('name')->get();
 
         return Inertia::render('Finance/Invoices/Create', [
             'thirdParties' => $thirdParties,
-            'products'     => $products,
+            'products' => $products,
         ]);
     }
 
@@ -62,16 +61,16 @@ class InvoiceController extends Controller
     {
         $validated = $request->validate([
             'third_party_id' => 'nullable|exists:third_parties,id',
-            'type'            => 'in:standard,credit_note,deposit,proforma',
-            'date_invoice'    => 'required|date',
-            'date_due'        => 'nullable|date',
-            'payment_terms'   => 'nullable|string',
-            'notes'           => 'nullable|string',
-            'lines'           => 'required|array|min:1',
-            'lines.*.description'  => 'required|string|max:500',
-            'lines.*.qty'          => 'required|numeric|min:0.001',
-            'lines.*.unit_price'   => 'required|numeric|min:0',
-            'lines.*.tax_rate'     => 'nullable|numeric|min:0|max:100',
+            'type' => 'in:standard,credit_note,deposit,proforma',
+            'date_invoice' => 'required|date',
+            'date_due' => 'nullable|date',
+            'payment_terms' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'lines' => 'required|array|min:1',
+            'lines.*.description' => 'required|string|max:500',
+            'lines.*.qty' => 'required|numeric|min:0.001',
+            'lines.*.unit_price' => 'required|numeric|min:0',
+            'lines.*.tax_rate' => 'nullable|numeric|min:0|max:100',
             'lines.*.discount_pct' => 'nullable|numeric|min:0|max:100',
         ]);
 
@@ -81,20 +80,20 @@ class InvoiceController extends Controller
                 : null;
 
             $invoice = Invoice::create([
-                'ref'           => Invoice::generateRef(),
-                'type'          => $validated['type'] ?? 'standard',
-                'status'        => 'DRAFT',
-                'third_party_id'=> $thirdParty?->id,
-                'client_name'   => $thirdParty?->name ?? 'Walk-in Customer',
-                'client_email'  => $thirdParty?->email,
-                'client_phone'  => $thirdParty?->phone,
-                'client_address'=> $thirdParty?->full_address,
-                'date_invoice'  => $validated['date_invoice'],
-                'date_due'      => $validated['date_due'],
+                'ref' => Invoice::generateRef(),
+                'type' => $validated['type'] ?? 'standard',
+                'status' => 'DRAFT',
+                'third_party_id' => $thirdParty?->id,
+                'client_name' => $thirdParty?->name ?? 'Walk-in Customer',
+                'client_email' => $thirdParty?->email,
+                'client_phone' => $thirdParty?->phone,
+                'client_address' => $thirdParty?->full_address,
+                'date_invoice' => $validated['date_invoice'],
+                'date_due' => $validated['date_due'],
                 'payment_terms' => $validated['payment_terms'],
-                'currency'      => 'PHP',
-                'notes'         => $validated['notes'] ?? null,
-                'created_by'    => $request->user()->id,
+                'currency' => 'PHP',
+                'notes' => $validated['notes'] ?? null,
+                'created_by' => $request->user()->id,
             ]);
 
             $this->storeLines($invoice, $request->input('lines'));
@@ -118,7 +117,7 @@ class InvoiceController extends Controller
         $thirdParties = ThirdParty::select('id', 'name')->orderBy('name')->get();
 
         return Inertia::render('Finance/Invoices/Show', [
-            'invoice'      => $invoice,
+            'invoice' => $invoice,
             'thirdParties' => $thirdParties,
         ]);
     }
@@ -130,15 +129,15 @@ class InvoiceController extends Controller
         }
 
         $validated = $request->validate([
-            'client_name'   => 'required|string|max:255',
-            'client_email'  => 'nullable|email|max:255',
-            'client_phone'  => 'nullable|string|max:50',
-            'client_address'=> 'nullable|string',
-            'date_invoice'  => 'required|date',
-            'date_due'      => 'nullable|date',
+            'client_name' => 'required|string|max:255',
+            'client_email' => 'nullable|email|max:255',
+            'client_phone' => 'nullable|string|max:50',
+            'client_address' => 'nullable|string',
+            'date_invoice' => 'required|date',
+            'date_due' => 'nullable|date',
             'payment_terms' => 'nullable|string',
-            'notes'         => 'nullable|string',
-            'tax_rate'      => 'nullable|numeric|min:0|max:100',
+            'notes' => 'nullable|string',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $invoice->update($validated + ['updated_by' => $request->user()->id]);
@@ -184,10 +183,10 @@ class InvoiceController extends Controller
         }
 
         $invoice->update([
-            'status'        => 'CANCELLED',
+            'status' => 'CANCELLED',
             'cancel_reason' => $request->input('reason'),
-            'cancelled_at'  => now(),
-            'updated_by'    => $request->user()->id,
+            'cancelled_at' => now(),
+            'updated_by' => $request->user()->id,
         ]);
 
         return redirect()->route('finance.invoices.index')
@@ -203,12 +202,12 @@ class InvoiceController extends Controller
         }
 
         $validated = $request->validate([
-            'description'  => 'required|string|max:500',
-            'qty'          => 'required|numeric|min:0.001',
-            'unit_price'   => 'required|numeric|min:0',
-            'tax_rate'     => 'nullable|numeric|min:0|max:100',
+            'description' => 'required|string|max:500',
+            'qty' => 'required|numeric|min:0.001',
+            'unit_price' => 'required|numeric|min:0',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
             'discount_pct' => 'nullable|numeric|min:0|max:100',
-            'position'     => 'nullable|integer|min:0',
+            'position' => 'nullable|integer|min:0',
         ]);
 
         $validated['position'] = $validated['position'] ?? ($invoice->lines()->max('position') + 1);
@@ -237,11 +236,11 @@ class InvoiceController extends Controller
     public function storePayment(Request $request, Invoice $invoice)
     {
         $validated = $request->validate([
-            'amount'          => 'required|numeric|min:0.01',
-            'payment_date'    => 'required|date',
-            'payment_method'  => 'required|string',
-            'reference_number'=> 'nullable|string',
-            'notes'           => 'nullable|string',
+            'amount' => 'required|numeric|min:0.01',
+            'payment_date' => 'required|date',
+            'payment_method' => 'required|string',
+            'reference_number' => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
 
         try {
@@ -257,17 +256,17 @@ class InvoiceController extends Controller
                 }
 
                 InvoicePayment::create($validated + [
-                    'invoice_id'   => $invoice->id,
-                    'recorded_by'  => $request->user()->id,
+                    'invoice_id' => $invoice->id,
+                    'recorded_by' => $request->user()->id,
                 ]);
 
                 // Refresh line-based totals first so payment math is never stale
                 InvoiceCalculator::recalculateInvoice($invoice);
 
                 $invoice->amount_paid = $invoice->payments()->sum('amount');
-                $invoice->amount_due  = $invoice->total_amount - $invoice->amount_paid;
-                $invoice->status      = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
-                $invoice->updated_by  = $request->user()->id;
+                $invoice->amount_due = $invoice->total_amount - $invoice->amount_paid;
+                $invoice->status = $invoice->amount_due <= 0.01 ? 'PAID' : ($invoice->amount_paid > 0 ? 'PARTIAL' : $invoice->status);
+                $invoice->updated_by = $request->user()->id;
                 $invoice->save();
             });
         } catch (\RuntimeException $e) {
@@ -283,16 +282,22 @@ class InvoiceController extends Controller
     {
         foreach ($lines as $i => $line) {
             $data = [
-                'position'    => $i,
+                'position' => $i,
                 'description' => $line['description'],
-                'qty'         => $line['qty'],
-                'unit_price'  => $line['unit_price'],
-                'tax_rate'    => $line['tax_rate'] ?? 0,
-                'discount_pct'=> $line['discount_pct'] ?? 0,
+                'qty' => $line['qty'],
+                'unit_price' => $line['unit_price'],
+                'tax_rate' => $line['tax_rate'] ?? 0,
+                'discount_pct' => $line['discount_pct'] ?? 0,
             ];
-            if (! empty($line['product_id']))  $data['product_id']  = $line['product_id'];
-            if (! empty($line['product_ref'])) $data['product_ref'] = $line['product_ref'];
-            if (! empty($line['unit']))        $data['unit']        = $line['unit'];
+            if (! empty($line['product_id'])) {
+                $data['product_id'] = $line['product_id'];
+            }
+            if (! empty($line['product_ref'])) {
+                $data['product_ref'] = $line['product_ref'];
+            }
+            if (! empty($line['unit'])) {
+                $data['unit'] = $line['unit'];
+            }
 
             InvoiceCalculator::createLine($invoice, $data);
         }

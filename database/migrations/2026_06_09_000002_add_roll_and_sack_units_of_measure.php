@@ -18,21 +18,21 @@ return new class extends Migration
 
         if (! in_array('roll', $existing)) {
             $toInsert[] = [
-                'name'         => 'Roll',
+                'name' => 'Roll',
                 'abbreviation' => 'roll',
-                'is_active'    => true,
-                'created_at'   => now(),
-                'updated_at'   => now(),
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
             ];
         }
 
         if (! in_array('sack', $existing)) {
             $toInsert[] = [
-                'name'         => 'Sack',
+                'name' => 'Sack',
                 'abbreviation' => 'sack',
-                'is_active'    => true,
-                'created_at'   => now(),
-                'updated_at'   => now(),
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
             ];
         }
 

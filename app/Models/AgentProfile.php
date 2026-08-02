@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AgentProfile extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'user_id',
         'max_active_cycles',

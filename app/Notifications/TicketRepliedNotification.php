@@ -30,13 +30,13 @@ class TicketRepliedNotification extends Notification implements ShouldQueue
     {
         $prefix = $this->isInternal ? '[Internal Note] ' : '';
 
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject("Re: Ticket {$this->ticket->ticket_number} — {$this->ticket->subject}")
-            ->greeting("New Reply on Ticket")
+            ->greeting('New Reply on Ticket')
             ->line("{$this->repliedByName} has replied to ticket {$this->ticket->ticket_number}.")
             ->line("**Ticket:** {$this->ticket->subject}")
-            ->line("**Reply:**")
-            ->line($prefix . $this->commentBody)
+            ->line('**Reply:**')
+            ->line($prefix.$this->commentBody)
             ->action('View Ticket', url("/tickets/{$this->ticket->id}"));
     }
 

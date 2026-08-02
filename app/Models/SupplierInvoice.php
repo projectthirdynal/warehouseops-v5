@@ -28,18 +28,18 @@ class SupplierInvoice extends Model
     ];
 
     protected $casts = [
-        'date_invoice'    => 'date',
-        'date_due'        => 'date',
-        'date_receipt'    => 'date',
-        'subtotal'        => 'decimal:2',
+        'date_invoice' => 'date',
+        'date_due' => 'date',
+        'date_receipt' => 'date',
+        'subtotal' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'tax_rate'        => 'decimal:2',
-        'tax_amount'      => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
         'shipping_amount' => 'decimal:2',
-        'total_amount'    => 'decimal:2',
-        'amount_paid'     => 'decimal:2',
-        'amount_due'      => 'decimal:2',
-        'cancelled_at'    => 'datetime',
+        'total_amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'amount_due' => 'decimal:2',
+        'cancelled_at' => 'datetime',
     ];
 
     public static function generateRef(): string
@@ -48,6 +48,7 @@ class SupplierInvoice extends Model
         $count = DB::transaction(function () use ($year) {
             return self::withTrashed()->whereYear('created_at', $year)->lockForUpdate()->count() + 1;
         });
+
         return sprintf('SINV-%s-%05d', $year, $count);
     }
 
@@ -72,19 +73,38 @@ class SupplierInvoice extends Model
     }
 
     // Scopes
-    public function scopeDraft($q)      { return $q->where('status', 'DRAFT'); }
-    public function scopeValidated($q)  { return $q->where('status', 'VALIDATED'); }
-    public function scopePaid($q)       { return $q->where('status', 'PAID'); }
-    public function scopeOverdue($q)    { return $q->where('status', 'OVERDUE'); }
-    public function scopeCancelled($q)  { return $q->where('status', 'CANCELLED'); }
+    public function scopeDraft($q)
+    {
+        return $q->where('status', 'DRAFT');
+    }
+
+    public function scopeValidated($q)
+    {
+        return $q->where('status', 'VALIDATED');
+    }
+
+    public function scopePaid($q)
+    {
+        return $q->where('status', 'PAID');
+    }
+
+    public function scopeOverdue($q)
+    {
+        return $q->where('status', 'OVERDUE');
+    }
+
+    public function scopeCancelled($q)
+    {
+        return $q->where('status', 'CANCELLED');
+    }
 
     public function scopeSearch($q, string $term)
     {
-        $like = '%' . mb_strtolower($term) . '%';
+        $like = '%'.mb_strtolower($term).'%';
 
         return $q->where(function ($sq) use ($like) {
             $sq->whereRaw('LOWER(ref) LIKE ?', [$like])
-               ->orWhereRaw('LOWER(supplier_name) LIKE ?', [$like]);
+                ->orWhereRaw('LOWER(supplier_name) LIKE ?', [$like]);
         });
     }
 

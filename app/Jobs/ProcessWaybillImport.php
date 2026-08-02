@@ -5,7 +5,6 @@ namespace App\Jobs;
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
-use App\Jobs\GenerateLeadsFromUpload;
 use App\Models\Upload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,7 +17,9 @@ class ProcessWaybillImport implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
+
     public int $timeout = 7200; // 2 hours — handles 500k+ row files
+
     public bool $failOnTimeout = true;
 
     public function __construct(
@@ -36,7 +37,7 @@ class ProcessWaybillImport implements ShouldQueue
         ini_set('memory_limit', '1024M');
 
         $upload = Upload::find($this->uploadId);
-        if (!$upload || $upload->status === 'cancelled') {
+        if (! $upload || $upload->status === 'cancelled') {
             return;
         }
 

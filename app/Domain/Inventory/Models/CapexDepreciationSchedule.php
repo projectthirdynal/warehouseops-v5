@@ -19,14 +19,14 @@ class CapexDepreciationSchedule extends Model
     ];
 
     protected $casts = [
-        'opening_book_value'   => 'decimal:4',
-        'depreciation_amount'  => 'decimal:4',
-        'closing_book_value'   => 'decimal:4',
-        'depreciation_date'    => 'date',
-        'is_posted'            => 'boolean',
-        'posted_at'            => 'datetime',
-        'year'                 => 'integer',
-        'fiscal_year'          => 'integer',
+        'opening_book_value' => 'decimal:4',
+        'depreciation_amount' => 'decimal:4',
+        'closing_book_value' => 'decimal:4',
+        'depreciation_date' => 'date',
+        'is_posted' => 'boolean',
+        'posted_at' => 'datetime',
+        'year' => 'integer',
+        'fiscal_year' => 'integer',
     ];
 
     public function asset(): BelongsTo

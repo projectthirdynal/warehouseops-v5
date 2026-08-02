@@ -73,7 +73,7 @@ final class CourierCsvTemplateBuilder
     /**
      * Create a new custom template.
      *
-     * @param array<int, array{header: string, field: string, required: bool, label?: string}> $columns
+     * @param  array<int, array{header: string, field: string, required: bool, label?: string}>  $columns
      */
     public function create(string $name, string $courierCode, array $columns, ?int $createdBy = null): CourierCsvTemplate
     {
@@ -91,7 +91,7 @@ final class CourierCsvTemplateBuilder
     /**
      * Update an existing template.
      *
-     * @param array<int, array{header: string, field: string, required: bool, label?: string}> $columns
+     * @param  array<int, array{header: string, field: string, required: bool, label?: string}>  $columns
      */
     public function update(int $id, string $name, array $columns, ?bool $isActive = null): ?CourierCsvTemplate
     {
@@ -158,7 +158,7 @@ final class CourierCsvTemplateBuilder
     }
 
     /**
-     * @param array<int, array{header: string, field: string, required: bool, label?: string}> $columns
+     * @param  array<int, array{header: string, field: string, required: bool, label?: string}>  $columns
      */
     private function validateColumns(array $columns): void
     {

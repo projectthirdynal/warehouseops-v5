@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 class ApplyStatusAutomationRules extends Command
 {
     protected $signature = 'shop:apply-status-rules';
+
     protected $description = 'Apply page-level status automation rules to conversations that meet inactivity thresholds.';
 
     public function handle(): int
@@ -25,6 +26,7 @@ class ApplyStatusAutomationRules extends Command
 
         if ($rules->isEmpty()) {
             $this->info('No active status automation rules found.');
+
             return Command::SUCCESS;
         }
 
@@ -50,7 +52,7 @@ class ApplyStatusAutomationRules extends Command
 
                 $updates = ['status' => $rule->to_status];
 
-                if ($rule->to_status === Conversation::STATUS_RESOLVED && !$conversation->resolved_at) {
+                if ($rule->to_status === Conversation::STATUS_RESOLVED && ! $conversation->resolved_at) {
                     $updates['resolved_at'] = $now;
                     $updates['resolution_time_seconds'] = $conversation->created_at
                         ? (int) $now->diffInSeconds($conversation->created_at)

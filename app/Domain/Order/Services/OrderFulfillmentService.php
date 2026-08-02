@@ -15,7 +15,6 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Services\InventoryService;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\Message;
-use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Models\Customer;
 use App\Models\Lead;
@@ -60,25 +59,25 @@ class OrderFulfillmentService
 
             // Create order
             $order = Order::create([
-                'order_number'     => Order::generateOrderNumber(),
-                'lead_id'          => $lead->id,
-                'customer_id'      => $customer?->id,
-                'product_id'       => $product?->id,
-                'variant_id'       => $variant?->id,
+                'order_number' => Order::generateOrderNumber(),
+                'lead_id' => $lead->id,
+                'customer_id' => $customer?->id,
+                'product_id' => $product?->id,
+                'variant_id' => $variant?->id,
                 'assigned_agent_id' => $lead->assigned_to,
-                'status'           => OrderStatus::PENDING,
-                'courier_code'     => $courierCode ?? config('services.couriers.default', 'FLASH'),
-                'quantity'         => $quantity,
-                'unit_price'       => $unitPrice,
-                'total_amount'     => $unitPrice * $quantity,
-                'cod_amount'       => $unitPrice * $quantity, // COD = total for now
-                'receiver_name'    => $lead->name,
-                'receiver_phone'   => $lead->phone,
+                'status' => OrderStatus::PENDING,
+                'courier_code' => $courierCode ?? config('services.couriers.default', 'FLASH'),
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'total_amount' => $unitPrice * $quantity,
+                'cod_amount' => $unitPrice * $quantity, // COD = total for now
+                'receiver_name' => $lead->name,
+                'receiver_phone' => $lead->phone,
                 'receiver_address' => $lead->address ?? '',
-                'city'             => $lead->city,
-                'state'            => $lead->state,
-                'barangay'         => $lead->barangay,
-                'postal_code'      => $lead->postal_code ?? null,
+                'city' => $lead->city,
+                'state' => $lead->state,
+                'barangay' => $lead->barangay,
+                'postal_code' => $lead->postal_code ?? null,
             ]);
 
             // Update lead sales status
@@ -97,7 +96,7 @@ class OrderFulfillmentService
                 } catch (\RuntimeException $e) {
                     Log::warning("Insufficient stock for order {$order->order_number}", [
                         'product' => $product->id,
-                        'error'   => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                     // Don't block order — just log the warning
                 }
@@ -128,15 +127,15 @@ class OrderFulfillmentService
     /**
      * QA approves the order → submit to courier.
      *
-     * @param bool $submitCourier Set to false when called from within an existing transaction
-     *                            (e.g. createFromLead auto-approve path) to defer courier
-     *                            submission until the outer transaction has committed.
+     * @param  bool  $submitCourier  Set to false when called from within an existing transaction
+     *                               (e.g. createFromLead auto-approve path) to defer courier
+     *                               submission until the outer transaction has committed.
      */
     public function approve(Order $order, ?int $approvedBy = null, bool $submitCourier = true): void
     {
         DB::transaction(function () use ($order) {
             $order->update([
-                'status'       => OrderStatus::QA_APPROVED,
+                'status' => OrderStatus::QA_APPROVED,
                 'confirmed_at' => now(),
             ]);
 
@@ -161,7 +160,7 @@ class OrderFulfillmentService
     {
         DB::transaction(function () use ($order, $reason) {
             $order->update([
-                'status'           => OrderStatus::QA_REJECTED,
+                'status' => OrderStatus::QA_REJECTED,
                 'rejection_reason' => $reason,
             ]);
 
@@ -198,21 +197,21 @@ class OrderFulfillmentService
 
         // Create a waybill record first
         $waybill = Waybill::create([
-            'waybill_number'  => 'PENDING-' . $order->order_number,
-            'status'          => 'PENDING',
-            'receiver_name'   => $order->receiver_name,
-            'receiver_phone'  => $order->receiver_phone,
+            'waybill_number' => 'PENDING-'.$order->order_number,
+            'status' => 'PENDING',
+            'receiver_name' => $order->receiver_name,
+            'receiver_phone' => $order->receiver_phone,
             'receiver_address' => $order->receiver_address,
-            'city'            => $order->city,
-            'state'           => $order->state,
-            'barangay'        => $order->barangay,
-            'postal_code'     => $order->postal_code,
-            'item_name'       => $order->product?->name ?? 'Package',
-            'item_qty'        => $order->quantity,
-            'amount'          => $order->total_amount,
-            'cod_amount'      => $order->cod_amount,
+            'city' => $order->city,
+            'state' => $order->state,
+            'barangay' => $order->barangay,
+            'postal_code' => $order->postal_code,
+            'item_name' => $order->product?->name ?? 'Package',
+            'item_qty' => $order->quantity,
+            'amount' => $order->total_amount,
+            'cod_amount' => $order->cod_amount,
             'courier_provider' => $order->courier_code ?? 'MANUAL',
-            'lead_id'         => $order->lead_id,
+            'lead_id' => $order->lead_id,
         ]);
 
         $order->update(['waybill_id' => $waybill->id]);
@@ -225,7 +224,7 @@ class OrderFulfillmentService
 
                 if ($result->success) {
                     $order->update([
-                        'status'        => OrderStatus::DISPATCHED,
+                        'status' => OrderStatus::DISPATCHED,
                         'dispatched_at' => now(),
                     ]);
 
@@ -260,7 +259,7 @@ class OrderFulfillmentService
     {
         DB::transaction(function () use ($order) {
             $order->update([
-                'status'       => OrderStatus::DELIVERED,
+                'status' => OrderStatus::DELIVERED,
                 'delivered_at' => now(),
             ]);
 
@@ -296,9 +295,9 @@ class OrderFulfillmentService
                     $cogs = $this->cogsService->record(
                         productId: (int) $order->product_id,
                         variantId: $order->variant_id ? (int) $order->variant_id : null,
-                        quantity:  (float) $order->quantity,
+                        quantity: (float) $order->quantity,
                         waybillId: $order->waybill_id ? (int) $order->waybill_id : null,
-                        orderId:   (int) $order->id,
+                        orderId: (int) $order->id,
                     );
                     if ($cogs->isNotEmpty()) {
                         $this->qboSyncService->enqueueCogsJournal($cogs, $order->waybill_id ? (int) $order->waybill_id : null);
@@ -322,7 +321,7 @@ class OrderFulfillmentService
     {
         DB::transaction(function () use ($order) {
             $order->update([
-                'status'      => OrderStatus::RETURNED,
+                'status' => OrderStatus::RETURNED,
                 'returned_at' => now(),
             ]);
 
@@ -372,7 +371,7 @@ class OrderFulfillmentService
     {
         DB::transaction(function () use ($order, $reason) {
             $order->update([
-                'status'           => OrderStatus::CANCELLED,
+                'status' => OrderStatus::CANCELLED,
                 'rejection_reason' => $reason,
             ]);
 
@@ -427,34 +426,34 @@ class OrderFulfillmentService
                 : 0;
 
             $childOrder = Order::create([
-                'order_number'       => Order::generateOrderNumber(),
-                'parent_order_id'    => $parentOrder->id,
-                'lead_id'            => $parentOrder->lead_id,
-                'conversation_id'    => $parentOrder->conversation_id,
-                'facebook_page_id'   => $parentOrder->facebook_page_id,
-                'customer_id'        => $parentOrder->customer_id,
-                'assigned_agent_id'  => $parentOrder->assigned_agent_id,
-                'encoder_id'         => $parentOrder->encoder_id,
-                'status'             => OrderStatus::PENDING,
-                'courier_code'       => $parentOrder->courier_code,
-                'quantity'           => $splitItems->sum('quantity'),
-                'unit_price'         => 0,
-                'total_amount'       => $splitTotal,
-                'cod_amount'         => round((float) $parentOrder->cod_amount * $splitRatio, 2),
-                'shipping_cost'      => round((float) $parentOrder->shipping_cost * $splitRatio, 2),
-                'discount_amount'    => $splitDiscount,
-                'tax_rate'           => $parentOrder->tax_rate,
-                'tax_amount'         => round((float) $parentOrder->tax_amount * $splitRatio, 2),
-                'receiver_name'      => $parentOrder->receiver_name,
-                'receiver_phone'     => $parentOrder->receiver_phone,
-                'receiver_address'   => $parentOrder->receiver_address,
-                'city'               => $parentOrder->city,
-                'state'              => $parentOrder->state,
-                'barangay'           => $parentOrder->barangay,
-                'postal_code'        => $parentOrder->postal_code,
+                'order_number' => Order::generateOrderNumber(),
+                'parent_order_id' => $parentOrder->id,
+                'lead_id' => $parentOrder->lead_id,
+                'conversation_id' => $parentOrder->conversation_id,
+                'facebook_page_id' => $parentOrder->facebook_page_id,
+                'customer_id' => $parentOrder->customer_id,
+                'assigned_agent_id' => $parentOrder->assigned_agent_id,
+                'encoder_id' => $parentOrder->encoder_id,
+                'status' => OrderStatus::PENDING,
+                'courier_code' => $parentOrder->courier_code,
+                'quantity' => $splitItems->sum('quantity'),
+                'unit_price' => 0,
+                'total_amount' => $splitTotal,
+                'cod_amount' => round((float) $parentOrder->cod_amount * $splitRatio, 2),
+                'shipping_cost' => round((float) $parentOrder->shipping_cost * $splitRatio, 2),
+                'discount_amount' => $splitDiscount,
+                'tax_rate' => $parentOrder->tax_rate,
+                'tax_amount' => round((float) $parentOrder->tax_amount * $splitRatio, 2),
+                'receiver_name' => $parentOrder->receiver_name,
+                'receiver_phone' => $parentOrder->receiver_phone,
+                'receiver_address' => $parentOrder->receiver_address,
+                'city' => $parentOrder->city,
+                'state' => $parentOrder->state,
+                'barangay' => $parentOrder->barangay,
+                'postal_code' => $parentOrder->postal_code,
                 'address_mapping_id' => $parentOrder->address_mapping_id,
-                'source_channel'     => $parentOrder->source_channel,
-                'notes'              => "Split from {$parentOrder->order_number}",
+                'source_channel' => $parentOrder->source_channel,
+                'notes' => "Split from {$parentOrder->order_number}",
             ]);
 
             foreach ($splitItems as $item) {
@@ -462,12 +461,12 @@ class OrderFulfillmentService
             }
 
             $parentOrder->update([
-                'total_amount'    => $keepTotal,
-                'cod_amount'      => round((float) $parentOrder->cod_amount - ((float) $parentOrder->cod_amount * $splitRatio), 2),
-                'shipping_cost'   => round((float) $parentOrder->shipping_cost - ((float) $parentOrder->shipping_cost * $splitRatio), 2),
+                'total_amount' => $keepTotal,
+                'cod_amount' => round((float) $parentOrder->cod_amount - ((float) $parentOrder->cod_amount * $splitRatio), 2),
+                'shipping_cost' => round((float) $parentOrder->shipping_cost - ((float) $parentOrder->shipping_cost * $splitRatio), 2),
                 'discount_amount' => $keepDiscount,
-                'tax_amount'      => round((float) $parentOrder->tax_amount - ((float) $parentOrder->tax_amount * $splitRatio), 2),
-                'quantity'        => $keepItems->sum('quantity'),
+                'tax_amount' => round((float) $parentOrder->tax_amount - ((float) $parentOrder->tax_amount * $splitRatio), 2),
+                'quantity' => $keepItems->sum('quantity'),
             ]);
 
             $this->syncOrderStatusToConversation($childOrder, OrderStatus::PENDING, "Split from {$parentOrder->order_number}");
@@ -487,8 +486,8 @@ class OrderFulfillmentService
 
         return Product::where('is_active', true)
             ->where(function ($q) use ($lead) {
-                $q->whereRaw('LOWER(name) LIKE ?', ['%' . mb_strtolower($lead->product_name) . '%'])
-                  ->orWhereRaw('LOWER(brand) LIKE ?', ['%' . mb_strtolower($lead->product_name) . '%']);
+                $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($lead->product_name).'%'])
+                    ->orWhereRaw('LOWER(brand) LIKE ?', ['%'.mb_strtolower($lead->product_name).'%']);
             })
             ->first();
     }
@@ -524,7 +523,7 @@ class OrderFulfillmentService
             'conversation_id' => $order->conversation_id,
             'facebook_page_id' => $conversation->facebook_page_id,
             'sent_by' => auth()->id(),
-            'external_message_id' => 'system-' . str()->uuid(),
+            'external_message_id' => 'system-'.str()->uuid(),
             'direction' => 'system',
             'message_type' => 'order_status',
             'body' => $body,
@@ -555,7 +554,7 @@ class OrderFulfillmentService
         }
 
         $customerMessage = match ($newStatus) {
-            OrderStatus::DISPATCHED => "📦 Your order {$order->order_number} has been dispatched and is on the way! Courier: " . ($order->courier_code ?? 'Manual') . ". Track your shipment soon.",
+            OrderStatus::DISPATCHED => "📦 Your order {$order->order_number} has been dispatched and is on the way! Courier: ".($order->courier_code ?? 'Manual').'. Track your shipment soon.',
             OrderStatus::DELIVERED => "✅ Your order {$order->order_number} has been delivered! Thank you for your purchase. We'd love to hear your feedback.",
             OrderStatus::RETURNED => "↩️ Your order {$order->order_number} has been returned. Please contact us if you have any questions.",
             OrderStatus::CANCELLED => "❌ Your order {$order->order_number} has been cancelled. If this was unexpected, please reach out to us.",
@@ -591,7 +590,7 @@ class OrderFulfillmentService
             'facebook_page_id' => $conversation->facebook_page_id,
             'customer_identity_id' => $conversation->customer_identity_id,
             'sent_by' => auth()->id(),
-            'external_message_id' => 'local-' . str()->uuid(),
+            'external_message_id' => 'local-'.str()->uuid(),
             'direction' => 'outbound',
             'message_type' => 'order_status_update',
             'body' => $customerMessage,

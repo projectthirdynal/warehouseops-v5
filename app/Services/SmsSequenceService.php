@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Jobs\ProcessSequenceStep;
 use App\Domain\Lead\Models\Lead;
+use App\Jobs\ProcessSequenceStep;
 use App\Models\SmsSequence;
 use App\Models\SmsSequenceEnrollment;
 use App\Models\Waybill;
@@ -17,7 +17,7 @@ class SmsSequenceService
     {
         $sequences = SmsSequence::where('trigger_event', $event)
             ->where('is_active', true)
-            ->with(['steps' => fn($q) => $q->where('is_active', true)->orderBy('step_order')])
+            ->with(['steps' => fn ($q) => $q->where('is_active', true)->orderBy('step_order')])
             ->get();
 
         foreach ($sequences as $sequence) {
@@ -46,7 +46,7 @@ class SmsSequenceService
             $leadId = $model->id;
         }
 
-        if (!$phone) {
+        if (! $phone) {
             return;
         }
 

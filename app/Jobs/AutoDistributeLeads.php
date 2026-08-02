@@ -49,6 +49,7 @@ class AutoDistributeLeads implements ShouldQueue
             $lead = Lead::find($queueItem->lead_id);
             if (! $lead || $lead->pool_status !== PoolStatus::AVAILABLE) {
                 $queueItem->update(['status' => 'cancelled']);
+
                 continue;
             }
 
@@ -59,12 +60,14 @@ class AutoDistributeLeads implements ShouldQueue
                 if ($queueItem->attempt_count >= 3) {
                     $queueItem->update(['status' => 'failed']);
                 }
+
                 continue;
             }
 
             $agent = User::find($result['agent_id']);
             if (! $agent) {
                 $queueItem->incrementAttempt();
+
                 continue;
             }
 
@@ -91,6 +94,7 @@ class AutoDistributeLeads implements ShouldQueue
                         'status' => 'pending',
                     ]);
                     $queued++;
+
                     continue;
                 }
 
@@ -102,6 +106,7 @@ class AutoDistributeLeads implements ShouldQueue
                         'status' => 'pending',
                     ]);
                     $queued++;
+
                     continue;
                 }
 

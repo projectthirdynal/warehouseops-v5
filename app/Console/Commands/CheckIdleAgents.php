@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Shop\Models\Conversation;
-use App\Models\AgentProfile;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 class CheckIdleAgents extends Command
 {
     protected $signature = 'shop:check-idle-agents';
+
     protected $description = 'Check for idle agents and log alerts.';
 
     public function handle(): int
@@ -42,6 +42,7 @@ class CheckIdleAgents extends Command
             if (! $agent->last_seen_at) {
                 $idleCount++;
                 Log::warning("Idle agent: {$agent->name} (ID: {$agent->id}) — no last_seen_at, {$agent->active_count} active conversation(s).");
+
                 continue;
             }
 

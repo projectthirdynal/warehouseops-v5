@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 class SmsService
 {
     private string $apiUrl;
+
     private string $apiKey;
 
     public function __construct()
@@ -216,9 +217,9 @@ class SmsService
 
         // Handle Philippine numbers
         if (strlen($phone) === 10 && str_starts_with($phone, '9')) {
-            $phone = '63' . $phone;
+            $phone = '63'.$phone;
         } elseif (strlen($phone) === 11 && str_starts_with($phone, '0')) {
-            $phone = '63' . substr($phone, 1);
+            $phone = '63'.substr($phone, 1);
         }
 
         return $phone;

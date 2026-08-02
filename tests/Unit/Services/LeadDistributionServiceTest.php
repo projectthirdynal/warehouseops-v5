@@ -5,7 +5,6 @@ namespace Tests\Unit\Services;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
-use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
@@ -23,7 +22,7 @@ class LeadDistributionServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $auditService = new LeadAuditService();
+        $auditService = new LeadAuditService;
         $capacityManager = $this->createMock(CapacityManager::class);
         $poolService = new LeadPoolService($auditService, $capacityManager);
         $this->service = new LeadDistributionService($poolService, $auditService);

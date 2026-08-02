@@ -5,17 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\ConversationAssignmentHistory;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
-use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\Tag;
-use App\Models\AgentProfile;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-
-use App\Domain\Shop\Services\AutoAssignmentService;
 
 class MetaConversationIngestor
 {
@@ -140,7 +134,7 @@ class MetaConversationIngestor
                     $flaggedWords = $sentiment['flagged_words'] ?? [];
                     $reason = 'Negative sentiment detected';
                     if (! empty($flaggedWords)) {
-                        $reason .= ' (keywords: ' . implode(', ', array_slice($flaggedWords, 0, 5)) . ')';
+                        $reason .= ' (keywords: '.implode(', ', array_slice($flaggedWords, 0, 5)).')';
                     }
 
                     $updateData['is_flagged'] = true;

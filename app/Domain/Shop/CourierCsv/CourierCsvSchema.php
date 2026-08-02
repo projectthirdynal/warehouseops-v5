@@ -10,9 +10,9 @@ namespace App\Domain\Shop\CourierCsv;
 final class CourierCsvSchema
 {
     /**
-     * @param string $courierCode Courier code (e.g. 'JNT', 'FLASH')
-     * @param string $name Display name (e.g. 'J&T Express', 'Flash Express')
-     * @param array<int, CourierCsvColumn> $columns Ordered column definitions
+     * @param  string  $courierCode  Courier code (e.g. 'JNT', 'FLASH')
+     * @param  string  $name  Display name (e.g. 'J&T Express', 'Flash Express')
+     * @param  array<int, CourierCsvColumn>  $columns  Ordered column definitions
      */
     public function __construct(
         public readonly string $courierCode,

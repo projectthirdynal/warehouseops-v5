@@ -19,8 +19,9 @@ class StatusMapper
         $map = $this->loadMap($courierCode);
         $key = (string) $courierStatus;
 
-        if (!isset($map[$courierStatus]) && !isset($map[$key])) {
+        if (! isset($map[$courierStatus]) && ! isset($map[$key])) {
             Log::warning("StatusMapper: unknown {$courierCode} status '{$courierStatus}', falling back to PENDING");
+
             return WaybillStatus::PENDING;
         }
 
@@ -31,16 +32,16 @@ class StatusMapper
     {
         $key = strtoupper($courierCode);
 
-        if (!isset($this->maps[$key])) {
+        if (! isset($this->maps[$key])) {
             $filename = match ($key) {
-                'JNT'   => 'jnt_express.php',
+                'JNT' => 'jnt_express.php',
                 'FLASH' => 'flash_express.php',
-                'MOCK'  => 'mock_courier.php',
+                'MOCK' => 'mock_courier.php',
                 default => null,
             };
 
             if ($filename) {
-                $path = __DIR__ . '/../StatusMaps/' . $filename;
+                $path = __DIR__.'/../StatusMaps/'.$filename;
                 $this->maps[$key] = file_exists($path) ? require $path : [];
             } else {
                 $this->maps[$key] = [];

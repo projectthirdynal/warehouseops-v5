@@ -6,21 +6,21 @@ namespace App\Domain\Procurement\Enums;
 
 enum PrStatus: string
 {
-    case DRAFT     = 'DRAFT';
+    case DRAFT = 'DRAFT';
     case SUBMITTED = 'SUBMITTED';
-    case APPROVED  = 'APPROVED';
+    case APPROVED = 'APPROVED';
     case CONVERTED = 'CONVERTED';
-    case REJECTED  = 'REJECTED';
+    case REJECTED = 'REJECTED';
     case CANCELLED = 'CANCELLED';
 
     public function label(): string
     {
         return match ($this) {
-            self::DRAFT     => 'Draft',
+            self::DRAFT => 'Draft',
             self::SUBMITTED => 'Submitted',
-            self::APPROVED  => 'Approved',
+            self::APPROVED => 'Approved',
             self::CONVERTED => 'Converted to PO',
-            self::REJECTED  => 'Rejected',
+            self::REJECTED => 'Rejected',
             self::CANCELLED => 'Cancelled',
         };
     }
@@ -28,11 +28,11 @@ enum PrStatus: string
     public function color(): string
     {
         return match ($this) {
-            self::DRAFT     => 'gray',
+            self::DRAFT => 'gray',
             self::SUBMITTED => 'blue',
-            self::APPROVED  => 'green',
+            self::APPROVED => 'green',
             self::CONVERTED => 'emerald',
-            self::REJECTED  => 'red',
+            self::REJECTED => 'red',
             self::CANCELLED => 'orange',
         };
     }

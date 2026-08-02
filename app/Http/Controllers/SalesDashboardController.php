@@ -60,6 +60,7 @@ class SalesDashboardController extends Controller
     public function apiTopProducts(): JsonResponse
     {
         $limit = (int) request()->query('limit', 10);
+
         return response()->json([
             'top_products' => $this->service->topProducts($limit),
         ]);
@@ -69,6 +70,7 @@ class SalesDashboardController extends Controller
     {
         $period = (string) request()->query('period', 'daily');
         $points = (int) request()->query('points', 90);
+
         return response()->json([
             'sales_trends' => $this->service->salesTrends($period, $points),
         ]);
@@ -91,6 +93,7 @@ class SalesDashboardController extends Controller
     public function apiAgentLeaderboard(): JsonResponse
     {
         $limit = (int) request()->query('limit', 10);
+
         return response()->json([
             'agent_leaderboard' => $this->service->agentLeaderboard($limit),
         ]);
@@ -100,6 +103,7 @@ class SalesDashboardController extends Controller
     {
         $cohortMonths = (int) request()->query('cohort_months', 12);
         $retentionMonths = (int) request()->query('retention_months', 6);
+
         return response()->json([
             'cohort_retention' => $this->service->cohortRetention($cohortMonths, $retentionMonths),
         ]);
@@ -123,6 +127,7 @@ class SalesDashboardController extends Controller
     {
         $from = request()->query('from');
         $to = request()->query('to');
+
         return response()->json([
             'sales_report' => $this->service->exportSalesReport(
                 $from ? (string) $from : null,
@@ -155,6 +160,7 @@ class SalesDashboardController extends Controller
     public function apiPredictiveInsights(): JsonResponse
     {
         $forecastDays = (int) request()->query('forecast_days', 30);
+
         return response()->json([
             'predictive_insights' => $this->service->predictiveSalesInsights($forecastDays),
         ]);
@@ -163,6 +169,7 @@ class SalesDashboardController extends Controller
     public function apiWidgetConfig(): JsonResponse
     {
         $dashboard = (string) request()->query('dashboard', 'sales');
+
         return response()->json([
             'widget_config' => $this->service->getWidgetConfig(auth()->id() ?? 0, $dashboard),
         ]);
@@ -172,6 +179,7 @@ class SalesDashboardController extends Controller
     {
         $dashboard = (string) request()->input('dashboard', 'sales');
         $widgets = request()->input('widgets', []);
+
         return response()->json([
             'widget_config' => $this->service->saveWidgetConfig(auth()->id() ?? 0, $widgets, $dashboard),
         ]);
@@ -180,6 +188,7 @@ class SalesDashboardController extends Controller
     public function apiResetWidgetConfig(): JsonResponse
     {
         $dashboard = (string) request()->query('dashboard', 'sales');
+
         return response()->json([
             'widget_config' => $this->service->resetWidgetConfig(auth()->id() ?? 0, $dashboard),
         ]);
@@ -242,7 +251,7 @@ class SalesDashboardController extends Controller
     {
         $deleted = $this->service->deleteScheduledReport($id, auth()->id() ?? 0);
 
-        if (!$deleted) {
+        if (! $deleted) {
             return response()->json(['error' => 'Scheduled report not found'], 404);
         }
 

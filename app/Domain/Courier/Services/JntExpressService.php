@@ -17,10 +17,15 @@ use Illuminate\Support\Facades\Log;
 class JntExpressService implements CourierServiceInterface
 {
     private string $baseUrl;
+
     private string $apiKey;
+
     private string $apiSecret;
+
     private string $webhookSecret;
+
     private StatusMapper $statusMapper;
+
     private ?int $providerId;
 
     public function __construct(StatusMapper $statusMapper)
@@ -42,30 +47,30 @@ class JntExpressService implements CourierServiceInterface
     {
         $body = [
             'customerCode' => $this->apiKey,
-            'digest'       => '', // will be set by sign()
-            'txlogisticId' => $dto->waybillId ? 'WO-' . $dto->waybillId : 'WO-' . time(),
-            'orderType'    => 1,
-            'serviceType'  => 1,
-            'payType'      => $dto->codAmount > 0 ? 1 : 3, // 1=COD, 3=prepaid
-            'sender'       => [
-                'name'     => $dto->senderName,
-                'mobile'   => $dto->senderPhone,
-                'prov'     => $dto->senderProvince,
-                'city'     => $dto->senderCity,
-                'address'  => $dto->senderAddress,
+            'digest' => '', // will be set by sign()
+            'txlogisticId' => $dto->waybillId ? 'WO-'.$dto->waybillId : 'WO-'.time(),
+            'orderType' => 1,
+            'serviceType' => 1,
+            'payType' => $dto->codAmount > 0 ? 1 : 3, // 1=COD, 3=prepaid
+            'sender' => [
+                'name' => $dto->senderName,
+                'mobile' => $dto->senderPhone,
+                'prov' => $dto->senderProvince,
+                'city' => $dto->senderCity,
+                'address' => $dto->senderAddress,
             ],
-            'receiver'     => [
-                'name'     => $dto->receiverName,
-                'mobile'   => $dto->receiverPhone,
-                'prov'     => $dto->receiverProvince,
-                'city'     => $dto->receiverCity,
-                'address'  => $dto->receiverAddress,
+            'receiver' => [
+                'name' => $dto->receiverName,
+                'mobile' => $dto->receiverPhone,
+                'prov' => $dto->receiverProvince,
+                'city' => $dto->receiverCity,
+                'address' => $dto->receiverAddress,
             ],
-            'weight'       => max(0.1, $dto->weight),
-            'itemsValue'   => $dto->itemValue,
-            'goodsType'    => 1,
+            'weight' => max(0.1, $dto->weight),
+            'itemsValue' => $dto->itemValue,
+            'goodsType' => 1,
             'totalQuantity' => $dto->itemQty,
-            'remark'       => $dto->remarks ?? '',
+            'remark' => $dto->remarks ?? '',
         ];
 
         if ($dto->codAmount > 0) {
@@ -74,10 +79,10 @@ class JntExpressService implements CourierServiceInterface
 
         return $this->callApi('create_order', '/webopenplatformapi/api/order/addOrder', $body, $dto->waybillId, function ($data) {
             return new CreateOrderResultDTO(
-                success:        true,
+                success: true,
                 trackingNumber: $data['billCode'] ?? $data['waybillNo'] ?? null,
-                sortCode:       $data['sortingCode'] ?? null,
-                rawResponse:    $data,
+                sortCode: $data['sortingCode'] ?? null,
+                rawResponse: $data,
             );
         });
     }
@@ -86,8 +91,8 @@ class JntExpressService implements CourierServiceInterface
     {
         $body = [
             'customerCode' => $this->apiKey,
-            'billCode'     => $trackingNumber,
-            'reason'       => 'Cancelled by system',
+            'billCode' => $trackingNumber,
+            'reason' => 'Cancelled by system',
         ];
 
         $result = $this->callApi('cancel_order', '/webopenplatformapi/api/order/cancelOrder', $body, null, fn ($data) => true);
@@ -106,8 +111,8 @@ class JntExpressService implements CourierServiceInterface
             try {
                 $body = [
                     'customerCode' => $this->apiKey,
-                    'billCodes'    => implode(',', $chunk),
-                    'lang'         => 'en',
+                    'billCodes' => implode(',', $chunk),
+                    'lang' => 'en',
                 ];
 
                 $response = $this->makeRequest('/webopenplatformapi/api/track/getTrackByBillCodes', $body);
@@ -118,7 +123,7 @@ class JntExpressService implements CourierServiceInterface
                     foreach ($trackingList as $item) {
                         $billCode = $item['billCode'] ?? '';
                         $details = $item['details'] ?? [];
-                        $latest = !empty($details) ? $details[0] : null; // Most recent tracking event
+                        $latest = ! empty($details) ? $details[0] : null; // Most recent tracking event
 
                         if ($latest) {
                             $courierStatus = $latest['scanType'] ?? $latest['logisticsStatus'] ?? '';
@@ -126,11 +131,11 @@ class JntExpressService implements CourierServiceInterface
 
                             $results[] = new TrackingResultDTO(
                                 waybillNumber: $billCode,
-                                mappedStatus:  $mappedStatus,
+                                mappedStatus: $mappedStatus,
                                 courierStatus: $courierStatus,
-                                location:      $latest['scanNetworkName'] ?? $latest['scanCity'] ?? null,
-                                statusAt:      isset($latest['scanTime']) ? new \DateTimeImmutable($latest['scanTime']) : null,
-                                rawData:       $item,
+                                location: $latest['scanNetworkName'] ?? $latest['scanCity'] ?? null,
+                                statusAt: isset($latest['scanTime']) ? new \DateTimeImmutable($latest['scanTime']) : null,
+                                rawData: $item,
                             );
                         }
                     }
@@ -166,12 +171,12 @@ class JntExpressService implements CourierServiceInterface
 
         return new WebhookPayloadDTO(
             waybillNumber: $data['billCode'] ?? $data['txlogisticId'] ?? '',
-            mappedStatus:  $mappedStatus,
+            mappedStatus: $mappedStatus,
             courierStatus: $courierStatus,
-            location:      $data['scanNetworkName'] ?? $data['scanCity'] ?? null,
-            statusAt:      isset($data['scanTime']) ? new \DateTimeImmutable($data['scanTime']) : null,
-            reason:        $data['desc'] ?? $data['remark'] ?? null,
-            rawData:       $data,
+            location: $data['scanNetworkName'] ?? $data['scanCity'] ?? null,
+            statusAt: isset($data['scanTime']) ? new \DateTimeImmutable($data['scanTime']) : null,
+            reason: $data['desc'] ?? $data['remark'] ?? null,
+            rawData: $data,
         );
     }
 
@@ -180,8 +185,8 @@ class JntExpressService implements CourierServiceInterface
         try {
             $body = [
                 'customerCode' => $this->apiKey,
-                'billCodes'    => 'TEST000000000',
-                'lang'         => 'en',
+                'billCodes' => 'TEST000000000',
+                'lang' => 'en',
             ];
 
             $bizContent = json_encode($body);
@@ -189,24 +194,24 @@ class JntExpressService implements CourierServiceInterface
 
             $response = Http::timeout(10)
                 ->asForm()
-                ->post($this->baseUrl . '/webopenplatformapi/api/track/getTrackByBillCodes', [
+                ->post($this->baseUrl.'/webopenplatformapi/api/track/getTrackByBillCodes', [
                     'bizContent' => $bizContent,
-                    'digest'     => $digest,
+                    'digest' => $digest,
                 ]);
 
             $this->logApi('test_connection', '/track/getTrackByBillCodes', $body, $response->json(), $response->status(), true);
 
             return [
                 'connected' => true,
-                'message'   => 'J&T Express API is reachable',
-                'status'    => $response->status(),
+                'message' => 'J&T Express API is reachable',
+                'status' => $response->status(),
             ];
         } catch (\Exception $e) {
             $this->logApi('test_connection', '/track/getTrackByBillCodes', [], ['error' => $e->getMessage()], 0, false, $e->getMessage());
 
             return [
                 'connected' => false,
-                'message'   => 'Connection failed: ' . $e->getMessage(),
+                'message' => 'Connection failed: '.$e->getMessage(),
             ];
         }
     }
@@ -233,9 +238,9 @@ class JntExpressService implements CourierServiceInterface
         $response = Http::timeout(30)
             ->retry(3, 500)
             ->asForm()
-            ->post($this->baseUrl . $endpoint, [
+            ->post($this->baseUrl.$endpoint, [
                 'bizContent' => $bizContent,
-                'digest'     => $digest,
+                'digest' => $digest,
             ]);
 
         $data = $response->json();
@@ -258,9 +263,9 @@ class JntExpressService implements CourierServiceInterface
             $response = Http::timeout(30)
                 ->retry(3, 500)
                 ->asForm()
-                ->post($this->baseUrl . $endpoint, [
+                ->post($this->baseUrl.$endpoint, [
                     'bizContent' => $bizContent,
-                    'digest'     => $digest,
+                    'digest' => $digest,
                 ]);
 
             $responseData = $response->json();
@@ -279,10 +284,10 @@ class JntExpressService implements CourierServiceInterface
             Log::error("J&T Express {$action} failed", ['error' => $errorMsg, 'response' => $responseData]);
 
             return new CreateOrderResultDTO(
-                success:      false,
+                success: false,
                 trackingNumber: null,
                 errorMessage: $errorMsg,
-                rawResponse:  $responseData ?? [],
+                rawResponse: $responseData ?? [],
             );
         } catch (\Exception $e) {
             $elapsed = round((microtime(true) - $startTime) * 1000, 2);
@@ -291,10 +296,10 @@ class JntExpressService implements CourierServiceInterface
             Log::error("J&T Express {$action} exception", ['error' => $e->getMessage()]);
 
             return new CreateOrderResultDTO(
-                success:      false,
+                success: false,
                 trackingNumber: null,
                 errorMessage: $e->getMessage(),
-                rawResponse:  [],
+                rawResponse: [],
             );
         }
     }
@@ -304,17 +309,17 @@ class JntExpressService implements CourierServiceInterface
         try {
             CourierApiLog::create([
                 'courier_provider_id' => $this->providerId,
-                'courier_code'        => 'JNT',
-                'action'              => $action,
-                'direction'           => 'outbound',
-                'endpoint'            => $this->baseUrl . $endpoint,
-                'request_data'        => $requestData,
-                'response_data'       => $responseData,
-                'http_status'         => $httpStatus,
-                'is_success'          => $success,
-                'error_message'       => $error,
-                'response_time_ms'    => $elapsed,
-                'waybill_id'          => $waybillId,
+                'courier_code' => 'JNT',
+                'action' => $action,
+                'direction' => 'outbound',
+                'endpoint' => $this->baseUrl.$endpoint,
+                'request_data' => $requestData,
+                'response_data' => $responseData,
+                'http_status' => $httpStatus,
+                'is_success' => $success,
+                'error_message' => $error,
+                'response_time_ms' => $elapsed,
+                'waybill_id' => $waybillId,
             ]);
         } catch (\Exception $e) {
             Log::warning('Failed to log J&T API call', ['error' => $e->getMessage()]);

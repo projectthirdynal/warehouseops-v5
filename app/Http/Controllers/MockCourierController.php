@@ -4,21 +4,23 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\DTOs\CreateOrderDTO;
 use App\Domain\Courier\Services\MockCourierService;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class MockCourierController extends Controller
 {
-    public function index(): \Inertia\Response
+    public function index(): Response
     {
         $service = app(MockCourierService::class);
         $orders = $service->getAllOrders();
 
         return Inertia::render('Waybills/MockCourierApi', [
-            'orders'     => array_values($orders),
+            'orders' => array_values($orders),
             'totalOrders' => count($orders),
         ]);
     }
@@ -29,68 +31,68 @@ class MockCourierController extends Controller
 
         return response()->json([
             'orders' => array_values($service->getAllOrders()),
-            'total'  => count($service->getAllOrders()),
+            'total' => count($service->getAllOrders()),
         ]);
     }
 
     public function createOrder(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'waybill_id'       => 'nullable|integer|exists:waybills,id',
-            'receiver_name'    => 'required|string|max:255',
-            'receiver_phone'   => 'required|string|max:50',
+            'waybill_id' => 'nullable|integer|exists:waybills,id',
+            'receiver_name' => 'required|string|max:255',
+            'receiver_phone' => 'required|string|max:50',
             'receiver_address' => 'required|string|max:500',
-            'receiver_city'    => 'nullable|string|max:100',
-            'item_name'        => 'nullable|string|max:255',
-            'item_qty'         => 'nullable|integer|min:1',
-            'cod_amount'       => 'nullable|numeric|min:0',
-            'weight'           => 'nullable|numeric|min:0.1',
+            'receiver_city' => 'nullable|string|max:100',
+            'item_name' => 'nullable|string|max:255',
+            'item_qty' => 'nullable|integer|min:1',
+            'cod_amount' => 'nullable|numeric|min:0',
+            'weight' => 'nullable|numeric|min:0.1',
         ]);
 
         $service = app(MockCourierService::class);
 
-        $dto = new \App\Domain\Courier\DTOs\CreateOrderDTO(
-            senderName:      config('app.name', 'WarehouseOps'),
-            senderPhone:     '',
-            senderAddress:   '',
-            senderCity:      '',
-            senderProvince:  '',
-            receiverName:    $validated['receiver_name'],
-            receiverPhone:   $validated['receiver_phone'],
+        $dto = new CreateOrderDTO(
+            senderName: config('app.name', 'WarehouseOps'),
+            senderPhone: '',
+            senderAddress: '',
+            senderCity: '',
+            senderProvince: '',
+            receiverName: $validated['receiver_name'],
+            receiverPhone: $validated['receiver_phone'],
             receiverAddress: $validated['receiver_address'],
-            receiverCity:    $validated['receiver_city'] ?? '',
+            receiverCity: $validated['receiver_city'] ?? '',
             receiverProvince: '',
             receiverBarangay: '',
-            postalCode:      null,
-            itemName:        $validated['item_name'] ?? 'Package',
-            itemQty:         $validated['item_qty'] ?? 1,
-            itemValue:       0,
-            codAmount:       (float) ($validated['cod_amount'] ?? 0),
-            weight:          (float) ($validated['weight'] ?? 0.5),
-            waybillId:       $validated['waybill_id'] ?? null,
+            postalCode: null,
+            itemName: $validated['item_name'] ?? 'Package',
+            itemQty: $validated['item_qty'] ?? 1,
+            itemValue: 0,
+            codAmount: (float) ($validated['cod_amount'] ?? 0),
+            weight: (float) ($validated['weight'] ?? 0.5),
+            waybillId: $validated['waybill_id'] ?? null,
         );
 
         $result = $service->createOrder($dto);
 
         return response()->json([
-            'success'        => $result->success,
+            'success' => $result->success,
             'trackingNumber' => $result->trackingNumber,
-            'sortCode'       => $result->sortCode,
-            'error'          => $result->errorMessage,
+            'sortCode' => $result->sortCode,
+            'error' => $result->errorMessage,
         ], $result->success ? 201 : 422);
     }
 
     public function createFromWaybill(Waybill $waybill): JsonResponse
     {
         $service = app(MockCourierService::class);
-        $dto = \App\Domain\Courier\DTOs\CreateOrderDTO::fromWaybill($waybill);
+        $dto = CreateOrderDTO::fromWaybill($waybill);
         $result = $service->createOrder($dto);
 
         return response()->json([
-            'success'        => $result->success,
+            'success' => $result->success,
             'trackingNumber' => $result->trackingNumber,
-            'sortCode'       => $result->sortCode,
-            'error'          => $result->errorMessage,
+            'sortCode' => $result->sortCode,
+            'error' => $result->errorMessage,
         ], $result->success ? 201 : 422);
     }
 
@@ -99,7 +101,7 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $order = $service->getOrder($trackingNumber);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
@@ -111,7 +113,7 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $order = $service->advanceStatus($trackingNumber);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
@@ -127,7 +129,7 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $order = $service->setStatus($trackingNumber, $validated['status']);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
@@ -139,7 +141,7 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $success = $service->cancelOrder($trackingNumber);
 
-        if (!$success) {
+        if (! $success) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
@@ -151,15 +153,15 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $payload = $service->generateWebhookPayload($trackingNumber);
 
-        if (!$payload) {
+        if (! $payload) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
         return response()->json([
-            'success'   => true,
-            'payload'   => $payload,
+            'success' => true,
+            'payload' => $payload,
             'webhookUrl' => url('/api/courier/webhook/MOCK'),
-            'message'   => 'Webhook payload generated. Send this to the webhook endpoint to simulate a courier callback.',
+            'message' => 'Webhook payload generated. Send this to the webhook endpoint to simulate a courier callback.',
         ]);
     }
 
@@ -176,7 +178,7 @@ class MockCourierController extends Controller
         $service = app(MockCourierService::class);
         $success = $service->resetOrder($trackingNumber);
 
-        if (!$success) {
+        if (! $success) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 

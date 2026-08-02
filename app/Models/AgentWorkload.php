@@ -11,6 +11,7 @@ class AgentWorkload extends Model
     use HasFactory;
 
     protected $primaryKey = 'agent_id';
+
     public $incrementing = false;
 
     protected $fillable = [

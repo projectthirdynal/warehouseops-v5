@@ -32,6 +32,7 @@ class SentimentAnalysisService
     ];
 
     private const POSITIVE_WEIGHT = 1.0;
+
     private const NEGATIVE_WEIGHT = -1.0;
 
     public function analyze(string $text): array
@@ -95,6 +96,7 @@ class SentimentAnalysisService
     public function analyzeConversationText(array $messages): array
     {
         $combined = implode(' ', array_map(fn ($m) => $m['body'] ?? '', $messages));
+
         return $this->analyze($combined);
     }
 

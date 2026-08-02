@@ -10,6 +10,7 @@ use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class LeadImportService
 {
@@ -48,8 +49,9 @@ class LeadImportService
             }
 
             if (count($row) !== count($header)) {
-                $stats['errors'][] = "Row " . ($index + 2) . ": Column count mismatch";
+                $stats['errors'][] = 'Row '.($index + 2).': Column count mismatch';
                 $stats['skipped']++;
+
                 continue;
             }
 
@@ -80,7 +82,7 @@ class LeadImportService
         $stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
 
         try {
-            $reader = new \PhpOffice\PhpSpreadsheet\IOFactory();
+            $reader = new IOFactory;
             $spreadsheet = $reader::load($file->getRealPath());
             $sheet = $spreadsheet->getActiveSheet();
             $highestRow = $sheet->getHighestRow();
@@ -123,7 +125,7 @@ class LeadImportService
             }
         } catch (\Throwable $e) {
             Log::error('XLSX import failed', ['exception' => $e->getMessage()]);
-            $stats['errors'][] = 'File parsing error: ' . $e->getMessage();
+            $stats['errors'][] = 'File parsing error: '.$e->getMessage();
         }
 
         return $stats;
@@ -258,16 +260,16 @@ class LeadImportService
         $digits = preg_replace('/\D/', '', (string) $raw);
 
         if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
-            $digits = '0' . $digits;
+            $digits = '0'.$digits;
         }
 
         // Normalise to +63 format (matches TelesalesLeadImportService — BUG-11)
         if (strlen($digits) === 11 && str_starts_with($digits, '09')) {
-            return '+63' . substr($digits, 1);
+            return '+63'.substr($digits, 1);
         }
 
         if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
-            return '+' . $digits;
+            return '+'.$digits;
         }
 
         if (strlen($digits) === 13 && str_starts_with($digits, '+639')) {

@@ -11,15 +11,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('claims', function (Blueprint $table) {
-            if (!Schema::hasColumn('claims', 'auto_created')) {
+            if (! Schema::hasColumn('claims', 'auto_created')) {
                 $table->boolean('auto_created')->default(false)->after('status');
             }
-            if (!Schema::hasColumn('claims', 'source')) {
+            if (! Schema::hasColumn('claims', 'source')) {
                 $table->string('source')->default('manual')->after('auto_created');
             }
         });
 
-        if (!Schema::hasColumn('claims', 'auto_created')) {
+        if (! Schema::hasColumn('claims', 'auto_created')) {
             Schema::table('claims', function (Blueprint $table) {
                 $table->index(['auto_created', 'status']);
             });

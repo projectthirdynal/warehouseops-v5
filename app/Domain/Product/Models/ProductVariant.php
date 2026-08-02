@@ -6,8 +6,8 @@ namespace App\Domain\Product\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProductVariant extends Model
 {
@@ -23,9 +23,9 @@ class ProductVariant extends Model
 
     protected $casts = [
         'selling_price' => 'decimal:2',
-        'cost_price'    => 'decimal:2',
-        'weight_grams'  => 'integer',
-        'is_active'     => 'boolean',
+        'cost_price' => 'decimal:2',
+        'weight_grams' => 'integer',
+        'is_active' => 'boolean',
     ];
 
     public function product(): BelongsTo

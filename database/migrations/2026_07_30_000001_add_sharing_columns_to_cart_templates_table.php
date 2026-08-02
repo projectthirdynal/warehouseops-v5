@@ -28,7 +28,7 @@ return new class extends Migration
                 Schema::table('cart_templates', function (Blueprint $table) {
                     $table->index(['is_shared', 'allowed_roles']);
                 });
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Index already exists — ignore
             }
         }

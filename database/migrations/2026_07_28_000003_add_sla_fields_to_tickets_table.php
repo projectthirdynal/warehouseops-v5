@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('tickets', 'due_at')) {
+        if (! Schema::hasColumn('tickets', 'due_at')) {
             Schema::table('tickets', function (Blueprint $table) {
                 $table->timestamp('due_at')->nullable()->after('related_lead');
                 $table->timestamp('resolved_at')->nullable()->after('due_at');

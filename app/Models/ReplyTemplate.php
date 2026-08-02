@@ -48,8 +48,11 @@ class ReplyTemplate extends Model
     ];
 
     public const MEDIA_TEXT = 'text';
+
     public const MEDIA_BUTTON = 'button';
+
     public const MEDIA_CARD = 'card';
+
     public const MEDIA_CAROUSEL = 'carousel';
 
     public const MEDIA_TYPES = [
@@ -60,7 +63,9 @@ class ReplyTemplate extends Model
     ];
 
     public const APPROVAL_PENDING = 'pending';
+
     public const APPROVAL_APPROVED = 'approved';
+
     public const APPROVAL_REJECTED = 'rejected';
 
     public const APPROVAL_STATUSES = [
@@ -70,9 +75,13 @@ class ReplyTemplate extends Model
     ];
 
     public const LANG_EN = 'en';
+
     public const LANG_FIL = 'fil';
+
     public const LANG_CE = 'ceb';
+
     public const LANG_HI = 'hil';
+
     public const LANG_ILO = 'ilo';
 
     public const LANGUAGES = [

@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Domain\Analytics\Services\SalesDashboardService;
 use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\StatusMapper;
+use App\Domain\Order\Models\Order;
 use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvCodValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester;
@@ -18,7 +19,6 @@ use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
 use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
 use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator;
-use App\Domain\Order\Models\Order;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
 use App\Observers\OrderObserver;
@@ -72,21 +72,25 @@ class AppServiceProvider extends ServiceProvider
             if (! $mailer) {
                 return;
             }
-            $rawPwd   = SiteSetting::get('mail_password', '');
+            $rawPwd = SiteSetting::get('mail_password', '');
             $password = '';
             if ($rawPwd) {
-                try { $password = Crypt::decryptString($rawPwd); } catch (\Throwable) { $password = $rawPwd; }
+                try {
+                    $password = Crypt::decryptString($rawPwd);
+                } catch (\Throwable) {
+                    $password = $rawPwd;
+                }
             }
             $enc = SiteSetting::get('mail_encryption', 'tls');
             config([
-                'mail.default'                 => $mailer,
-                'mail.mailers.smtp.host'       => SiteSetting::get('mail_host', ''),
-                'mail.mailers.smtp.port'       => (int) SiteSetting::get('mail_port', 587),
+                'mail.default' => $mailer,
+                'mail.mailers.smtp.host' => SiteSetting::get('mail_host', ''),
+                'mail.mailers.smtp.port' => (int) SiteSetting::get('mail_port', 587),
                 'mail.mailers.smtp.encryption' => $enc === 'none' ? null : $enc,
-                'mail.mailers.smtp.username'   => SiteSetting::get('mail_username', ''),
-                'mail.mailers.smtp.password'   => $password,
-                'mail.from.address'            => SiteSetting::get('mail_from_address') ?: config('mail.from.address'),
-                'mail.from.name'               => SiteSetting::get('mail_from_name') ?: config('mail.from.name'),
+                'mail.mailers.smtp.username' => SiteSetting::get('mail_username', ''),
+                'mail.mailers.smtp.password' => $password,
+                'mail.from.address' => SiteSetting::get('mail_from_address') ?: config('mail.from.address'),
+                'mail.from.name' => SiteSetting::get('mail_from_name') ?: config('mail.from.name'),
             ]);
         } catch (\Throwable) {
             // Never crash the app if DB is unreachable at boot

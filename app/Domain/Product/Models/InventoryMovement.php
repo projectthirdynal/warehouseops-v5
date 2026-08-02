@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Product\Models;
 
+use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Models\WarehouseLocation;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -29,19 +32,19 @@ class InventoryMovement extends Model
     ];
 
     protected $casts = [
-        'quantity'    => 'integer',
+        'quantity' => 'integer',
         'expiry_date' => 'date',
         'approved_at' => 'datetime',
     ];
 
     public function warehouse(): BelongsTo
     {
-        return $this->belongsTo(\App\Domain\Inventory\Models\Warehouse::class);
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function location(): BelongsTo
     {
-        return $this->belongsTo(\App\Domain\Inventory\Models\WarehouseLocation::class, 'location_id');
+        return $this->belongsTo(WarehouseLocation::class, 'location_id');
     }
 
     public function product(): BelongsTo
@@ -61,6 +64,6 @@ class InventoryMovement extends Model
 
     public function performer(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'performed_by');
+        return $this->belongsTo(User::class, 'performed_by');
     }
 }

@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace App\Domain\Lead\Models;
 
-use App\Models\Customer;
 use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
-use App\Models\Waybill;
+use App\Models\Customer;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Models\Waybill;
 use Database\Factories\LeadFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Builder;
 
 class Lead extends Model
 {

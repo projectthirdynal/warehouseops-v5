@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Models\Order;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -19,8 +19,8 @@ class LeadController extends Controller
         $query = Lead::with('assignedAgent');
 
         // Non-supervisors should not see leads still in the distribution pool
-        if (!in_array(auth()->user()->role ?? '', ['superadmin', 'admin', 'supervisor'])) {
-            $query->where('pool_status', '!=', \App\Domain\Lead\Enums\PoolStatus::AVAILABLE);
+        if (! in_array(auth()->user()->role ?? '', ['superadmin', 'admin', 'supervisor'])) {
+            $query->where('pool_status', '!=', PoolStatus::AVAILABLE);
         }
 
         // Apply filters
@@ -117,6 +117,7 @@ class LeadController extends Controller
             ->get()
             ->map(function ($lead) {
                 $lead->days_in_pool = now()->diffInDays($lead->updated_at);
+
                 return $lead;
             });
 
@@ -125,9 +126,9 @@ class LeadController extends Controller
             ->get();
 
         $stats = [
-            'pool_size'        => $leads->count(),
-            'recycled_today'   => $leads->where('status', LeadStatus::NO_ANSWER)
-                ->filter(fn ($l) => \Carbon\Carbon::parse($l->updated_at)->isToday())
+            'pool_size' => $leads->count(),
+            'recycled_today' => $leads->where('status', LeadStatus::NO_ANSWER)
+                ->filter(fn ($l) => Carbon::parse($l->updated_at)->isToday())
                 ->count(),
             'avg_days_in_pool' => round((float) ($leads->avg('days_in_pool') ?? 0), 1),
             'reassigned_today' => 0,

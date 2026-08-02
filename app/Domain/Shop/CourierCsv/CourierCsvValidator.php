@@ -25,7 +25,7 @@ final class CourierCsvValidator
     /**
      * Validate a collection of orders against the schema's required columns.
      *
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return array{
      *     valid: bool,
      *     total: int,
@@ -109,7 +109,7 @@ final class CourierCsvValidator
     /**
      * Validate a collection of export rows against the schema's required columns.
      *
-     * @param Collection<int, CourierExportRow> $rows
+     * @param  Collection<int, CourierExportRow>  $rows
      * @return array{
      *     valid: bool,
      *     total: int,
@@ -206,7 +206,7 @@ final class CourierCsvValidator
         $fields = $schema->fields();
         $duplicates = array_diff_assoc($fields, array_unique($fields));
         if (! empty($duplicates)) {
-            $issues[] = "Duplicate field mappings: " . implode(', ', array_unique($duplicates));
+            $issues[] = 'Duplicate field mappings: '.implode(', ', array_unique($duplicates));
         }
 
         return [
@@ -218,7 +218,7 @@ final class CourierCsvValidator
     /**
      * Get a summary of errors for throwing ValidationException.
      *
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return array<int, string>
      */
     public function getExportBlockingErrors(Collection $orders, string $courierCode): array
@@ -250,14 +250,14 @@ final class CourierCsvValidator
             }
 
             if ($missing !== []) {
-                $errors[] = "{$order->order_number}: " . implode(', ', $missing);
+                $errors[] = "{$order->order_number}: ".implode(', ', $missing);
             }
         }
 
         return $errors;
     }
 
-    private function getFieldError(mixed $value, string $field, string $courierCode, Order|CourierExportRow $model = null): ?string
+    private function getFieldError(mixed $value, string $field, string $courierCode, Order|CourierExportRow|null $model = null): ?string
     {
         if ($field === 'phone_number' || $field === 'sender_phone') {
             $validation = $this->phoneValidator->validate($value, $courierCode);

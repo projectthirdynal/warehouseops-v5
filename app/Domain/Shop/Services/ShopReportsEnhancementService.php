@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Shop\Models\Conversation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -227,14 +226,14 @@ class ShopReportsEnhancementService
         $dateTo = $filters['date_to'] ?? today()->toDateString();
 
         $query->whereDate('messages.created_at', '>=', $dateFrom)
-              ->whereDate('messages.created_at', '<=', $dateTo);
+            ->whereDate('messages.created_at', '<=', $dateTo);
 
         $hourExpr = DB::connection()->getDriverName() === 'sqlite'
             ? "CAST(strftime('%H', messages.created_at) AS INTEGER)"
-            : "EXTRACT(HOUR FROM messages.created_at)";
+            : 'EXTRACT(HOUR FROM messages.created_at)';
 
         $hourly = (clone $query)
-            ->selectRaw($hourExpr . ' as hour, COUNT(*) as count')
+            ->selectRaw($hourExpr.' as hour, COUNT(*) as count')
             ->groupByRaw($hourExpr)
             ->orderByRaw('hour')
             ->get()
@@ -251,10 +250,10 @@ class ShopReportsEnhancementService
 
         $dayExpr = DB::connection()->getDriverName() === 'sqlite'
             ? "CAST(strftime('%w', messages.created_at) AS INTEGER)"
-            : "EXTRACT(DOW FROM messages.created_at)";
+            : 'EXTRACT(DOW FROM messages.created_at)';
 
         $byDay = (clone $query)
-            ->selectRaw($dayExpr . ' as day, COUNT(*) as count')
+            ->selectRaw($dayExpr.' as day, COUNT(*) as count')
             ->groupByRaw($dayExpr)
             ->orderByRaw('day')
             ->get()
@@ -272,8 +271,8 @@ class ShopReportsEnhancementService
         }
 
         $heatmapRaw = (clone $query)
-            ->selectRaw($dayExpr . ' as day, ' . $hourExpr . ' as hour, COUNT(*) as count')
-            ->groupByRaw($dayExpr . ', ' . $hourExpr)
+            ->selectRaw($dayExpr.' as day, '.$hourExpr.' as hour, COUNT(*) as count')
+            ->groupByRaw($dayExpr.', '.$hourExpr)
             ->get();
 
         $heatmap = [];
@@ -454,6 +453,7 @@ class ShopReportsEnhancementService
         if ($count % 2 === 0) {
             return ($values[$mid - 1] + $values[$mid]) / 2;
         }
+
         return (float) $values[$mid];
     }
 

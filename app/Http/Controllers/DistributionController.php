@@ -5,12 +5,12 @@ namespace App\Http\Controllers;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Events\LeadAssigned;
-use App\Http\Resources\AgentLeadResource;
 use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\DistributionRule;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\DistributionEngine;
 use App\Services\LeadAuditService;
 use Illuminate\Http\Request;
@@ -24,9 +24,10 @@ class DistributionController extends Controller
         private LeadAuditService $auditService,
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+            if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403, 'Unauthorized');
             }
+
             return $next($request);
         });
     }
@@ -130,7 +131,7 @@ class DistributionController extends Controller
             ]);
 
             // Update agent workload
-            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+            app(CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -181,7 +182,7 @@ class DistributionController extends Controller
                 ]);
                 // Free up old agent workload
                 if ($oldAgent) {
-                    app(\App\Services\CapacityManager::class)->recordCycleClose($oldAgent->id);
+                    app(CapacityManager::class)->recordCycleClose($oldAgent->id);
                 }
             }
 
@@ -202,7 +203,7 @@ class DistributionController extends Controller
             ]);
 
             // Update new agent workload
-            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+            app(CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -247,6 +248,7 @@ class DistributionController extends Controller
                     'rule_id' => $result['rule_id'],
                     'status' => 'pending',
                 ]);
+
                 continue;
             }
 
@@ -278,7 +280,7 @@ class DistributionController extends Controller
                     'total_cycles' => $cycleNumber,
                 ]);
 
-                app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+                app(CapacityManager::class)->recordAssignment($agent->id);
 
                 $this->auditService->log(
                     lead: $lead,

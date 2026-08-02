@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Order\Models\Order;
+use App\Domain\Shop\CourierCsv\CourierCsvColumn;
+use App\Domain\Shop\CourierCsv\CourierCsvSchema;
 use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
 use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Shop\Models\BatchItemErrorLog;
@@ -26,7 +28,7 @@ class CourierExportService
     ) {}
 
     /**
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      */
     public function createBatch(Collection $orders, string $courierCode, ?int $userId, ?string $region = null): CourierExportBatch
     {
@@ -79,9 +81,9 @@ class CourierExportService
             $csvContent = $this->csv($rows, $courierCode);
             Storage::put($path, $csvContent);
             $batch->forceFill([
-                'file_path'         => $path,
-                'file_size'         => strlen($csvContent),
-                'file_hash'         => hash('sha256', $csvContent),
+                'file_path' => $path,
+                'file_size' => strlen($csvContent),
+                'file_hash' => hash('sha256', $csvContent),
                 'file_generated_at' => now(),
             ])->save();
 
@@ -97,8 +99,8 @@ class CourierExportService
     }
 
     /**
-     * @param Collection<int, Order> $orders
-     * @param array<int, string> $courierCodes
+     * @param  Collection<int, Order>  $orders
+     * @param  array<int, string>  $courierCodes
      * @return Collection<int, CourierExportBatch>
      */
     public function createBatchesForCouriers(Collection $orders, array $courierCodes, ?int $userId): Collection
@@ -111,15 +113,14 @@ class CourierExportService
     }
 
     /**
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return Collection<int, CourierExportBatch>
      */
     public function createBatchesByRegion(Collection $orders, string $courierCode, ?int $userId): Collection
     {
         $grouped = $orders->groupBy(fn (Order $order) => $order->state ?? 'Unknown');
 
-        return $grouped->map(fn (Collection $regionOrders, string $region) =>
-            $this->createBatch($regionOrders, $courierCode, $userId, $region)
+        return $grouped->map(fn (Collection $regionOrders, string $region) => $this->createBatch($regionOrders, $courierCode, $userId, $region)
         )->values();
     }
 
@@ -131,8 +132,8 @@ class CourierExportService
         $schema = $this->schemas->resolve($courierCode);
 
         return [
-            'format'      => $schema->name,
-            'headers'     => $schema->headers(),
+            'format' => $schema->name,
+            'headers' => $schema->headers(),
             'field_count' => $schema->columnCount(),
         ];
     }
@@ -140,7 +141,7 @@ class CourierExportService
     /**
      * Generate a CSV preview from orders without creating a batch.
      *
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return array{headers: array<int, string>, rows: array<int, array<int, mixed>>, row_count: int}
      */
     public function previewCsv(Collection $orders, string $courierCode, int $limit = 10): array
@@ -153,14 +154,14 @@ class CourierExportService
         }
 
         return [
-            'headers'   => $schema->headers(),
-            'rows'      => $rows,
+            'headers' => $schema->headers(),
+            'rows' => $rows,
             'row_count' => count($rows),
         ];
     }
 
     /**
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return array{valid: bool, total: int, valid_count: int, invalid_count: int, schema: string, courier_code: string, required_columns: array<int, string>, column_count: int, orders: array<int, array{order_id: int, order_number: string, receiver_name: string, valid: bool, missing_columns: array<int, string>, missing_fields: array<int, array{column: string, field: string, value: mixed}>}>}
      */
     public function validateBatchItems(Collection $orders, string $courierCode): array
@@ -169,7 +170,7 @@ class CourierExportService
     }
 
     /**
-     * @param Collection<int, CourierExportRow> $rows
+     * @param  Collection<int, CourierExportRow>  $rows
      */
     public function csv(Collection $rows, string $courierCode): string
     {
@@ -193,7 +194,7 @@ class CourierExportService
         $schema = $this->schemas->resolve($courierCode);
 
         return array_map(
-            fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => $this->resolveRowField($row, $col->field),
+            fn (CourierCsvColumn $col) => $this->resolveRowField($row, $col->field),
             $schema->columns,
         );
     }
@@ -226,11 +227,11 @@ class CourierExportService
     {
         BatchItemErrorLog::query()->create([
             'courier_export_batch_id' => $batch->id,
-            'courier_export_row_id'   => $row->id,
-            'order_id'                => $row->order_id,
-            'error_type'              => $errorType,
-            'error_message'           => $message,
-            'severity'                => $severity,
+            'courier_export_row_id' => $row->id,
+            'order_id' => $row->order_id,
+            'error_type' => $errorType,
+            'error_message' => $message,
+            'severity' => $severity,
         ]);
     }
 
@@ -260,6 +261,7 @@ class CourierExportService
                     ])->save();
                     $this->logRowError($batch, $row, 'Linked order no longer exists', 'rebuild', 'error');
                     $stillFailed++;
+
                     continue;
                 }
 
@@ -309,11 +311,11 @@ class CourierExportService
                 Storage::put($path, $csvContent);
 
                 $batch->forceFill([
-                    'file_path'         => $path,
-                    'file_size'         => strlen($csvContent),
-                    'file_hash'         => hash('sha256', $csvContent),
+                    'file_path' => $path,
+                    'file_size' => strlen($csvContent),
+                    'file_hash' => hash('sha256', $csvContent),
                     'file_generated_at' => now(),
-                    'row_count'         => $allRows->count(),
+                    'row_count' => $allRows->count(),
                 ])->save();
                 $batch->transitionTo(
                     CourierExportBatch::STATUS_READY,
@@ -355,6 +357,7 @@ class CourierExportService
                     ])->save();
                     $this->logRowError($batch, $row, 'Linked order no longer exists', 'rebuild-full', 'error');
                     $stillFailed++;
+
                     continue;
                 }
 
@@ -405,11 +408,11 @@ class CourierExportService
                 Storage::put($path, $csvContent);
 
                 $batch->forceFill([
-                    'file_path'         => $path,
-                    'file_size'         => strlen($csvContent),
-                    'file_hash'         => hash('sha256', $csvContent),
+                    'file_path' => $path,
+                    'file_size' => strlen($csvContent),
+                    'file_hash' => hash('sha256', $csvContent),
                     'file_generated_at' => now(),
-                    'row_count'         => $allRows->count(),
+                    'row_count' => $allRows->count(),
                 ])->save();
                 $batch->transitionTo(
                     CourierExportBatch::STATUS_READY,
@@ -430,7 +433,7 @@ class CourierExportService
     }
 
     /**
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      */
     private function validateOrders(Collection $orders, string $courierCode): void
     {
@@ -438,7 +441,7 @@ class CourierExportService
 
         if ($errors !== []) {
             throw ValidationException::withMessages([
-                'orders' => 'Courier export blocked. Missing required columns: ' . implode(' | ', $errors),
+                'orders' => 'Courier export blocked. Missing required columns: '.implode(' | ', $errors),
             ]);
         }
     }
@@ -486,23 +489,23 @@ class CourierExportService
         $sender = $this->senderInfo();
 
         return match ($field) {
-            'order_number'      => $order->order_number,
-            'receiver_name'     => $order->receiver_name,
-            'phone_number'      => $this->cleanPhone($order->receiver_phone),
-            'complete_address'  => $order->receiver_address,
-            'province'          => $order->state,
-            'city'              => $order->city,
-            'barangay'          => $order->barangay,
-            'product_name'      => $this->orderLineSummary($order)[0],
-            'quantity'          => $this->orderLineSummary($order)[1],
-            'cod_amount'        => $order->cod_amount,
-            'remarks'           => $order->notes,
-            'sender_name'       => $sender['name'],
-            'sender_phone'      => $sender['phone'],
-            'sender_address'    => $sender['address'],
-            'sender_province'   => $sender['province'],
-            'sender_city'       => $sender['city'],
-            default             => '',
+            'order_number' => $order->order_number,
+            'receiver_name' => $order->receiver_name,
+            'phone_number' => $this->cleanPhone($order->receiver_phone),
+            'complete_address' => $order->receiver_address,
+            'province' => $order->state,
+            'city' => $order->city,
+            'barangay' => $order->barangay,
+            'product_name' => $this->orderLineSummary($order)[0],
+            'quantity' => $this->orderLineSummary($order)[1],
+            'cod_amount' => $order->cod_amount,
+            'remarks' => $order->notes,
+            'sender_name' => $sender['name'],
+            'sender_phone' => $sender['phone'],
+            'sender_address' => $sender['address'],
+            'sender_province' => $sender['province'],
+            'sender_city' => $sender['city'],
+            default => '',
         };
     }
 
@@ -516,23 +519,23 @@ class CourierExportService
         $sender = $this->senderInfo();
 
         return match ($field) {
-            'order_number'      => $row->order?->order_number ?? $row->order_id,
-            'receiver_name'     => $row->receiver_name,
-            'phone_number'      => $this->cleanPhone($row->phone_number),
-            'complete_address'  => $row->complete_address,
-            'province'          => $row->province,
-            'city'              => $row->city,
-            'barangay'          => $row->barangay,
-            'product_name'      => $row->product_name,
-            'quantity'          => $row->quantity,
-            'cod_amount'        => $row->cod_amount,
-            'remarks'           => $row->remarks,
-            'sender_name'       => $sender['name'],
-            'sender_phone'      => $sender['phone'],
-            'sender_address'    => $sender['address'],
-            'sender_province'   => $sender['province'],
-            'sender_city'       => $sender['city'],
-            default             => '',
+            'order_number' => $row->order?->order_number ?? $row->order_id,
+            'receiver_name' => $row->receiver_name,
+            'phone_number' => $this->cleanPhone($row->phone_number),
+            'complete_address' => $row->complete_address,
+            'province' => $row->province,
+            'city' => $row->city,
+            'barangay' => $row->barangay,
+            'product_name' => $row->product_name,
+            'quantity' => $row->quantity,
+            'cod_amount' => $row->cod_amount,
+            'remarks' => $row->remarks,
+            'sender_name' => $sender['name'],
+            'sender_phone' => $sender['phone'],
+            'sender_address' => $sender['address'],
+            'sender_province' => $sender['province'],
+            'sender_city' => $sender['city'],
+            default => '',
         };
     }
 
@@ -541,10 +544,10 @@ class CourierExportService
      *
      * @return array<int, mixed>
      */
-    public function orderToCsvRow(Order $order, \App\Domain\Shop\CourierCsv\CourierCsvSchema $schema): array
+    public function orderToCsvRow(Order $order, CourierCsvSchema $schema): array
     {
         return array_map(
-            fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => $this->resolveOrderField($order, $col->field),
+            fn (CourierCsvColumn $col) => $this->resolveOrderField($order, $col->field),
             $schema->columns,
         );
     }

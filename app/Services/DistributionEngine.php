@@ -7,8 +7,9 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
 use App\Models\DistributionRule;
-use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class DistributionEngine
 {
@@ -37,12 +38,12 @@ class DistributionEngine
             $scored = $this->scoreAgents($lead, $eligible, $rule);
 
             // For ROUND_ROBIN strategy use a per-rule RR cursor (BUG-17)
-            if ($rule->strategy === \App\Domain\Lead\Enums\DistributionStrategy::ROUND_ROBIN) {
-                $rrKey = config('app.env') . ':distribution:rr:rule:' . $rule->id;
+            if ($rule->strategy === DistributionStrategy::ROUND_ROBIN) {
+                $rrKey = config('app.env').':distribution:rr:rule:'.$rule->id;
                 $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
-                $lastKey  = \Illuminate\Support\Facades\Cache::get($rrKey, -1);
-                $nextKey  = ($lastKey + 1) % count($agentIds);
-                \Illuminate\Support\Facades\Cache::put($rrKey, $nextKey, now()->addDay());
+                $lastKey = Cache::get($rrKey, -1);
+                $nextKey = ($lastKey + 1) % count($agentIds);
+                Cache::put($rrKey, $nextKey, now()->addDay());
                 $bestId = $agentIds[$nextKey];
             } else {
                 $best = $scored->first();
@@ -63,12 +64,12 @@ class DistributionEngine
         $eligible = $this->filterEligibleAgents($lead, null);
         if ($eligible->isNotEmpty()) {
             // Key is namespaced by environment + 'fallback' segment (BUG-17: per-rule scoping handled above via rule loop)
-            $rrKey = config('app.env') . ':distribution:rr:fallback';
+            $rrKey = config('app.env').':distribution:rr:fallback';
             $agentIds = $eligible->pluck('user_id')->sort()->values()->all();
-            $lastKey = \Illuminate\Support\Facades\Cache::get($rrKey, -1);
+            $lastKey = Cache::get($rrKey, -1);
             $nextKey = ($lastKey + 1) % count($agentIds);
             $bestId = $agentIds[$nextKey];
-            \Illuminate\Support\Facades\Cache::put($rrKey, $nextKey, now()->addDay());
+            Cache::put($rrKey, $nextKey, now()->addDay());
 
             return [
                 'agent_id' => $bestId,
@@ -89,8 +90,6 @@ class DistributionEngine
     /**
      * Filter agents that are eligible for this lead under the given rule.
      *
-     * @param Lead $lead
-     * @param DistributionRule|null $rule
      * @return Collection<int, AgentProfile>
      */
     public function filterEligibleAgents(Lead $lead, ?DistributionRule $rule): Collection
@@ -152,9 +151,7 @@ class DistributionEngine
     /**
      * Score and rank eligible agents for a lead.
      *
-     * @param Lead $lead
-     * @param Collection<int, AgentProfile> $agents
-     * @param DistributionRule $rule
+     * @param  Collection<int, AgentProfile>  $agents
      * @return Collection<int, array{agent_id: int, score: float}>
      */
     public function scoreAgents(Lead $lead, Collection $agents, DistributionRule $rule): Collection
@@ -252,9 +249,9 @@ class DistributionEngine
             return true;
         }
 
-        $nowTime   = \Carbon\Carbon::now()->format('H:i');
-        $startTime = \Carbon\Carbon::parse($profile->shift_start)->format('H:i');
-        $endTime   = \Carbon\Carbon::parse($profile->shift_end)->format('H:i');
+        $nowTime = Carbon::now()->format('H:i');
+        $startTime = Carbon::parse($profile->shift_start)->format('H:i');
+        $endTime = Carbon::parse($profile->shift_end)->format('H:i');
 
         if ($endTime < $startTime) {
             return $nowTime >= $startTime || $nowTime < $endTime;

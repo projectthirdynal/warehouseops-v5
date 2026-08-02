@@ -17,8 +17,8 @@ class QboSyncQueue extends Model
     ];
 
     protected $casts = [
-        'payload'   => 'array',
-        'attempts'  => 'integer',
+        'payload' => 'array',
+        'attempts' => 'integer',
         'synced_at' => 'datetime',
     ];
 
@@ -31,7 +31,18 @@ class QboSyncQueue extends Model
         });
     }
 
-    public function scopePending($query)  { return $query->where('status', 'PENDING'); }
-    public function scopeFailed($query)   { return $query->where('status', 'FAILED'); }
-    public function scopeSynced($query)   { return $query->where('status', 'SYNCED'); }
+    public function scopePending($query)
+    {
+        return $query->where('status', 'PENDING');
+    }
+
+    public function scopeFailed($query)
+    {
+        return $query->where('status', 'FAILED');
+    }
+
+    public function scopeSynced($query)
+    {
+        return $query->where('status', 'SYNCED');
+    }
 }

@@ -17,8 +17,8 @@ final class CourierCsvValidationAnalytics
     /**
      * Persist validation errors from a validation result.
      *
-     * @param array<string, mixed> $validationResult
-     * @param array<int, int>|null $orderIds
+     * @param  array<string, mixed>  $validationResult
+     * @param  array<int, int>|null  $orderIds
      */
     public function record(
         array $validationResult,

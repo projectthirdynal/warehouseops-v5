@@ -23,7 +23,7 @@ final class CourierCsvTestMode
     /**
      * Run full validation against a set of orders for a courier.
      *
-     * @param Collection<int, Order> $orders
+     * @param  Collection<int, Order>  $orders
      * @return array<string, mixed>
      */
     public function testOrders(Collection $orders, string $courierCode): array
@@ -166,8 +166,8 @@ final class CourierCsvTestMode
     }
 
     /**
-     * @param array<int, string> $headers
-     * @param array<int, array<int, mixed>> $rows
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, mixed>>  $rows
      */
     private function buildCsv(array $headers, array $rows): string
     {
@@ -203,8 +203,8 @@ final class CourierCsvTestMode
     }
 
     /**
-     * @param array<int, string> $a
-     * @param array<int, string> $b
+     * @param  array<int, string>  $a
+     * @param  array<int, string>  $b
      */
     private function compareHeaders(array $a, array $b): bool
     {

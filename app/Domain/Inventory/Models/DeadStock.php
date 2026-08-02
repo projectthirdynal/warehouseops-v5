@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Inventory\Models;
 
 use App\Domain\Product\Models\Product;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,8 +26,8 @@ class DeadStock extends Model
     ];
 
     protected $casts = [
-        'quantity'    => 'integer',
-        'unit_cost'   => 'decimal:4',
+        'quantity' => 'integer',
+        'unit_cost' => 'decimal:4',
         'total_value' => 'decimal:4',
     ];
 
@@ -47,6 +48,6 @@ class DeadStock extends Model
 
     public function recorder(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'recorded_by');
+        return $this->belongsTo(User::class, 'recorded_by');
     }
 }

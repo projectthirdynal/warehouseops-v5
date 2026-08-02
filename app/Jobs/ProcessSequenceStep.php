@@ -16,8 +16,7 @@ class ProcessSequenceStep implements ShouldQueue
 
     public function __construct(
         public SmsSequenceEnrollment $enrollment
-    ) {
-    }
+    ) {}
 
     public function handle(SmsService $smsService): void
     {
@@ -32,11 +31,12 @@ class ProcessSequenceStep implements ShouldQueue
             ->where('is_active', true)
             ->first();
 
-        if (!$step) {
+        if (! $step) {
             $this->enrollment->update([
                 'status' => 'completed',
                 'completed_at' => now(),
             ]);
+
             return;
         }
 

@@ -19,9 +19,8 @@ class LeadDistributionService
     /**
      * Distribute leads evenly among agents.
      *
-     * @param array<int> $leadIds
-     * @param array<int> $agentIds
-     * @param int $supervisorId
+     * @param  array<int>  $leadIds
+     * @param  array<int>  $agentIds
      * @return array{total_distributed: int, agent_count: int, per_agent: int}
      */
     public function distributeEqual(array $leadIds, array $agentIds, int $supervisorId): array
@@ -49,9 +48,8 @@ class LeadDistributionService
     /**
      * Distribute leads according to custom distribution per agent.
      *
-     * @param array<int> $leadIds
-     * @param array<int, int> $distribution Agent ID => count mapping
-     * @param int $supervisorId
+     * @param  array<int>  $leadIds
+     * @param  array<int, int>  $distribution  Agent ID => count mapping
      * @return array{total_distributed: int, agent_count: int, per_agent: int}
      */
     public function distributeCustom(array $leadIds, array $distribution, int $supervisorId): array
@@ -68,7 +66,7 @@ class LeadDistributionService
         DB::transaction(function () use ($leads, $distribution, $supervisor, &$totalDistributed, &$leadIndex) {
             foreach ($distribution as $agentId => $count) {
                 $agent = User::find($agentId);
-                if (!$agent) {
+                if (! $agent) {
                     continue; // Skip invalid agent IDs
                 }
 

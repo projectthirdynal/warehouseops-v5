@@ -8,11 +8,12 @@ use App\Domain\Waybill\Services\CourierAnalyticsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CourierAnalyticsController extends Controller
 {
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
         $service = app(CourierAnalyticsService::class);
         $data = $service->getDashboardData($request->only(['from', 'to', 'courier']));
@@ -34,6 +35,7 @@ class CourierAnalyticsController extends Controller
         $to = $request->input('to', now()->toDateString());
 
         $service = app(CourierAnalyticsService::class);
+
         return $service->exportCsv($from, $to);
     }
 }

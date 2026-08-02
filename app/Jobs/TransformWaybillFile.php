@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Models\Upload;
 use App\Models\ImportChunk;
+use App\Models\Upload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,8 +17,11 @@ class TransformWaybillFile implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 2;
+
     public int $timeout = 3600; // 1 hour
+
     protected int $chunkSize = 10000; // 10k rows per chunk
+
     protected int $redisTTL = 7200; // 2 hours
 
     public function __construct(
@@ -30,22 +33,22 @@ class TransformWaybillFile implements ShouldQueue
     public function handle(): void
     {
         $upload = Upload::find($this->uploadId);
-        
-        if (!$upload || $upload->status === Upload::STATUS_CANCELLED) {
+
+        if (! $upload || $upload->status === Upload::STATUS_CANCELLED) {
             return;
         }
 
         $upload->update(['status' => Upload::STATUS_TRANSFORMING]);
 
         try {
-            $filePath = storage_path('app/' . $upload->file_path);
+            $filePath = storage_path('app/'.$upload->file_path);
             $chunkNumber = 0;
             $chunk = [];
             $rowNumber = 0;
 
             (new FastExcel)->import($filePath, function ($row) use (&$chunk, &$chunkNumber, &$rowNumber, $upload) {
                 $rowNumber++;
-                
+
                 // Transform row data
                 $transformedRow = $this->transformRow($row, $upload->courier);
                 $chunk[] = $transformedRow;
@@ -53,7 +56,7 @@ class TransformWaybillFile implements ShouldQueue
                 // When chunk is full, store it
                 if (count($chunk) >= $this->chunkSize) {
                     $this->storeChunk($upload->id, $chunkNumber, $chunk);
-                    
+
                     // Create chunk record
                     ImportChunk::create([
                         'upload_id' => $upload->id,
@@ -61,7 +64,7 @@ class TransformWaybillFile implements ShouldQueue
                         'status' => ImportChunk::STATUS_PENDING,
                         'rows_count' => count($chunk),
                     ]);
-                    
+
                     $chunkNumber++;
                     $chunk = [];
                 }
@@ -75,7 +78,7 @@ class TransformWaybillFile implements ShouldQueue
             });
 
             // Store final chunk if any
-            if (!empty($chunk)) {
+            if (! empty($chunk)) {
                 $this->storeChunk($upload->id, $chunkNumber, $chunk);
                 ImportChunk::create([
                     'upload_id' => $upload->id,
@@ -111,7 +114,7 @@ class TransformWaybillFile implements ShouldQueue
     {
         // Basic transformation - normalize column names
         $transformed = [];
-        
+
         foreach ($row as $key => $value) {
             // Convert to snake_case for consistency
             $normalizedKey = strtolower(str_replace(' ', '_', trim($key)));

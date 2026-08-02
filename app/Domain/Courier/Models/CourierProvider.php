@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Courier\Models;
 
+use App\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -30,6 +31,6 @@ class CourierProvider extends Model
 
     public function waybills(): HasMany
     {
-        return $this->hasMany(\App\Models\Waybill::class, 'courier_provider', 'code');
+        return $this->hasMany(Waybill::class, 'courier_provider', 'code');
     }
 }

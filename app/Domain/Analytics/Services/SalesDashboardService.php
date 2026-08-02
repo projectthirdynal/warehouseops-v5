@@ -6,6 +6,11 @@ namespace App\Domain\Analytics\Services;
 
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
+use App\Domain\Shop\Models\FacebookPage;
+use App\Domain\Shop\Models\ShopOrderItem;
+use App\Models\DashboardWidgetConfig;
+use App\Models\ScheduledSalesReport;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 
 /**
@@ -123,7 +128,7 @@ class SalesDashboardService
             $result[] = [
                 'week_start' => $key,
                 'count' => (int) ($raw[$key] ?? 0),
-                'label' => $weekStart->format('M j') . ' – ' . $weekStart->copy()->endOfWeek()->format('M j'),
+                'label' => $weekStart->format('M j').' – '.$weekStart->copy()->endOfWeek()->format('M j'),
             ];
         }
 
@@ -304,7 +309,7 @@ class SalesDashboardService
                 'week_start' => $key,
                 'gross' => $gross,
                 'net' => $gross - $refunds,
-                'label' => $weekStart->format('M j') . ' – ' . $weekStart->copy()->endOfWeek()->format('M j'),
+                'label' => $weekStart->format('M j').' – '.$weekStart->copy()->endOfWeek()->format('M j'),
             ];
         }
 
@@ -400,7 +405,7 @@ class SalesDashboardService
     /**
      * Get top products by quantity sold.
      *
-     * @param int $limit Number of products to return
+     * @param  int  $limit  Number of products to return
      * @return array{
      *     total_quantity: int,
      *     total_revenue: float,
@@ -409,7 +414,7 @@ class SalesDashboardService
      */
     public function topProducts(int $limit = 10): array
     {
-        $rows = \App\Domain\Shop\Models\ShopOrderItem::query()
+        $rows = ShopOrderItem::query()
             ->join('orders', 'shop_order_items.order_id', '=', 'orders.id')
             ->where('orders.status', OrderStatus::DELIVERED)
             ->selectRaw('
@@ -445,8 +450,8 @@ class SalesDashboardService
      * Get sales trend data for charting — combined order counts and revenue
      * with 7-day and 30-day moving averages plus period-over-period growth.
      *
-     * @param string $period 'daily', 'weekly', or 'monthly'
-     * @param int $points Number of data points
+     * @param  string  $period  'daily', 'weekly', or 'monthly'
+     * @param  int  $points  Number of data points
      * @return array<string, mixed>
      */
     public function salesTrends(string $period = 'daily', int $points = 90): array
@@ -546,7 +551,7 @@ class SalesDashboardService
     }
 
     /**
-     * @param array<int, array{date: string, label: string, orders: int, revenue: float}> $series
+     * @param  array<int, array{date: string, label: string, orders: int, revenue: float}>  $series
      * @return array<string, mixed>
      */
     private function buildTrendResponse(array $series, string $period, int $points): array
@@ -578,10 +583,10 @@ class SalesDashboardService
         $avgOrders = count($orders) > 0 ? round($totalOrders / count($orders), 1) : 0.0;
         $avgRevenue = count($revenues) > 0 ? round($totalRevenue / count($revenues), 2) : 0.0;
 
-        $peakOrders = !empty($orders) ? max($orders) : 0;
-        $peakRevenue = !empty($revenues) ? max($revenues) : 0.0;
-        $peakOrdersIndex = !empty($orders) ? array_search($peakOrders, $orders) : false;
-        $peakRevenueIndex = !empty($revenues) ? array_search($peakRevenue, $revenues) : false;
+        $peakOrders = ! empty($orders) ? max($orders) : 0;
+        $peakRevenue = ! empty($revenues) ? max($revenues) : 0.0;
+        $peakOrdersIndex = ! empty($orders) ? array_search($peakOrders, $orders) : false;
+        $peakRevenueIndex = ! empty($revenues) ? array_search($peakRevenue, $revenues) : false;
 
         $firstHalf = array_slice($orders, 0, (int) floor(count($orders) / 2));
         $secondHalf = array_slice($orders, (int) floor(count($orders) / 2));
@@ -610,7 +615,7 @@ class SalesDashboardService
     }
 
     /**
-     * @param array<int, int|float> $values
+     * @param  array<int, int|float>  $values
      * @return array<int, float|null>
      */
     private function movingAverage(array $values, int $window): array
@@ -620,11 +625,13 @@ class SalesDashboardService
         for ($i = 0; $i < $count; $i++) {
             if ($i < $window - 1) {
                 $result[] = null;
+
                 continue;
             }
             $slice = array_slice($values, $i - $window + 1, $window);
             $result[] = round(array_sum($slice) / $window, 2);
         }
+
         return $result;
     }
 
@@ -658,7 +665,7 @@ class SalesDashboardService
             ->get();
 
         $pageIds = $rows->pluck('facebook_page_id')->unique()->filter();
-        $pages = \App\Domain\Shop\Models\FacebookPage::whereIn('page_id', $pageIds)
+        $pages = FacebookPage::whereIn('page_id', $pageIds)
             ->pluck('page_name', 'page_id');
 
         $totalRevenue = (float) $rows->sum('rev');
@@ -733,7 +740,7 @@ class SalesDashboardService
         $posMethods = [];
 
         if ($posOrderIds->isNotEmpty()) {
-            $posMethods = \App\Domain\Shop\Models\ShopOrderItem::whereIn('order_id', $posOrderIds)
+            $posMethods = ShopOrderItem::whereIn('order_id', $posOrderIds)
                 ->whereNotNull('metadata')
                 ->get()
                 ->groupBy('order_id')
@@ -751,7 +758,7 @@ class SalesDashboardService
                 $method = 'COD';
             }
 
-            if ($method === null || !isset($totals[$method])) {
+            if ($method === null || ! isset($totals[$method])) {
                 $method = 'OTHER';
             }
 
@@ -796,7 +803,7 @@ class SalesDashboardService
     /**
      * Get agent sales leaderboard — top agents by delivered orders and revenue.
      *
-     * @param int $limit Number of agents to return
+     * @param  int  $limit  Number of agents to return
      * @return array<string, mixed>
      */
     public function agentLeaderboard(int $limit = 10): array
@@ -810,7 +817,7 @@ class SalesDashboardService
             ->get();
 
         $agentIds = $rows->pluck('assigned_agent_id')->unique()->filter();
-        $agents = \App\Models\User::whereIn('id', $agentIds)
+        $agents = User::whereIn('id', $agentIds)
             ->pluck('name', 'id');
 
         $totalRevenue = (float) $rows->sum('rev');
@@ -826,7 +833,7 @@ class SalesDashboardService
             'percentage' => $totalRevenue > 0 ? round((float) $r->rev / $totalRevenue * 100, 1) : 0.0,
         ])->toArray();
 
-        $topAgent = !empty($items) ? $items[0] : null;
+        $topAgent = ! empty($items) ? $items[0] : null;
         $avgOrders = $totalOrders > 0 ? round($totalOrders / count($items), 1) : 0.0;
         $avgRevenue = $totalOrders > 0 ? round($totalRevenue / count($items), 2) : 0.0;
 
@@ -844,8 +851,8 @@ class SalesDashboardService
      * Get cohort/retention metrics — groups customers by first-order month
      * and tracks repeat order rates for subsequent months.
      *
-     * @param int $cohortMonths Number of months of cohorts to generate
-     * @param int $retentionMonths Number of retention periods to track per cohort
+     * @param  int  $cohortMonths  Number of months of cohorts to generate
+     * @param  int  $retentionMonths  Number of retention periods to track per cohort
      * @return array<string, mixed>
      */
     public function cohortRetention(int $cohortMonths = 12, int $retentionMonths = 6): array
@@ -903,6 +910,7 @@ class SalesDashboardService
                         'customers' => null,
                         'rate' => null,
                     ];
+
                     continue;
                 }
 
@@ -953,7 +961,7 @@ class SalesDashboardService
             array_map(fn ($c) => $c['retention'][1]['rate'] ?? null, $cohorts),
             fn ($r) => $r !== null
         );
-        $avgMonth1Retention = !empty($month1Rates)
+        $avgMonth1Retention = ! empty($month1Rates)
             ? round(array_sum($month1Rates) / count($month1Rates), 1)
             : 0.0;
 
@@ -1155,11 +1163,11 @@ class SalesDashboardService
 
         $byCourier = Order::whereIn('status', [OrderStatus::DELIVERED, OrderStatus::RETURNED])
             ->whereNotNull('courier_code')
-            ->selectRaw("
+            ->selectRaw('
                 courier_code,
                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as delivered,
                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as returned
-            ", [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value])
+            ', [OrderStatus::DELIVERED->value, OrderStatus::RETURNED->value])
             ->groupBy('courier_code')
             ->orderByDesc('returned')
             ->get();
@@ -1199,8 +1207,8 @@ class SalesDashboardService
     /**
      * Generate an exportable sales report with optional date range filter.
      *
-     * @param string|null $fromDate  Y-m-d start date (default: 30 days ago)
-     * @param string|null $toDate    Y-m-d end date (default: today)
+     * @param  string|null  $fromDate  Y-m-d start date (default: 30 days ago)
+     * @param  string|null  $toDate  Y-m-d end date (default: today)
      * @return array<string, mixed>
      */
     public function exportSalesReport(?string $fromDate = null, ?string $toDate = null): array
@@ -1255,7 +1263,7 @@ class SalesDashboardService
             ];
         }
 
-        $topProducts = \App\Domain\Shop\Models\ShopOrderItem::query()
+        $topProducts = ShopOrderItem::query()
             ->join('orders', 'shop_order_items.order_id', '=', 'orders.id')
             ->where('orders.status', OrderStatus::DELIVERED)
             ->whereBetween('orders.created_at', [$from, $to])
@@ -1301,8 +1309,6 @@ class SalesDashboardService
     /**
      * Generate CSV content for the sales report download.
      *
-     * @param string|null $fromDate
-     * @param string|null $toDate
      * @return string CSV content
      */
     public function exportSalesReportCsv(?string $fromDate = null, ?string $toDate = null): string
@@ -1371,7 +1377,7 @@ class SalesDashboardService
      * linear regression on historical data, day-of-week patterns,
      * growth projections, and anomaly detection.
      *
-     * @param int $forecastDays Number of days to forecast
+     * @param  int  $forecastDays  Number of days to forecast
      * @return array<string, mixed>
      */
     public function predictiveSalesInsights(int $forecastDays = 30): array
@@ -1380,8 +1386,8 @@ class SalesDashboardService
 
         $dailyData = Order::where('status', OrderStatus::DELIVERED)
             ->where('created_at', '>=', Carbon::now()->subDays($historyDays)->startOfDay())
-            ->selectRaw("DATE(created_at) as date, COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue")
-            ->groupByRaw("DATE(created_at)")
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue')
+            ->groupByRaw('DATE(created_at)')
             ->orderBy('date')
             ->get();
 
@@ -1585,13 +1591,11 @@ class SalesDashboardService
     /**
      * Get the user's dashboard widget configuration.
      *
-     * @param int $userId
-     * @param string $dashboard
      * @return array<string, mixed>
      */
     public function getWidgetConfig(int $userId, string $dashboard = 'sales'): array
     {
-        $configs = \App\Models\DashboardWidgetConfig::where('user_id', $userId)
+        $configs = DashboardWidgetConfig::where('user_id', $userId)
             ->where('dashboard', $dashboard)
             ->get()
             ->keyBy('widget_key');
@@ -1615,7 +1619,7 @@ class SalesDashboardService
         usort($widgets, fn ($a, $b) => $a['sort_order'] <=> $b['sort_order']);
 
         $visible = array_values(array_filter($widgets, fn ($w) => $w['is_visible']));
-        $hidden = array_values(array_filter($widgets, fn ($w) => !$w['is_visible']));
+        $hidden = array_values(array_filter($widgets, fn ($w) => ! $w['is_visible']));
 
         return [
             'widgets' => $widgets,
@@ -1628,9 +1632,7 @@ class SalesDashboardService
     /**
      * Save the user's dashboard widget configuration.
      *
-     * @param int $userId
-     * @param array $widgetConfigs  Array of ['key' => ..., 'is_visible' => ..., 'sort_order' => ..., 'settings' => ...]
-     * @param string $dashboard
+     * @param  array  $widgetConfigs  Array of ['key' => ..., 'is_visible' => ..., 'sort_order' => ..., 'settings' => ...]
      * @return array<string, mixed>
      */
     public function saveWidgetConfig(int $userId, array $widgetConfigs, string $dashboard = 'sales'): array
@@ -1639,11 +1641,11 @@ class SalesDashboardService
 
         foreach ($widgetConfigs as $config) {
             $key = $config['key'] ?? null;
-            if (!$key || !in_array($key, $availableKeys)) {
+            if (! $key || ! in_array($key, $availableKeys)) {
                 continue;
             }
 
-            \App\Models\DashboardWidgetConfig::updateOrCreate(
+            DashboardWidgetConfig::updateOrCreate(
                 [
                     'user_id' => $userId,
                     'dashboard' => $dashboard,
@@ -1663,13 +1665,11 @@ class SalesDashboardService
     /**
      * Reset the user's dashboard widget configuration to defaults.
      *
-     * @param int $userId
-     * @param string $dashboard
      * @return array<string, mixed>
      */
     public function resetWidgetConfig(int $userId, string $dashboard = 'sales'): array
     {
-        \App\Models\DashboardWidgetConfig::where('user_id', $userId)
+        DashboardWidgetConfig::where('user_id', $userId)
             ->where('dashboard', $dashboard)
             ->delete();
 
@@ -1679,12 +1679,11 @@ class SalesDashboardService
     /**
      * List scheduled sales reports for a user.
      *
-     * @param int $userId
      * @return array<int, array<string, mixed>>
      */
     public function listScheduledReports(int $userId): array
     {
-        return \App\Models\ScheduledSalesReport::where('user_id', $userId)
+        return ScheduledSalesReport::where('user_id', $userId)
             ->orderByDesc('created_at')
             ->get()
             ->map(fn ($r) => $this->formatScheduledReport($r))
@@ -1694,13 +1693,11 @@ class SalesDashboardService
     /**
      * Create a scheduled sales report.
      *
-     * @param int $userId
-     * @param array $data
      * @return array<string, mixed>
      */
     public function createScheduledReport(int $userId, array $data): array
     {
-        $report = \App\Models\ScheduledSalesReport::create([
+        $report = ScheduledSalesReport::create([
             'user_id' => $userId,
             'name' => $data['name'] ?? 'Untitled Report',
             'frequency' => $data['frequency'] ?? 'weekly',
@@ -1725,18 +1722,15 @@ class SalesDashboardService
     /**
      * Update a scheduled sales report.
      *
-     * @param int $reportId
-     * @param int $userId
-     * @param array $data
      * @return array<string, mixed>|null
      */
     public function updateScheduledReport(int $reportId, int $userId, array $data): ?array
     {
-        $report = \App\Models\ScheduledSalesReport::where('id', $reportId)
+        $report = ScheduledSalesReport::where('id', $reportId)
             ->where('user_id', $userId)
             ->first();
 
-        if (!$report) {
+        if (! $report) {
             return null;
         }
 
@@ -1757,19 +1751,16 @@ class SalesDashboardService
         }
 
         $report->update($updates);
+
         return $this->formatScheduledReport($report->fresh());
     }
 
     /**
      * Delete a scheduled sales report.
-     *
-     * @param int $reportId
-     * @param int $userId
-     * @return bool
      */
     public function deleteScheduledReport(int $reportId, int $userId): bool
     {
-        return \App\Models\ScheduledSalesReport::where('id', $reportId)
+        return ScheduledSalesReport::where('id', $reportId)
             ->where('user_id', $userId)
             ->delete() > 0;
     }
@@ -1777,13 +1768,9 @@ class SalesDashboardService
     /**
      * Calculate the next run time for a scheduled report.
      *
-     * @param string $frequency
-     * @param string $sendAt  H:i format
-     * @param string|null $dayOfWeek
-     * @param int|null $dayOfMonth
-     * @return \Illuminate\Support\Carbon
+     * @param  string  $sendAt  H:i format
      */
-    private function calculateNextRunAt(string $frequency, string $sendAt, ?string $dayOfWeek, ?int $dayOfMonth): \Illuminate\Support\Carbon
+    private function calculateNextRunAt(string $frequency, string $sendAt, ?string $dayOfWeek, ?int $dayOfMonth): Carbon
     {
         $now = Carbon::now();
 
@@ -1803,6 +1790,7 @@ class SalesDashboardService
         if ($daysUntil === 0) {
             $daysUntil = 7;
         }
+
         return $now->copy()->addDays($daysUntil)->setTimeFromTimeString($sendAt);
     }
 
@@ -1810,16 +1798,16 @@ class SalesDashboardService
     {
         $next = $now->copy()->addMonth();
         $lastDay = (int) $next->format('t');
+
         return $next->setDay(min($dayOfMonth, $lastDay))->setTimeFromTimeString($sendAt);
     }
 
     /**
      * Format a scheduled report for API response.
      *
-     * @param \App\Models\ScheduledSalesReport $report
      * @return array<string, mixed>
      */
-    private function formatScheduledReport(\App\Models\ScheduledSalesReport $report): array
+    private function formatScheduledReport(ScheduledSalesReport $report): array
     {
         return [
             'id' => $report->id,

@@ -16,6 +16,7 @@ use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Lead model requires Customer model; also constructor signature mismatch
  */
 class LeadRecyclingServiceTest extends TestCase

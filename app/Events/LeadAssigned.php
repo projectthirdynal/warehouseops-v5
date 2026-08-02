@@ -25,7 +25,7 @@ class LeadAssigned implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('agent.' . $this->agent->id),
+            new PrivateChannel('agent.'.$this->agent->id),
             new PrivateChannel('supervisor.leads'),
         ];
     }

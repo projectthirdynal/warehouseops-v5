@@ -14,7 +14,7 @@ class WarehouseLocation extends Model
     ];
 
     protected $casts = [
-        'capacity'  => 'integer',
+        'capacity' => 'integer',
         'is_active' => 'boolean',
     ];
 

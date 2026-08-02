@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use App\Domain\Shop\Models\AgentBadge;
+use App\Domain\Shop\Models\AgentMilestone;
+use App\Domain\Shop\Models\AgentStreak;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\FacebookPage;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\FacebookPage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -44,8 +47,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password' => 'hashed',
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
-        'birthday'       => 'date',
-        'hire_date'      => 'date',
+        'birthday' => 'date',
+        'hire_date' => 'date',
     ];
 
     public function agentProfile(): HasOne
@@ -112,16 +115,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function badges(): HasMany
     {
-        return $this->hasMany(\App\Domain\Shop\Models\AgentBadge::class);
+        return $this->hasMany(AgentBadge::class);
     }
 
     public function streaks(): HasMany
     {
-        return $this->hasMany(\App\Domain\Shop\Models\AgentStreak::class);
+        return $this->hasMany(AgentStreak::class);
     }
 
     public function milestones(): HasMany
     {
-        return $this->hasMany(\App\Domain\Shop\Models\AgentMilestone::class);
+        return $this->hasMany(AgentMilestone::class);
     }
 }

@@ -12,9 +12,10 @@ class TelesalesLeadImportController extends Controller
         private TelesalesLeadImportService $importService
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+            if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403);
             }
+
             return $next($request);
         });
     }

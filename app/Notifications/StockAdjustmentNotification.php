@@ -30,25 +30,25 @@ class StockAdjustmentNotification extends Notification implements ShouldQueue
 
         return match ($this->event) {
             'submitted' => [
-                'type'    => 'adjustment_submitted',
-                'title'   => 'Stock Adjustment Pending Approval',
+                'type' => 'adjustment_submitted',
+                'title' => 'Stock Adjustment Pending Approval',
                 'message' => "A stock adjustment for {$item} requires your approval (variance: {$this->adjustment->variance}).",
-                'url'     => '/inventory/adjustments',
-                'meta'    => ['adjustment_id' => $this->adjustment->id],
+                'url' => '/inventory/adjustments',
+                'meta' => ['adjustment_id' => $this->adjustment->id],
             ],
             'approved' => [
-                'type'    => 'adjustment_decided',
-                'title'   => 'Stock Adjustment Approved',
+                'type' => 'adjustment_decided',
+                'title' => 'Stock Adjustment Approved',
                 'message' => "Your stock adjustment for {$item} has been approved.",
-                'url'     => '/inventory/adjustments',
-                'meta'    => ['adjustment_id' => $this->adjustment->id],
+                'url' => '/inventory/adjustments',
+                'meta' => ['adjustment_id' => $this->adjustment->id],
             ],
             default => [
-                'type'    => 'adjustment_decided',
-                'title'   => 'Stock Adjustment Rejected',
+                'type' => 'adjustment_decided',
+                'title' => 'Stock Adjustment Rejected',
                 'message' => "Your stock adjustment for {$item} was rejected.",
-                'url'     => '/inventory/adjustments',
-                'meta'    => ['adjustment_id' => $this->adjustment->id],
+                'url' => '/inventory/adjustments',
+                'meta' => ['adjustment_id' => $this->adjustment->id],
             ],
         };
     }
@@ -60,14 +60,14 @@ class StockAdjustmentNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject(match ($this->event) {
                 'submitted' => 'Stock Adjustment Requires Approval',
-                'approved'  => 'Stock Adjustment Approved',
-                default     => 'Stock Adjustment Rejected',
+                'approved' => 'Stock Adjustment Approved',
+                default => 'Stock Adjustment Rejected',
             })
             ->greeting("Hello {$notifiable->name},")
             ->line(match ($this->event) {
                 'submitted' => "A stock adjustment for **{$item}** has been submitted and requires your approval.",
-                'approved'  => "The stock adjustment for **{$item}** has been approved and stock levels have been updated.",
-                default     => "The stock adjustment for **{$item}** has been rejected.",
+                'approved' => "The stock adjustment for **{$item}** has been approved and stock levels have been updated.",
+                default => "The stock adjustment for **{$item}** has been rejected.",
             })
             ->line("**Warehouse:** {$this->adjustment->warehouse?->name}")
             ->line("**Variance:** {$this->adjustment->variance}")

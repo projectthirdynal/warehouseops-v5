@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Domain\Lead\Enums\PoolStatus;
-use App\Services\CapacityManager;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -28,7 +27,7 @@ class LeadPoolService
                 $query->where('city', $filters['city']);
             }
             if (isset($filters['product_name'])) {
-                $query->whereRaw('LOWER(product_name) LIKE ?', ['%' . mb_strtolower($filters['product_name']) . '%']);
+                $query->whereRaw('LOWER(product_name) LIKE ?', ['%'.mb_strtolower($filters['product_name']).'%']);
             }
         }
 

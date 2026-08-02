@@ -10,8 +10,8 @@ use App\Models\LeadCycle;
 use App\Models\Waybill;
 use App\Services\CallTrackingService;
 use App\Services\LeadDistributionService;
-use App\Services\LeadRecyclingService;
 use App\Services\LeadPoolService;
+use App\Services\LeadRecyclingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -39,20 +39,20 @@ class AgentLeadController extends Controller
             ->whereIn('pool_status', [PoolStatus::ASSIGNED, PoolStatus::COOLDOWN])
             ->with(['customer', 'cycles' => fn ($q) => $q->where('assigned_agent_id', $agent->id)->orderBy('cycle_number', 'desc')]);
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('pool_status', $filters['status']);
         }
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'ILIKE', "%{$search}%")
-                  ->orWhere('city', 'ILIKE', "%{$search}%")
-                  ->orWhere('barangay', 'ILIKE', "%{$search}%");
+                    ->orWhere('city', 'ILIKE', "%{$search}%")
+                    ->orWhere('barangay', 'ILIKE', "%{$search}%");
             });
         }
 
-        if (!empty($filters['product'])) {
+        if (! empty($filters['product'])) {
             $query->where('product_name', 'ILIKE', "%{$filters['product']}%");
         }
 
@@ -74,14 +74,14 @@ class AgentLeadController extends Controller
 
         // Count available matching leads in pool per product skill (single query)
         $matchingInPool = [];
-        if (!empty($productSkills)) {
+        if (! empty($productSkills)) {
             $poolCounts = Lead::available()
                 ->where(function ($q) use ($productSkills) {
                     foreach ($productSkills as $skill) {
                         $q->orWhere('product_name', 'ILIKE', "%{$skill}%");
                     }
                 })
-                ->selectRaw("product_name, count(*) as cnt")
+                ->selectRaw('product_name, count(*) as cnt')
                 ->groupBy('product_name')
                 ->pluck('cnt', 'product_name');
 
@@ -118,7 +118,7 @@ class AgentLeadController extends Controller
     public function requestLeads(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'count'   => ['sometimes', 'integer', 'min:1', 'max:10'],
+            'count' => ['sometimes', 'integer', 'min:1', 'max:10'],
             'product' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
@@ -153,7 +153,7 @@ class AgentLeadController extends Controller
         if ($requestedProduct) {
             // Explicit product filter requested
             $query->where('product_name', 'ILIKE', "%{$requestedProduct}%");
-        } elseif (!empty($productSkills)) {
+        } elseif (! empty($productSkills)) {
             // Filter by ANY of the agent's product skills
             $query->where(function ($q) use ($productSkills) {
                 foreach ($productSkills as $skill) {
@@ -165,7 +165,7 @@ class AgentLeadController extends Controller
 
         $availableLeads = $query->limit($toAssign)->pluck('id')->toArray();
 
-        if (empty($availableLeads) && !empty($productSkills)) {
+        if (empty($availableLeads) && ! empty($productSkills)) {
             // No matching product leads — try without product filter
             $availableLeads = Lead::available()
                 ->orderBy('created_at', 'asc')
@@ -306,7 +306,7 @@ class AgentLeadController extends Controller
         $lead->load('customer');
         $customer = $lead->customer;
 
-        if (!$customer) {
+        if (! $customer) {
             return response()->json([
                 'customer' => null,
                 'waybills' => [],
@@ -336,35 +336,35 @@ class AgentLeadController extends Controller
             ->limit(50)
             ->get()
             ->map(fn ($w) => [
-                'id'             => $w->id,
+                'id' => $w->id,
                 'waybill_number' => $w->waybill_number,
-                'status'         => $w->status,
-                'item_name'      => $w->item_name,
-                'amount'         => $w->cod_amount ?? $w->amount,
-                'city'           => $w->city,
-                'state'          => $w->state,
-                'barangay'       => $w->barangay,
-                'address'        => $w->receiver_address,
-                'rts_reason'     => $w->rts_reason,
-                'delivered_at'   => $w->delivered_at,
-                'returned_at'    => $w->returned_at,
-                'created_at'     => $w->created_at,
+                'status' => $w->status,
+                'item_name' => $w->item_name,
+                'amount' => $w->cod_amount ?? $w->amount,
+                'city' => $w->city,
+                'state' => $w->state,
+                'barangay' => $w->barangay,
+                'address' => $w->receiver_address,
+                'rts_reason' => $w->rts_reason,
+                'delivered_at' => $w->delivered_at,
+                'returned_at' => $w->returned_at,
+                'created_at' => $w->created_at,
             ]);
 
         return response()->json([
             'customer' => [
-                'id'                => $customer->id,
-                'name'              => $customer->name,
-                'phone'             => $customer->phone,
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'phone' => $customer->phone,
                 'canonical_address' => $customer->canonical_address,
-                'total_orders'      => $customer->total_orders,
+                'total_orders' => $customer->total_orders,
                 'successful_orders' => $customer->successful_orders,
-                'returned_orders'   => $customer->returned_orders,
-                'success_rate'      => $customer->success_rate,
-                'total_revenue'     => $customer->total_revenue,
-                'risk_level'        => $customer->risk_level,
-                'is_blacklisted'    => $customer->is_blacklisted,
-                'blacklist_reason'  => $customer->blacklist_reason,
+                'returned_orders' => $customer->returned_orders,
+                'success_rate' => $customer->success_rate,
+                'total_revenue' => $customer->total_revenue,
+                'risk_level' => $customer->risk_level,
+                'is_blacklisted' => $customer->is_blacklisted,
+                'blacklist_reason' => $customer->blacklist_reason,
             ],
             'waybills' => $waybills,
         ]);
@@ -373,19 +373,19 @@ class AgentLeadController extends Controller
     /**
      * Agent waybill tracking — search by tracking number, customer name, or phone.
      */
-    public function tracking(Request $request): \Inertia\Response
+    public function tracking(Request $request): Response
     {
         $search = trim($request->input('search', ''));
         $waybills = collect();
         $selectedWaybill = null;
 
-        if (!empty($search)) {
+        if (! empty($search)) {
             // Search by tracking number, receiver name, or phone
-            $query = \App\Models\Waybill::query()
+            $query = Waybill::query()
                 ->where(function ($q) use ($search) {
                     $q->where('waybill_number', 'ILIKE', "%{$search}%")
-                      ->orWhere('receiver_name', 'ILIKE', "%{$search}%")
-                      ->orWhere('receiver_phone', 'ILIKE', "%{$search}%");
+                        ->orWhere('receiver_name', 'ILIKE', "%{$search}%")
+                        ->orWhere('receiver_phone', 'ILIKE', "%{$search}%");
                 })
                 ->orderBy('created_at', 'desc')
                 ->limit(20);
@@ -395,7 +395,7 @@ class AgentLeadController extends Controller
             // If viewing a specific waybill
             $viewId = $request->input('view');
             if ($viewId) {
-                $selectedWaybill = \App\Models\Waybill::with('trackingHistory')
+                $selectedWaybill = Waybill::with('trackingHistory')
                     ->find($viewId);
             } elseif ($waybills->count() === 1) {
                 // Auto-select if only one result
@@ -411,21 +411,21 @@ class AgentLeadController extends Controller
             $phone = $selectedWaybill->receiver_phone;
 
             // Get all orders for this customer (by phone)
-            $allOrders = \App\Models\Waybill::where('receiver_phone', $phone)
+            $allOrders = Waybill::where('receiver_phone', $phone)
                 ->orderBy('created_at', 'desc')
                 ->limit(20)
                 ->get(['id', 'waybill_number', 'status', 'item_name', 'cod_amount', 'amount', 'delivered_at', 'returned_at', 'created_at']);
 
             $orderHistory = $allOrders->map(fn ($w) => [
-                'id'             => $w->id,
+                'id' => $w->id,
                 'waybill_number' => $w->waybill_number,
-                'status'         => $w->status,
-                'item_name'      => $w->item_name,
-                'amount'         => $w->cod_amount ?? $w->amount,
-                'delivered_at'   => $w->delivered_at,
-                'returned_at'    => $w->returned_at,
-                'created_at'     => $w->created_at,
-                'is_current'     => $w->id === $selectedWaybill->id,
+                'status' => $w->status,
+                'item_name' => $w->item_name,
+                'amount' => $w->cod_amount ?? $w->amount,
+                'delivered_at' => $w->delivered_at,
+                'returned_at' => $w->returned_at,
+                'created_at' => $w->created_at,
+                'is_current' => $w->id === $selectedWaybill->id,
             ])->toArray();
 
             $totalOrders = $allOrders->count();
@@ -433,65 +433,65 @@ class AgentLeadController extends Controller
             $returned = $allOrders->where('status', 'RETURNED')->count();
 
             $customerData = [
-                'total_orders'   => $totalOrders,
-                'delivered'      => $delivered,
-                'returned'       => $returned,
-                'pending'        => $totalOrders - $delivered - $returned,
-                'success_rate'   => $totalOrders > 0 ? round(($delivered / $totalOrders) * 100, 1) : 0,
-                'total_cod'      => (float) $allOrders->sum(fn ($w) => $w->cod_amount ?? $w->amount),
-                'risk_label'     => match (true) {
-                    $totalOrders === 0                                           => 'New',
-                    $totalOrders > 0 && $delivered === 0 && $returned > 0        => 'High Risk',
-                    $totalOrders > 2 && ($returned / $totalOrders) > 0.5         => 'High Risk',
-                    $totalOrders > 2 && ($delivered / $totalOrders) >= 0.75      => 'Reliable',
-                    default                                                      => 'Normal',
+                'total_orders' => $totalOrders,
+                'delivered' => $delivered,
+                'returned' => $returned,
+                'pending' => $totalOrders - $delivered - $returned,
+                'success_rate' => $totalOrders > 0 ? round(($delivered / $totalOrders) * 100, 1) : 0,
+                'total_cod' => (float) $allOrders->sum(fn ($w) => $w->cod_amount ?? $w->amount),
+                'risk_label' => match (true) {
+                    $totalOrders === 0 => 'New',
+                    $totalOrders > 0 && $delivered === 0 && $returned > 0 => 'High Risk',
+                    $totalOrders > 2 && ($returned / $totalOrders) > 0.5 => 'High Risk',
+                    $totalOrders > 2 && ($delivered / $totalOrders) >= 0.75 => 'Reliable',
+                    default => 'Normal',
                 },
             ];
         }
 
         return Inertia::render('AgentLeads/Tracking', [
             'results' => $waybills->map(fn ($w) => [
-                'id'              => $w->id,
-                'waybill_number'  => $w->waybill_number,
-                'status'          => $w->status,
+                'id' => $w->id,
+                'waybill_number' => $w->waybill_number,
+                'status' => $w->status,
                 'courier_provider' => $w->courier_provider,
-                'receiver_name'   => $w->receiver_name,
-                'receiver_phone'  => substr($w->receiver_phone, 0, 4) . '****' . substr($w->receiver_phone, -3),
-                'city'            => $w->city,
-                'state'           => $w->state,
-                'item_name'       => $w->item_name,
-                'cod_amount'      => $w->cod_amount,
-                'created_at'      => $w->created_at,
+                'receiver_name' => $w->receiver_name,
+                'receiver_phone' => substr($w->receiver_phone, 0, 4).'****'.substr($w->receiver_phone, -3),
+                'city' => $w->city,
+                'state' => $w->state,
+                'item_name' => $w->item_name,
+                'cod_amount' => $w->cod_amount,
+                'created_at' => $w->created_at,
             ]),
             'waybill' => $selectedWaybill ? [
-                'id'              => $selectedWaybill->id,
-                'waybill_number'  => $selectedWaybill->waybill_number,
-                'status'          => $selectedWaybill->status,
+                'id' => $selectedWaybill->id,
+                'waybill_number' => $selectedWaybill->waybill_number,
+                'status' => $selectedWaybill->status,
                 'courier_provider' => $selectedWaybill->courier_provider,
-                'receiver_name'   => $selectedWaybill->receiver_name,
-                'receiver_phone'  => substr($selectedWaybill->receiver_phone, 0, 4) . '****' . substr($selectedWaybill->receiver_phone, -3),
-                'city'            => $selectedWaybill->city,
-                'state'           => $selectedWaybill->state,
-                'item_name'       => $selectedWaybill->item_name,
-                'cod_amount'      => $selectedWaybill->cod_amount,
-                'submitted_at'    => $selectedWaybill->submitted_at,
-                'signed_at'       => $selectedWaybill->signed_at,
-                'dispatched_at'   => $selectedWaybill->dispatched_at,
-                'delivered_at'    => $selectedWaybill->delivered_at,
-                'returned_at'     => $selectedWaybill->returned_at,
-                'created_at'      => $selectedWaybill->created_at,
+                'receiver_name' => $selectedWaybill->receiver_name,
+                'receiver_phone' => substr($selectedWaybill->receiver_phone, 0, 4).'****'.substr($selectedWaybill->receiver_phone, -3),
+                'city' => $selectedWaybill->city,
+                'state' => $selectedWaybill->state,
+                'item_name' => $selectedWaybill->item_name,
+                'cod_amount' => $selectedWaybill->cod_amount,
+                'submitted_at' => $selectedWaybill->submitted_at,
+                'signed_at' => $selectedWaybill->signed_at,
+                'dispatched_at' => $selectedWaybill->dispatched_at,
+                'delivered_at' => $selectedWaybill->delivered_at,
+                'returned_at' => $selectedWaybill->returned_at,
+                'created_at' => $selectedWaybill->created_at,
                 'tracking_history' => $selectedWaybill->trackingHistory->map(fn ($h) => [
-                    'status'          => $h->status,
+                    'status' => $h->status,
                     'previous_status' => $h->previous_status,
-                    'reason'          => $h->reason,
-                    'location'        => $h->location,
-                    'tracked_at'      => $h->tracked_at,
+                    'reason' => $h->reason,
+                    'location' => $h->location,
+                    'tracked_at' => $h->tracked_at,
                 ]),
             ] : null,
             'customer' => $customerData,
             'orderHistory' => $orderHistory,
             'search' => $search,
-            'notFound' => !empty($search) && $waybills->isEmpty(),
+            'notFound' => ! empty($search) && $waybills->isEmpty(),
         ]);
     }
 
@@ -499,8 +499,8 @@ class AgentLeadController extends Controller
     {
         $leads = Lead::where('assigned_to', auth()->id())
             ->whereHas('cycles', fn ($q) => $q->where('assigned_agent_id', auth()->id())
-                  ->whereNotNull('callback_at')
-                  ->where('status', 'ACTIVE')
+                ->whereNotNull('callback_at')
+                ->where('status', 'ACTIVE')
             )
             ->with(['customer', 'cycles'])
             ->get();

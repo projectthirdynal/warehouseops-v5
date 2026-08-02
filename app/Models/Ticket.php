@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,9 +33,9 @@ class Ticket extends Model
 
     protected $casts = [
         'related_lead' => 'integer',
-        'due_at'        => 'datetime',
-        'resolved_at'   => 'datetime',
-        'satisfaction_rating'      => 'integer',
+        'due_at' => 'datetime',
+        'resolved_at' => 'datetime',
+        'satisfaction_rating' => 'integer',
         'satisfaction_submitted_at' => 'datetime',
     ];
 
@@ -58,7 +59,7 @@ class Ticket extends Model
         $date = now()->format('ymd');
         $count = self::withTrashed()->whereDate('created_at', today())->count() + 1;
 
-        return "TK-{$date}-" . str_pad((string) $count, 4, '0', STR_PAD_LEFT);
+        return "TK-{$date}-".str_pad((string) $count, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -68,14 +69,14 @@ class Ticket extends Model
     {
         return match ($priority) {
             'urgent' => 4,
-            'high'   => 8,
+            'high' => 8,
             'medium' => 24,
-            'low'    => 48,
-            default  => 24,
+            'low' => 48,
+            default => 24,
         };
     }
 
-    public static function calculateDueAt(string $priority, ?\Carbon\Carbon $createdAt = null): \Carbon\Carbon
+    public static function calculateDueAt(string $priority, ?Carbon $createdAt = null): Carbon
     {
         $hours = self::slaHoursForPriority($priority);
         $base = $createdAt ?? now();
@@ -85,7 +86,7 @@ class Ticket extends Model
 
     public function isOverdue(): bool
     {
-        if (!$this->due_at || in_array($this->status, ['resolved', 'closed'])) {
+        if (! $this->due_at || in_array($this->status, ['resolved', 'closed'])) {
             return false;
         }
 
@@ -94,7 +95,7 @@ class Ticket extends Model
 
     public function isBreached(): bool
     {
-        if (!$this->due_at) {
+        if (! $this->due_at) {
             return false;
         }
 
@@ -110,7 +111,7 @@ class Ticket extends Model
      */
     public function slaStatus(): string
     {
-        if (!$this->due_at) {
+        if (! $this->due_at) {
             return 'none';
         }
 
@@ -132,7 +133,7 @@ class Ticket extends Model
 
     public function timeRemaining(): ?array
     {
-        if (!$this->due_at) {
+        if (! $this->due_at) {
             return null;
         }
 
@@ -145,15 +146,15 @@ class Ticket extends Model
         if ($this->due_at->isPast()) {
             return [
                 'overdue' => true,
-                'hours'   => abs(now()->diffInHours($this->due_at)),
-                'human'   => now()->diffForHumans($this->due_at, true) . ' overdue',
+                'hours' => abs(now()->diffInHours($this->due_at)),
+                'human' => now()->diffForHumans($this->due_at, true).' overdue',
             ];
         }
 
         return [
             'overdue' => false,
-            'hours'   => $diff->h + ($diff->days * 24),
-            'human'   => $this->due_at->diffForHumans(now(), true) . ' remaining',
+            'hours' => $diff->h + ($diff->days * 24),
+            'human' => $this->due_at->diffForHumans(now(), true).' remaining',
         ];
     }
 }

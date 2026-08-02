@@ -6,14 +6,13 @@ namespace App\Domain\Shop\Services;
 
 use App\Models\Customer;
 use App\Models\CustomerNote;
-use Illuminate\Support\Collection;
 
 class CustomerNoteService
 {
     /**
      * Add a note to a customer.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function addNote(Customer $customer, array $data): CustomerNote
     {
@@ -36,7 +35,7 @@ class CustomerNoteService
     /**
      * Update the customer's profile-level tags.
      *
-     * @param array<int, string> $tags
+     * @param  array<int, string>  $tags
      */
     public function setTags(Customer $customer, array $tags): Customer
     {
@@ -76,7 +75,7 @@ class CustomerNoteService
     }
 
     /**
-     * @param mixed $tags
+     * @param  mixed  $tags
      * @return array<int, string>
      */
     private function normalizeTags($tags): array

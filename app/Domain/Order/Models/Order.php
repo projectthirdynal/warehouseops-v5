@@ -7,8 +7,8 @@ namespace App\Domain\Order\Models;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductVariant;
-use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\OrderRemark;
+use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Models\Tag;
 use App\Models\Customer;
 use App\Models\Lead;
@@ -77,23 +77,23 @@ class Order extends Model
     ];
 
     protected $casts = [
-        'status'        => OrderStatus::class,
-        'unit_price'    => 'decimal:2',
-        'total_amount'  => 'decimal:2',
-        'cod_amount'    => 'decimal:2',
+        'status' => OrderStatus::class,
+        'unit_price' => 'decimal:2',
+        'total_amount' => 'decimal:2',
+        'cod_amount' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'tax_rate' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'address_confidence' => 'decimal:2',
-        'confirmed_at'  => 'datetime',
+        'confirmed_at' => 'datetime',
         'dispatched_at' => 'datetime',
-        'delivered_at'  => 'datetime',
-        'returned_at'   => 'datetime',
-        'encoded_at'    => 'datetime',
-        'held_at'        => 'datetime',
+        'delivered_at' => 'datetime',
+        'returned_at' => 'datetime',
+        'encoded_at' => 'datetime',
+        'held_at' => 'datetime',
         'scheduled_delivery_at' => 'datetime',
-        'draft_data'    => 'array',
+        'draft_data' => 'array',
     ];
 
     // Relationships

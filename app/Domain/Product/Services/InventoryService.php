@@ -7,8 +7,8 @@ namespace App\Domain\Product\Services;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Product\Models\InventoryMovement;
-use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class InventoryService
@@ -31,20 +31,20 @@ class InventoryService
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $stock->current_stock += abs($quantity);
-            $stock->last_restock_at  = now();
+            $stock->last_restock_at = now();
             $stock->last_movement_at = now();
             $stock->save();
 
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'STOCK_IN',
-                'quantity'       => abs($quantity),
-                'notes'          => $notes,
-                'performed_by'   => $performedBy,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'STOCK_IN',
+                'quantity' => abs($quantity),
+                'notes' => $notes,
+                'performed_by' => $performedBy,
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
             return $movement;
@@ -75,18 +75,18 @@ class InventoryService
             }
 
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'STOCK_OUT',
-                'quantity'       => -abs($quantity),
-                'notes'          => $notes,
-                'performed_by'   => $performedBy,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'STOCK_OUT',
+                'quantity' => -abs($quantity),
+                'notes' => $notes,
+                'performed_by' => $performedBy,
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
-            $stock->current_stock   -= abs($quantity);
+            $stock->current_stock -= abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
 
@@ -114,30 +114,30 @@ class InventoryService
             }
 
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'RESERVATION',
-                'quantity'       => -abs($quantity),
-                'notes'          => 'Stock reserved for order',
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'RESERVATION',
+                'quantity' => -abs($quantity),
+                'notes' => 'Stock reserved for order',
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
-            $stock->reserved_stock  += abs($quantity);
+            $stock->reserved_stock += abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
 
             StockReservation::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'quantity'       => abs($quantity),
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'quantity' => abs($quantity),
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
-                'reserved_at'    => now(),
-                'expires_at'     => now()->addHours(24),
-                'status'         => 'ACTIVE',
+                'reference_id' => $referenceId,
+                'reserved_at' => now(),
+                'expires_at' => now()->addHours(24),
+                'status' => 'ACTIVE',
             ]);
 
             return $movement;
@@ -158,18 +158,18 @@ class InventoryService
         return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId, $warehouseId) {
             $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'RELEASE',
-                'quantity'       => abs($quantity),
-                'notes'          => 'Reservation released',
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'RELEASE',
+                'quantity' => abs($quantity),
+                'notes' => 'Reservation released',
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->reserved_stock   = max(0, $stock->reserved_stock - abs($quantity));
+            $stock->reserved_stock = max(0, $stock->reserved_stock - abs($quantity));
             $stock->last_movement_at = now();
             $stock->save();
 
@@ -177,8 +177,8 @@ class InventoryService
                 ->where('reference_id', $referenceId)
                 ->where('status', 'ACTIVE')
                 ->update([
-                    'status'          => 'RELEASED',
-                    'released_at'     => now(),
+                    'status' => 'RELEASED',
+                    'released_at' => now(),
                     'released_reason' => 'manual',
                 ]);
 
@@ -201,14 +201,14 @@ class InventoryService
         return DB::transaction(function () use ($productId, $quantity, $variantId, $referenceType, $referenceId, $warehouseId) {
             $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'STOCK_OUT',
-                'quantity'       => -abs($quantity),
-                'notes'          => 'Reservation confirmed — order delivered',
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'STOCK_OUT',
+                'quantity' => -abs($quantity),
+                'notes' => 'Reservation confirmed — order delivered',
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
@@ -217,8 +217,8 @@ class InventoryService
                     "Insufficient stock for reservation confirmation. Current: {$stock->current_stock}, requested: {$quantity}"
                 );
             }
-            $stock->current_stock   -= abs($quantity);
-            $stock->reserved_stock   = max(0, $stock->reserved_stock - abs($quantity));
+            $stock->current_stock -= abs($quantity);
+            $stock->reserved_stock = max(0, $stock->reserved_stock - abs($quantity));
             $stock->last_movement_at = now();
             $stock->save();
 
@@ -226,8 +226,8 @@ class InventoryService
                 ->where('reference_id', $referenceId)
                 ->where('status', 'ACTIVE')
                 ->update([
-                    'status'          => 'CONFIRMED',
-                    'released_at'     => now(),
+                    'status' => 'CONFIRMED',
+                    'released_at' => now(),
                 ]);
 
             return $movement;
@@ -249,18 +249,18 @@ class InventoryService
         return DB::transaction(function () use ($productId, $quantity, $variantId, $notes, $referenceType, $referenceId, $warehouseId) {
             $warehouseId ??= $this->defaultWarehouseId();
             $movement = InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'RETURN',
-                'quantity'       => abs($quantity),
-                'notes'          => $notes ?? 'Stock returned',
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'RETURN',
+                'quantity' => abs($quantity),
+                'notes' => $notes ?? 'Stock returned',
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
+                'reference_id' => $referenceId,
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
-            $stock->current_stock   += abs($quantity);
+            $stock->current_stock += abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
 
@@ -285,16 +285,16 @@ class InventoryService
             $diff = $newQuantity - $stock->current_stock;
 
             $movement = InventoryMovement::create([
-                'product_id'   => $productId,
-                'variant_id'   => $variantId,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
                 'warehouse_id' => $warehouseId,
-                'type'         => 'ADJUSTMENT',
-                'quantity'     => $diff,
-                'notes'        => $notes ?? "Adjusted from {$stock->current_stock} to {$newQuantity}",
+                'type' => 'ADJUSTMENT',
+                'quantity' => $diff,
+                'notes' => $notes ?? "Adjusted from {$stock->current_stock} to {$newQuantity}",
                 'performed_by' => $performedBy,
             ]);
 
-            $stock->current_stock   = $newQuantity;
+            $stock->current_stock = $newQuantity;
             $stock->last_movement_at = now();
             $stock->save();
 
@@ -305,7 +305,7 @@ class InventoryService
     /**
      * Get low stock products.
      */
-    public function getLowStockProducts(): \Illuminate\Database\Eloquent\Collection
+    public function getLowStockProducts(): Collection
     {
         return ProductStock::whereRaw('(current_stock - reserved_stock) <= reorder_point')
             ->with('product')

@@ -13,9 +13,9 @@ class CustomerRiskService
      */
     private const RISK_THRESHOLDS = [
         'BLACKLISTED' => -1, // explicit blacklist
-        'HIGH'        => 50, // < 50% success rate
-        'MEDIUM'      => 70, // < 70% success rate
-        'LOW'         => 100, // >= 70% success rate
+        'HIGH' => 50, // < 50% success rate
+        'MEDIUM' => 70, // < 70% success rate
+        'LOW' => 100, // >= 70% success rate
     ];
 
     /**
@@ -26,6 +26,7 @@ class CustomerRiskService
         if ($customer->is_blacklisted) {
             $customer->risk_level = 'BLACKLISTED';
             $customer->save();
+
             return $customer;
         }
 
@@ -37,6 +38,7 @@ class CustomerRiskService
         if ($total < 3) {
             $customer->risk_level = 'LOW';
             $customer->save();
+
             return $customer;
         }
 
@@ -47,7 +49,7 @@ class CustomerRiskService
         if ($returnRate >= 60 && $total >= 5) {
             $customer->risk_level = 'BLACKLISTED';
             $customer->is_blacklisted = true;
-            $customer->blacklist_reason = 'Auto-blacklisted: excessive returns (' . round($returnRate) . '% return rate)';
+            $customer->blacklist_reason = 'Auto-blacklisted: excessive returns ('.round($returnRate).'% return rate)';
             $customer->blacklisted_at = now();
         } elseif ($successRate < self::RISK_THRESHOLDS['HIGH']) {
             $customer->risk_level = 'HIGH';
@@ -58,6 +60,7 @@ class CustomerRiskService
         }
 
         $customer->save();
+
         return $customer;
     }
 

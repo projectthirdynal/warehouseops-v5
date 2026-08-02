@@ -57,25 +57,25 @@ class AuthController extends Controller
     public function register(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email'],
-            'phone'    => ['required', 'string', 'max:20'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Password::min(8)],
         ]);
 
         $user = User::create([
-            'name'      => $validated['name'],
-            'email'     => $validated['email'],
-            'phone'     => $validated['phone'],
-            'password'  => Hash::make($validated['password']),
-            'role'      => 'agent',
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'agent',
             'is_active' => true,
             // email_verified_at intentionally null — must verify before accessing
         ]);
 
         $user->agentProfile()->create([
             'max_active_cycles' => 10,
-            'is_available'      => true,
+            'is_available' => true,
         ]);
 
         event(new Registered($user));

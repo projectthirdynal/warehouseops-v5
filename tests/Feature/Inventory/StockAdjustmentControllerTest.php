@@ -44,24 +44,24 @@ test('warehouse user can view adjustments index', function () {
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 test('can submit a supply stock adjustment', function () {
-    $user      = makeAdjUser();
-    $supply    = makeAdjSupply();
+    $user = makeAdjUser();
+    $supply = makeAdjSupply();
     $warehouse = makeAdjWarehouse();
 
     SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 40,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     actingAs($user)
         ->post(route('inventory.adjustments.store'), [
-            'supply_id'      => $supply->id,
-            'warehouse_id'   => $warehouse->id,
-            'reason_code'    => 'CYCLE_COUNT',
-            'reason_notes'   => 'Monthly count',
+            'supply_id' => $supply->id,
+            'warehouse_id' => $warehouse->id,
+            'reason_code' => 'CYCLE_COUNT',
+            'reason_notes' => 'Monthly count',
             'quantity_after' => 35,
         ])
         ->assertRedirect();
@@ -76,13 +76,13 @@ test('can submit a supply stock adjustment', function () {
 });
 
 test('adjustment store requires either product_id or supply_id', function () {
-    $user      = makeAdjUser();
+    $user = makeAdjUser();
     $warehouse = makeAdjWarehouse();
 
     actingAs($user)
         ->post(route('inventory.adjustments.store'), [
-            'warehouse_id'   => $warehouse->id,
-            'reason_code'    => 'CYCLE_COUNT',
+            'warehouse_id' => $warehouse->id,
+            'reason_code' => 'CYCLE_COUNT',
             'quantity_after' => 10,
         ])
         ->assertSessionHasErrors();
@@ -92,26 +92,26 @@ test('adjustment store requires either product_id or supply_id', function () {
 
 test('supervisor can approve a pending adjustment and stock is updated', function () {
     $supervisor = makeSupervisor();
-    $supply     = makeAdjSupply();
-    $warehouse  = makeAdjWarehouse();
+    $supply = makeAdjSupply();
+    $warehouse = makeAdjWarehouse();
 
     $stock = SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 50,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     $adj = StockAdjustment::create([
-        'supply_id'       => $supply->id,
-        'warehouse_id'    => $warehouse->id,
-        'reason_code'     => 'DAMAGE',
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
+        'reason_code' => 'DAMAGE',
         'quantity_before' => 50,
-        'quantity_after'  => 42,
-        'variance'        => -8,
-        'status'          => 'PENDING',
-        'submitted_by'    => $supervisor->id,
+        'quantity_after' => 42,
+        'variance' => -8,
+        'status' => 'PENDING',
+        'submitted_by' => $supervisor->id,
     ]);
 
     actingAs($supervisor)
@@ -124,18 +124,18 @@ test('supervisor can approve a pending adjustment and stock is updated', functio
 
 test('cannot approve an already-processed adjustment', function () {
     $supervisor = makeSupervisor();
-    $supply     = makeAdjSupply();
-    $warehouse  = makeAdjWarehouse();
+    $supply = makeAdjSupply();
+    $warehouse = makeAdjWarehouse();
 
     $adj = StockAdjustment::create([
-        'supply_id'       => $supply->id,
-        'warehouse_id'    => $warehouse->id,
-        'reason_code'     => 'DAMAGE',
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
+        'reason_code' => 'DAMAGE',
         'quantity_before' => 10,
-        'quantity_after'  => 8,
-        'variance'        => -2,
-        'status'          => 'APPROVED',
-        'submitted_by'    => $supervisor->id,
+        'quantity_after' => 8,
+        'variance' => -2,
+        'status' => 'APPROVED',
+        'submitted_by' => $supervisor->id,
     ]);
 
     actingAs($supervisor)
@@ -148,18 +148,18 @@ test('cannot approve an already-processed adjustment', function () {
 
 test('supervisor can reject a pending adjustment', function () {
     $supervisor = makeSupervisor();
-    $supply     = makeAdjSupply();
-    $warehouse  = makeAdjWarehouse();
+    $supply = makeAdjSupply();
+    $warehouse = makeAdjWarehouse();
 
     $adj = StockAdjustment::create([
-        'supply_id'       => $supply->id,
-        'warehouse_id'    => $warehouse->id,
-        'reason_code'     => 'CYCLE_COUNT',
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
+        'reason_code' => 'CYCLE_COUNT',
         'quantity_before' => 20,
-        'quantity_after'  => 15,
-        'variance'        => -5,
-        'status'          => 'PENDING',
-        'submitted_by'    => $supervisor->id,
+        'quantity_after' => 15,
+        'variance' => -5,
+        'status' => 'PENDING',
+        'submitted_by' => $supervisor->id,
     ]);
 
     actingAs($supervisor)
@@ -173,26 +173,26 @@ test('supervisor can reject a pending adjustment', function () {
 
 test('stock is NOT changed when adjustment is rejected', function () {
     $supervisor = makeSupervisor();
-    $supply     = makeAdjSupply();
-    $warehouse  = makeAdjWarehouse();
+    $supply = makeAdjSupply();
+    $warehouse = makeAdjWarehouse();
 
     $stock = SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 30,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     $adj = StockAdjustment::create([
-        'supply_id'       => $supply->id,
-        'warehouse_id'    => $warehouse->id,
-        'reason_code'     => 'CYCLE_COUNT',
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
+        'reason_code' => 'CYCLE_COUNT',
         'quantity_before' => 30,
-        'quantity_after'  => 25,
-        'variance'        => -5,
-        'status'          => 'PENDING',
-        'submitted_by'    => $supervisor->id,
+        'quantity_after' => 25,
+        'variance' => -5,
+        'status' => 'PENDING',
+        'submitted_by' => $supervisor->id,
     ]);
 
     actingAs($supervisor)

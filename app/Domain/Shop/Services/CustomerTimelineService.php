@@ -27,7 +27,7 @@ class CustomerTimelineService
                 'type' => 'order',
                 'occurred_at' => $order->created_at->toIso8601String(),
                 'title' => "Order {$order->order_number}",
-                'description' => "Status: {$order->status}, Amount: ₱" . number_format((float) $order->total_amount, 2),
+                'description' => "Status: {$order->status}, Amount: ₱".number_format((float) $order->total_amount, 2),
                 'metadata' => [
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
@@ -63,7 +63,7 @@ class CustomerTimelineService
             ->map(fn ($message) => [
                 'type' => 'message',
                 'occurred_at' => $message->sent_at?->toIso8601String() ?? $message->created_at->toIso8601String(),
-                'title' => ucfirst($message->direction) . ' message',
+                'title' => ucfirst($message->direction).' message',
                 'description' => $message->body ?? '(attachment)',
                 'metadata' => [
                     'message_id' => $message->id,

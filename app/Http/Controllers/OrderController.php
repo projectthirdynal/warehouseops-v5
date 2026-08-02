@@ -22,8 +22,8 @@ class OrderController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'ILIKE', "%{$search}%")
-                  ->orWhere('receiver_name', 'ILIKE', "%{$search}%")
-                  ->orWhere('receiver_phone', 'ILIKE', "%{$search}%");
+                    ->orWhere('receiver_name', 'ILIKE', "%{$search}%")
+                    ->orWhere('receiver_phone', 'ILIKE', "%{$search}%");
             });
         }
 
@@ -40,18 +40,18 @@ class OrderController extends Controller
             ->withQueryString();
 
         $stats = [
-            'total'      => Order::count(),
-            'pending'    => Order::where('status', OrderStatus::PENDING)->count(),
+            'total' => Order::count(),
+            'pending' => Order::where('status', OrderStatus::PENDING)->count(),
             'qa_pending' => Order::where('status', OrderStatus::QA_PENDING)->count(),
             'processing' => Order::where('status', OrderStatus::PROCESSING)->count(),
             'dispatched' => Order::where('status', OrderStatus::DISPATCHED)->count(),
-            'delivered'  => Order::where('status', OrderStatus::DELIVERED)->count(),
-            'returned'   => Order::where('status', OrderStatus::RETURNED)->count(),
+            'delivered' => Order::where('status', OrderStatus::DELIVERED)->count(),
+            'returned' => Order::where('status', OrderStatus::RETURNED)->count(),
         ];
 
         return Inertia::render('Orders/Index', [
-            'orders'  => $orders,
-            'stats'   => $stats,
+            'orders' => $orders,
+            'stats' => $stats,
             'filters' => $request->only(['search', 'status', 'courier']),
         ]);
     }

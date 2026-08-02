@@ -6,6 +6,7 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\LeadCycle;
 use App\Models\LeadPoolAudit;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Request;
 
 class LeadAuditService
@@ -31,7 +32,7 @@ class LeadAuditService
         ]);
     }
 
-    public function getLeadHistory(Lead $lead, int $limit = 50): \Illuminate\Database\Eloquent\Collection
+    public function getLeadHistory(Lead $lead, int $limit = 50): Collection
     {
         return LeadPoolAudit::where('lead_id', $lead->id)
             ->with('user')

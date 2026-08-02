@@ -29,16 +29,16 @@ class ReturnProcessedNotification extends Notification implements ShouldQueue
         $codAmount = $waybill?->cod_amount ?? $waybill?->amount ?? 0;
 
         return [
-            'type'    => 'return_processed',
-            'title'   => 'Returned Parcel Received',
-            'message' => "Waybill {$waybill?->waybill_number} received ({$this->receipt->condition}). COD at risk: ₱" . number_format((float) $codAmount, 2),
-            'url'     => "/waybills/{$waybill?->id}",
-            'meta'    => [
-                'receipt_id'      => $this->receipt->id,
-                'waybill_id'      => $waybill?->id,
-                'waybill_number'  => $waybill?->waybill_number,
-                'condition'       => $this->receipt->condition,
-                'cod_amount'      => (float) $codAmount,
+            'type' => 'return_processed',
+            'title' => 'Returned Parcel Received',
+            'message' => "Waybill {$waybill?->waybill_number} received ({$this->receipt->condition}). COD at risk: ₱".number_format((float) $codAmount, 2),
+            'url' => "/waybills/{$waybill?->id}",
+            'meta' => [
+                'receipt_id' => $this->receipt->id,
+                'waybill_id' => $waybill?->id,
+                'waybill_number' => $waybill?->waybill_number,
+                'condition' => $this->receipt->condition,
+                'cod_amount' => (float) $codAmount,
                 'inventory_updated' => $this->receipt->inventory_updated,
             ],
         ];
@@ -52,13 +52,13 @@ class ReturnProcessedNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject("Return Received — {$waybill?->waybill_number}")
             ->greeting("Hello {$notifiable->name},")
-            ->line("A returned parcel has been received at the warehouse.")
+            ->line('A returned parcel has been received at the warehouse.')
             ->line("**Waybill:** {$waybill?->waybill_number}")
             ->line("**Courier:** {$waybill?->courier_provider}")
             ->line("**Receiver:** {$waybill?->receiver_name}")
             ->line("**Condition:** {$this->receipt->condition}")
-            ->line("**COD Amount:** ₱" . number_format((float) $codAmount, 2))
-            ->line("**Inventory Updated:** " . ($this->receipt->inventory_updated ? 'Yes' : 'No'))
+            ->line('**COD Amount:** ₱'.number_format((float) $codAmount, 2))
+            ->line('**Inventory Updated:** '.($this->receipt->inventory_updated ? 'Yes' : 'No'))
             ->action('View Waybill', url("/waybills/{$waybill?->id}"));
     }
 }

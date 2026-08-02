@@ -20,7 +20,7 @@ abstract class WaybillImportEvent implements ShouldBroadcast
 
     public function broadcastOn(): Channel
     {
-        return new Channel('upload.' . $this->upload->id);
+        return new Channel('upload.'.$this->upload->id);
     }
 }
 

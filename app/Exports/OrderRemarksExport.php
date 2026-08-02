@@ -14,7 +14,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class OrderRemarksExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class OrderRemarksExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     public function __construct(
         private readonly array $filters = [],

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     private const OLD = 'product_stocks_product_id_variant_id_unique';
+
     private const NEW = 'product_stocks_product_variant_warehouse_unique';
 
     public function up(): void

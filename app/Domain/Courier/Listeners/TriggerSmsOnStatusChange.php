@@ -17,10 +17,10 @@ class TriggerSmsOnStatusChange
     public function handle(TrackingStatusUpdated $event): void
     {
         $eventMap = [
-            WaybillStatus::DISPATCHED->value        => 'waybill_dispatched',
-            WaybillStatus::OUT_FOR_DELIVERY->value   => 'waybill_out_for_delivery',
-            WaybillStatus::DELIVERED->value           => 'waybill_delivered',
-            WaybillStatus::RETURNED->value            => 'waybill_returned',
+            WaybillStatus::DISPATCHED->value => 'waybill_dispatched',
+            WaybillStatus::OUT_FOR_DELIVERY->value => 'waybill_out_for_delivery',
+            WaybillStatus::DELIVERED->value => 'waybill_delivered',
+            WaybillStatus::RETURNED->value => 'waybill_returned',
         ];
 
         $trigger = $eventMap[$event->payload->mappedStatus->value] ?? null;

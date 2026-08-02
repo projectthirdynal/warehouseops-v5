@@ -18,9 +18,7 @@ class BatchDispatchService
     /**
      * Dispatch multiple waybills to a courier API.
      *
-     * @param array<int> $waybillIds
-     * @param string $courierCode
-     * @param array $senderDefaults
+     * @param  array<int>  $waybillIds
      * @return array{
      *     total: int,
      *     success: int,
@@ -47,12 +45,12 @@ class BatchDispatchService
 
         foreach ($waybills as $waybill) {
             $resultEntry = [
-                'waybill_id'      => $waybill->id,
-                'waybill_number'  => $waybill->waybill_number,
-                'receiver_name'   => $waybill->receiver_name ?? '—',
-                'success'         => false,
+                'waybill_id' => $waybill->id,
+                'waybill_number' => $waybill->waybill_number,
+                'receiver_name' => $waybill->receiver_name ?? '—',
+                'success' => false,
                 'tracking_number' => null,
-                'error_message'   => null,
+                'error_message' => null,
             ];
 
             try {
@@ -71,7 +69,7 @@ class BatchDispatchService
                 $failedCount++;
                 Log::error("Batch dispatch failed for waybill {$waybill->waybill_number}", [
                     'courier' => $courierCode,
-                    'error'   => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
 
@@ -86,20 +84,20 @@ class BatchDispatchService
         foreach ($skippedIds as $skippedId) {
             $skipped = Waybill::find($skippedId);
             $results[] = [
-                'waybill_id'      => $skippedId,
-                'waybill_number'  => $skipped?->waybill_number ?? "ID:{$skippedId}",
-                'receiver_name'   => $skipped?->receiver_name ?? '—',
-                'success'         => false,
+                'waybill_id' => $skippedId,
+                'waybill_number' => $skipped?->waybill_number ?? "ID:{$skippedId}",
+                'receiver_name' => $skipped?->receiver_name ?? '—',
+                'success' => false,
                 'tracking_number' => null,
-                'error_message'   => 'Skipped: waybill is not in PENDING status',
+                'error_message' => 'Skipped: waybill is not in PENDING status',
             ];
             $failedCount++;
         }
 
         return [
-            'total'   => count($waybillIds),
+            'total' => count($waybillIds),
             'success' => $successCount,
-            'failed'  => $failedCount,
+            'failed' => $failedCount,
             'results' => $results,
         ];
     }
@@ -112,7 +110,7 @@ class BatchDispatchService
         $pending = Waybill::where('status', WaybillStatus::PENDING->value);
 
         return [
-            'pending_count'     => $pending->count(),
+            'pending_count' => $pending->count(),
             'pending_by_courier' => $pending->clone()
                 ->selectRaw('COALESCE(courier_provider, ?) as provider, COUNT(*) as count', ['UNASSIGNED'])
                 ->groupBy('provider')

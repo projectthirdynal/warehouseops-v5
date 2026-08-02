@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Shop\Services\CustomerRiskService;
 use App\Models\Customer;
 use Illuminate\Database\Seeder;
 
@@ -30,7 +31,7 @@ class CustomerRiskRulesSeeder extends Seeder
             ->update(['risk_level' => 'LOW']);
 
         // Recalculate risk for customers with order history
-        $riskService = app(\App\Domain\Shop\Services\CustomerRiskService::class);
+        $riskService = app(CustomerRiskService::class);
 
         Customer::query()
             ->where('total_orders', '>=', 3)

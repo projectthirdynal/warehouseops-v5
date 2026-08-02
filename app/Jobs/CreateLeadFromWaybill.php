@@ -26,7 +26,7 @@ class CreateLeadFromWaybill implements ShouldQueue
     {
         $waybill = Waybill::find($this->waybillId);
 
-        if (!$waybill || $waybill->status !== WaybillStatus::DELIVERED) {
+        if (! $waybill || $waybill->status !== WaybillStatus::DELIVERED) {
             return;
         }
 

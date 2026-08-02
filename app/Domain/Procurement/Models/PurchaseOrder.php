@@ -27,15 +27,15 @@ class PurchaseOrder extends Model
     ];
 
     protected $casts = [
-        'status'                 => PoStatus::class,
+        'status' => PoStatus::class,
         'expected_delivery_date' => 'date',
-        'exchange_rate'          => 'decimal:6',
-        'exchange_rate_date'     => 'date',
-        'subtotal'               => 'decimal:2',
-        'tax_amount'             => 'decimal:2',
-        'total_amount'           => 'decimal:2',
-        'approved_at'            => 'datetime',
-        'sent_at'                => 'datetime',
+        'exchange_rate' => 'decimal:6',
+        'exchange_rate_date' => 'date',
+        'subtotal' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'total_amount' => 'decimal:2',
+        'approved_at' => 'datetime',
+        'sent_at' => 'datetime',
     ];
 
     public function items(): HasMany
@@ -76,17 +76,18 @@ class PurchaseOrder extends Model
     public static function generateNumber(): string
     {
         $date = now()->format('Ymd');
-        $seq  = self::whereDate('created_at', now()->toDateString())->count() + 1;
-        return 'PO-' . $date . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+        $seq = self::whereDate('created_at', now()->toDateString())->count() + 1;
+
+        return 'PO-'.$date.'-'.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
     }
 
     public function recalculateTotals(): void
     {
         $items = $this->items()->get();
         $subtotal = $items->sum(fn ($i) => (float) $i->quantity_ordered * (float) $i->unit_price);
-        $tax      = $items->sum(fn ($i) => (float) $i->line_total - ((float) $i->quantity_ordered * (float) $i->unit_price));
-        $this->subtotal     = $subtotal;
-        $this->tax_amount   = max(0, $tax);
+        $tax = $items->sum(fn ($i) => (float) $i->line_total - ((float) $i->quantity_ordered * (float) $i->unit_price));
+        $this->subtotal = $subtotal;
+        $this->tax_amount = max(0, $tax);
         $this->total_amount = $subtotal + max(0, $tax);
         $this->save();
     }

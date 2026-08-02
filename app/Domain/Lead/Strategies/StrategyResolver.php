@@ -6,18 +6,17 @@ namespace App\Domain\Lead\Strategies;
 
 use App\Domain\Lead\Contracts\AllocationStrategy;
 use App\Domain\Lead\Enums\DistributionStrategy;
-use InvalidArgumentException;
 
 class StrategyResolver
 {
     public static function resolve(DistributionStrategy $strategy): AllocationStrategy
     {
         return match ($strategy) {
-            DistributionStrategy::ROUND_ROBIN => new RoundRobinStrategy(),
-            DistributionStrategy::WEIGHTED => new WeightedStrategy(),
-            DistributionStrategy::SKILL_MATCH => new SkillMatchStrategy(),
-            DistributionStrategy::TERRITORY => new TerritoryStrategy(),
-            DistributionStrategy::HYBRID => new HybridStrategy(),
+            DistributionStrategy::ROUND_ROBIN => new RoundRobinStrategy,
+            DistributionStrategy::WEIGHTED => new WeightedStrategy,
+            DistributionStrategy::SKILL_MATCH => new SkillMatchStrategy,
+            DistributionStrategy::TERRITORY => new TerritoryStrategy,
+            DistributionStrategy::HYBRID => new HybridStrategy,
         };
     }
 }

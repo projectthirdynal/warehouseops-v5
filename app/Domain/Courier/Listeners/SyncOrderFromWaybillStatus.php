@@ -7,6 +7,7 @@ namespace App\Domain\Courier\Listeners;
 use App\Domain\Courier\Events\TrackingStatusUpdated;
 use App\Domain\Courier\Services\CourierStatusSyncService;
 use App\Models\SiteSetting;
+use Illuminate\Support\Facades\Log;
 
 class SyncOrderFromWaybillStatus
 {
@@ -17,7 +18,7 @@ class SyncOrderFromWaybillStatus
     public function handle(TrackingStatusUpdated $event): void
     {
         $enabled = SiteSetting::get('courier_status_sync_enabled', '1') === '1';
-        if (!$enabled) {
+        if (! $enabled) {
             return;
         }
 
@@ -25,14 +26,14 @@ class SyncOrderFromWaybillStatus
 
         $waybillStatus = $event->payload->mappedStatus;
 
-        if (!$syncIntermediate && !$waybillStatus->isTerminal()) {
+        if (! $syncIntermediate && ! $waybillStatus->isTerminal()) {
             return;
         }
 
         try {
             $this->syncService->syncWaybillToOrder($event->waybill);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SyncOrderFromWaybillStatus failed for waybill {$event->waybill->id}: {$e->getMessage()}");
+            Log::error("SyncOrderFromWaybillStatus failed for waybill {$event->waybill->id}: {$e->getMessage()}");
         }
     }
 }

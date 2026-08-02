@@ -19,17 +19,17 @@ class ReportController extends Controller
         $type = $request->input('type', 'sales');
 
         $data = match ($type) {
-            'sales'     => $this->reports->salesReport($from, $to),
-            'agents'    => $this->reports->agentReport($from, $to),
-            'couriers'  => $this->reports->courierReport($from, $to),
-            'products'  => $this->reports->productReport($from, $to),
+            'sales' => $this->reports->salesReport($from, $to),
+            'agents' => $this->reports->agentReport($from, $to),
+            'couriers' => $this->reports->courierReport($from, $to),
+            'products' => $this->reports->productReport($from, $to),
             'customers' => $this->reports->customerReport($from, $to),
-            default     => $this->reports->salesReport($from, $to),
+            default => $this->reports->salesReport($from, $to),
         };
 
         return Inertia::render('Reports/Index', [
-            'report'  => $data,
-            'type'    => $type,
+            'report' => $data,
+            'type' => $type,
             'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'type' => $type],
         ]);
     }
@@ -44,12 +44,12 @@ class ReportController extends Controller
         $type = $request->input('type', 'sales');
 
         $data = match ($type) {
-            'sales'     => $this->reports->salesReport($from, $to),
-            'agents'    => $this->reports->agentReport($from, $to),
-            'couriers'  => $this->reports->courierReport($from, $to),
-            'products'  => $this->reports->productReport($from, $to),
+            'sales' => $this->reports->salesReport($from, $to),
+            'agents' => $this->reports->agentReport($from, $to),
+            'couriers' => $this->reports->courierReport($from, $to),
+            'products' => $this->reports->productReport($from, $to),
             'customers' => $this->reports->customerReport($from, $to),
-            default     => $this->reports->salesReport($from, $to),
+            default => $this->reports->salesReport($from, $to),
         };
 
         $filename = "{$type}_report_{$from->format('Ymd')}_{$to->format('Ymd')}.csv";
@@ -58,7 +58,7 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($rows) {
             $handle = fopen('php://output', 'w');
 
-            if (!empty($rows)) {
+            if (! empty($rows)) {
                 // Header row
                 fputcsv($handle, array_keys($rows[0]));
                 // Data rows

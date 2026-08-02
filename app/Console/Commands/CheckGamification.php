@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 class CheckGamification extends Command
 {
     protected $signature = 'shop:check-gamification';
+
     protected $description = 'Check and award badges, update milestones, and track streaks for all active agents';
 
     public function handle(GamificationService $service): int

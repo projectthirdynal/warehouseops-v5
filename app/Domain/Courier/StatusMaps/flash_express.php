@@ -18,13 +18,13 @@ return [
     8 => WaybillStatus::CANCELLED,        // Cancelled
 
     // Human-readable labels from Flash Excel/CSV exports
-    'Delivered'              => WaybillStatus::DELIVERED,
-    'In transit'             => WaybillStatus::IN_TRANSIT,
-    'On Delivery'            => WaybillStatus::OUT_FOR_DELIVERY,
-    'Returned'               => WaybillStatus::RETURNED,
+    'Delivered' => WaybillStatus::DELIVERED,
+    'In transit' => WaybillStatus::IN_TRANSIT,
+    'On Delivery' => WaybillStatus::OUT_FOR_DELIVERY,
+    'Returned' => WaybillStatus::RETURNED,
     'Problematic Processing' => WaybillStatus::DELIVERY_FAILED,
-    'Closed'                 => WaybillStatus::CANCELLED,
-    'Detained'               => WaybillStatus::ARRIVED_HUB,
-    'Pending Pickup'         => WaybillStatus::PENDING,
-    'Picked Up'              => WaybillStatus::PICKED_UP,
+    'Closed' => WaybillStatus::CANCELLED,
+    'Detained' => WaybillStatus::ARRIVED_HUB,
+    'Pending Pickup' => WaybillStatus::PENDING,
+    'Picked Up' => WaybillStatus::PICKED_UP,
 ];

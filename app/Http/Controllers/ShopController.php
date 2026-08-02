@@ -2,88 +2,110 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
+use App\Domain\Courier\Services\CourierStatusSyncService;
+use App\Domain\Inventory\Exceptions\InsufficientStockException;
+use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\StockService;
 use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Services\OrderFulfillmentService;
-use App\Domain\Order\Services\DuplicateDetectionService;
-use App\Events\ConversationStatusChanged;
 use App\Domain\Order\Models\Order;
+use App\Domain\Order\Services\DuplicateDetectionService;
+use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Domain\Product\Models\Product;
+use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvCodValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvColumn;
+use App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester;
+use App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker;
+use App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvSchema;
+use App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry;
+use App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder;
+use App\Domain\Shop\CourierCsv\CourierCsvTestMode;
+use App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
+use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
+use App\Domain\Shop\CourierCsv\CourierCsvValidator;
+use App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator;
 use App\Domain\Shop\Models\AddressCorrectionHistory;
+use App\Domain\Shop\Models\BroadcastCampaign;
+use App\Domain\Shop\Models\CartTemplate;
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\ConversationAssignmentHistory;
+use App\Domain\Shop\Models\ConversationExport;
+use App\Domain\Shop\Models\ConversationStatusHistory;
 use App\Domain\Shop\Models\CourierExportBatch;
 use App\Domain\Shop\Models\CourierExportBatchShare;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\OrderRemark;
 use App\Domain\Shop\Models\PageAssignmentRule;
 use App\Domain\Shop\Models\PageStatusLabel;
 use App\Domain\Shop\Models\PageStatusRule;
+use App\Domain\Shop\Models\RemarkTemplate;
 use App\Domain\Shop\Models\ScheduledMessage;
-use App\Domain\Inventory\Exceptions\InsufficientStockException;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\StockService;
-use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Models\ShopOrderItem;
+use App\Domain\Shop\Models\ShopReplyTemplate;
+use App\Domain\Shop\Models\Tag;
 use App\Domain\Shop\Services\AddressFormatService;
+use App\Domain\Shop\Services\AddressMappingService;
+use App\Domain\Shop\Services\AutoAssignmentService;
+use App\Domain\Shop\Services\BroadcastCampaignService;
+use App\Domain\Shop\Services\CartTemplateSharingService;
+use App\Domain\Shop\Services\ConversationArchiveService;
+use App\Domain\Shop\Services\ConversationExportService;
+use App\Domain\Shop\Services\ConversationMergePreviewService;
+use App\Domain\Shop\Services\ConversationSlaService;
 use App\Domain\Shop\Services\CourierExportService;
-use App\Domain\Shop\Services\GeocodingService;
 use App\Domain\Shop\Services\CustomerAddressService;
 use App\Domain\Shop\Services\CustomerAuditService;
 use App\Domain\Shop\Services\CustomerIdentityService;
 use App\Domain\Shop\Services\CustomerMergeService;
 use App\Domain\Shop\Services\CustomerNoteService;
-use App\Domain\Shop\Services\AutoAssignmentService;
-use App\Domain\Courier\Services\CourierStatusSyncService;
 use App\Domain\Shop\Services\CustomerRiskService;
 use App\Domain\Shop\Services\CustomerTimelineService;
 use App\Domain\Shop\Services\FacebookConnectorService;
+use App\Domain\Shop\Services\GamificationService;
+use App\Domain\Shop\Services\GeocodingService;
+use App\Domain\Shop\Services\MessageTranslationService;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use App\Domain\Shop\Services\PhoneDetectionService;
-use App\Domain\Shop\Services\ConversationExportService;
-use App\Domain\Shop\Services\MessageTranslationService;
+use App\Domain\Shop\Services\ProductRecommendationService;
+use App\Domain\Shop\Services\RichMediaTemplateService;
 use App\Domain\Shop\Services\SentimentAnalysisService;
 use App\Domain\Shop\Services\SentimentReviewService;
-use App\Domain\Shop\Services\ConversationSlaService;
-use App\Domain\Shop\Services\BroadcastCampaignService;
-use App\Domain\Shop\Services\ProductRecommendationService;
-use App\Domain\Shop\Services\ConversationMergePreviewService;
-use App\Domain\Shop\Services\ShopReportsEnhancementService;
-use App\Domain\Shop\Services\CartTemplateSharingService;
-use App\Domain\Shop\Services\RichMediaTemplateService;
-use App\Domain\Shop\Services\ConversationArchiveService;
-use App\Domain\Shop\Services\GamificationService;
 use App\Domain\Shop\Services\ShippingRateService;
-use App\Domain\Shop\Models\BroadcastCampaign;
-use App\Domain\Shop\Models\ConversationExport;
-use App\Domain\Shop\Models\ConversationAssignmentHistory;
-use App\Domain\Shop\Models\ConversationStatusHistory;
-use App\Domain\Shop\Models\OrderRemark;
-use App\Domain\Shop\Models\RemarkTemplate;
-use App\Domain\Shop\Models\ShopReplyTemplate;
-use App\Domain\Shop\Models\ShopOrderItem;
-use App\Domain\Shop\Models\CartTemplate;
-use App\Domain\Shop\Models\Tag;
+use App\Domain\Shop\Services\ShopReportsEnhancementService;
+use App\Events\ConversationStatusChanged;
+use App\Exports\OrderRemarksExport;
+use App\Mail\CourierExportBatchEmail;
+use App\Models\AgentProfile;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\CustomerNote;
-use App\Models\AgentProfile;
 use App\Models\ReplyTemplate;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\RemarkMentionedNotification;
+use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use App\Mail\CourierExportBatchEmail;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Exports\OrderRemarksExport;
+use Maatwebsite\Excel\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ShopController extends Controller
 {
@@ -282,7 +304,7 @@ class ShopController extends Controller
 
         $courier = strtoupper($validated['courier']);
 
-        dispatch(new \App\Domain\Courier\Jobs\SyncTrackingStatusJob($courier, 'api'));
+        dispatch(new SyncTrackingStatusJob($courier, 'api'));
 
         return response()->json([
             'success' => true,
@@ -666,7 +688,7 @@ class ShopController extends Controller
             $validated['media_config'] ?? null,
         );
 
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             return response()->json(['errors' => $validation['errors']], 422);
         }
 
@@ -710,7 +732,7 @@ class ShopController extends Controller
                 $validated['media_config'] ?? $template->media_config,
             );
 
-            if (!$validation['valid']) {
+            if (! $validation['valid']) {
                 return response()->json(['errors' => $validation['errors']], 422);
             }
         }
@@ -755,7 +777,7 @@ class ShopController extends Controller
 
         $products = Product::query()
             ->whereIn('id', $validated['product_ids'])
-            ->orderByRaw('array_position(ARRAY[' . implode(',', $validated['product_ids']) . '], id)')
+            ->orderByRaw('array_position(ARRAY['.implode(',', $validated['product_ids']).'], id)')
             ->get();
 
         $config = $this->richMediaTemplateService->generateCarouselFromProducts(
@@ -783,8 +805,8 @@ class ShopController extends Controller
         ]);
 
         $page = FacebookPage::query()->findOrFail($validated['facebook_page_id']);
-        $senderPsid = $validated['sender_psid'] ?: 'manual-test-' . Str::lower(Str::random(10));
-        $eventId = 'manual-' . str()->uuid();
+        $senderPsid = $validated['sender_psid'] ?: 'manual-test-'.Str::lower(Str::random(10));
+        $eventId = 'manual-'.str()->uuid();
 
         $payload = [
             'sender' => ['id' => $senderPsid],
@@ -814,7 +836,7 @@ class ShopController extends Controller
             ->with('success', 'Simulated inbound message processed. Check the Shop inbox.');
     }
 
-    public function exportConversationStatuses(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportConversationStatuses(Request $request): StreamedResponse
     {
         $query = Conversation::query()
             ->whereNull('merged_into_id')
@@ -849,7 +871,7 @@ class ShopController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="conversation-statuses-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="conversation-statuses-'.date('Y-m-d').'.csv"',
         ];
 
         $columns = [
@@ -865,7 +887,7 @@ class ShopController extends Controller
             $handle = fopen('php://output', 'w');
             fputcsv($handle, $columns);
 
-            $query->chunk(200, function ($conversations) use ($handle, $columns) {
+            $query->chunk(200, function ($conversations) use ($handle) {
                 foreach ($conversations as $c) {
                     $row = [
                         $c->id,
@@ -959,33 +981,39 @@ class ShopController extends Controller
             if ($slaStatus === 'breached') {
                 $query->where(function ($q) use ($thresholds, $now) {
                     foreach ($thresholds as $status => $threshold) {
-                        if ($threshold === null) continue;
+                        if ($threshold === null) {
+                            continue;
+                        }
                         $q->orWhere(function ($sq) use ($status, $threshold, $now) {
                             $sq->where('status', $status)
-                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $threshold]);
+                                ->whereRaw('EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?', [$now, $threshold]);
                         });
                     }
                 });
             } elseif ($slaStatus === 'warning') {
                 $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
                     foreach ($thresholds as $status => $threshold) {
-                        if ($threshold === null) continue;
+                        if ($threshold === null) {
+                            continue;
+                        }
                         $warningAt = (int) ($threshold * $warningPercent / 100);
                         $q->orWhere(function ($sq) use ($status, $threshold, $warningAt, $now) {
                             $sq->where('status', $status)
-                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?", [$now, $warningAt])
-                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $threshold]);
+                                ->whereRaw('EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 >= ?', [$now, $warningAt])
+                                ->whereRaw('EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?', [$now, $threshold]);
                         });
                     }
                 });
             } elseif ($slaStatus === 'ok') {
                 $query->where(function ($q) use ($thresholds, $warningPercent, $now) {
                     foreach ($thresholds as $status => $threshold) {
-                        if ($threshold === null) continue;
+                        if ($threshold === null) {
+                            continue;
+                        }
                         $warningAt = (int) ($threshold * $warningPercent / 100);
                         $q->orWhere(function ($sq) use ($status, $warningAt, $now) {
                             $sq->where('status', $status)
-                                ->whereRaw("EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?", [$now, $warningAt]);
+                                ->whereRaw('EXTRACT(EPOCH FROM (? - COALESCE(first_response_at, created_at))) / 60 < ?', [$now, $warningAt]);
                         });
                     }
                 });
@@ -1012,6 +1040,7 @@ class ShopController extends Controller
                     ->where('facebook_page_id', $page->id)
                     ->where('unread_count', '>', 0)
                     ->count();
+
                 return $page;
             });
 
@@ -1090,6 +1119,7 @@ class ShopController extends Controller
         $paginated = $query->paginate(20)->withQueryString();
         $paginated->getCollection()->transform(function (Conversation $conv) use ($slaThresholds) {
             $conv->sla = $this->computeSla($conv, $slaThresholds);
+
             return $conv;
         });
 
@@ -1097,7 +1127,7 @@ class ShopController extends Controller
             ->get(['facebook_page_id', 'status', 'label', 'color'])
             ->groupBy('facebook_page_id')
             ->map(fn ($items) => $items->mapWithKeys(fn ($item) => [$item->status => ['label' => $item->label, 'color' => $item->color]])
-            ->toArray())
+                ->toArray())
             ->toArray();
 
         $statusFunnel = $this->statusFunnel($statusCounts);
@@ -1169,6 +1199,7 @@ class ShopController extends Controller
                     ->whereNull('merged_into_id')
                     ->where('facebook_page_id', $page->id);
                 $total = (clone $q)->count();
+
                 return [
                     'id' => $page->id,
                     'page_name' => $page->page_name,
@@ -1230,7 +1261,7 @@ class ShopController extends Controller
 
         $agentName = User::query()->where('id', $validated['user_id'])->value('name');
 
-        return back()->with('success', "Auto-assignment " . ($validated['auto_assign_enabled'] ? 'enabled' : 'disabled') . " for {$agentName}.");
+        return back()->with('success', 'Auto-assignment '.($validated['auto_assign_enabled'] ? 'enabled' : 'disabled')." for {$agentName}.");
     }
 
     public function updateAgentSkills(Request $request): RedirectResponse
@@ -1346,7 +1377,7 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
-            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'status' => ['required', 'string', 'in:'.implode(',', Conversation::STATUSES)],
             'label' => ['required', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
@@ -1369,7 +1400,7 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
-            'status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'status' => ['required', 'string', 'in:'.implode(',', Conversation::STATUSES)],
         ]);
 
         PageStatusLabel::where('facebook_page_id', $validated['page_id'])
@@ -1412,8 +1443,8 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'facebook_page_id' => ['required', 'integer', 'exists:facebook_pages,id'],
-            'from_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
-            'to_status' => ['required', 'string', 'in:' . implode(',', Conversation::STATUSES)],
+            'from_status' => ['required', 'string', 'in:'.implode(',', Conversation::STATUSES)],
+            'to_status' => ['required', 'string', 'in:'.implode(',', Conversation::STATUSES)],
             'inactivity_minutes' => ['nullable', 'integer', 'min:0', 'max:525600'],
         ]);
 
@@ -1703,7 +1734,7 @@ class ShopController extends Controller
         return response()->json(['orders' => $orders]);
     }
 
-    public function exportCustomers(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCustomers(Request $request): StreamedResponse
     {
         $query = Customer::query()
             ->with('defaultAddress:id,customer_id,label,canonical_address,barangay,city_municipality,province')
@@ -1713,7 +1744,7 @@ class ShopController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="customers-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="customers-'.date('Y-m-d').'.csv"',
         ];
 
         $columns = [
@@ -1752,7 +1783,7 @@ class ShopController extends Controller
         }, 200, $headers);
     }
 
-    public function exportCustomerProfile(Request $request, Customer $customer): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCustomerProfile(Request $request, Customer $customer): StreamedResponse
     {
         $customer->load([
             'addresses',
@@ -1774,7 +1805,7 @@ class ShopController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="customer-' . $customer->id . '-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="customer-'.$customer->id.'-'.date('Y-m-d').'.csv"',
         ];
 
         return response()->stream(function () use ($customer, $orders) {
@@ -1890,7 +1921,7 @@ class ShopController extends Controller
         ]);
 
         $limit = $validated['limit'] ?? 10;
-        $cacheKey = 'customer_search:' . md5($validated['q'] . ':' . $limit);
+        $cacheKey = 'customer_search:'.md5($validated['q'].':'.$limit);
 
         $customers = Cache::remember($cacheKey, 120, function () use ($validated, $limit) {
             $query = Customer::query();
@@ -1930,11 +1961,11 @@ class ShopController extends Controller
 
         $query->where(function ($q) use ($term, $normalized) {
             $q->where('name', 'ilike', "%{$term}%")
-              ->orWhere('facebook_name', 'ilike', "%{$term}%");
+                ->orWhere('facebook_name', 'ilike', "%{$term}%");
 
             if ($normalized !== '') {
                 $q->orWhere('phone', 'ilike', "%{$normalized}%")
-                  ->orWhere('normalized_phone', 'ilike', "%{$normalized}%");
+                    ->orWhere('normalized_phone', 'ilike', "%{$normalized}%");
             }
         });
     }
@@ -2168,7 +2199,7 @@ class ShopController extends Controller
 
         $this->customerNotes->setTags($customer, $validated['tags']);
 
-        $this->customerAudit->logAction($customer, 'tags_update', 'Tags updated to: ' . implode(', ', $validated['tags']));
+        $this->customerAudit->logAction($customer, 'tags_update', 'Tags updated to: '.implode(', ', $validated['tags']));
 
         return response()->json(['customer' => $customer->only(['id', 'tags'])]);
     }
@@ -2311,7 +2342,7 @@ class ShopController extends Controller
     public function updateConversationStatus(Request $request, Conversation $conversation): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
+            'status' => ['required', 'string', 'in:'.implode(',', $this->conversationStatuses())],
         ]);
 
         $role = $request->user()->role;
@@ -2323,7 +2354,7 @@ class ShopController extends Controller
         $updates = ['status' => $validated['status']];
 
         // Track resolution time when conversation is resolved
-        if ($validated['status'] === Conversation::STATUS_RESOLVED && !$conversation->resolved_at) {
+        if ($validated['status'] === Conversation::STATUS_RESOLVED && ! $conversation->resolved_at) {
             $updates['resolved_at'] = now();
             $updates['resolution_time_seconds'] = $conversation->created_at
                 ? (int) now()->diffInSeconds($conversation->created_at)
@@ -2358,7 +2389,7 @@ class ShopController extends Controller
         $validated = $request->validate([
             'conversation_ids' => ['required', 'array', 'min:1'],
             'conversation_ids.*' => ['integer', 'exists:conversations,id'],
-            'status' => ['required', 'string', 'in:' . implode(',', $this->conversationStatuses())],
+            'status' => ['required', 'string', 'in:'.implode(',', $this->conversationStatuses())],
         ]);
 
         $role = $request->user()->role;
@@ -2428,7 +2459,7 @@ class ShopController extends Controller
         $count = count($validIds);
         $skipped = count($validated['conversation_ids']) - $count;
 
-        if (!empty($historyRows)) {
+        if (! empty($historyRows)) {
             ConversationStatusHistory::insert($historyRows);
         }
 
@@ -2502,6 +2533,7 @@ class ShopController extends Controller
             ->update(['priority' => $validated['priority']]);
 
         $count = count($validated['conversation_ids']);
+
         return back()->with('success', "{$count} conversation(s) priority set to {$validated['priority']}.");
     }
 
@@ -2522,6 +2554,7 @@ class ShopController extends Controller
         }
 
         $count = $conversations->count();
+
         return back()->with('success', "{$count} conversation(s) tagged.");
     }
 
@@ -2585,7 +2618,7 @@ class ShopController extends Controller
             'snooze_reason' => $validated['snooze_reason'] ?? null,
         ])->save();
 
-        return back()->with('success', 'Conversation snoozed until ' . $validated['snoozed_until']);
+        return back()->with('success', 'Conversation snoozed until '.$validated['snoozed_until']);
     }
 
     public function unsnoozeConversation(Conversation $conversation): RedirectResponse
@@ -2608,7 +2641,7 @@ class ShopController extends Controller
             'reminder_at' => $validated['reminder_at'],
         ])->save();
 
-        return back()->with('success', 'Reminder set for ' . $validated['reminder_at']);
+        return back()->with('success', 'Reminder set for '.$validated['reminder_at']);
     }
 
     public function clearConversationReminder(Conversation $conversation): RedirectResponse
@@ -2646,7 +2679,7 @@ class ShopController extends Controller
         $source = Conversation::query()->findOrFail($validated['source_conversation_id']);
         $result = $this->mergePreviewService->executeMerge($conversation, $source);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json($result, 422);
         }
 
@@ -2684,7 +2717,7 @@ class ShopController extends Controller
             ])->save();
 
             // Update last message info on target if source has newer activity
-            if ($source->last_message_at && (!$conversation->last_message_at || $source->last_message_at > $conversation->last_message_at)) {
+            if ($source->last_message_at && (! $conversation->last_message_at || $source->last_message_at > $conversation->last_message_at)) {
                 $conversation->forceFill([
                     'last_message_at' => $source->last_message_at,
                     'last_message_preview' => $source->last_message_preview,
@@ -2770,7 +2803,7 @@ class ShopController extends Controller
 
         // Daily trend
         $dailyTrend = (clone $baseQuery)
-            ->selectRaw("DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved")
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as total, SUM(CASE WHEN first_response_at IS NOT NULL THEN 1 ELSE 0 END) as responded, SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved')
             ->groupByRaw('DATE(created_at)')
             ->orderByRaw('DATE(created_at)')
             ->get();
@@ -2897,7 +2930,7 @@ class ShopController extends Controller
             'facebook_page_id' => $conversation->facebook_page_id,
             'customer_identity_id' => $conversation->customer_identity_id,
             'sent_by' => $request->user()->id,
-            'external_message_id' => 'local-' . str()->uuid(),
+            'external_message_id' => 'local-'.str()->uuid(),
             'direction' => 'outbound',
             'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
             'body' => $validated['body'],
@@ -2916,7 +2949,7 @@ class ShopController extends Controller
         ])->save();
 
         // Track first response time
-        if (!$conversation->first_response_at && $conversation->created_at) {
+        if (! $conversation->first_response_at && $conversation->created_at) {
             $conversation->forceFill([
                 'first_response_at' => now(),
                 'first_response_time_seconds' => (int) now()->diffInSeconds($conversation->created_at),
@@ -2955,7 +2988,7 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'after_message_id' => ['nullable', 'integer', 'exists:messages,id'],
-            'wait'             => ['nullable', 'integer', 'in:0,1'],
+            'wait' => ['nullable', 'integer', 'in:0,1'],
         ]);
 
         $afterId = $validated['after_message_id'] ?? null;
@@ -3140,7 +3173,7 @@ class ShopController extends Controller
         ]);
 
         $reactions = $message->reactions ?? [];
-        $agentKey = 'agent:' . $request->user()->id;
+        $agentKey = 'agent:'.$request->user()->id;
 
         if (($reactions[$agentKey] ?? null) === $validated['emoji']) {
             unset($reactions[$agentKey]);
@@ -3159,7 +3192,7 @@ class ShopController extends Controller
             'q' => ['required', 'string', 'min:1', 'max:200'],
         ]);
 
-        $query = '%' . $validated['q'] . '%';
+        $query = '%'.$validated['q'].'%';
 
         $results = Message::query()
             ->where('conversation_id', $conversation->id)
@@ -3321,6 +3354,7 @@ class ShopController extends Controller
                     'status' => 'skipped',
                     'error' => 'Missing page token or customer PSID',
                 ];
+
                 continue;
             }
 
@@ -3335,7 +3369,7 @@ class ShopController extends Controller
                     'conversation_id' => $conversation->id,
                     'facebook_page_id' => $conversation->facebook_page_id,
                     'customer_identity_id' => $conversation->customer_identity_id,
-                    'external_message_id' => $delivery['message_id'] ?? ('local-' . str()->uuid()),
+                    'external_message_id' => $delivery['message_id'] ?? ('local-'.str()->uuid()),
                     'direction' => 'outbound',
                     'message_type' => 'text',
                     'body' => $validated['body'],
@@ -3410,7 +3444,7 @@ class ShopController extends Controller
             if (empty($order->state)) {
                 $flags[] = 'missing_province';
             }
-            if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+            if (floatval($order->address_confidence) < 90 && ! empty($order->state)) {
                 $flags[] = 'low_confidence';
             }
             if (empty($order->address_mapping_id)) {
@@ -3438,11 +3472,11 @@ class ShopController extends Controller
 
                 return $batches->groupBy('courier_code')->map(function ($group, $courierCode) use ($courierLabels) {
                     return [
-                        'courier_code'  => $courierCode,
+                        'courier_code' => $courierCode,
                         'courier_label' => $courierLabels[strtoupper($courierCode)] ?? ucfirst($courierCode),
-                        'batch_count'   => $group->count(),
-                        'total_rows'    => $group->sum('row_count'),
-                        'batches'       => $group->values(),
+                        'batch_count' => $group->count(),
+                        'total_rows' => $group->sum('row_count'),
+                        'batches' => $group->values(),
                     ];
                 })->sortBy('courier_code')->values();
             })(),
@@ -3452,12 +3486,12 @@ class ShopController extends Controller
                 ['value' => 'GENERIC', 'label' => 'Generic CSV'],
             ],
             'filters' => $request->only(['needs_review']),
-            'encoders' => \App\Models\User::query()
+            'encoders' => User::query()
                 ->where('is_active', true)
                 ->whereIn('role', ['agent', 'supervisor', 'admin', 'superadmin'])
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'tags' => \App\Domain\Shop\Models\Tag::query()
+            'tags' => Tag::query()
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug', 'color']),
         ]);
@@ -3467,8 +3501,8 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'courier_code' => ['required', 'string', 'max:30'],
-            'order_ids'    => ['required', 'array', 'min:1'],
-            'order_ids.*'  => ['required', 'integer', 'exists:orders,id'],
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
         $orders = Order::query()
@@ -3484,7 +3518,7 @@ class ShopController extends Controller
 
         $result = $this->courierExports->validateBatchItems($orders, $validated['courier_code']);
 
-        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+        app(CourierCsvValidationAnalytics::class)
             ->record($result, $validated['courier_code'], null, 'validate-batch-items');
 
         return response()->json($result);
@@ -3494,12 +3528,12 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'courier_code' => ['required', 'string', 'max:30'],
-            'order_ids'    => ['nullable', 'array'],
-            'order_ids.*'  => ['integer', 'exists:orders,id'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
-        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
-        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+        $validator = app(CourierCsvValidator::class);
+        $registry = app(CourierCsvSchemaRegistry::class);
 
         $schema = $registry->resolve($validated['courier_code']);
         $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
@@ -3518,13 +3552,13 @@ class ShopController extends Controller
 
         $validation = $validator->validateOrders($orders, $validated['courier_code']);
 
-        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+        app(CourierCsvValidationAnalytics::class)
             ->record($validation, $validated['courier_code'], null, 'validate-columns');
 
         return response()->json([
             'courier_code' => $schema->courierCode,
             'schema_name' => $schema->name,
-            'columns' => array_map(fn (\App\Domain\Shop\CourierCsv\CourierCsvColumn $col) => [
+            'columns' => array_map(fn (CourierCsvColumn $col) => [
                 'header' => $col->header,
                 'field' => $col->field,
                 'required' => $col->required,
@@ -3543,7 +3577,7 @@ class ShopController extends Controller
             'phone_number' => ['required', 'string', 'max:50'],
         ]);
 
-        $phoneValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvPhoneValidator::class);
+        $phoneValidator = app(CourierCsvPhoneValidator::class);
         $result = $phoneValidator->validate($validated['phone_number']);
 
         return response()->json([
@@ -3570,7 +3604,7 @@ class ShopController extends Controller
             ])
             ->findOrFail($validated['order_id']);
 
-        $codValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvCodValidator::class);
+        $codValidator = app(CourierCsvCodValidator::class);
         $result = $codValidator->validateOrder($order, $validated['courier_code']);
 
         return response()->json([
@@ -3601,11 +3635,11 @@ class ShopController extends Controller
             ])
             ->get();
 
-        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $validator = app(CourierCsvValidator::class);
 
         $result = $validator->validateRows($rows, $validated['courier_code']);
 
-        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+        app(CourierCsvValidationAnalytics::class)
             ->record($result, $validated['courier_code'], $batch->id, 'validate-rows');
 
         return response()->json($result);
@@ -3620,7 +3654,7 @@ class ShopController extends Controller
 
         $order = Order::query()->findOrFail($validated['order_id']);
 
-        $addressValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvAddressValidator::class);
+        $addressValidator = app(CourierCsvAddressValidator::class);
         $result = $addressValidator->validateOrder($order, $validated['courier_code']);
 
         return response()->json([
@@ -3643,7 +3677,7 @@ class ShopController extends Controller
             ->with(['shopItems' => fn ($q) => $q->with(['product:id,weight_grams', 'variant:id,weight_grams'])->select(['id', 'order_id', 'product_id', 'variant_id', 'quantity'])])
             ->findOrFail($validated['order_id']);
 
-        $weightValidator = app(\App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator::class);
+        $weightValidator = app(CourierCsvWeightDimensionValidator::class);
         $result = $weightValidator->validateOrder($order, $validated['courier_code']);
 
         return response()->json([
@@ -3661,8 +3695,8 @@ class ShopController extends Controller
     {
         $validated = $request->validate([
             'courier_code' => ['required', 'string', 'max:30'],
-            'order_ids'    => ['nullable', 'array'],
-            'order_ids.*'  => ['integer', 'exists:orders,id'],
+            'order_ids' => ['nullable', 'array'],
+            'order_ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
         $orders = Order::query()
@@ -3681,33 +3715,33 @@ class ShopController extends Controller
         $formatInfo = $this->courierExports->csvFormatInfo($validated['courier_code']);
         $preview = $this->courierExports->previewCsv($orders, $validated['courier_code']);
 
-        $validator = app(\App\Domain\Shop\CourierCsv\CourierCsvValidator::class);
+        $validator = app(CourierCsvValidator::class);
         $validation = $validator->validateOrders($orders, $validated['courier_code']);
         $integrity = $validator->validateSchemaIntegrity($validated['courier_code']);
 
-        app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class)
+        app(CourierCsvValidationAnalytics::class)
             ->record($validation, $validated['courier_code'], null, 'preview-csv-format');
 
-        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+        $encodingChecker = app(CourierCsvEncodingChecker::class);
         $sampleCsv = $this->buildSampleCsvString($formatInfo['headers'], $preview['rows']);
         $encoding = $encodingChecker->check($sampleCsv);
 
         return response()->json([
-            'format'      => $formatInfo['format'],
-            'headers'     => $formatInfo['headers'],
+            'format' => $formatInfo['format'],
+            'headers' => $formatInfo['headers'],
             'field_count' => $formatInfo['field_count'],
-            'rows'        => $preview['rows'],
-            'row_count'   => $preview['row_count'],
+            'rows' => $preview['rows'],
+            'row_count' => $preview['row_count'],
             'total_available' => $orders->count(),
-            'validation'  => $validation,
-            'encoding'    => $encoding,
-            'can_export'  => $validation['valid'] && $integrity['valid'] && $encoding['valid'],
+            'validation' => $validation,
+            'encoding' => $encoding,
+            'can_export' => $validation['valid'] && $integrity['valid'] && $encoding['valid'],
         ]);
     }
 
     /**
-     * @param array<int, string> $headers
-     * @param array<int, array<int, mixed>> $rows
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, mixed>>  $rows
      */
     private function buildSampleCsvString(array $headers, array $rows): string
     {
@@ -3736,7 +3770,7 @@ class ShopController extends Controller
             'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
         ]);
 
-        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+        $encodingChecker = app(CourierCsvEncodingChecker::class);
 
         if (! empty($validated['batch_id'])) {
             $batch = CourierExportBatch::query()->findOrFail($validated['batch_id']);
@@ -3784,7 +3818,7 @@ class ShopController extends Controller
 
     public function listCsvTemplates(Request $request): JsonResponse
     {
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
         $courierCode = $request->query('courier_code');
         $activeOnly = (bool) $request->query('active_only', true);
 
@@ -3805,7 +3839,7 @@ class ShopController extends Controller
 
     public function availableTemplateFields(): JsonResponse
     {
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
 
         return response()->json([
             'fields' => $builder->availableFields(),
@@ -3824,7 +3858,7 @@ class ShopController extends Controller
             'columns.*.label' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
 
         try {
             $template = $builder->create(
@@ -3861,7 +3895,7 @@ class ShopController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
 
         try {
             $template = $builder->update(
@@ -3892,7 +3926,7 @@ class ShopController extends Controller
 
     public function deleteCsvTemplate(int $id): JsonResponse
     {
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
 
         if (! $builder->delete($id)) {
             return response()->json(['message' => 'Template not found.'], 404);
@@ -3909,7 +3943,7 @@ class ShopController extends Controller
             'order_ids.*' => ['integer', 'exists:orders,id'],
         ]);
 
-        $builder = app(\App\Domain\Shop\CourierCsv\CourierCsvTemplateBuilder::class);
+        $builder = app(CourierCsvTemplateBuilder::class);
         $schema = $builder->resolveSchema($validated['courier_code']);
 
         if ($schema === null) {
@@ -3937,7 +3971,7 @@ class ShopController extends Controller
 
         $sampleCsv = $this->buildSampleCsvString($headers, $rows);
 
-        $encodingChecker = app(\App\Domain\Shop\CourierCsv\CourierCsvEncodingChecker::class);
+        $encodingChecker = app(CourierCsvEncodingChecker::class);
 
         return response()->json([
             'template_name' => $schema->name,
@@ -3959,7 +3993,7 @@ class ShopController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
 
-        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+        $testMode = app(CourierCsvTestMode::class);
 
         $orders = Order::query()
             ->with([
@@ -3986,7 +4020,7 @@ class ShopController extends Controller
             'csv_content' => ['required', 'string'],
         ]);
 
-        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+        $testMode = app(CourierCsvTestMode::class);
 
         return response()->json(
             $testMode->testCsvContent($validated['csv_content'], $validated['courier_code']),
@@ -4003,7 +4037,7 @@ class ShopController extends Controller
         $file = $request->file('file');
         $content = $file->getContents();
 
-        $testMode = app(\App\Domain\Shop\CourierCsv\CourierCsvTestMode::class);
+        $testMode = app(CourierCsvTestMode::class);
 
         return response()->json(
             $testMode->testCsvContent($content, $validated['courier_code']),
@@ -4017,7 +4051,7 @@ class ShopController extends Controller
             'file' => ['required', 'file', 'max:10240'],
         ]);
 
-        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $verifier = app(CourierCsvUploadVerifier::class);
         $content = $request->file('file')->getContents();
 
         return response()->json(
@@ -4031,7 +4065,7 @@ class ShopController extends Controller
             'file' => ['required', 'file', 'max:10240'],
         ]);
 
-        $verifier = app(\App\Domain\Shop\CourierCsv\CourierCsvUploadVerifier::class);
+        $verifier = app(CourierCsvUploadVerifier::class);
         $content = $request->file('file')->getContents();
 
         return response()->json(
@@ -4041,10 +4075,10 @@ class ShopController extends Controller
 
     public function listCourierSchemas(): JsonResponse
     {
-        $registry = app(\App\Domain\Shop\CourierCsv\CourierCsvSchemaRegistry::class);
+        $registry = app(CourierCsvSchemaRegistry::class);
 
         $schemas = array_map(
-            fn (\App\Domain\Shop\CourierCsv\CourierCsvSchema $schema) => $schema->toArray(),
+            fn (CourierCsvSchema $schema) => $schema->toArray(),
             $registry->all(),
         );
 
@@ -4059,7 +4093,7 @@ class ShopController extends Controller
             'courier_code' => ['required', 'string', 'max:30'],
         ]);
 
-        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+        $config = app(CourierCsvValidationConfig::class);
 
         return response()->json([
             'courier_code' => strtoupper($validated['courier_code']),
@@ -4074,7 +4108,7 @@ class ShopController extends Controller
             'rules' => ['required', 'array'],
         ]);
 
-        $config = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationConfig::class);
+        $config = app(CourierCsvValidationConfig::class);
         $config->set($validated['courier_code'], $validated['rules']);
 
         return response()->json([
@@ -4092,10 +4126,10 @@ class ShopController extends Controller
             'group_by' => ['nullable', 'string', 'in:error_type,courier'],
         ]);
 
-        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
-        $to = isset($validated['to']) ? \Carbon\Carbon::parse($validated['to'])->endOfDay() : null;
+        $from = isset($validated['from']) ? Carbon::parse($validated['from']) : null;
+        $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : null;
 
-        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+        $analytics = app(CourierCsvValidationAnalytics::class);
 
         return response()->json(
             $analytics->summary(
@@ -4116,9 +4150,9 @@ class ShopController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
         ]);
 
-        $from = isset($validated['from']) ? \Carbon\Carbon::parse($validated['from']) : null;
+        $from = isset($validated['from']) ? Carbon::parse($validated['from']) : null;
 
-        $analytics = app(\App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics::class);
+        $analytics = app(CourierCsvValidationAnalytics::class);
         $logs = $analytics->recent(
             $validated['courier_code'] ?? null,
             $validated['error_type'] ?? null,
@@ -4150,7 +4184,7 @@ class ShopController extends Controller
             'batch_id' => ['nullable', 'integer', 'exists:courier_export_batches,id'],
         ]);
 
-        $suggester = app(\App\Domain\Shop\CourierCsv\CourierCsvCorrectionSuggester::class);
+        $suggester = app(CourierCsvCorrectionSuggester::class);
         $courierCode = $validated['courier_code'];
 
         if (! empty($validated['batch_id'])) {
@@ -4196,18 +4230,18 @@ class ShopController extends Controller
         $exists = $batch->file_path && Storage::disk()->exists($batch->file_path);
 
         return response()->json([
-            'id'                => $batch->id,
-            'batch_number'      => $batch->batch_number,
-            'file_path'         => $batch->file_path,
-            'file_exists'       => $exists,
-            'file_size'         => $batch->file_size,
-            'file_size_human'   => $batch->file_size ? $this->formatBytes($batch->file_size) : null,
-            'file_hash'         => $batch->file_hash,
+            'id' => $batch->id,
+            'batch_number' => $batch->batch_number,
+            'file_path' => $batch->file_path,
+            'file_exists' => $exists,
+            'file_size' => $batch->file_size,
+            'file_size_human' => $batch->file_size ? $this->formatBytes($batch->file_size) : null,
+            'file_hash' => $batch->file_hash,
             'file_generated_at' => $batch->file_generated_at?->toIso8601String(),
-            'courier_code'      => $batch->courier_code,
-            'format'            => $batch->metadata['format'] ?? null,
-            'row_count'         => $batch->row_count,
-            'status'            => $batch->status,
+            'courier_code' => $batch->courier_code,
+            'format' => $batch->metadata['format'] ?? null,
+            'row_count' => $batch->row_count,
+            'status' => $batch->status,
         ]);
     }
 
@@ -4217,34 +4251,34 @@ class ShopController extends Controller
             ->with(['row:id,row_number,receiver_name,order_id', 'resolver:id,name'])
             ->get()
             ->map(fn ($log) => [
-                'id'             => $log->id,
-                'row_number'     => $log->row?->row_number,
-                'receiver_name'  => $log->row?->receiver_name,
-                'order_id'       => $log->order_id,
-                'error_type'     => $log->error_type,
-                'error_message'  => $log->error_message,
-                'severity'       => $log->severity,
-                'resolution'     => $log->resolution,
-                'resolved_at'    => $log->resolved_at?->toIso8601String(),
-                'resolved_by'    => $log->resolver?->name,
-                'created_at'     => $log->created_at?->toIso8601String(),
+                'id' => $log->id,
+                'row_number' => $log->row?->row_number,
+                'receiver_name' => $log->row?->receiver_name,
+                'order_id' => $log->order_id,
+                'error_type' => $log->error_type,
+                'error_message' => $log->error_message,
+                'severity' => $log->severity,
+                'resolution' => $log->resolution,
+                'resolved_at' => $log->resolved_at?->toIso8601String(),
+                'resolved_by' => $log->resolver?->name,
+                'created_at' => $log->created_at?->toIso8601String(),
             ]);
 
         $summary = [
-            'total'     => $logs->count(),
+            'total' => $logs->count(),
             'unresolved' => $logs->whereNull('resolved_at')->count(),
-            'errors'    => $logs->where('severity', 'error')->count(),
-            'warnings'  => $logs->where('severity', 'warning')->count(),
+            'errors' => $logs->where('severity', 'error')->count(),
+            'warnings' => $logs->where('severity', 'warning')->count(),
         ];
 
         return response()->json([
             'batch' => [
-                'id'           => $batch->id,
+                'id' => $batch->id,
                 'batch_number' => $batch->batch_number,
-                'status'       => $batch->status,
+                'status' => $batch->status,
             ],
             'summary' => $summary,
-            'logs'    => $logs,
+            'logs' => $logs,
         ]);
     }
 
@@ -4256,7 +4290,8 @@ class ShopController extends Controller
             $bytes /= 1024;
             $i++;
         }
-        return round($bytes, 2) . ' ' . $units[$i];
+
+        return round($bytes, 2).' '.$units[$i];
     }
 
     public function exportCourier(Request $request): RedirectResponse
@@ -4527,6 +4562,7 @@ class ShopController extends Controller
                     'cod_amount' => (string) $row->cod_amount,
                     'quantity' => $row->quantity,
                 ];
+
                 continue;
             }
 
@@ -4603,28 +4639,28 @@ class ShopController extends Controller
             ->with('changer:id,name')
             ->get(['id', 'from_status', 'to_status', 'changed_by', 'notes', 'created_at'])
             ->map(fn ($h) => [
-                'id'          => $h->id,
+                'id' => $h->id,
                 'from_status' => $h->from_status,
-                'to_status'   => $h->to_status,
-                'from_label'  => CourierExportBatch::STATUS_LABELS[$h->from_status] ?? $h->from_status,
-                'to_label'    => CourierExportBatch::STATUS_LABELS[$h->to_status] ?? $h->to_status,
-                'changed_by'  => $h->changer?->name,
-                'notes'       => $h->notes,
-                'created_at'  => $h->created_at?->toIso8601String(),
+                'to_status' => $h->to_status,
+                'from_label' => CourierExportBatch::STATUS_LABELS[$h->from_status] ?? $h->from_status,
+                'to_label' => CourierExportBatch::STATUS_LABELS[$h->to_status] ?? $h->to_status,
+                'changed_by' => $h->changer?->name,
+                'notes' => $h->notes,
+                'created_at' => $h->created_at?->toIso8601String(),
             ]);
 
         $availableTransitions = CourierExportBatch::STATUS_TRANSITIONS[$batch->status] ?? [];
 
         return response()->json([
             'batch' => [
-                'id'           => $batch->id,
+                'id' => $batch->id,
                 'batch_number' => $batch->batch_number,
-                'status'       => $batch->status,
+                'status' => $batch->status,
                 'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
             ],
-            'history'               => $history,
+            'history' => $history,
             'available_transitions' => $availableTransitions,
-            'transition_labels'     => collect($availableTransitions)
+            'transition_labels' => collect($availableTransitions)
                 ->mapWithKeys(fn ($s) => [$s => CourierExportBatch::STATUS_LABELS[$s] ?? $s])
                 ->toArray(),
         ]);
@@ -4633,8 +4669,8 @@ class ShopController extends Controller
     public function transitionBatchStatus(Request $request, CourierExportBatch $batch): JsonResponse
     {
         $validated = $request->validate([
-            'to_status' => ['required', 'string', 'in:' . implode(',', CourierExportBatch::STATUSES)],
-            'notes'     => ['nullable', 'string', 'max:500'],
+            'to_status' => ['required', 'string', 'in:'.implode(',', CourierExportBatch::STATUSES)],
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         if (! $batch->canTransitionTo($validated['to_status'])) {
@@ -4648,7 +4684,7 @@ class ShopController extends Controller
 
         return response()->json([
             'batch_number' => $batch->batch_number,
-            'status'       => $batch->status,
+            'status' => $batch->status,
             'status_label' => CourierExportBatch::STATUS_LABELS[$batch->status] ?? $batch->status,
         ]);
     }
@@ -4723,8 +4759,8 @@ class ShopController extends Controller
             return back()->with(
                 $stillFailed > 0 ? 'warning' : 'success',
                 $stillFailed > 0
-                    ? 'Full rebuild of ' . $batch->batch_number . ': ' . ($totalRows - $stillFailed) . ' rows OK, ' . $stillFailed . ' still failing.'
-                    : 'Full rebuild of ' . $batch->batch_number . ': all ' . $totalRows . ' rows refreshed successfully.'
+                    ? 'Full rebuild of '.$batch->batch_number.': '.($totalRows - $stillFailed).' rows OK, '.$stillFailed.' still failing.'
+                    : 'Full rebuild of '.$batch->batch_number.': all '.$totalRows.' rows refreshed successfully.'
             );
         }
 
@@ -4741,8 +4777,8 @@ class ShopController extends Controller
         return back()->with(
             $stillFailed > 0 ? 'warning' : 'success',
             $stillFailed > 0
-                ? 'Rebuilt batch ' . $batch->batch_number . ': ' . ($failedCount - $stillFailed) . ' rows fixed, ' . $stillFailed . ' still failing.'
-                : 'Rebuilt batch ' . $batch->batch_number . ': all ' . $failedCount . ' failed rows fixed.'
+                ? 'Rebuilt batch '.$batch->batch_number.': '.($failedCount - $stillFailed).' rows fixed, '.$stillFailed.' still failing.'
+                : 'Rebuilt batch '.$batch->batch_number.': all '.$failedCount.' failed rows fixed.'
         );
     }
 
@@ -4815,8 +4851,8 @@ class ShopController extends Controller
     {
         $issues = $this->getAddressIssues($order);
 
-        if (!empty($issues)) {
-            return back()->with('error', "Cannot encode {$order->order_number}: " . implode(', ', $issues));
+        if (! empty($issues)) {
+            return back()->with('error', "Cannot encode {$order->order_number}: ".implode(', ', $issues));
         }
 
         $order->forceFill([
@@ -4845,12 +4881,13 @@ class ShopController extends Controller
         if (empty($order->state)) {
             $issues[] = 'missing province';
         }
-        if (floatval($order->address_confidence) < 90 && !empty($order->state)) {
+        if (floatval($order->address_confidence) < 90 && ! empty($order->state)) {
             $issues[] = 'low address confidence';
         }
         if (empty($order->address_mapping_id)) {
             $issues[] = 'unmapped address';
         }
+
         return $issues;
     }
 
@@ -4988,14 +5025,16 @@ class ShopController extends Controller
         $header = fgetcsv($handle);
         if ($header === false) {
             fclose($handle);
+
             return response()->json(['error' => 'Empty CSV file.'], 422);
         }
 
         $header = array_map(fn ($h) => strtolower(trim($h)), $header);
         $required = ['order_number'];
         foreach ($required as $col) {
-            if (!in_array($col, $header, true)) {
+            if (! in_array($col, $header, true)) {
                 fclose($handle);
+
                 return response()->json(['error' => "Missing required column: {$col}"], 422);
             }
         }
@@ -5019,13 +5058,15 @@ class ShopController extends Controller
             if ($orderNumber === '') {
                 $errors[] = "Line {$lineNum}: missing order_number";
                 $skipped++;
+
                 continue;
             }
 
             $order = Order::query()->where('order_number', $orderNumber)->first();
-            if (!$order) {
+            if (! $order) {
                 $errors[] = "Line {$lineNum}: order {$orderNumber} not found";
                 $skipped++;
+
                 continue;
             }
 
@@ -5042,7 +5083,9 @@ class ShopController extends Controller
 
             $changed = false;
             foreach ($colMap as $field => $idx) {
-                if ($field === 'order_number') continue;
+                if ($field === 'order_number') {
+                    continue;
+                }
                 $value = trim($row[$idx] ?? '');
                 if ($value !== '' && $value !== $order->{$field}) {
                     $order->{$field} = $value;
@@ -5050,8 +5093,9 @@ class ShopController extends Controller
                 }
             }
 
-            if (!$changed) {
+            if (! $changed) {
                 $skipped++;
+
                 continue;
             }
 
@@ -5098,11 +5142,11 @@ class ShopController extends Controller
 
     public function geocodeAddress(Request $request, Order $order): JsonResponse
     {
-        $fullAddress = trim(($order->receiver_address ?? '') . ', ' . ($order->barangay ?? '') . ', ' . ($order->city ?? '') . ', ' . ($order->state ?? ''));
+        $fullAddress = trim(($order->receiver_address ?? '').', '.($order->barangay ?? '').', '.($order->city ?? '').', '.($order->state ?? ''));
 
         $result = $this->geocoder->geocode($fullAddress);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json([
                 'success' => false,
                 'message' => 'Could not geocode this address. Please check the address fields.',
@@ -5124,7 +5168,7 @@ class ShopController extends Controller
                     'postal_code' => $order->postal_code,
                     default => null,
                 };
-                if (!$current || strtolower(trim($current)) !== strtolower(trim($value))) {
+                if (! $current || strtolower(trim($current)) !== strtolower(trim($value))) {
                     $suggestions[$field] = $value;
                 }
             }
@@ -5143,7 +5187,7 @@ class ShopController extends Controller
     {
         $phone = $order->receiver_phone ? $this->phones->normalize($order->receiver_phone) : null;
 
-        if (!$phone) {
+        if (! $phone) {
             return response()->json(['suggestions' => []]);
         }
 
@@ -5153,10 +5197,10 @@ class ShopController extends Controller
             ->whereNotNull('receiver_address')
             ->where('receiver_address', '!=', '')
             ->whereIn('status', [
-                \App\Domain\Order\Enums\OrderStatus::CONFIRMED,
-                \App\Domain\Order\Enums\OrderStatus::QA_APPROVED,
-                \App\Domain\Order\Enums\OrderStatus::DISPATCHED,
-                \App\Domain\Order\Enums\OrderStatus::DELIVERED,
+                OrderStatus::CONFIRMED,
+                OrderStatus::QA_APPROVED,
+                OrderStatus::DISPATCHED,
+                OrderStatus::DELIVERED,
             ])
             ->latest()
             ->limit(20)
@@ -5178,9 +5222,9 @@ class ShopController extends Controller
 
         foreach ($previous as $prev) {
             $key = md5(
-                ($prev->receiver_address ?? '') . '|' .
-                ($prev->barangay ?? '') . '|' .
-                ($prev->city ?? '') . '|' .
+                ($prev->receiver_address ?? '').'|'.
+                ($prev->barangay ?? '').'|'.
+                ($prev->city ?? '').'|'.
                 ($prev->state ?? '')
             );
 
@@ -5255,11 +5299,17 @@ class ShopController extends Controller
             $confidenceSum += $confidence;
             $confidenceCount++;
 
-            if ($confidence <= 25) $confidenceBuckets['0-25']++;
-            elseif ($confidence <= 50) $confidenceBuckets['26-50']++;
-            elseif ($confidence <= 75) $confidenceBuckets['51-75']++;
-            elseif ($confidence <= 90) $confidenceBuckets['76-90']++;
-            else $confidenceBuckets['91-100']++;
+            if ($confidence <= 25) {
+                $confidenceBuckets['0-25']++;
+            } elseif ($confidence <= 50) {
+                $confidenceBuckets['26-50']++;
+            } elseif ($confidence <= 75) {
+                $confidenceBuckets['51-75']++;
+            } elseif ($confidence <= 90) {
+                $confidenceBuckets['76-90']++;
+            } else {
+                $confidenceBuckets['91-100']++;
+            }
 
             $issues = $this->getAddressIssues($order);
             foreach ($issues as $issue) {
@@ -5272,7 +5322,9 @@ class ShopController extends Controller
                     'unmapped address' => 'unmapped',
                     default => null,
                 };
-                if ($key) $issueCounts[$key]++;
+                if ($key) {
+                    $issueCounts[$key]++;
+                }
             }
 
             if ($order->latitude !== null && $order->longitude !== null) {
@@ -5301,7 +5353,7 @@ class ShopController extends Controller
 
         // Top provinces with issues
         $provinceStats = $orders
-            ->filter(fn ($o) => !empty($this->getAddressIssues($o)))
+            ->filter(fn ($o) => ! empty($this->getAddressIssues($o)))
             ->groupBy(fn ($o) => $o->state ?? 'Unknown')
             ->map(fn ($group) => $group->count())
             ->sortDesc()
@@ -5313,7 +5365,7 @@ class ShopController extends Controller
             'avg_confidence' => $confidenceCount > 0 ? round($confidenceSum / $confidenceCount, 2) : 0,
             'confidence_distribution' => $confidenceBuckets,
             'issue_summary' => $issueCounts,
-            'orders_with_issues' => $orders->filter(fn ($o) => !empty($this->getAddressIssues($o)))->count(),
+            'orders_with_issues' => $orders->filter(fn ($o) => ! empty($this->getAddressIssues($o)))->count(),
             'orders_valid' => $orders->filter(fn ($o) => empty($this->getAddressIssues($o)))->count(),
             'geocoding' => [
                 'geocoded' => $geocoded,
@@ -5338,10 +5390,10 @@ class ShopController extends Controller
     public function bulkStatusUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
-            'status'      => ['required', 'string', 'in:CONFIRMED,QA_APPROVED,QA_PENDING,QA_REJECTED,CANCELLED,DISPATCHED,DELIVERED,RETURNED'],
-            'reason'      => ['nullable', 'string', 'max:500'],
+            'status' => ['required', 'string', 'in:CONFIRMED,QA_APPROVED,QA_PENDING,QA_REJECTED,CANCELLED,DISPATCHED,DELIVERED,RETURNED'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $status = OrderStatus::from($validated['status']);
@@ -5354,11 +5406,13 @@ class ShopController extends Controller
             $order = Order::query()->find($orderId);
             if (! $order) {
                 $skipped[] = "Order #{$orderId} not found";
+
                 continue;
             }
 
             if ($order->status->isTerminal()) {
                 $skipped[] = "{$order->order_number} is terminal ({$order->status->label()})";
+
                 continue;
             }
 
@@ -5385,18 +5439,18 @@ class ShopController extends Controller
         }
 
         return response()->json([
-            'updated'  => $updated,
-            'skipped'  => count($skipped),
-            'errors'   => $skipped,
+            'updated' => $updated,
+            'skipped' => count($skipped),
+            'errors' => $skipped,
         ]);
     }
 
     public function bulkAssignEncoder(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
-            'encoder_id'  => ['required', 'integer', 'exists:users,id'],
+            'encoder_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
         $updated = Order::query()
@@ -5404,16 +5458,16 @@ class ShopController extends Controller
             ->update(['encoder_id' => $validated['encoder_id']]);
 
         return response()->json([
-            'updated'  => $updated,
-            'skipped'  => 0,
-            'errors'   => [],
+            'updated' => $updated,
+            'skipped' => 0,
+            'errors' => [],
         ]);
     }
 
     public function bulkPrintLabels(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
@@ -5423,10 +5477,10 @@ class ShopController extends Controller
             ->load('product:id,name,sku');
 
         $labels = $orders->map(fn (Order $order) => [
-            'order_number'   => $order->order_number,
-            'receiver_name'  => $order->receiver_name,
+            'order_number' => $order->order_number,
+            'receiver_name' => $order->receiver_name,
             'receiver_phone' => $order->receiver_phone,
-            'address_line'   => trim(
+            'address_line' => trim(
                 implode(', ', array_filter([
                     $order->receiver_address,
                     $order->barangay,
@@ -5435,22 +5489,22 @@ class ShopController extends Controller
                     $order->postal_code,
                 ]))
             ),
-            'courier_code'   => $order->courier_code ?? 'MANUAL',
-            'cod_amount'     => (float) $order->cod_amount,
-            'quantity'       => $order->quantity,
-            'product_name'   => $order->product?->name ?? 'N/A',
+            'courier_code' => $order->courier_code ?? 'MANUAL',
+            'cod_amount' => (float) $order->cod_amount,
+            'quantity' => $order->quantity,
+            'product_name' => $order->product?->name ?? 'N/A',
         ]);
 
         return response()->json([
             'labels' => $labels,
-            'count'  => $labels->count(),
+            'count' => $labels->count(),
         ]);
     }
 
     public function bulkCodVerify(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
@@ -5459,29 +5513,29 @@ class ShopController extends Controller
             ->get(['id', 'order_number', 'receiver_name', 'total_amount', 'cod_amount', 'shipping_cost', 'discount_amount', 'tax_amount', 'quantity', 'unit_price']);
 
         $items = $orders->map(fn (Order $order) => [
-            'id'              => $order->id,
-            'order_number'    => $order->order_number,
-            'receiver_name'   => $order->receiver_name,
-            'quantity'        => $order->quantity,
-            'unit_price'      => (float) $order->unit_price,
-            'subtotal'        => (float) $order->unit_price * $order->quantity,
-            'shipping_cost'   => (float) ($order->shipping_cost ?? 0),
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'receiver_name' => $order->receiver_name,
+            'quantity' => $order->quantity,
+            'unit_price' => (float) $order->unit_price,
+            'subtotal' => (float) $order->unit_price * $order->quantity,
+            'shipping_cost' => (float) ($order->shipping_cost ?? 0),
             'discount_amount' => (float) ($order->discount_amount ?? 0),
-            'tax_amount'      => (float) ($order->tax_amount ?? 0),
-            'expected_cod'    => round((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0), 2),
-            'actual_cod'      => (float) $order->cod_amount,
-            'discrepancy'     => round((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0)), 2),
-            'is_correct'      => abs((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0))) < 0.01,
+            'tax_amount' => (float) ($order->tax_amount ?? 0),
+            'expected_cod' => round((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0), 2),
+            'actual_cod' => (float) $order->cod_amount,
+            'discrepancy' => round((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0)), 2),
+            'is_correct' => abs((float) $order->cod_amount - ((float) $order->unit_price * $order->quantity + (float) ($order->shipping_cost ?? 0) - (float) ($order->discount_amount ?? 0) + (float) ($order->tax_amount ?? 0))) < 0.01,
         ]);
 
         $correct = $items->filter(fn ($item) => $item['is_correct'])->count();
         $discrepant = $items->count() - $correct;
 
         return response()->json([
-            'items'       => $items,
-            'total'        => $items->count(),
-            'correct'      => $correct,
-            'discrepant'   => $discrepant,
+            'items' => $items,
+            'total' => $items->count(),
+            'correct' => $correct,
+            'discrepant' => $discrepant,
             'total_discrepancy' => round($items->sum(fn ($item) => $item['discrepancy']), 2),
         ]);
     }
@@ -5489,8 +5543,8 @@ class ShopController extends Controller
     public function bulkCodUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'updates'             => ['required', 'array', 'min:1'],
-            'updates.*.order_id'  => ['required', 'integer', 'exists:orders,id'],
+            'updates' => ['required', 'array', 'min:1'],
+            'updates.*.order_id' => ['required', 'integer', 'exists:orders,id'],
             'updates.*.cod_amount' => ['required', 'numeric', 'min:0'],
         ]);
 
@@ -5501,6 +5555,7 @@ class ShopController extends Controller
             $order = Order::query()->find($update['order_id']);
             if (! $order) {
                 $errors[] = "Order #{$update['order_id']} not found";
+
                 continue;
             }
             $order->forceFill(['cod_amount' => $update['cod_amount']])->save();
@@ -5509,14 +5564,14 @@ class ShopController extends Controller
 
         return response()->json([
             'updated' => $updated,
-            'errors'  => $errors,
+            'errors' => $errors,
         ]);
     }
 
     public function bulkDuplicateDetect(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
@@ -5528,13 +5583,15 @@ class ShopController extends Controller
         // Group by normalized phone + product_id
         $byPhoneProduct = $orders->groupBy(function (Order $order) {
             $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
-            return $phone . '|' . $order->product_id;
+
+            return $phone.'|'.$order->product_id;
         })->filter(fn ($group) => $group->count() > 1);
 
         // Group by normalized phone + address (first 50 chars)
         $byPhoneAddress = $orders->groupBy(function (Order $order) {
             $phone = $this->phones->normalize($order->receiver_phone) ?: $order->receiver_phone;
-            return $phone . '|' . substr(strtolower(trim($order->receiver_address ?? '')), 0, 50);
+
+            return $phone.'|'.substr(strtolower(trim($order->receiver_address ?? '')), 0, 50);
         })->filter(fn ($group) => $group->count() > 1);
 
         // Merge groups, deduplicate by order ID set
@@ -5549,20 +5606,20 @@ class ShopController extends Controller
             }
             $seenKeys[$groupKey] = true;
             $groups[] = [
-                'match_type'  => 'phone+product',
-                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
-                'product'     => $group->first()->product?->only(['id', 'name', 'sku']),
+                'match_type' => 'phone+product',
+                'phone' => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'product' => $group->first()->product?->only(['id', 'name', 'sku']),
                 'order_count' => $group->count(),
-                'orders'      => $group->map(fn (Order $o) => [
-                    'id'            => $o->id,
-                    'order_number'  => $o->order_number,
+                'orders' => $group->map(fn (Order $o) => [
+                    'id' => $o->id,
+                    'order_number' => $o->order_number,
                     'receiver_name' => $o->receiver_name,
-                    'receiver_phone'=> $o->receiver_phone,
-                    'quantity'      => $o->quantity,
-                    'total_amount'  => (float) $o->total_amount,
-                    'cod_amount'    => (float) $o->cod_amount,
-                    'status'        => $o->status->value,
-                    'created_at'    => $o->created_at?->toIso8601String(),
+                    'receiver_phone' => $o->receiver_phone,
+                    'quantity' => $o->quantity,
+                    'total_amount' => (float) $o->total_amount,
+                    'cod_amount' => (float) $o->cod_amount,
+                    'status' => $o->status->value,
+                    'created_at' => $o->created_at?->toIso8601String(),
                 ])->values()->all(),
             ];
         }
@@ -5575,20 +5632,20 @@ class ShopController extends Controller
             }
             $seenKeys[$groupKey] = true;
             $groups[] = [
-                'match_type'  => 'phone+address',
-                'phone'       => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
-                'address'     => substr($group->first()->receiver_address ?? '', 0, 80),
+                'match_type' => 'phone+address',
+                'phone' => $this->phones->normalize($group->first()->receiver_phone) ?: $group->first()->receiver_phone,
+                'address' => substr($group->first()->receiver_address ?? '', 0, 80),
                 'order_count' => $group->count(),
-                'orders'      => $group->map(fn (Order $o) => [
-                    'id'            => $o->id,
-                    'order_number'  => $o->order_number,
+                'orders' => $group->map(fn (Order $o) => [
+                    'id' => $o->id,
+                    'order_number' => $o->order_number,
                     'receiver_name' => $o->receiver_name,
-                    'receiver_phone'=> $o->receiver_phone,
-                    'quantity'      => $o->quantity,
-                    'total_amount'  => (float) $o->total_amount,
-                    'cod_amount'    => (float) $o->cod_amount,
-                    'status'        => $o->status->value,
-                    'created_at'    => $o->created_at?->toIso8601String(),
+                    'receiver_phone' => $o->receiver_phone,
+                    'quantity' => $o->quantity,
+                    'total_amount' => (float) $o->total_amount,
+                    'cod_amount' => (float) $o->cod_amount,
+                    'status' => $o->status->value,
+                    'created_at' => $o->created_at?->toIso8601String(),
                 ])->values()->all(),
             ];
         }
@@ -5596,21 +5653,21 @@ class ShopController extends Controller
         $ordersInGroups = collect($groups)->flatMap(fn ($g) => array_column($g['orders'], 'id'))->unique()->count();
 
         return response()->json([
-            'groups'           => $groups,
-            'group_count'      => count($groups),
+            'groups' => $groups,
+            'group_count' => count($groups),
             'orders_in_groups' => $ordersInGroups,
-            'total_checked'    => $orders->count(),
-            'unique_orders'    => $orders->count() - $ordersInGroups,
+            'total_checked' => $orders->count(),
+            'unique_orders' => $orders->count() - $ordersInGroups,
         ]);
     }
 
     public function bulkHoldRelease(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
-            'action'      => ['required', 'string', 'in:hold,release'],
-            'reason'      => ['nullable', 'string', 'max:500'],
+            'action' => ['required', 'string', 'in:hold,release'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $orders = Order::query()
@@ -5625,15 +5682,15 @@ class ShopController extends Controller
         foreach ($orders as $order) {
             if ($validated['action'] === 'hold' && ! $order->status->isTerminal() && $order->status !== OrderStatus::ON_HOLD) {
                 $order->forceFill([
-                    'status'      => OrderStatus::ON_HOLD,
-                    'held_at'     => now(),
+                    'status' => OrderStatus::ON_HOLD,
+                    'held_at' => now(),
                     'hold_reason' => $validated['reason'] ?? null,
                 ])->save();
                 $held++;
             } elseif ($validated['action'] === 'release' && $order->status === OrderStatus::ON_HOLD) {
                 $order->forceFill([
-                    'status'      => OrderStatus::CONFIRMED,
-                    'held_at'     => null,
+                    'status' => OrderStatus::CONFIRMED,
+                    'held_at' => null,
                     'hold_reason' => null,
                 ])->save();
                 $released++;
@@ -5643,21 +5700,21 @@ class ShopController extends Controller
         }
 
         return response()->json([
-            'held'    => $held,
-            'released'=> $released,
+            'held' => $held,
+            'released' => $released,
             'skipped' => $skipped,
-            'errors'  => [],
+            'errors' => [],
         ]);
     }
 
     public function bulkTagUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
-            'tag_ids'     => ['nullable', 'array'],
-            'tag_ids.*'   => ['integer', 'exists:tags,id'],
-            'mode'        => ['required', 'string', 'in:add,replace,remove'],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer', 'exists:tags,id'],
+            'mode' => ['required', 'string', 'in:add,replace,remove'],
         ]);
 
         $orders = Order::query()
@@ -5679,17 +5736,17 @@ class ShopController extends Controller
         }
 
         return response()->json([
-            'updated'  => $affected,
-            'mode'     => $validated['mode'],
-            'tag_count'=> count($tagIds),
-            'errors'   => [],
+            'updated' => $affected,
+            'mode' => $validated['mode'],
+            'tag_count' => count($tagIds),
+            'errors' => [],
         ]);
     }
 
     public function bulkSplitByRegion(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'   => ['required', 'array', 'min:1'],
+            'order_ids' => ['required', 'array', 'min:1'],
             'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
@@ -5699,24 +5756,24 @@ class ShopController extends Controller
 
         $groups = $orders->groupBy(fn (Order $order) => $order->state ?: 'Unspecified')->map(function ($orders, $region) {
             return [
-                'region'      => $region,
+                'region' => $region,
                 'order_count' => $orders->count(),
-                'total_amount'=> $orders->sum('total_amount'),
-                'cod_amount'  => $orders->sum('cod_amount'),
-                'couriers'    => $orders->pluck('courier_code')->filter()->unique()->values()->toArray(),
-                'orders'      => $orders->map(fn (Order $order) => [
-                    'id'             => $order->id,
-                    'order_number'   => $order->order_number,
-                    'receiver_name'  => $order->receiver_name,
+                'total_amount' => $orders->sum('total_amount'),
+                'cod_amount' => $orders->sum('cod_amount'),
+                'couriers' => $orders->pluck('courier_code')->filter()->unique()->values()->toArray(),
+                'orders' => $orders->map(fn (Order $order) => [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'receiver_name' => $order->receiver_name,
                     'receiver_phone' => $order->receiver_phone,
-                    'city'           => $order->city,
-                    'barangay'       => $order->barangay,
-                    'courier_code'   => $order->courier_code,
-                    'status'         => $order->status->value,
-                    'quantity'       => $order->quantity,
-                    'total_amount'   => (float) $order->total_amount,
-                    'cod_amount'     => (float) $order->cod_amount,
-                    'created_at'     => $order->created_at?->toIso8601String(),
+                    'city' => $order->city,
+                    'barangay' => $order->barangay,
+                    'courier_code' => $order->courier_code,
+                    'status' => $order->status->value,
+                    'quantity' => $order->quantity,
+                    'total_amount' => (float) $order->total_amount,
+                    'cod_amount' => (float) $order->cod_amount,
+                    'created_at' => $order->created_at?->toIso8601String(),
                 ])->values()->toArray(),
             ];
         })->values()->toArray();
@@ -5724,19 +5781,19 @@ class ShopController extends Controller
         usort($groups, fn ($a, $b) => $b['order_count'] <=> $a['order_count']);
 
         return response()->json([
-            'groups'        => $groups,
-            'region_count'  => count($groups),
-            'total_orders'  => $orders->count(),
+            'groups' => $groups,
+            'region_count' => count($groups),
+            'total_orders' => $orders->count(),
         ]);
     }
 
     public function bulkRescheduleDelivery(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_ids'             => ['required', 'array', 'min:1'],
-            'order_ids.*'           => ['required', 'integer', 'exists:orders,id'],
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['required', 'integer', 'exists:orders,id'],
             'scheduled_delivery_at' => ['required', 'date', 'after:now'],
-            'reason'                => ['nullable', 'string', 'max:500'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $orders = Order::query()
@@ -5748,7 +5805,7 @@ class ShopController extends Controller
         foreach ($orders as $order) {
             $order->forceFill([
                 'scheduled_delivery_at' => $validated['scheduled_delivery_at'],
-                'reschedule_reason'     => $validated['reason'] ?? null,
+                'reschedule_reason' => $validated['reason'] ?? null,
             ])->save();
             $updated++;
         }
@@ -5756,9 +5813,9 @@ class ShopController extends Controller
         $skipped = count($validated['order_ids']) - $updated;
 
         return response()->json([
-            'updated'  => $updated,
-            'skipped'  => $skipped,
-            'errors'   => [],
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => [],
         ]);
     }
 
@@ -5784,12 +5841,12 @@ class ShopController extends Controller
 
         return response()->json([
             'archived' => $archived,
-            'skipped'  => $skipped,
-            'errors'   => [],
+            'skipped' => $skipped,
+            'errors' => [],
         ]);
     }
 
-    public function downloadExport(CourierExportBatch $batch): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function downloadExport(CourierExportBatch $batch): StreamedResponse
     {
         if (! $batch->file_path || ! Storage::disk('local')->exists($batch->file_path)) {
             abort(404, 'Export file not found.');
@@ -5812,7 +5869,7 @@ class ShopController extends Controller
         ]);
     }
 
-    public function downloadSharedExport(string $token): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function downloadSharedExport(string $token): StreamedResponse
     {
         $share = CourierExportBatchShare::query()
             ->with('batch')
@@ -5883,7 +5940,7 @@ class ShopController extends Controller
         }
 
         if ($result['status'] !== 'subscribed') {
-            return back()->with('error', "{$page->page_name} needs resubscribe. Missing: " . implode(', ', $result['missing_fields']));
+            return back()->with('error', "{$page->page_name} needs resubscribe. Missing: ".implode(', ', $result['missing_fields']));
         }
 
         return back()->with('success', "{$page->page_name} subscription is healthy.");
@@ -5951,7 +6008,7 @@ class ShopController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $cacheKey = 'pos_search:' . md5($q);
+        $cacheKey = 'pos_search:'.md5($q);
 
         $products = Cache::remember($cacheKey, 120, function () use ($q) {
             return Product::query()
@@ -6041,7 +6098,7 @@ class ShopController extends Controller
         ]);
 
         $productIds = collect($validated['items'])->pluck('product_id')->unique()->all();
-        $cacheKey = 'pos_checkout_products:' . md5(implode(',', $productIds));
+        $cacheKey = 'pos_checkout_products:'.md5(implode(',', $productIds));
 
         $products = Cache::remember($cacheKey, 300, function () use ($productIds) {
             return Product::query()
@@ -6105,7 +6162,7 @@ class ShopController extends Controller
             }
         }
 
-        $order = DB::transaction(function () use ($validated, $preparedItems, $primaryItem, $discountAmount, $totalQuantity, $subtotal, $totalAmount, $amountPaid, $change) {
+        $order = DB::transaction(function () use ($validated, $preparedItems, $primaryItem, $totalQuantity, $totalAmount) {
             $customer = null;
             if (! empty($validated['phone'])) {
                 $customer = $this->customerIdentities->firstOrCreateFromPhone([
@@ -6205,18 +6262,18 @@ class ShopController extends Controller
         $cleared = 0;
         $redis = Cache::getRedis();
         if ($redis) {
-            $prefix = config('cache.prefix') ? config('cache.prefix') . ':' : '';
-            $keys = $redis->keys($prefix . 'pos_search:*');
+            $prefix = config('cache.prefix') ? config('cache.prefix').':' : '';
+            $keys = $redis->keys($prefix.'pos_search:*');
             foreach ($keys as $key) {
                 $redis->del(str_replace($prefix, '', $key));
                 $cleared++;
             }
-            $custKeys = $redis->keys($prefix . 'customer_search:*');
+            $custKeys = $redis->keys($prefix.'customer_search:*');
             foreach ($custKeys as $key) {
                 $redis->del(str_replace($prefix, '', $key));
                 $cleared++;
             }
-            $checkoutKeys = $redis->keys($prefix . 'pos_checkout_products:*');
+            $checkoutKeys = $redis->keys($prefix.'pos_checkout_products:*');
             foreach ($checkoutKeys as $key) {
                 $redis->del(str_replace($prefix, '', $key));
                 $cleared++;
@@ -6533,23 +6590,23 @@ class ShopController extends Controller
         $templates = $this->cartTemplateSharingService->listForUser(auth()->id(), $role);
 
         $result = $templates->map(fn ($t) => [
-            'id'              => $t->id,
-            'name'            => $t->name,
-            'items'           => $t->items ?? [],
-            'courier_code'    => $t->courier_code,
-            'shipping_fee'    => (float) $t->shipping_fee,
+            'id' => $t->id,
+            'name' => $t->name,
+            'items' => $t->items ?? [],
+            'courier_code' => $t->courier_code,
+            'shipping_fee' => (float) $t->shipping_fee,
             'discount_amount' => (float) $t->discount_amount,
-            'tax_rate'        => (float) $t->tax_rate,
-            'remarks'         => $t->remarks,
-            'is_shared'       => $t->is_shared,
-            'allowed_roles'   => $t->allowed_roles,
-            'is_owner'        => $t->user_id === auth()->id(),
-            'owner_name'      => $t->user?->name,
-            'items_count'     => is_array($t->items) ? count($t->items) : 0,
-            'cloned_from'     => $t->cloned_from,
-            'source_name'     => $t->clonedFrom?->name,
-            'last_used_at'     => $t->last_used_at?->toIso8601String(),
-            'created_at'      => $t->created_at?->toIso8601String(),
+            'tax_rate' => (float) $t->tax_rate,
+            'remarks' => $t->remarks,
+            'is_shared' => $t->is_shared,
+            'allowed_roles' => $t->allowed_roles,
+            'is_owner' => $t->user_id === auth()->id(),
+            'owner_name' => $t->user?->name,
+            'items_count' => is_array($t->items) ? count($t->items) : 0,
+            'cloned_from' => $t->cloned_from,
+            'source_name' => $t->clonedFrom?->name,
+            'last_used_at' => $t->last_used_at?->toIso8601String(),
+            'created_at' => $t->created_at?->toIso8601String(),
         ]);
 
         return response()->json(['templates' => $result]);
@@ -6558,34 +6615,34 @@ class ShopController extends Controller
     public function storeCartTemplate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name'              => ['required', 'string', 'max:100'],
-            'items'             => ['required', 'array', 'min:1', 'max:20'],
-            'items.*.product_id'  => ['required', 'exists:products,id'],
-            'items.*.variant_id'  => ['nullable', 'exists:product_variants,id'],
-            'items.*.quantity'    => ['required', 'integer', 'min:1', 'max:999'],
-            'items.*.unit_price'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'name' => ['required', 'string', 'max:100'],
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
             'items.*.discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
-            'courier_code'      => ['nullable', 'string', 'max:30'],
-            'shipping_fee'      => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
-            'discount_amount'   => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
-            'tax_rate'          => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'remarks'           => ['nullable', 'string', 'max:2000'],
-            'is_shared'         => ['nullable', 'boolean'],
-            'allowed_roles'     => ['nullable', 'array'],
-            'allowed_roles.*'   => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
+            'courier_code' => ['nullable', 'string', 'max:30'],
+            'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'remarks' => ['nullable', 'string', 'max:2000'],
+            'is_shared' => ['nullable', 'boolean'],
+            'allowed_roles' => ['nullable', 'array'],
+            'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
         ]);
 
         $template = CartTemplate::query()->create([
-            'user_id'         => auth()->id(),
-            'name'            => $validated['name'],
-            'items'           => $validated['items'],
-            'courier_code'    => $validated['courier_code'] ?? 'MANUAL',
-            'shipping_fee'    => $validated['shipping_fee'] ?? 0,
+            'user_id' => auth()->id(),
+            'name' => $validated['name'],
+            'items' => $validated['items'],
+            'courier_code' => $validated['courier_code'] ?? 'MANUAL',
+            'shipping_fee' => $validated['shipping_fee'] ?? 0,
             'discount_amount' => $validated['discount_amount'] ?? 0,
-            'tax_rate'        => $validated['tax_rate'] ?? 0,
-            'remarks'         => $validated['remarks'] ?? null,
-            'is_shared'       => $validated['is_shared'] ?? false,
-            'allowed_roles'   => ($validated['is_shared'] ?? false) ? ($validated['allowed_roles'] ?? null) : null,
+            'tax_rate' => $validated['tax_rate'] ?? 0,
+            'remarks' => $validated['remarks'] ?? null,
+            'is_shared' => $validated['is_shared'] ?? false,
+            'allowed_roles' => ($validated['is_shared'] ?? false) ? ($validated['allowed_roles'] ?? null) : null,
         ]);
 
         return response()->json(['success' => true, 'template_id' => $template->id]);
@@ -6609,7 +6666,7 @@ class ShopController extends Controller
         }
 
         $validated = $request->validate([
-            'is_shared'     => ['required', 'boolean'],
+            'is_shared' => ['required', 'boolean'],
             'allowed_roles' => ['nullable', 'array'],
             'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
         ]);
@@ -6622,8 +6679,8 @@ class ShopController extends Controller
         );
 
         return response()->json([
-            'success'       => true,
-            'is_shared'     => $updated->is_shared,
+            'success' => true,
+            'is_shared' => $updated->is_shared,
             'allowed_roles' => $updated->allowed_roles,
         ]);
     }
@@ -6641,9 +6698,9 @@ class ShopController extends Controller
         );
 
         return response()->json([
-            'success'     => true,
-            'template_id'  => $clone->id,
-            'name'         => $clone->name,
+            'success' => true,
+            'template_id' => $clone->id,
+            'name' => $clone->name,
         ]);
     }
 
@@ -6666,14 +6723,14 @@ class ShopController extends Controller
         $this->cartTemplateSharingService->markUsed($template->id);
 
         return response()->json([
-            'id'              => $template->id,
-            'name'            => $template->name,
-            'items'           => $template->items ?? [],
-            'courier_code'    => $template->courier_code,
-            'shipping_fee'    => (float) $template->shipping_fee,
+            'id' => $template->id,
+            'name' => $template->name,
+            'items' => $template->items ?? [],
+            'courier_code' => $template->courier_code,
+            'shipping_fee' => (float) $template->shipping_fee,
             'discount_amount' => (float) $template->discount_amount,
-            'tax_rate'        => (float) $template->tax_rate,
-            'remarks'         => $template->remarks,
+            'tax_rate' => (float) $template->tax_rate,
+            'remarks' => $template->remarks,
         ]);
     }
 
@@ -7231,7 +7288,7 @@ class ShopController extends Controller
             'conversation_id' => $order->conversation_id,
             'facebook_page_id' => $conversation->facebook_page_id,
             'sent_by' => $request->user()->id,
-            'external_message_id' => 'system-' . str()->uuid(),
+            'external_message_id' => 'system-'.str()->uuid(),
             'direction' => 'system',
             'message_type' => 'order_followup',
             'body' => $body,
@@ -7275,7 +7332,7 @@ class ShopController extends Controller
         }
 
         $validated = $request->validate([
-            'item_ids'   => ['required', 'array', 'min:1'],
+            'item_ids' => ['required', 'array', 'min:1'],
             'item_ids.*' => ['integer', 'exists:shop_order_items,id'],
         ]);
 
@@ -7608,22 +7665,21 @@ class ShopController extends Controller
         if ($shouldSendConfirmation) {
             $conversation->load(['facebookPage', 'identity']);
 
-            $itemList = $preparedItems->map(fn ($item) =>
-                "• {$item['display_name']} ×{$item['quantity']} — ₱" . number_format($item['line_total'], 2)
+            $itemList = $preparedItems->map(fn ($item) => "• {$item['display_name']} ×{$item['quantity']} — ₱".number_format($item['line_total'], 2)
             )->implode("\n");
 
-            $courierLabel = match($validated['courier_code'] ?? 'MANUAL') {
+            $courierLabel = match ($validated['courier_code'] ?? 'MANUAL') {
                 'JNT' => 'J&T Express',
                 'FLASH' => 'Flash Express',
                 default => 'Manual',
             };
 
             $confirmationBody = "✅ Order Confirmed!\n\n"
-                . "Order #: {$order->order_number}\n"
-                . "Items:\n{$itemList}\n\n"
-                . "Total COD: ₱" . number_format((float) $order->cod_amount, 2) . "\n"
-                . "Courier: {$courierLabel}\n\n"
-                . "Thank you for your order! We'll notify you once it's shipped.";
+                ."Order #: {$order->order_number}\n"
+                ."Items:\n{$itemList}\n\n"
+                .'Total COD: ₱'.number_format((float) $order->cod_amount, 2)."\n"
+                ."Courier: {$courierLabel}\n\n"
+                ."Thank you for your order! We'll notify you once it's shipped.";
 
             $delivery = ['status' => 'logged'];
 
@@ -7650,7 +7706,7 @@ class ShopController extends Controller
                 'facebook_page_id' => $conversation->facebook_page_id,
                 'customer_identity_id' => $conversation->customer_identity_id,
                 'sent_by' => auth()->id(),
-                'external_message_id' => 'local-' . str()->uuid(),
+                'external_message_id' => 'local-'.str()->uuid(),
                 'direction' => 'outbound',
                 'message_type' => 'text',
                 'body' => $confirmationBody,
@@ -7738,7 +7794,7 @@ class ShopController extends Controller
         return (int) $callback();
     }
 
-    private function shopOrderQuery(): \Illuminate\Database\Query\Builder
+    private function shopOrderQuery(): Builder
     {
         if (! Schema::hasTable('orders')) {
             return DB::table('orders')->whereRaw('1 = 0');
@@ -7753,12 +7809,12 @@ class ShopController extends Controller
         return $query;
     }
 
-    private function filteredShopOrderQuery(array $filters): \Illuminate\Database\Query\Builder
+    private function filteredShopOrderQuery(array $filters): Builder
     {
         return $this->applyReportOrderFilters($this->shopOrderQuery(), $filters);
     }
 
-    private function applyReportOrderFilters(\Illuminate\Database\Query\Builder $query, array $filters): \Illuminate\Database\Query\Builder
+    private function applyReportOrderFilters(Builder $query, array $filters): Builder
     {
         if (! empty($filters['date_from'])) {
             $query->whereDate('orders.created_at', '>=', $filters['date_from']);
@@ -7779,7 +7835,7 @@ class ShopController extends Controller
         return $query;
     }
 
-    private function applyReportConversationFilters(\Illuminate\Database\Query\Builder $query, array $filters): \Illuminate\Database\Query\Builder
+    private function applyReportConversationFilters(Builder $query, array $filters): Builder
     {
         if (! empty($filters['date_from'])) {
             $query->whereDate('conversations.created_at', '>=', $filters['date_from']);
@@ -7800,7 +7856,7 @@ class ShopController extends Controller
         return $query;
     }
 
-    private function pagePerformanceReport(array $filters): \Illuminate\Support\Collection
+    private function pagePerformanceReport(array $filters): Collection
     {
         if (! Schema::hasTable('facebook_pages') || ! Schema::hasTable('conversations')) {
             return collect();
@@ -7858,7 +7914,7 @@ class ShopController extends Controller
             ->get();
     }
 
-    private function agentPerformanceReport(array $filters): \Illuminate\Support\Collection
+    private function agentPerformanceReport(array $filters): Collection
     {
         if (! Schema::hasTable('users')) {
             return collect();
@@ -7910,7 +7966,7 @@ class ShopController extends Controller
             ->values();
     }
 
-    private function conversationStatusReport(array $filters): \Illuminate\Support\Collection
+    private function conversationStatusReport(array $filters): Collection
     {
         if (! Schema::hasTable('conversations')) {
             return collect();
@@ -7923,7 +7979,7 @@ class ShopController extends Controller
             ->get();
     }
 
-    private function orderStatusReport(array $filters): \Illuminate\Support\Collection
+    private function orderStatusReport(array $filters): Collection
     {
         return $this->filteredShopOrderQuery($filters)
             ->select('status', DB::raw('COUNT(*) as total'), DB::raw('COALESCE(SUM(total_amount), 0) as sales_total'))
@@ -7932,7 +7988,7 @@ class ShopController extends Controller
             ->get();
     }
 
-    private function topProductReport(array $filters): \Illuminate\Support\Collection
+    private function topProductReport(array $filters): Collection
     {
         if (! Schema::hasTable('shop_order_items')) {
             return collect();
@@ -7959,8 +8015,8 @@ class ShopController extends Controller
 
     private function dailySalesReport(array $filters): array
     {
-        $from = \Carbon\Carbon::parse($filters['date_from'] ?? today()->subDays(6)->toDateString())->startOfDay();
-        $to = \Carbon\Carbon::parse($filters['date_to'] ?? today()->toDateString())->startOfDay();
+        $from = Carbon::parse($filters['date_from'] ?? today()->subDays(6)->toDateString())->startOfDay();
+        $to = Carbon::parse($filters['date_to'] ?? today()->toDateString())->startOfDay();
         $days = (int) min(31, $from->diffInDays($to));
 
         $dailyData = $this->filteredShopOrderQuery($filters)
@@ -8018,7 +8074,7 @@ class ShopController extends Controller
         ]);
     }
 
-    private function duplicateWarningsForPhone(?string $phone): \Illuminate\Support\Collection
+    private function duplicateWarningsForPhone(?string $phone): Collection
     {
         $normalizedPhone = $phone ? $this->phones->normalize($phone) : null;
 
@@ -8036,7 +8092,7 @@ class ShopController extends Controller
             ->get(['id', 'order_number', 'product_id', 'status', 'total_amount', 'created_at']);
     }
 
-    private function possibleDuplicateOrders(string $phone, array $productIds): \Illuminate\Support\Collection
+    private function possibleDuplicateOrders(string $phone, array $productIds): Collection
     {
         $normalizedPhone = $this->phones->normalize($phone) ?: $phone;
 
@@ -8101,7 +8157,7 @@ class ShopController extends Controller
                 ->where(function ($q) use ($pageId) {
                     $q->where('facebook_page_id', $pageId)->orWhereNull('facebook_page_id');
                 })
-                ->orderByRaw("CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END", [$pageId])
+                ->orderByRaw('CASE WHEN facebook_page_id = ? THEN 0 ELSE 1 END', [$pageId])
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(['id', 'name', 'message', 'category', 'variables', 'facebook_page_id'])
@@ -8134,7 +8190,7 @@ class ShopController extends Controller
                 ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                     $q->where(function ($sub) use ($userRole) {
                         $sub->whereNull('allowed_roles')
-                            ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                            ->orWhere('allowed_roles', 'like', '%"'.$userRole.'"%');
                     });
                 })
                 ->when($userId, function ($q) use ($userId) {
@@ -8196,7 +8252,7 @@ class ShopController extends Controller
             '{tracking_number}' => $recentOrder?->tracking_number ?? '',
             '{courier}' => $recentOrder?->courier ?? '',
             '{total_amount}' => $recentOrder?->total_amount
-                ? '₱' . number_format((float) $recentOrder->total_amount, 2)
+                ? '₱'.number_format((float) $recentOrder->total_amount, 2)
                 : '',
             '{agent_name}' => $conversation->assignedAgent?->name ?? 'Agent',
         ];
@@ -8204,7 +8260,7 @@ class ShopController extends Controller
         return str_replace(array_keys($replacements), array_values($replacements), $message);
     }
 
-    private function shopAgents(): \Illuminate\Support\Collection
+    private function shopAgents(): Collection
     {
         $activeStatuses = Conversation::ACTIVE_STATUSES;
         $thirtyDaysAgo = now()->subDays(30);
@@ -8290,7 +8346,7 @@ class ShopController extends Controller
             }
 
             foreach ($statuses as $status) {
-                if (!empty($durationsByStatus[$status])) {
+                if (! empty($durationsByStatus[$status])) {
                     $avgTimes[$status] = (int) round(array_sum($durationsByStatus[$status]) / count($durationsByStatus[$status]));
                 }
             }
@@ -8459,7 +8515,7 @@ class ShopController extends Controller
                     'agent_name' => $a['name'],
                     'active' => $a['active_conversations'],
                     'max' => $a['max_active_conversations'],
-                    'suggestion' => "{$a['name']} is at " . round($utilization) . "% capacity with overflow disabled. Consider enabling overflow or reassigning.",
+                    'suggestion' => "{$a['name']} is at ".round($utilization).'% capacity with overflow disabled. Consider enabling overflow or reassigning.',
                 ];
             }
         }
@@ -8583,7 +8639,7 @@ class ShopController extends Controller
         if (! empty($mentions)) {
             $mentioner = $request->user()->name;
             $mentionUsers = User::query()->whereIn('id', $mentions)->get();
-            \Illuminate\Support\Facades\Notification::send(
+            Notification::send(
                 $mentionUsers,
                 new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
             );
@@ -8658,7 +8714,7 @@ class ShopController extends Controller
         if (! empty($newMentions)) {
             $mentioner = $request->user()->name;
             $mentionUsers = User::query()->whereIn('id', $newMentions)->get();
-            \Illuminate\Support\Facades\Notification::send(
+            Notification::send(
                 $mentionUsers,
                 new RemarkMentionedNotification($remark->fresh(['order']), $mentioner),
             );
@@ -8730,7 +8786,7 @@ class ShopController extends Controller
         ]);
 
         $format = $request->query('format', 'xlsx');
-        $filename = 'order_remarks_' . now()->format('Ymd_His');
+        $filename = 'order_remarks_'.now()->format('Ymd_His');
 
         $export = new OrderRemarksExport($filters);
 
@@ -8738,7 +8794,7 @@ class ShopController extends Controller
             return \Maatwebsite\Excel\Facades\Excel::download(
                 $export,
                 "{$filename}.csv",
-                \Maatwebsite\Excel\Excel::CSV,
+                Excel::CSV,
                 ['Content-Type' => 'text/csv; charset=UTF-8'],
             );
         }
@@ -8879,5 +8935,4 @@ class ShopController extends Controller
 
         return response()->json(['message' => 'Default badges and milestones seeded successfully']);
     }
-
 }

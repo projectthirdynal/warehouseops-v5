@@ -13,6 +13,7 @@ use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Lead model requires Customer model which does not exist yet
  */
 class FraudDetectionServiceTest extends TestCase
@@ -24,7 +25,7 @@ class FraudDetectionServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new FraudDetectionService();
+        $this->service = new FraudDetectionService;
     }
 
     public function test_detect_suspicious_velocity_creates_flag_for_high_outcome_count(): void

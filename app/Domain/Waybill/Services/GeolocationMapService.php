@@ -220,7 +220,7 @@ class GeolocationMapService
             return $this->cityCoordinateCache[$city];
         }
 
-        $coords = $this->geocodeNominatim($city . ', Philippines');
+        $coords = $this->geocodeNominatim($city.', Philippines');
         $this->cityCoordinateCache[$city] = $coords;
 
         return $coords;
@@ -228,7 +228,7 @@ class GeolocationMapService
 
     private function geocodeLocation(string $location): ?array
     {
-        return $this->geocodeNominatim($location . ', Philippines');
+        return $this->geocodeNominatim($location.', Philippines');
     }
 
     private function geocodeNominatim(string $query): ?array
@@ -245,6 +245,7 @@ class GeolocationMapService
 
             if ($response->ok() && $response->json()) {
                 $data = $response->json()[0];
+
                 return [
                     'lat' => (float) $data['lat'],
                     'lng' => (float) $data['lon'],
@@ -260,6 +261,7 @@ class GeolocationMapService
     private function statusLabel(string $status): string
     {
         $enum = WaybillStatus::tryFrom($status);
+
         return $enum?->label() ?? $status;
     }
 }

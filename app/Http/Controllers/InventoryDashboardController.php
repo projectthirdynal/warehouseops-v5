@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Inventory\Models\StockAdjustment;
 use App\Domain\Inventory\Models\Supply;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
@@ -11,12 +12,13 @@ use App\Domain\Procurement\Enums\PoStatus;
 use App\Domain\Procurement\Enums\PrStatus;
 use App\Domain\Procurement\Models\PurchaseOrder;
 use App\Domain\Procurement\Models\PurchaseRequest;
-use App\Domain\Inventory\Models\StockAdjustment;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class InventoryDashboardController extends Controller
 {
@@ -53,17 +55,17 @@ class InventoryDashboardController extends Controller
                 ->count();
 
             return [
-                'total_supplies'      => Supply::where('is_active', true)->count(),
-                'total_warehouses'    => Warehouse::where('is_active', true)->count(),
-                'stock_value'         => $supplyStockValue,
-                'supply_low_stock'    => $supplyLowStockCount,
+                'total_supplies' => Supply::where('is_active', true)->count(),
+                'total_warehouses' => Warehouse::where('is_active', true)->count(),
+                'stock_value' => $supplyStockValue,
+                'supply_low_stock' => $supplyLowStockCount,
                 'pending_adjustments' => StockAdjustment::where('status', 'PENDING')->count(),
-                'pending_prs'         => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
-                'open_pos'            => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
+                'pending_prs' => PurchaseRequest::where('status', PrStatus::SUBMITTED)->count(),
+                'open_pos' => PurchaseOrder::whereIn('status', [PoStatus::SENT, PoStatus::PARTIALLY_RECEIVED])->count(),
                 'non_moving_supplies' => $nonMovingSupplies,
-                'out_of_stock'        => $outOfStockCount,
+                'out_of_stock' => $outOfStockCount,
                 // today_scans intentionally excluded — added live below
-                'today_scans'         => 0,
+                'today_scans' => 0,
             ];
         });
 
@@ -85,13 +87,13 @@ class InventoryDashboardController extends Controller
             ->limit(20)
             ->get()
             ->map(fn ($m) => [
-                'id'         => $m->id,
-                'type'       => $m->type,
-                'quantity'   => (int) $m->quantity,
-                'notes'      => $m->notes,
+                'id' => $m->id,
+                'type' => $m->type,
+                'quantity' => (int) $m->quantity,
+                'notes' => $m->notes,
                 'created_at' => $m->created_at,
-                'supply'     => $m->supply_id ? ['id' => $m->supply_id, 'sku' => $m->supply_sku, 'name' => $m->supply_name] : null,
-                'warehouse'  => $m->warehouse_id ? ['id' => $m->warehouse_id, 'name' => $m->warehouse_name] : null,
+                'supply' => $m->supply_id ? ['id' => $m->supply_id, 'sku' => $m->supply_sku, 'name' => $m->supply_name] : null,
+                'warehouse' => $m->warehouse_id ? ['id' => $m->warehouse_id, 'name' => $m->warehouse_name] : null,
             ]);
 
         // ── Chart / table data (5-minute cache) ──────────────────────
@@ -199,34 +201,36 @@ class InventoryDashboardController extends Controller
         });
 
         return Inertia::render('Inventory/Dashboard', [
-            'stats'                       => $stats,
-            'recent_supply_movements'     => $recentSupplyMovements,
-            'supply_low_stock'            => $supplyLowStock,
-            'supply_movement_trend'       => $supplyMovementTrend,
-            'warehouse_stock_summary'     => $warehouseStockSummary,
-            'supply_stock_value'          => $supplyStockValue,
-            'stock_status_distribution'   => $stockStatusDistribution,
-            'section_breakdown'           => $sectionBreakdown,
-            'top_supply_movers'           => $topSupplyMovers,
+            'stats' => $stats,
+            'recent_supply_movements' => $recentSupplyMovements,
+            'supply_low_stock' => $supplyLowStock,
+            'supply_movement_trend' => $supplyMovementTrend,
+            'warehouse_stock_summary' => $warehouseStockSummary,
+            'supply_stock_value' => $supplyStockValue,
+            'stock_status_distribution' => $stockStatusDistribution,
+            'section_breakdown' => $sectionBreakdown,
+            'top_supply_movers' => $topSupplyMovers,
         ]);
     }
 
-    public function movements(\Illuminate\Http\Request $request)
+    public function movements(Request $request)
     {
         $stream = $request->input('stream', 'products'); // 'products' | 'materials'
-        $type   = $request->input('type');
-        if ($type === 'all') $type = null;
+        $type = $request->input('type');
+        if ($type === 'all') {
+            $type = null;
+        }
 
         if ($stream === 'materials') {
             // ── Supply movements ─────────────────────────────────────
             $query = DB::table('supply_movements as sm')
-                ->leftJoin('supplies as s',    's.id',  '=', 'sm.supply_id')
-                ->leftJoin('warehouses as w',  'w.id',  '=', 'sm.warehouse_id')
-                ->leftJoin('users as u',       'u.id',  '=', 'sm.performed_by')
-                ->when($type,                fn ($q, $v) => $q->where('sm.type', $v))
+                ->leftJoin('supplies as s', 's.id', '=', 'sm.supply_id')
+                ->leftJoin('warehouses as w', 'w.id', '=', 'sm.warehouse_id')
+                ->leftJoin('users as u', 'u.id', '=', 'sm.performed_by')
+                ->when($type, fn ($q, $v) => $q->where('sm.type', $v))
                 ->when($request->warehouse_id, fn ($q, $v) => $q->where('sm.warehouse_id', $v))
-                ->when($request->from,         fn ($q, $v) => $q->where('sm.created_at', '>=', Carbon::parse($v)->startOfDay()))
-                ->when($request->to,           fn ($q, $v) => $q->where('sm.created_at', '<=', Carbon::parse($v)->endOfDay()))
+                ->when($request->from, fn ($q, $v) => $q->where('sm.created_at', '>=', Carbon::parse($v)->startOfDay()))
+                ->when($request->to, fn ($q, $v) => $q->where('sm.created_at', '<=', Carbon::parse($v)->endOfDay()))
                 ->select([
                     'sm.id',
                     DB::raw("'material' as stream"),
@@ -251,14 +255,14 @@ class InventoryDashboardController extends Controller
         } else {
             // ── Product / inventory movements ────────────────────────
             $query = DB::table('inventory_movements as im')
-                ->leftJoin('products as p',   'p.id',  '=', 'im.product_id')
-                ->leftJoin('warehouses as w',  'w.id',  '=', 'im.warehouse_id')
+                ->leftJoin('products as p', 'p.id', '=', 'im.product_id')
+                ->leftJoin('warehouses as w', 'w.id', '=', 'im.warehouse_id')
                 ->leftJoin('warehouse_locations as l', 'l.id', '=', 'im.location_id')
-                ->leftJoin('users as u',       'u.id',  '=', 'im.performed_by')
-                ->when($type,                fn ($q, $v) => $q->where('im.type', $v))
+                ->leftJoin('users as u', 'u.id', '=', 'im.performed_by')
+                ->when($type, fn ($q, $v) => $q->where('im.type', $v))
                 ->when($request->warehouse_id, fn ($q, $v) => $q->where('im.warehouse_id', $v))
-                ->when($request->from,         fn ($q, $v) => $q->where('im.created_at', '>=', Carbon::parse($v)->startOfDay()))
-                ->when($request->to,           fn ($q, $v) => $q->where('im.created_at', '<=', Carbon::parse($v)->endOfDay()))
+                ->when($request->from, fn ($q, $v) => $q->where('im.created_at', '>=', Carbon::parse($v)->startOfDay()))
+                ->when($request->to, fn ($q, $v) => $q->where('im.created_at', '<=', Carbon::parse($v)->endOfDay()))
                 ->select([
                     'im.id',
                     DB::raw("'product' as stream"),
@@ -283,32 +287,32 @@ class InventoryDashboardController extends Controller
 
         // Transform to uniform shape
         $movements->through(fn ($row) => [
-            'id'           => $row->id,
-            'stream'       => $row->stream,
-            'type'         => $row->type,
-            'quantity'     => (int) $row->quantity,
+            'id' => $row->id,
+            'stream' => $row->stream,
+            'type' => $row->type,
+            'quantity' => (int) $row->quantity,
             'batch_number' => $row->batch_number,
-            'notes'        => $row->notes,
-            'created_at'   => $row->created_at,
-            'item'         => $row->item_id ? [
-                'id'  => $row->item_id,
+            'notes' => $row->notes,
+            'created_at' => $row->created_at,
+            'item' => $row->item_id ? [
+                'id' => $row->item_id,
                 'sku' => $row->item_sku,
-                'name'=> $row->item_name,
+                'name' => $row->item_name,
             ] : null,
-            'location_code'  => $row->location_code,
-            'warehouse'    => $row->warehouse_id ? [
-                'id'   => $row->warehouse_id,
+            'location_code' => $row->location_code,
+            'warehouse' => $row->warehouse_id ? [
+                'id' => $row->warehouse_id,
                 'name' => $row->warehouse_name,
             ] : null,
-            'performer'    => $row->performer_id ? [
-                'id'   => $row->performer_id,
+            'performer' => $row->performer_id ? [
+                'id' => $row->performer_id,
                 'name' => $row->performer_name,
             ] : null,
         ]);
 
         return Inertia::render('Inventory/Movements', [
             'movements' => $movements,
-            'filters'   => $request->only(['stream', 'type', 'warehouse_id', 'from', 'to']),
+            'filters' => $request->only(['stream', 'type', 'warehouse_id', 'from', 'to']),
         ]);
     }
 
@@ -317,13 +321,13 @@ class InventoryDashboardController extends Controller
      * Lists products and supplies with on-hand stock but no movement within
      * the requested threshold (default 90 days).
      */
-    public function nonMoving(Request $request): \Inertia\Response
+    public function nonMoving(Request $request): Response
     {
-        $days        = max(1, (int) $request->input('days', 90));
-        $threshold   = now()->subDays($days);
-        $type        = $request->input('type', 'all'); // all | products | supplies
+        $days = max(1, (int) $request->input('days', 90));
+        $threshold = now()->subDays($days);
+        $type = $request->input('type', 'all'); // all | products | supplies
         $productPage = max(1, (int) $request->input('product_page', 1));
-        $supplyPage  = max(1, (int) $request->input('supply_page', 1));
+        $supplyPage = max(1, (int) $request->input('supply_page', 1));
 
         $products = null;
         if (in_array($type, ['all', 'products'])) {
@@ -403,10 +407,10 @@ class InventoryDashboardController extends Controller
         $totalDeadValue = round((float) ($productDeadValue + $supplyDeadValue), 2);
 
         return Inertia::render('Inventory/NonMoving', [
-            'products'         => $products,
-            'supplies'         => $supplies,
+            'products' => $products,
+            'supplies' => $supplies,
             'total_dead_value' => $totalDeadValue,
-            'filters'          => [
+            'filters' => [
                 'days' => $days,
                 'type' => $type,
             ],
@@ -419,12 +423,12 @@ class InventoryDashboardController extends Controller
      * for incremental polling (e.g. the frontend polls every 10 s passing the
      * last `server_time` it received as `since`).
      */
-    public function liveMovements(Request $request): \Illuminate\Http\JsonResponse
+    public function liveMovements(Request $request): JsonResponse
     {
-        $since       = $request->input('since');
+        $since = $request->input('since');
         $warehouseId = $request->input('warehouse_id');
-        $typeFilter  = $request->input('type') ? strtoupper($request->input('type')) : null;
-        $perPage     = min(100, max(10, (int) $request->input('per_page', 25)));
+        $typeFilter = $request->input('type') ? strtoupper($request->input('type')) : null;
+        $perPage = min(100, max(10, (int) $request->input('per_page', 25)));
 
         $productQ = DB::table('inventory_movements as im')
             ->join('products as p', 'p.id', '=', 'im.product_id')
@@ -446,9 +450,9 @@ class InventoryDashboardController extends Controller
                 'u.id as performer_id',
                 'u.name as performer_name',
             ])
-            ->when($since,       fn ($q) => $q->where('im.created_at', '>', Carbon::parse($since)))
+            ->when($since, fn ($q) => $q->where('im.created_at', '>', Carbon::parse($since)))
             ->when($warehouseId, fn ($q) => $q->where('im.warehouse_id', $warehouseId))
-            ->when($typeFilter,  fn ($q) => $q->where('im.type', $typeFilter));
+            ->when($typeFilter, fn ($q) => $q->where('im.type', $typeFilter));
 
         $supplyQ = DB::table('supply_movements as sm')
             ->join('supplies as s', 's.id', '=', 'sm.supply_id')
@@ -470,9 +474,9 @@ class InventoryDashboardController extends Controller
                 'u.id as performer_id',
                 'u.name as performer_name',
             ])
-            ->when($since,       fn ($q) => $q->where('sm.created_at', '>', Carbon::parse($since)))
+            ->when($since, fn ($q) => $q->where('sm.created_at', '>', Carbon::parse($since)))
             ->when($warehouseId, fn ($q) => $q->where('sm.warehouse_id', $warehouseId))
-            ->when($typeFilter,  fn ($q) => $q->where('sm.type', $typeFilter));
+            ->when($typeFilter, fn ($q) => $q->where('sm.type', $typeFilter));
 
         $union = $productQ->unionAll($supplyQ);
 
@@ -484,12 +488,12 @@ class InventoryDashboardController extends Controller
             ->paginate($perPage);
 
         return response()->json([
-            'data'        => $paginated->items(),
-            'meta'        => [
+            'data' => $paginated->items(),
+            'meta' => [
                 'current_page' => $paginated->currentPage(),
-                'last_page'    => $paginated->lastPage(),
-                'per_page'     => $paginated->perPage(),
-                'total'        => $paginated->total(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
             ],
             'server_time' => now()->toISOString(),
         ]);

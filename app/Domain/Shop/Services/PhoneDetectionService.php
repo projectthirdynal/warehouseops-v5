@@ -28,11 +28,11 @@ class PhoneDetectionService
         $digits = preg_replace('/\D+/', '', $phone) ?? '';
 
         if (str_starts_with($digits, '63') && strlen($digits) === 12) {
-            return '0' . substr($digits, 2);
+            return '0'.substr($digits, 2);
         }
 
         if (str_starts_with($digits, '9') && strlen($digits) === 10) {
-            return '0' . $digits;
+            return '0'.$digits;
         }
 
         return $digits;

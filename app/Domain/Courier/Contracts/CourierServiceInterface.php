@@ -20,7 +20,7 @@ interface CourierServiceInterface
     /**
      * Query tracking status for one or more waybill numbers.
      *
-     * @param  string[] $waybillNumbers
+     * @param  string[]  $waybillNumbers
      * @return TrackingResultDTO[]
      */
     public function queryTracking(array $waybillNumbers): array;

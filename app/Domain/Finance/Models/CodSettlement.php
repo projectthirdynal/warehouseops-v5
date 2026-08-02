@@ -24,13 +24,13 @@ class CodSettlement extends Model
     ];
 
     protected $casts = [
-        'period_start'       => 'date',
-        'period_end'         => 'date',
+        'period_start' => 'date',
+        'period_end' => 'date',
         'total_cod_collected' => 'decimal:2',
-        'courier_fee'        => 'decimal:2',
-        'net_amount'         => 'decimal:2',
-        'received_at'        => 'datetime',
-        'reconciled_at'      => 'datetime',
+        'courier_fee' => 'decimal:2',
+        'net_amount' => 'decimal:2',
+        'received_at' => 'datetime',
+        'reconciled_at' => 'datetime',
     ];
 
     public function scopePending($query)

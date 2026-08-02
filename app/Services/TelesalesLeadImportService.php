@@ -11,6 +11,8 @@ use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class TelesalesLeadImportService
 {
@@ -60,11 +62,11 @@ class TelesalesLeadImportService
     {
         $rows = [];
         try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $spreadsheet = IOFactory::load($file->getRealPath());
             $sheet = $spreadsheet->getActiveSheet();
             $highestRow = $sheet->getHighestRow();
             // Determine column count dynamically (ISS-014)
-            $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
+            $highestColIndex = Coordinate::columnIndexFromString(
                 $sheet->getHighestColumn()
             );
 
@@ -76,8 +78,9 @@ class TelesalesLeadImportService
                 $rows[] = $row;
             }
         } catch (\Exception $e) {
-            Log::error('Telesales XLSX import failed: ' . $e->getMessage());
-            return ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => ['Failed to read XLSX: ' . $e->getMessage()]];
+            Log::error('Telesales XLSX import failed: '.$e->getMessage());
+
+            return ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => ['Failed to read XLSX: '.$e->getMessage()]];
         }
 
         // Skip header if first row looks like headers
@@ -101,7 +104,7 @@ class TelesalesLeadImportService
             $result = $this->processRow($row, $userId);
 
             if (isset($result['error'])) {
-                $stats['errors'][] = "Row " . ($index + 1) . ": {$result['error']}";
+                $stats['errors'][] = 'Row '.($index + 1).": {$result['error']}";
                 $stats['skipped']++;
             } elseif ($result['action'] === 'created') {
                 $stats['created']++;
@@ -110,7 +113,7 @@ class TelesalesLeadImportService
             }
         }
 
-        Log::info("Telesales import complete", [
+        Log::info('Telesales import complete', [
             'created' => $stats['created'],
             'updated' => $stats['updated'],
             'skipped' => $stats['skipped'],
@@ -123,6 +126,7 @@ class TelesalesLeadImportService
     private function isHeaderRow(array $row): bool
     {
         $first = strtolower(trim($row[0] ?? ''));
+
         return in_array($first, ['id', 'name', 'customer', 'phone', 'order']) ||
             str_contains($first, 'name');
     }
@@ -231,7 +235,7 @@ class TelesalesLeadImportService
             return null;
         }
 
-        if (is_float($raw) || (is_string($raw) && str_contains(strtolower((string)$raw), 'e'))) {
+        if (is_float($raw) || (is_string($raw) && str_contains(strtolower((string) $raw), 'e'))) {
             $raw = (string) (int) round((float) $raw);
         } else {
             $raw = (string) $raw;
@@ -240,15 +244,15 @@ class TelesalesLeadImportService
         $digits = preg_replace('/\D/', '', $raw);
 
         if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
-            $digits = '0' . $digits;
+            $digits = '0'.$digits;
         }
 
         if (strlen($digits) === 11 && str_starts_with($digits, '09')) {
-            return '+63' . substr($digits, 1);
+            return '+63'.substr($digits, 1);
         }
 
         if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
-            return '+' . $digits;
+            return '+'.$digits;
         }
 
         if (strlen($digits) === 13 && str_starts_with($digits, '+639')) {
@@ -263,14 +267,16 @@ class TelesalesLeadImportService
         if (empty($value)) {
             return null;
         }
+
         return ucwords(strtolower(trim($value)));
     }
 
     private function parseAmount(mixed $value): ?float
     {
-        if (empty($value) || !is_numeric($value)) {
+        if (empty($value) || ! is_numeric($value)) {
             return null;
         }
+
         return (float) $value;
     }
 

@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Lead;
+use App\Models\User;
+use App\Models\Waybill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -46,7 +47,7 @@ class AgentController extends Controller
             'total' => $agents->count(),
             'active' => $agents->where('is_active', true)->count(),
             'inactive' => $agents->where('is_active', false)->count(),
-            'avg_performance' => $agents->avg(fn($a) => $a->agentProfile?->performance_score ?? 50),
+            'avg_performance' => $agents->avg(fn ($a) => $a->agentProfile?->performance_score ?? 50),
         ];
 
         return Inertia::render('Agents/Index', [
@@ -91,24 +92,24 @@ class AgentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', Password::min(8)],
-            'phone'    => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20'],
         ]);
 
         $user = User::create([
-            'name'      => $validated['name'],
-            'email'     => $validated['email'],
-            'password'  => Hash::make($validated['password']),
-            'phone'     => $validated['phone'] ?? null,
-            'role'      => 'agent',
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'phone' => $validated['phone'] ?? null,
+            'role' => 'agent',
             'is_active' => true,
         ]);
 
         $user->agentProfile()->create([
             'max_active_cycles' => 10,
-            'is_available'      => true,
+            'is_available' => true,
         ]);
 
         return back()->with('success', "Agent account created for {$user->name}.");
@@ -117,19 +118,19 @@ class AgentController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email,' . $user->id],
-            'phone'    => ['nullable', 'string', 'max:20'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email,'.$user->id],
+            'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', Password::min(8)],
         ]);
 
         $data = [
-            'name'  => $validated['name'],
+            'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);
         }
 
@@ -153,7 +154,7 @@ class AgentController extends Controller
 
     public function toggleActive(User $user)
     {
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
         $status = $user->is_active ? 'activated' : 'deactivated';
 
         return back()->with('success', "Agent {$user->name} has been {$status}.");
@@ -162,42 +163,42 @@ class AgentController extends Controller
     public function updateProfile(Request $request, User $user)
     {
         $validated = $request->validate([
-            'product_skills'         => ['nullable', 'array'],
-            'product_skills.*'       => ['string', 'max:100'],
-            'category_skills'        => ['nullable', 'array'],
-            'category_skills.*'      => ['string', 'max:100'],
-            'regions'                => ['nullable', 'array'],
-            'regions.*'              => ['string', 'max:100'],
-            'excluded_regions'       => ['nullable', 'array'],
-            'excluded_regions.*'     => ['string', 'max:100'],
+            'product_skills' => ['nullable', 'array'],
+            'product_skills.*' => ['string', 'max:100'],
+            'category_skills' => ['nullable', 'array'],
+            'category_skills.*' => ['string', 'max:100'],
+            'regions' => ['nullable', 'array'],
+            'regions.*' => ['string', 'max:100'],
+            'excluded_regions' => ['nullable', 'array'],
+            'excluded_regions.*' => ['string', 'max:100'],
             'preferred_lead_sources' => ['nullable', 'array'],
             'preferred_lead_sources.*' => ['string', 'max:100'],
-            'max_active_cycles'      => ['nullable', 'integer', 'min:1', 'max:50'],
-            'concurrent_lead_cap'    => ['nullable', 'integer', 'min:1', 'max:50'],
-            'max_daily_leads'        => ['nullable', 'integer', 'min:1', 'max:500'],
-            'is_available'           => ['nullable', 'boolean'],
-            'auto_assign_enabled'    => ['nullable', 'boolean'],
-            'distribution_weight'    => ['nullable', 'numeric', 'min:0.5', 'max:2.0'],
-            'shift_start'            => ['nullable', 'date_format:H:i'],
-            'shift_end'              => ['nullable', 'date_format:H:i'],
+            'max_active_cycles' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'concurrent_lead_cap' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'max_daily_leads' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'is_available' => ['nullable', 'boolean'],
+            'auto_assign_enabled' => ['nullable', 'boolean'],
+            'distribution_weight' => ['nullable', 'numeric', 'min:0.5', 'max:2.0'],
+            'shift_start' => ['nullable', 'date_format:H:i'],
+            'shift_end' => ['nullable', 'date_format:H:i'],
         ]);
 
         $profile = $user->agentProfile;
 
         $defaults = [
-            'product_skills'         => $validated['product_skills'] ?? [],
-            'category_skills'        => $validated['category_skills'] ?? [],
-            'regions'                => $validated['regions'] ?? [],
-            'excluded_regions'       => $validated['excluded_regions'] ?? [],
-            'preferred_lead_sources'   => $validated['preferred_lead_sources'] ?? [],
-            'max_active_cycles'      => $validated['max_active_cycles'] ?? 10,
-            'concurrent_lead_cap'    => $validated['concurrent_lead_cap'] ?? null,
-            'max_daily_leads'        => $validated['max_daily_leads'] ?? 50,
-            'is_available'           => $validated['is_available'] ?? true,
-            'auto_assign_enabled'    => $validated['auto_assign_enabled'] ?? true,
-            'distribution_weight'    => $validated['distribution_weight'] ?? 1.0,
-            'shift_start'            => $validated['shift_start'] ?? null,
-            'shift_end'              => $validated['shift_end'] ?? null,
+            'product_skills' => $validated['product_skills'] ?? [],
+            'category_skills' => $validated['category_skills'] ?? [],
+            'regions' => $validated['regions'] ?? [],
+            'excluded_regions' => $validated['excluded_regions'] ?? [],
+            'preferred_lead_sources' => $validated['preferred_lead_sources'] ?? [],
+            'max_active_cycles' => $validated['max_active_cycles'] ?? 10,
+            'concurrent_lead_cap' => $validated['concurrent_lead_cap'] ?? null,
+            'max_daily_leads' => $validated['max_daily_leads'] ?? 50,
+            'is_available' => $validated['is_available'] ?? true,
+            'auto_assign_enabled' => $validated['auto_assign_enabled'] ?? true,
+            'distribution_weight' => $validated['distribution_weight'] ?? 1.0,
+            'shift_start' => $validated['shift_start'] ?? null,
+            'shift_end' => $validated['shift_end'] ?? null,
         ];
 
         if (! $profile) {
@@ -205,19 +206,19 @@ class AgentController extends Controller
         } else {
             $profile->update(array_filter(
                 array_merge($defaults, [
-                    'product_skills'         => $validated['product_skills'] ?? $profile->product_skills,
-                    'category_skills'        => $validated['category_skills'] ?? $profile->category_skills,
-                    'regions'                => $validated['regions'] ?? $profile->regions,
-                    'excluded_regions'       => $validated['excluded_regions'] ?? $profile->excluded_regions,
-                    'preferred_lead_sources'   => $validated['preferred_lead_sources'] ?? $profile->preferred_lead_sources,
-                    'max_active_cycles'      => $validated['max_active_cycles'] ?? $profile->max_active_cycles,
-                    'concurrent_lead_cap'    => $validated['concurrent_lead_cap'] ?? $profile->concurrent_lead_cap,
-                    'max_daily_leads'        => $validated['max_daily_leads'] ?? $profile->max_daily_leads,
-                    'is_available'           => $validated['is_available'] ?? $profile->is_available,
-                    'auto_assign_enabled'    => $validated['auto_assign_enabled'] ?? $profile->auto_assign_enabled,
-                    'distribution_weight'    => $validated['distribution_weight'] ?? $profile->distribution_weight,
-                    'shift_start'            => $validated['shift_start'] ?? $profile->shift_start,
-                    'shift_end'              => $validated['shift_end'] ?? $profile->shift_end,
+                    'product_skills' => $validated['product_skills'] ?? $profile->product_skills,
+                    'category_skills' => $validated['category_skills'] ?? $profile->category_skills,
+                    'regions' => $validated['regions'] ?? $profile->regions,
+                    'excluded_regions' => $validated['excluded_regions'] ?? $profile->excluded_regions,
+                    'preferred_lead_sources' => $validated['preferred_lead_sources'] ?? $profile->preferred_lead_sources,
+                    'max_active_cycles' => $validated['max_active_cycles'] ?? $profile->max_active_cycles,
+                    'concurrent_lead_cap' => $validated['concurrent_lead_cap'] ?? $profile->concurrent_lead_cap,
+                    'max_daily_leads' => $validated['max_daily_leads'] ?? $profile->max_daily_leads,
+                    'is_available' => $validated['is_available'] ?? $profile->is_available,
+                    'auto_assign_enabled' => $validated['auto_assign_enabled'] ?? $profile->auto_assign_enabled,
+                    'distribution_weight' => $validated['distribution_weight'] ?? $profile->distribution_weight,
+                    'shift_start' => $validated['shift_start'] ?? $profile->shift_start,
+                    'shift_end' => $validated['shift_end'] ?? $profile->shift_end,
                 ]),
                 fn ($v) => $v !== null
             ));
@@ -239,10 +240,10 @@ class AgentController extends Controller
                 'trend' => 12,
             ],
             'waybills' => [
-                'total' => \App\Models\Waybill::count(),
-                'dispatched_today' => \App\Models\Waybill::whereDate('dispatched_at', today())->count(),
-                'delivered_today' => \App\Models\Waybill::whereDate('delivered_at', today())->count(),
-                'returned_today' => \App\Models\Waybill::whereDate('returned_at', today())->count(),
+                'total' => Waybill::count(),
+                'dispatched_today' => Waybill::whereDate('dispatched_at', today())->count(),
+                'delivered_today' => Waybill::whereDate('delivered_at', today())->count(),
+                'returned_today' => Waybill::whereDate('returned_at', today())->count(),
                 'delivery_rate' => 85,
             ],
             'agents' => [

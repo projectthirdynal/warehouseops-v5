@@ -60,18 +60,31 @@ class Upload extends Model
     ];
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_FAILED = 'failed';
+
     public const STATUS_QUEUED = 'queued';
+
     public const STATUS_VALIDATING = 'validating';
+
     public const STATUS_VALIDATION_FAILED = 'validation_failed';
+
     public const STATUS_VALIDATED = 'validated';
+
     public const STATUS_TRANSFORMING = 'transforming';
+
     public const STATUS_READY_TO_IMPORT = 'ready_to_import';
+
     public const STATUS_IMPORTING = 'importing';
+
     public const STATUS_READY_TO_PROCESS = 'ready_to_process';
+
     public const STATUS_COMPLETED_WITH_ERRORS = 'completed_with_errors';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public function uploadedBy(): BelongsTo
@@ -102,8 +115,8 @@ class Upload extends Model
     public function markAsFailed(array $errors = []): void
     {
         $this->update([
-            'status'       => self::STATUS_FAILED,
-            'errors'       => $errors,
+            'status' => self::STATUS_FAILED,
+            'errors' => $errors,
             'completed_at' => now(),
         ]);
     }

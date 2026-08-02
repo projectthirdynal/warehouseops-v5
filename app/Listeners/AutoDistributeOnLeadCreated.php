@@ -32,6 +32,7 @@ class AutoDistributeOnLeadCreated
         $lockKey = 'auto-distribute:debounce';
         if (! Cache::add($lockKey, true, now()->addSeconds(30))) {
             Log::info("AutoDistributeOnLeadCreated: Lead {$lead->id} created, debounced");
+
             return;
         }
 

@@ -23,9 +23,9 @@ class PurchaseRequest extends Model
     ];
 
     protected $casts = [
-        'status'          => PrStatus::class,
-        'needed_by_date'  => 'date',
-        'approved_at'     => 'datetime',
+        'status' => PrStatus::class,
+        'needed_by_date' => 'date',
+        'approved_at' => 'datetime',
         'estimated_total' => 'decimal:2',
     ];
 
@@ -52,7 +52,8 @@ class PurchaseRequest extends Model
     public static function generateNumber(): string
     {
         $date = now()->format('Ymd');
-        $seq  = self::whereDate('created_at', now()->toDateString())->count() + 1;
-        return 'PR-' . $date . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+        $seq = self::whereDate('created_at', now()->toDateString())->count() + 1;
+
+        return 'PR-'.$date.'-'.str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
     }
 }

@@ -28,18 +28,18 @@ class Invoice extends Model
     ];
 
     protected $casts = [
-        'date_invoice'    => 'date',
-        'date_due'        => 'date',
-        'date_sent'       => 'date',
-        'subtotal'        => 'decimal:2',
+        'date_invoice' => 'date',
+        'date_due' => 'date',
+        'date_sent' => 'date',
+        'subtotal' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'tax_rate'        => 'decimal:2',
-        'tax_amount'      => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
         'shipping_amount' => 'decimal:2',
-        'total_amount'    => 'decimal:2',
-        'amount_paid'     => 'decimal:2',
-        'amount_due'      => 'decimal:2',
-        'cancelled_at'    => 'datetime',
+        'total_amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'amount_due' => 'decimal:2',
+        'cancelled_at' => 'datetime',
     ];
 
     public static function generateRef(): string
@@ -48,6 +48,7 @@ class Invoice extends Model
         $count = DB::transaction(function () use ($year) {
             return self::withTrashed()->whereYear('created_at', $year)->lockForUpdate()->count() + 1;
         });
+
         return sprintf('INV-%s-%05d', $year, $count);
     }
 
@@ -77,24 +78,59 @@ class Invoice extends Model
     }
 
     // Scopes
-    public function scopeDraft($q)      { return $q->where('status', 'DRAFT'); }
-    public function scopeValidated($q)  { return $q->where('status', 'VALIDATED'); }
-    public function scopeSent($q)       { return $q->where('status', 'SENT'); }
-    public function scopePartial($q)    { return $q->where('status', 'PARTIAL'); }
-    public function scopePaid($q)       { return $q->where('status', 'PAID'); }
-    public function scopeOverdue($q)    { return $q->where('status', 'OVERDUE'); }
-    public function scopeCancelled($q)  { return $q->where('status', 'CANCELLED'); }
-    public function scopeStandard($q)   { return $q->where('type', 'standard'); }
-    public function scopeCreditNote($q) { return $q->where('type', 'credit_note'); }
+    public function scopeDraft($q)
+    {
+        return $q->where('status', 'DRAFT');
+    }
+
+    public function scopeValidated($q)
+    {
+        return $q->where('status', 'VALIDATED');
+    }
+
+    public function scopeSent($q)
+    {
+        return $q->where('status', 'SENT');
+    }
+
+    public function scopePartial($q)
+    {
+        return $q->where('status', 'PARTIAL');
+    }
+
+    public function scopePaid($q)
+    {
+        return $q->where('status', 'PAID');
+    }
+
+    public function scopeOverdue($q)
+    {
+        return $q->where('status', 'OVERDUE');
+    }
+
+    public function scopeCancelled($q)
+    {
+        return $q->where('status', 'CANCELLED');
+    }
+
+    public function scopeStandard($q)
+    {
+        return $q->where('type', 'standard');
+    }
+
+    public function scopeCreditNote($q)
+    {
+        return $q->where('type', 'credit_note');
+    }
 
     public function scopeSearch($q, string $term)
     {
-        $like = '%' . mb_strtolower($term) . '%';
+        $like = '%'.mb_strtolower($term).'%';
 
         return $q->where(function ($sq) use ($like) {
             $sq->whereRaw('LOWER(ref) LIKE ?', [$like])
-               ->orWhereRaw('LOWER(client_name) LIKE ?', [$like])
-               ->orWhereRaw('LOWER(client_email) LIKE ?', [$like]);
+                ->orWhereRaw('LOWER(client_name) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(client_email) LIKE ?', [$like]);
         });
     }
 

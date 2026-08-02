@@ -17,21 +17,21 @@ class RevenueService
     public function recordSale(Order $order): void
     {
         FinancialTransaction::create([
-            'type'             => 'REVENUE',
-            'amount'           => $order->total_amount,
-            'reference_type'   => Order::class,
-            'reference_id'     => $order->id,
-            'description'      => "Sale: {$order->order_number} — {$order->product?->name}",
+            'type' => 'REVENUE',
+            'amount' => $order->total_amount,
+            'reference_type' => Order::class,
+            'reference_id' => $order->id,
+            'description' => "Sale: {$order->order_number} — {$order->product?->name}",
             'transaction_date' => today(),
         ]);
 
         if ($order->shipping_cost > 0) {
             FinancialTransaction::create([
-                'type'             => 'SHIPPING_COST',
-                'amount'           => -$order->shipping_cost,
-                'reference_type'   => Order::class,
-                'reference_id'     => $order->id,
-                'description'      => "Shipping cost: {$order->order_number}",
+                'type' => 'SHIPPING_COST',
+                'amount' => -$order->shipping_cost,
+                'reference_type' => Order::class,
+                'reference_id' => $order->id,
+                'description' => "Shipping cost: {$order->order_number}",
                 'transaction_date' => today(),
             ]);
         }
@@ -43,11 +43,11 @@ class RevenueService
     public function recordReturn(Order $order): void
     {
         FinancialTransaction::create([
-            'type'             => 'REFUND',
-            'amount'           => -$order->total_amount,
-            'reference_type'   => Order::class,
-            'reference_id'     => $order->id,
-            'description'      => "Return: {$order->order_number}",
+            'type' => 'REFUND',
+            'amount' => -$order->total_amount,
+            'reference_type' => Order::class,
+            'reference_id' => $order->id,
+            'description' => "Return: {$order->order_number}",
             'transaction_date' => today(),
         ]);
     }
@@ -62,10 +62,10 @@ class RevenueService
 
         $transactions = FinancialTransaction::whereBetween('transaction_date', [$from, $to]);
 
-        $revenue   = (float) $transactions->clone()->where('type', 'REVENUE')->sum('amount');
-        $shipping  = (float) abs($transactions->clone()->where('type', 'SHIPPING_COST')->sum('amount'));
+        $revenue = (float) $transactions->clone()->where('type', 'REVENUE')->sum('amount');
+        $shipping = (float) abs($transactions->clone()->where('type', 'SHIPPING_COST')->sum('amount'));
         $commissions = (float) abs($transactions->clone()->where('type', 'COMMISSION')->sum('amount'));
-        $refunds   = (float) abs($transactions->clone()->where('type', 'REFUND')->sum('amount'));
+        $refunds = (float) abs($transactions->clone()->where('type', 'REFUND')->sum('amount'));
 
         // COGS from orders
         $deliveredOrders = Order::where('status', OrderStatus::DELIVERED)
@@ -75,6 +75,7 @@ class RevenueService
 
         $cogs = $deliveredOrders->sum(function ($order) {
             $cost = $order->product ? (float) $order->product->cost_price : 0;
+
             return $cost * $order->quantity;
         });
 
@@ -84,18 +85,18 @@ class RevenueService
         $netProfit = $grossProfit - $shipping - $commissions;
 
         return [
-            'period'         => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
-            'gross_revenue'  => $grossRevenue,
-            'refunds'        => $refunds,
-            'net_revenue'    => $netRevenue,
-            'cogs'           => $cogs,
-            'gross_profit'   => $grossProfit,
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'gross_revenue' => $grossRevenue,
+            'refunds' => $refunds,
+            'net_revenue' => $netRevenue,
+            'cogs' => $cogs,
+            'gross_profit' => $grossProfit,
             'shipping_costs' => $shipping,
-            'commissions'    => $commissions,
-            'net_profit'     => $netProfit,
-            'margin'         => $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 1) : 0,
+            'commissions' => $commissions,
+            'net_profit' => $netProfit,
+            'margin' => $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 1) : 0,
             'orders_delivered' => $deliveredOrders->count(),
-            'orders_returned'  => Order::where('status', OrderStatus::RETURNED)->whereBetween('returned_at', [$from, $to])->count(),
+            'orders_returned' => Order::where('status', OrderStatus::RETURNED)->whereBetween('returned_at', [$from, $to])->count(),
         ];
     }
 
@@ -108,12 +109,12 @@ class RevenueService
 
         return FinancialTransaction::where('type', 'REVENUE')
             ->where('transaction_date', '>=', $from)
-            ->selectRaw("transaction_date, SUM(amount) as total")
+            ->selectRaw('transaction_date, SUM(amount) as total')
             ->groupBy('transaction_date')
             ->orderBy('transaction_date')
             ->get()
             ->map(fn ($row) => [
-                'date'  => $row->transaction_date->format('M d'),
+                'date' => $row->transaction_date->format('M d'),
                 'total' => (float) $row->total,
             ])
             ->toArray();

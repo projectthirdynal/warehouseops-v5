@@ -10,10 +10,10 @@ namespace App\Domain\Shop\CourierCsv;
 final class CourierCsvColumn
 {
     /**
-     * @param string $header CSV header label
-     * @param string $field Canonical field name (e.g. 'receiver_name', 'phone_number', 'sender_name')
-     * @param bool $required Whether this field must be present and non-empty
-     * @param string|null $label Human-readable label for validation messages (defaults to header)
+     * @param  string  $header  CSV header label
+     * @param  string  $field  Canonical field name (e.g. 'receiver_name', 'phone_number', 'sender_name')
+     * @param  bool  $required  Whether this field must be present and non-empty
+     * @param  string|null  $label  Human-readable label for validation messages (defaults to header)
      */
     public function __construct(
         public readonly string $header,

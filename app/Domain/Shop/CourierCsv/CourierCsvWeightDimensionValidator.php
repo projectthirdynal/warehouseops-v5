@@ -129,8 +129,8 @@ final class CourierCsvWeightDimensionValidator
     /**
      * Validate item dimensions when product/variant exposes them.
      *
-     * @param array<string, mixed> $rules
-     * @param array<int, string> $errors
+     * @param  array<string, mixed>  $rules
+     * @param  array<int, string>  $errors
      */
     private function validateDimensions(Order $order, array &$errors, array $rules): void
     {

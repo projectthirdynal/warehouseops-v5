@@ -4,13 +4,14 @@ namespace Tests\Feature\Controllers;
 
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
-use App\Models\User;
 use App\Models\AgentProfile;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Customer model does not exist yet - tests will fail until implemented
  */
 class LeadPoolControllerTest extends TestCase
@@ -34,11 +35,10 @@ class LeadPoolControllerTest extends TestCase
             ->get('/lead-pool');
 
         $response->assertOk();
-        $response->assertInertia(fn ($page) =>
-            $page->component('LeadPool/Index')
-                ->has('stats')
-                ->where('stats.available', 5)
-                ->where('stats.assigned', 3)
+        $response->assertInertia(fn ($page) => $page->component('LeadPool/Index')
+            ->has('stats')
+            ->where('stats.available', 5)
+            ->where('stats.assigned', 3)
         );
     }
 

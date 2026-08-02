@@ -55,41 +55,45 @@ class StockService
                     ['location_id' => $locationId, 'current_stock' => 0, 'reserved_stock' => 0]
                 );
 
-            $stock->current_stock   += $quantity;
-            $stock->last_restock_at  = now();
+            $stock->current_stock += $quantity;
+            $stock->last_restock_at = now();
             $stock->last_movement_at = now();
-            if ($stock->warehouse_id === null) $stock->warehouse_id = $warehouseId;
-            if ($stock->location_id === null)  $stock->location_id  = $locationId;
+            if ($stock->warehouse_id === null) {
+                $stock->warehouse_id = $warehouseId;
+            }
+            if ($stock->location_id === null) {
+                $stock->location_id = $locationId;
+            }
             $stock->save();
 
             StockCostLot::create([
-                'product_id'         => $productId,
-                'variant_id'         => $variantId,
-                'warehouse_id'       => $warehouseId,
-                'grn_item_id'        => $grnItemId,
-                'quantity_received'  => $quantity,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'grn_item_id' => $grnItemId,
+                'quantity_received' => $quantity,
                 'quantity_remaining' => $quantity,
-                'unit_cost'          => $unitCost,
-                'currency_code'      => $currencyCode,
-                'exchange_rate'      => $exchangeRate,
-                'received_at'        => now(),
-                'expiry_date'        => $expiryDate,
-                'batch_number'       => $batchNumber,
+                'unit_cost' => $unitCost,
+                'currency_code' => $currencyCode,
+                'exchange_rate' => $exchangeRate,
+                'received_at' => now(),
+                'expiry_date' => $expiryDate,
+                'batch_number' => $batchNumber,
             ]);
 
             InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'location_id'    => $locationId,
-                'type'           => 'STOCK_IN',
-                'quantity'       => $quantity,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'location_id' => $locationId,
+                'type' => 'STOCK_IN',
+                'quantity' => $quantity,
                 'reference_type' => $grnItemId ? 'grn_item' : null,
-                'reference_id'   => $grnItemId,
-                'batch_number'   => $batchNumber,
-                'expiry_date'    => $expiryDate,
-                'notes'          => $grnItemId ? "Received from GRN item #{$grnItemId}" : null,
-                'performed_by'   => $performedBy,
+                'reference_id' => $grnItemId,
+                'batch_number' => $batchNumber,
+                'expiry_date' => $expiryDate,
+                'notes' => $grnItemId ? "Received from GRN item #{$grnItemId}" : null,
+                'performed_by' => $performedBy,
             ]);
         });
     }
@@ -122,19 +126,19 @@ class StockService
                 throw new InsufficientStockException($productId, $quantity, $stock?->current_stock ?? 0);
             }
 
-            $stock->current_stock   -= $quantity;
+            $stock->current_stock -= $quantity;
             $stock->last_movement_at = now();
             $stock->save();
 
             InventoryMovement::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'type'           => 'STOCK_OUT',
-                'quantity'       => -$quantity,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'STOCK_OUT',
+                'quantity' => -$quantity,
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
-                'performed_by'   => $performedBy,
+                'reference_id' => $referenceId,
+                'performed_by' => $performedBy,
             ]);
         });
     }
@@ -166,9 +170,9 @@ class StockService
                 })
                 ->whereRaw('(current_stock - reserved_stock) >= ?', [$quantity])
                 ->update([
-                    'reserved_stock'  => DB::raw("reserved_stock + {$quantity}"),
+                    'reserved_stock' => DB::raw("reserved_stock + {$quantity}"),
                     'last_movement_at' => now(),
-                    'updated_at'      => now(),
+                    'updated_at' => now(),
                 ]);
 
             if ($rows === 0) {
@@ -182,16 +186,16 @@ class StockService
             }
 
             return StockReservation::create([
-                'product_id'     => $productId,
-                'variant_id'     => $variantId,
-                'warehouse_id'   => $warehouseId,
-                'quantity'       => $quantity,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'quantity' => $quantity,
                 'reference_type' => $referenceType,
-                'reference_id'   => $referenceId,
-                'reserved_by'    => $reservedBy,
-                'reserved_at'    => now(),
-                'expires_at'     => $expiresAt,
-                'status'         => 'ACTIVE',
+                'reference_id' => $referenceId,
+                'reserved_by' => $reservedBy,
+                'reserved_at' => now(),
+                'expires_at' => $expiresAt,
+                'status' => 'ACTIVE',
             ]);
         });
     }
@@ -222,18 +226,18 @@ class StockService
 
             $variance = $newQuantity - $stock->current_stock;
 
-            $stock->current_stock   = $newQuantity;
+            $stock->current_stock = $newQuantity;
             $stock->last_movement_at = now();
             $stock->save();
 
             InventoryMovement::create([
-                'product_id'   => $productId,
-                'variant_id'   => $variantId,
+                'product_id' => $productId,
+                'variant_id' => $variantId,
                 'warehouse_id' => $warehouseId,
-                'location_id'  => $locationId,
-                'type'         => 'ADJUSTMENT',
-                'quantity'     => $variance,
-                'notes'        => $notes ?? "Adjusted to {$newQuantity}",
+                'location_id' => $locationId,
+                'type' => 'ADJUSTMENT',
+                'quantity' => $variance,
+                'notes' => $notes ?? "Adjusted to {$newQuantity}",
                 'performed_by' => $performedBy,
             ]);
         });
@@ -244,7 +248,9 @@ class StockService
      */
     public function release(StockReservation $reservation, string $reason = 'manual'): void
     {
-        if ($reservation->status !== 'ACTIVE') return;
+        if ($reservation->status !== 'ACTIVE') {
+            return;
+        }
 
         DB::transaction(function () use ($reservation, $reason) {
             $reservation->lockForUpdate();
@@ -257,13 +263,13 @@ class StockService
                         : $q->where('variant_id', $reservation->variant_id);
                 })
                 ->update([
-                    'reserved_stock'  => DB::raw("CASE WHEN reserved_stock - {$reservation->quantity} > 0 THEN reserved_stock - {$reservation->quantity} ELSE 0 END"),
+                    'reserved_stock' => DB::raw("CASE WHEN reserved_stock - {$reservation->quantity} > 0 THEN reserved_stock - {$reservation->quantity} ELSE 0 END"),
                     'last_movement_at' => now(),
-                    'updated_at'      => now(),
+                    'updated_at' => now(),
                 ]);
 
-            $reservation->status          = 'RELEASED';
-            $reservation->released_at     = now();
+            $reservation->status = 'RELEASED';
+            $reservation->released_at = now();
             $reservation->released_reason = $reason;
             $reservation->save();
         });

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Domain\Courier\Services\StatusMapper;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Bus\Queueable;
@@ -17,6 +18,7 @@ class ProcessStreamingChunk implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 300;
 
     public function __construct(
@@ -30,8 +32,8 @@ class ProcessStreamingChunk implements ShouldQueue
     public function handle(): void
     {
         $upload = Upload::find($this->uploadId);
-        
-        if (!$upload || $upload->status === Upload::STATUS_CANCELLED) {
+
+        if (! $upload || $upload->status === Upload::STATUS_CANCELLED) {
             return;
         }
 
@@ -40,8 +42,8 @@ class ProcessStreamingChunk implements ShouldQueue
             $key = "upload:{$this->uploadId}:chunk:{$this->chunkNumber}";
             $data = json_decode(Redis::get($key), true);
 
-            if (!$data) {
-                throw new \Exception("Chunk data not found");
+            if (! $data) {
+                throw new \Exception('Chunk data not found');
             }
 
             // Process data immediately
@@ -84,6 +86,7 @@ class ProcessStreamingChunk implements ShouldQueue
                 $waybillData[] = $mapped;
             } catch (\Throwable $e) {
                 $errors++;
+
                 continue;
             }
         }
@@ -107,7 +110,7 @@ class ProcessStreamingChunk implements ShouldQueue
             ['status', 'signed_at', 'delivered_at', 'returned_at', 'updated_at']
         );
 
-        $inserted = count(array_filter($waybillNumbers, fn($n) => !isset($existing[$n])));
+        $inserted = count(array_filter($waybillNumbers, fn ($n) => ! isset($existing[$n])));
         $updated = count($waybillData) - $inserted;
 
         return ['inserted' => $inserted, 'updated' => $updated, 'errors' => $errors];
@@ -157,25 +160,32 @@ class ProcessStreamingChunk implements ShouldQueue
 
     protected function mapStatus(string $courier, string $status): string
     {
-        $mapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+        $mapper = app(StatusMapper::class);
+
         return $mapper->resolve($courier, $status)->value;
     }
 
     protected function parseNumeric($value): float
     {
-        if (empty($value)) return 0;
+        if (empty($value)) {
+            return 0;
+        }
+
         return (float) preg_replace('/[^0-9.\-]/', '', (string) $value);
     }
 
     protected function parseDateTime($value): ?string
     {
-        if (empty($value)) return null;
-        
+        if (empty($value)) {
+            return null;
+        }
+
         try {
             if ($value instanceof \DateTimeInterface) {
                 return $value->format('Y-m-d H:i:s');
             }
             $ts = strtotime((string) $value);
+
             return $ts !== false ? date('Y-m-d H:i:s', $ts) : null;
         } catch (\Throwable $e) {
             return null;
@@ -187,10 +197,10 @@ class ProcessStreamingChunk implements ShouldQueue
         $upload = Upload::find($this->uploadId);
         $lastChunk = Redis::get("upload:{$this->uploadId}:last_chunk");
 
-        if ($lastChunk !== null && $upload->processed_chunks > (int)$lastChunk) {
+        if ($lastChunk !== null && $upload->processed_chunks > (int) $lastChunk) {
             $upload->update([
-                'status' => $upload->error_rows > 0 
-                    ? Upload::STATUS_COMPLETED_WITH_ERRORS 
+                'status' => $upload->error_rows > 0
+                    ? Upload::STATUS_COMPLETED_WITH_ERRORS
                     : Upload::STATUS_COMPLETED,
                 'completed_at' => now(),
             ]);

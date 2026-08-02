@@ -23,10 +23,10 @@ class ReturnReceipt extends Model
     ];
 
     protected $casts = [
-        'scanned_at'      => 'datetime',
-        'processed_at'    => 'datetime',
-        'inventory_updated'  => 'boolean',
-        'finance_notified'   => 'boolean',
+        'scanned_at' => 'datetime',
+        'processed_at' => 'datetime',
+        'inventory_updated' => 'boolean',
+        'finance_notified' => 'boolean',
     ];
 
     public function waybill(): BelongsTo

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Storage;
 class CleanupOldBatches extends Command
 {
     protected $signature = 'shop:cleanup-old-batches {--days=30 : Delete batches archived more than N days ago}';
+
     protected $description = 'Delete archived courier export batches older than the specified number of days';
 
     public function handle(): int

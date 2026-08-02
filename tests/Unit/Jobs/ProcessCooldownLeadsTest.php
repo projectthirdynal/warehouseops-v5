@@ -5,8 +5,6 @@ namespace Tests\Unit\Jobs;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Jobs\ProcessCooldownLeads;
-use App\Services\LeadAuditService;
-use App\Services\LeadPoolService;
 use App\Services\LeadRecyclingService;
 use Database\Seeders\RecyclingRulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,7 +49,7 @@ class ProcessCooldownLeadsTest extends TestCase
                 return str_contains($message, 'Processed 2 leads');
             });
 
-        $job = new ProcessCooldownLeads();
+        $job = new ProcessCooldownLeads;
         $job->handle(app(LeadRecyclingService::class));
 
         $lead1->refresh();
@@ -79,7 +77,7 @@ class ProcessCooldownLeadsTest extends TestCase
                        str_contains($message, 'Processed 1 leads');
             });
 
-        $job = new ProcessCooldownLeads();
+        $job = new ProcessCooldownLeads;
         $job->handle(app(LeadRecyclingService::class));
     }
 
@@ -91,7 +89,7 @@ class ProcessCooldownLeadsTest extends TestCase
                 return str_contains($message, 'Processed 0 leads');
             });
 
-        $job = new ProcessCooldownLeads();
+        $job = new ProcessCooldownLeads;
         $job->handle(app(LeadRecyclingService::class));
     }
 }

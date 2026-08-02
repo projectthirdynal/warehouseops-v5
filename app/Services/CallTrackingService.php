@@ -40,7 +40,8 @@ class CallTrackingService
 
         // Return SIP link for MicroSIP
         $sanitizedPhone = preg_replace('/[^0-9+]/', '', $lead->phone);
-        return 'sip:' . $sanitizedPhone;
+
+        return 'sip:'.$sanitizedPhone;
     }
 
     public function getAgentCallStats(User $agent, ?string $period = 'today'): array

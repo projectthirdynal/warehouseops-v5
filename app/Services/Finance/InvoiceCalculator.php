@@ -30,18 +30,18 @@ class InvoiceCalculator
         float $discountPct = 0,
         float $taxRate = 0,
     ): array {
-        $subtotal       = $qty * $unitPrice;
+        $subtotal = $qty * $unitPrice;
         $discountAmount = $subtotal * ($discountPct / 100);
-        $totalHt        = $subtotal - $discountAmount;
-        $taxAmount      = $totalHt * ($taxRate / 100);
-        $totalTtc       = $totalHt + $taxAmount;
+        $totalHt = $subtotal - $discountAmount;
+        $taxAmount = $totalHt * ($taxRate / 100);
+        $totalTtc = $totalHt + $taxAmount;
 
         return [
-            'subtotal'        => round($subtotal, 2),
+            'subtotal' => round($subtotal, 2),
             'discount_amount' => round($discountAmount, 2),
-            'total_ht'        => round($totalHt, 2),
-            'tax_amount'      => round($taxAmount, 2),
-            'total_ttc'       => round($totalTtc, 2),
+            'total_ht' => round($totalHt, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'total_ttc' => round($totalTtc, 2),
         ];
     }
 
@@ -55,16 +55,16 @@ class InvoiceCalculator
         // subtotal = pre-discount sum of qty * unit_price
         $subtotal = $lines->sum(fn ($line) => (float) $line->qty * (float) $line->unit_price);
         $discountAmount = $lines->sum('discount_amount');
-        $taxAmount      = $lines->sum('tax_amount');
+        $taxAmount = $lines->sum('tax_amount');
         $shippingAmount = (float) $invoice->shipping_amount;
-        $totalAmount    = $subtotal - $discountAmount + $taxAmount + $shippingAmount;
+        $totalAmount = $subtotal - $discountAmount + $taxAmount + $shippingAmount;
 
         $invoice->update([
-            'subtotal'        => round($subtotal, 2),
+            'subtotal' => round($subtotal, 2),
             'discount_amount' => round($discountAmount, 2),
-            'tax_amount'      => round($taxAmount, 2),
-            'total_amount'    => round($totalAmount, 2),
-            'amount_due'      => round($totalAmount - (float) $invoice->amount_paid, 2),
+            'tax_amount' => round($taxAmount, 2),
+            'total_amount' => round($totalAmount, 2),
+            'amount_due' => round($totalAmount - (float) $invoice->amount_paid, 2),
         ]);
     }
 
@@ -87,17 +87,17 @@ class InvoiceCalculator
         );
 
         return InvoiceLine::create([
-            'invoice_id'      => $invoice->id,
-            'position'        => $data['position'] ?? 0,
-            'description'     => $data['description'],
-            'qty'             => $data['qty'],
-            'unit_price'      => $data['unit_price'],
-            'tax_rate'        => $lineTaxRate,
-            'discount_pct'    => $data['discount_pct'] ?? 0,
+            'invoice_id' => $invoice->id,
+            'position' => $data['position'] ?? 0,
+            'description' => $data['description'],
+            'qty' => $data['qty'],
+            'unit_price' => $data['unit_price'],
+            'tax_rate' => $lineTaxRate,
+            'discount_pct' => $data['discount_pct'] ?? 0,
             'discount_amount' => $totals['discount_amount'],
-            'tax_amount'      => $totals['tax_amount'],
-            'total_ht'        => $totals['total_ht'],
-            'total_ttc'       => $totals['total_ttc'],
+            'tax_amount' => $totals['tax_amount'],
+            'total_ht' => $totals['total_ht'],
+            'total_ttc' => $totals['total_ttc'],
         ]);
     }
 }

@@ -12,9 +12,10 @@ class LeadImportController extends Controller
         private LeadImportService $importService
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['supervisor', 'admin'])) {
+            if (! in_array(auth()->user()->role, ['supervisor', 'admin'])) {
                 abort(403);
             }
+
             return $next($request);
         });
     }

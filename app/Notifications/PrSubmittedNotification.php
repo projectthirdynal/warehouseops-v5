@@ -24,14 +24,14 @@ class PrSubmittedNotification extends Notification implements ShouldQueue
     public function toDatabase(object $notifiable): array
     {
         return [
-            'type'    => 'pr_submitted',
-            'title'   => 'Purchase Request Pending Approval',
+            'type' => 'pr_submitted',
+            'title' => 'Purchase Request Pending Approval',
             'message' => "PR #{$this->pr->pr_number} submitted by {$this->pr->requester?->name} requires your approval.",
-            'url'     => "/procurement/requests/{$this->pr->id}",
-            'meta'    => [
-                'pr_id'     => $this->pr->id,
+            'url' => "/procurement/requests/{$this->pr->id}",
+            'meta' => [
+                'pr_id' => $this->pr->id,
                 'pr_number' => $this->pr->pr_number,
-                'amount'    => $this->pr->estimated_total,
+                'amount' => $this->pr->estimated_total,
             ],
         ];
     }
@@ -41,11 +41,11 @@ class PrSubmittedNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject("Action Required: PR #{$this->pr->pr_number} Needs Approval")
             ->greeting("Hello {$notifiable->name},")
-            ->line("A Purchase Request has been submitted and requires your approval.")
+            ->line('A Purchase Request has been submitted and requires your approval.')
             ->line("**PR Number:** {$this->pr->pr_number}")
             ->line("**Requested by:** {$this->pr->requester?->name}")
             ->line("**Department:** {$this->pr->department}")
-            ->line("**Estimated Total:** ₱" . number_format((float) $this->pr->estimated_total, 2))
+            ->line('**Estimated Total:** ₱'.number_format((float) $this->pr->estimated_total, 2))
             ->action('Review & Approve', url("/procurement/requests/{$this->pr->id}"))
             ->line('Please review and take action at your earliest convenience.');
     }

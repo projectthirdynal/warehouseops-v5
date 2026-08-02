@@ -85,7 +85,7 @@ class MetaWebhookController extends Controller
             return false;
         }
 
-        $expected = 'sha256=' . hash_hmac('sha256', $payload, $secret);
+        $expected = 'sha256='.hash_hmac('sha256', $payload, $secret);
 
         return hash_equals($expected, $signatureHeader);
     }

@@ -49,24 +49,24 @@ class WaybillImportController extends Controller
 
         return Inertia::render('Waybills/Import', [
             'uploads' => $uploads,
-            'stats'   => $stats,
+            'stats' => $stats,
         ]);
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'file'        => 'required|file|mimes:xlsx,xls,csv|max:102400',
-            'courier'     => 'required|string|in:jnt,flash',
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:102400',
+            'courier' => 'required|string|in:jnt,flash',
         ]);
 
-        $file       = $request->file('file');
-        $courier    = $request->input('courier');
+        $file = $request->file('file');
+        $courier = $request->input('courier');
 
-        $filename = time() . '_' . $file->getClientOriginalName();
-        $path     = $file->storeAs('uploads/waybills', $filename, 'local');
+        $filename = time().'_'.$file->getClientOriginalName();
+        $path = $file->storeAs('uploads/waybills', $filename, 'local');
 
-        $fileHash = hash_file('sha256', storage_path('app/' . $path));
+        $fileHash = hash_file('sha256', storage_path('app/'.$path));
 
         $existing = Upload::where('type', 'waybill')
             ->where('file_hash', $fileHash)
@@ -82,24 +82,25 @@ class WaybillImportController extends Controller
             ->first();
 
         if ($existing) {
-            Storage::disk('local')->delete('uploads/waybills/' . $filename);
+            Storage::disk('local')->delete('uploads/waybills/'.$filename);
+
             return response()->json([
                 'error' => 'This file has already been uploaded.',
                 'existing_upload_id' => $existing->id,
-                'existing_filename'  => $existing->original_filename,
-                'existing_status'    => $existing->status,
+                'existing_filename' => $existing->original_filename,
+                'existing_status' => $existing->status,
             ], 422);
         }
 
         $upload = Upload::create([
-            'filename'          => $filename,
+            'filename' => $filename,
             'original_filename' => $file->getClientOriginalName(),
-            'type'              => 'waybill',
-            'courier'           => $courier,
-            'import_type'       => 'auto_sync',
-            'file_hash'         => $fileHash,
-            'status'            => Upload::STATUS_QUEUED,
-            'uploaded_by'       => $request->user()->id,
+            'type' => 'waybill',
+            'courier' => $courier,
+            'import_type' => 'auto_sync',
+            'file_hash' => $fileHash,
+            'status' => Upload::STATUS_QUEUED,
+            'uploaded_by' => $request->user()->id,
         ]);
 
         return response()->json(['upload_id' => $upload->id]);
@@ -115,10 +116,11 @@ class WaybillImportController extends Controller
 
         $upload->update(['status' => Upload::STATUS_VALIDATING]);
 
-        $filePath = \Illuminate\Support\Facades\Storage::disk('local')->path('uploads/waybills/' . $upload->filename);
+        $filePath = Storage::disk('local')->path('uploads/waybills/'.$upload->filename);
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             $upload->markAsValidationFailed(['message' => 'Uploaded file not found.']);
+
             return response()->json(['valid' => false, 'errors' => ['File not found on server.']], 422);
         }
 
@@ -126,12 +128,12 @@ class WaybillImportController extends Controller
             ? ['Waybill Number', 'Order Status']
             : ['Tracking No.', 'Status'];
 
-        $sampleRows      = [];
+        $sampleRows = [];
         $detectedHeaders = [];
-        $rowCount        = 0;
-        $duplicates      = [];
-        $seenWaybills    = [];
-        $missingHeaders  = [];
+        $rowCount = 0;
+        $duplicates = [];
+        $seenWaybills = [];
+        $missingHeaders = [];
 
         // Sentinel thrown inside the FastExcel callback to stop iteration after 200 rows,
         // since rap2hpoutre/fast-excel does not support early termination via return value.
@@ -154,7 +156,7 @@ class WaybillImportController extends Controller
                                 break;
                             }
                         }
-                        if (!$found) {
+                        if (! $found) {
                             $missingHeaders[] = $required;
                         }
                     }
@@ -179,26 +181,29 @@ class WaybillImportController extends Controller
             });
         } catch (\RuntimeException $e) {
             if ($e->getMessage() !== '__validation_sample_done__') {
-                $upload->markAsValidationFailed(['message' => 'File could not be read: ' . $e->getMessage()]);
+                $upload->markAsValidationFailed(['message' => 'File could not be read: '.$e->getMessage()]);
+
                 return response()->json(['valid' => false, 'errors' => [$e->getMessage()]], 422);
             }
         } catch (\Throwable $e) {
-            $upload->markAsValidationFailed(['message' => 'File could not be read: ' . $e->getMessage()]);
+            $upload->markAsValidationFailed(['message' => 'File could not be read: '.$e->getMessage()]);
+
             return response()->json(['valid' => false, 'errors' => [$e->getMessage()]], 422);
         }
 
-        if (!empty($missingHeaders)) {
+        if (! empty($missingHeaders)) {
             $upload->markAsValidationFailed(['missing_headers' => $missingHeaders]);
+
             return response()->json([
-                'valid'           => false,
+                'valid' => false,
                 'missing_headers' => $missingHeaders,
-                'errors'          => array_map(fn ($h) => "Required column \"{$h}\" not found.", $missingHeaders),
+                'errors' => array_map(fn ($h) => "Required column \"{$h}\" not found.", $missingHeaders),
             ], 422);
         }
 
         $preview = [
-            'detected_columns'         => $detectedHeaders,
-            'sample_rows'              => $sampleRows,
+            'detected_columns' => $detectedHeaders,
+            'sample_rows' => $sampleRows,
             'duplicate_waybills_count' => count(array_unique($duplicates)),
         ];
 
@@ -209,14 +214,14 @@ class WaybillImportController extends Controller
         ]);
 
         return response()->json([
-            'valid'                    => true,
-            'total_rows_detected'      => $rowCount >= 200 ? '200+' : $rowCount,
-            'detected_columns'         => $detectedHeaders,
-            'sample_rows'              => $sampleRows,
+            'valid' => true,
+            'total_rows_detected' => $rowCount >= 200 ? '200+' : $rowCount,
+            'detected_columns' => $detectedHeaders,
+            'sample_rows' => $sampleRows,
             'duplicate_waybills_count' => count(array_unique($duplicates)),
-            'missing_headers'          => [],
-            'warnings'                 => count($duplicates) > 0
-                ? [count(array_unique($duplicates)) . ' duplicate waybill numbers detected in first 200 rows.']
+            'missing_headers' => [],
+            'warnings' => count($duplicates) > 0
+                ? [count(array_unique($duplicates)).' duplicate waybill numbers detected in first 200 rows.']
                 : [],
         ]);
     }
@@ -230,15 +235,15 @@ class WaybillImportController extends Controller
         }
 
         $upload->update([
-            'status'     => Upload::STATUS_PROCESSING,
+            'status' => Upload::STATUS_PROCESSING,
             'started_at' => now(),
-            'errors'     => null,
+            'errors' => null,
         ]);
 
         ProcessWaybillImport::dispatch(
             $upload->id,
             $upload->courier,
-            Storage::disk('local')->path('uploads/waybills/' . $upload->filename),
+            Storage::disk('local')->path('uploads/waybills/'.$upload->filename),
             $request->user()->id,
         );
 
@@ -249,7 +254,7 @@ class WaybillImportController extends Controller
     {
         abort_unless($upload->type === 'waybill', 404);
 
-        if (!in_array($upload->status, [
+        if (! in_array($upload->status, [
             Upload::STATUS_READY_TO_PROCESS,
             Upload::STATUS_PROCESSING,
             Upload::STATUS_COMPLETED,
@@ -267,11 +272,11 @@ class WaybillImportController extends Controller
 
         $errors = $upload->errors;
 
-        if (empty($errors) || !is_array($errors) || !isset($errors[0]['row'])) {
+        if (empty($errors) || ! is_array($errors) || ! isset($errors[0]['row'])) {
             abort(404, 'No error report available.');
         }
 
-        $filename = 'import_errors_' . $upload->id . '.csv';
+        $filename = 'import_errors_'.$upload->id.'.csv';
 
         return response()->streamDownload(function () use ($errors) {
             $out = fopen('php://output', 'w');
@@ -294,7 +299,7 @@ class WaybillImportController extends Controller
             ->paginate(50);
 
         return Inertia::render('Waybills/ImportDetail', [
-            'upload'   => $upload,
+            'upload' => $upload,
             'waybills' => $waybills,
         ]);
     }
@@ -334,10 +339,10 @@ class WaybillImportController extends Controller
         ];
 
         $filename = "waybill_import_template_{$courier}.xlsx";
-        $tempDir  = storage_path('app/temp');
-        $tempPath = $tempDir . '/' . $filename;
+        $tempDir = storage_path('app/temp');
+        $tempPath = $tempDir.'/'.$filename;
 
-        if (!is_dir($tempDir)) {
+        if (! is_dir($tempDir)) {
             mkdir($tempDir, 0755, true);
         }
 
@@ -350,19 +355,19 @@ class WaybillImportController extends Controller
     public function status(Upload $upload)
     {
         return response()->json([
-            'id'             => $upload->id,
-            'status'         => $upload->status,
-            'courier'        => $upload->courier,
-            'import_type'    => $upload->import_type,
-            'total_rows'     => $upload->total_rows,
+            'id' => $upload->id,
+            'status' => $upload->status,
+            'courier' => $upload->courier,
+            'import_type' => $upload->import_type,
+            'total_rows' => $upload->total_rows,
             'processed_rows' => $upload->processed_rows,
-            'success_rows'   => $upload->success_rows,
-            'inserted_rows'  => $upload->inserted_rows,
-            'updated_rows'   => $upload->updated_rows,
-            'skipped_rows'   => $upload->skipped_rows,
-            'error_rows'     => $upload->error_rows,
-            'retry_status'   => $upload->retry_status,
-            'retry_count'    => $upload->retry_count,
+            'success_rows' => $upload->success_rows,
+            'inserted_rows' => $upload->inserted_rows,
+            'updated_rows' => $upload->updated_rows,
+            'skipped_rows' => $upload->skipped_rows,
+            'error_rows' => $upload->error_rows,
+            'retry_status' => $upload->retry_status,
+            'retry_count' => $upload->retry_count,
         ]);
     }
 
@@ -378,7 +383,7 @@ class WaybillImportController extends Controller
             Upload::STATUS_PENDING,
         ];
 
-        if (!in_array($upload->status, $cancellable)) {
+        if (! in_array($upload->status, $cancellable)) {
             return back()->with('error', 'This upload cannot be cancelled.');
         }
 
@@ -395,24 +400,24 @@ class WaybillImportController extends Controller
             return back()->with('error', 'Only failed uploads can be retried.');
         }
 
-        $path = 'uploads/waybills/' . $upload->filename;
+        $path = 'uploads/waybills/'.$upload->filename;
 
-        if (!Storage::disk('local')->exists($path)) {
+        if (! Storage::disk('local')->exists($path)) {
             return back()->with('error', 'Original file not found. Please re-upload.');
         }
 
         $upload->update([
-            'status'         => Upload::STATUS_PROCESSING,
-            'started_at'     => now(),
-            'completed_at'   => null,
-            'total_rows'     => 0,
+            'status' => Upload::STATUS_PROCESSING,
+            'started_at' => now(),
+            'completed_at' => null,
+            'total_rows' => 0,
             'processed_rows' => 0,
-            'success_rows'   => 0,
-            'inserted_rows'  => 0,
-            'updated_rows'   => 0,
-            'skipped_rows'   => 0,
-            'error_rows'     => 0,
-            'errors'         => null,
+            'success_rows' => 0,
+            'inserted_rows' => 0,
+            'updated_rows' => 0,
+            'skipped_rows' => 0,
+            'error_rows' => 0,
+            'errors' => null,
         ]);
 
         ProcessWaybillImport::dispatch(
@@ -429,7 +434,7 @@ class WaybillImportController extends Controller
     {
         abort_unless($upload->type === 'waybill', 404);
 
-        if (!in_array($upload->status, [Upload::STATUS_COMPLETED_WITH_ERRORS, Upload::STATUS_FAILED])) {
+        if (! in_array($upload->status, [Upload::STATUS_COMPLETED_WITH_ERRORS, Upload::STATUS_FAILED])) {
             return response()->json(['error' => 'Only completed-with-errors or failed uploads can retry failed rows.'], 422);
         }
 
@@ -444,8 +449,8 @@ class WaybillImportController extends Controller
             return response()->json(['error' => 'No retryable row errors found. The errors may be batch-level failures.'], 422);
         }
 
-        $path = 'uploads/waybills/' . $upload->filename;
-        if (!Storage::disk('local')->exists($path)) {
+        $path = 'uploads/waybills/'.$upload->filename;
+        if (! Storage::disk('local')->exists($path)) {
             return response()->json(['error' => 'Original file not found. Please re-upload.'], 422);
         }
 
@@ -472,7 +477,7 @@ class WaybillImportController extends Controller
         }
 
         $rowErrors = array_filter($errors, fn ($e) => is_numeric($e['row'] ?? null));
-        $batchErrors = array_filter($errors, fn ($e) => !is_numeric($e['row'] ?? null));
+        $batchErrors = array_filter($errors, fn ($e) => ! is_numeric($e['row'] ?? null));
 
         return response()->json([
             'errors' => array_values($errors),

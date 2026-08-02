@@ -18,8 +18,8 @@ class CapexAssetAssignment extends Model
     ];
 
     protected $casts = [
-        'assigned_at'  => 'datetime',
-        'returned_at'  => 'datetime',
+        'assigned_at' => 'datetime',
+        'returned_at' => 'datetime',
     ];
 
     public function asset(): BelongsTo

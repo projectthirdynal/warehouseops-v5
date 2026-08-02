@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\Permission;
+use App\Models\AgentProfile;
 use App\Models\RolePermission;
 use App\Models\User;
 use App\Models\UserModuleAccess;
@@ -46,9 +46,9 @@ class AdminController extends Controller
         }
 
         $stats = [
-            'total_users'       => $users->count(),
-            'active_users'      => $users->where('is_active', true)->count(),
-            'inactive_users'    => $users->where('is_active', false)->count(),
+            'total_users' => $users->count(),
+            'active_users' => $users->where('is_active', true)->count(),
+            'inactive_users' => $users->where('is_active', false)->count(),
             'role_distribution' => $users->groupBy('role')->map->count(),
         ];
 
@@ -58,31 +58,33 @@ class AdminController extends Controller
             ->get();
 
         return Inertia::render('Admin/Dashboard', [
-            'users'         => $users,
-            'roles'         => $roles,
-            'modules'       => $modules,
-            'userModules'   => $userModules,
-            'stats'         => $stats,
-            'recentActivity'=> $recentActivity,
+            'users' => $users,
+            'roles' => $roles,
+            'modules' => $modules,
+            'userModules' => $userModules,
+            'stats' => $stats,
+            'recentActivity' => $recentActivity,
         ]);
     }
 
     public function updateUserModules(Request $request, User $user)
     {
-        if (!Schema::hasTable('user_module_access')) {
+        if (! Schema::hasTable('user_module_access')) {
             return redirect()->back(303)->with('error', 'Module access table not ready. Run: php artisan migrate');
         }
 
         $validKeys = collect(UserModuleAccess::moduleDefinitions())->pluck('key')->all();
 
         $validated = $request->validate([
-            'modules'   => 'required|array',
+            'modules' => 'required|array',
             'modules.*' => 'boolean',
         ]);
 
         DB::transaction(function () use ($user, $validated, $validKeys) {
             foreach ($validated['modules'] as $moduleKey => $granted) {
-                if (!in_array($moduleKey, $validKeys)) continue;
+                if (! in_array($moduleKey, $validKeys)) {
+                    continue;
+                }
                 UserModuleAccess::updateOrCreate(
                     ['user_id' => $user->id, 'module_key' => $moduleKey],
                     ['granted' => (bool) $granted]
@@ -133,7 +135,7 @@ class AdminController extends Controller
             return redirect()->back(303)->with('error', 'Only a superadmin can deactivate another superadmin.');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
 
         ActivityLog::log(
             $user->is_active ? 'user.activated' : 'user.deactivated',
@@ -166,25 +168,25 @@ class AdminController extends Controller
     public function storeUser(Request $request)
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'max:255', 'unique:users'],
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'role'     => ['required', 'in:superadmin,admin,supervisor,finance,accounting,warehouse,agent'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'role' => ['required', 'in:superadmin,admin,supervisor,finance,accounting,warehouse,agent'],
             'password' => ['required', Password::min(8)],
         ]);
 
         $user = User::create([
-            'name'      => $validated['name'],
-            'email'     => $validated['email'],
-            'phone'     => $validated['phone'] ?? null,
-            'role'      => $validated['role'],
-            'password'  => Hash::make($validated['password']),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'role' => $validated['role'],
+            'password' => Hash::make($validated['password']),
             'is_active' => true,
             // email_verified_at intentionally null — verification email sent below
         ]);
 
         if ($user->role === 'agent') {
-            \App\Models\AgentProfile::create(['user_id' => $user->id]);
+            AgentProfile::create(['user_id' => $user->id]);
         }
 
         // Send email verification notification

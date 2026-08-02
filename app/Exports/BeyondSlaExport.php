@@ -14,7 +14,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class BeyondSlaExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     public function __construct(
         private readonly array $filters = [],
@@ -23,8 +23,8 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
     public function collection(): Collection
     {
         // SLA = today 00:00 Manila. Returned yesterday or earlier with no receipt → overdue today.
-        $manilaNow   = now()->setTimezone('Asia/Manila');
-        $slaCutoff   = $manilaNow->copy()->startOfDay()->utc();
+        $manilaNow = now()->setTimezone('Asia/Manila');
+        $slaCutoff = $manilaNow->copy()->startOfDay()->utc();
         $defaultFrom = $this->filters['from'] ?? $manilaNow->copy()->startOfDay()->subDays(14)->toDateString();
 
         $q = Waybill::where('status', 'RETURNED')
@@ -32,10 +32,9 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
             ->where('returned_at', '>=', $defaultFrom)
             ->whereDoesntHave('returnReceipt')
             ->with(['claims'])
-            ->when($this->filters['to'] ?? null, fn ($q, $v) => $q->where('returned_at', '<=', $v . ' 23:59:59'))
-            ->when($this->filters['search'] ?? null, fn ($q, $v) =>
-                $q->whereRaw('LOWER(waybill_number) LIKE ?', ['%' . mb_strtolower($v) . '%'])
-                  ->orWhereRaw('LOWER(receiver_name) LIKE ?', ['%' . mb_strtolower($v) . '%']))
+            ->when($this->filters['to'] ?? null, fn ($q, $v) => $q->where('returned_at', '<=', $v.' 23:59:59'))
+            ->when($this->filters['search'] ?? null, fn ($q, $v) => $q->whereRaw('LOWER(waybill_number) LIKE ?', ['%'.mb_strtolower($v).'%'])
+                ->orWhereRaw('LOWER(receiver_name) LIKE ?', ['%'.mb_strtolower($v).'%']))
             ->latest('returned_at');
 
         return $q->get();
@@ -61,11 +60,11 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
 
     public function map($waybill): array
     {
-        $returnedAt  = $waybill->returned_at;
+        $returnedAt = $waybill->returned_at;
         $daysOverdue = $returnedAt
             ? (int) now()->setTimezone('Asia/Manila')->diffInDays(
                 $returnedAt->setTimezone('Asia/Manila')->endOfDay()
-              )
+            )
             : 0;
         $slaDeadline = $returnedAt
             ? $returnedAt->setTimezone('Asia/Manila')->addDay()->format('Y-m-d')
@@ -93,7 +92,7 @@ class BeyondSlaExport implements FromCollection, WithHeadings, WithMapping, Shou
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType'   => Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => 'C0392B'],
                 ],
             ],

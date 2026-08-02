@@ -13,9 +13,13 @@ use Illuminate\Support\Facades\Auth;
 class CourierExportBatch extends Model
 {
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_READY = 'ready';
+
     public const STATUS_DOWNLOADED = 'downloaded';
+
     public const STATUS_ARCHIVED = 'archived';
 
     public const STATUSES = [
@@ -27,27 +31,27 @@ class CourierExportBatch extends Model
     ];
 
     public const STATUS_TRANSITIONS = [
-        self::STATUS_PENDING     => [self::STATUS_PROCESSING, self::STATUS_ARCHIVED],
-        self::STATUS_PROCESSING  => [self::STATUS_READY, self::STATUS_PENDING],
-        self::STATUS_READY       => [self::STATUS_DOWNLOADED, self::STATUS_ARCHIVED],
-        self::STATUS_DOWNLOADED  => [self::STATUS_ARCHIVED, self::STATUS_READY],
-        self::STATUS_ARCHIVED    => [],
+        self::STATUS_PENDING => [self::STATUS_PROCESSING, self::STATUS_ARCHIVED],
+        self::STATUS_PROCESSING => [self::STATUS_READY, self::STATUS_PENDING],
+        self::STATUS_READY => [self::STATUS_DOWNLOADED, self::STATUS_ARCHIVED],
+        self::STATUS_DOWNLOADED => [self::STATUS_ARCHIVED, self::STATUS_READY],
+        self::STATUS_ARCHIVED => [],
     ];
 
     public const STATUS_LABELS = [
-        self::STATUS_PENDING    => 'Pending',
+        self::STATUS_PENDING => 'Pending',
         self::STATUS_PROCESSING => 'Processing',
-        self::STATUS_READY      => 'Ready',
+        self::STATUS_READY => 'Ready',
         self::STATUS_DOWNLOADED => 'Downloaded',
-        self::STATUS_ARCHIVED   => 'Archived',
+        self::STATUS_ARCHIVED => 'Archived',
     ];
 
     public const STATUS_COLORS = [
-        self::STATUS_PENDING    => 'gray',
+        self::STATUS_PENDING => 'gray',
         self::STATUS_PROCESSING => 'blue',
-        self::STATUS_READY      => 'green',
+        self::STATUS_READY => 'green',
         self::STATUS_DOWNLOADED => 'indigo',
-        self::STATUS_ARCHIVED   => 'slate',
+        self::STATUS_ARCHIVED => 'slate',
     ];
 
     protected $fillable = [
@@ -120,10 +124,10 @@ class CourierExportBatch extends Model
 
         BatchStatusHistory::query()->create([
             'courier_export_batch_id' => $this->id,
-            'from_status'             => $fromStatus,
-            'to_status'               => $toStatus,
-            'changed_by'              => $userId ?? Auth::id(),
-            'notes'                   => $notes,
+            'from_status' => $fromStatus,
+            'to_status' => $toStatus,
+            'changed_by' => $userId ?? Auth::id(),
+            'notes' => $notes,
         ]);
 
         $updates = ['status' => $toStatus];

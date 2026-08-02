@@ -21,8 +21,8 @@ use App\Models\DuplicateFamilyMember;
 use App\Models\DuplicateMlModel;
 use App\Models\DuplicateNotification;
 use App\Models\DuplicateReviewItem;
+use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 class DuplicateDetectionService
 {
@@ -40,10 +40,10 @@ class DuplicateDetectionService
     /**
      * Detect duplicate orders by customer phone + product within a time window.
      *
-     * @param string      $phone      Receiver phone (raw or normalized)
-     * @param array<int>  $productIds Product IDs to check against
-     * @param int|null    $timeWindowHours  Override the default time window
-     * @param int|null    $excludeOrderId   Order ID to exclude (e.g., the order being edited)
+     * @param  string  $phone  Receiver phone (raw or normalized)
+     * @param  array<int>  $productIds  Product IDs to check against
+     * @param  int|null  $timeWindowHours  Override the default time window
+     * @param  int|null  $excludeOrderId  Order ID to exclude (e.g., the order being edited)
      * @return array<string, mixed>
      */
     public function detectDuplicateOrders(
@@ -80,7 +80,7 @@ class DuplicateDetectionService
             return $order->shopItems->contains(fn (ShopOrderItem $item) => in_array($item->product_id, $productIds, true));
         });
 
-        $duplicateWarnings = $duplicates->map(function (Order $order) use ($normalizedPhone) {
+        $duplicateWarnings = $duplicates->map(function (Order $order) {
             $matchedProducts = $order->shopItems
                 ->filter(fn (ShopOrderItem $item) => $item->product_id !== null)
                 ->map(fn (ShopOrderItem $item) => [
@@ -129,8 +129,7 @@ class DuplicateDetectionService
     /**
      * Check for any recent orders by phone (broader check for the create-order page).
      *
-     * @param string      $phone
-     * @param int|null    $days  How many days back to look (default 30)
+     * @param  int|null  $days  How many days back to look (default 30)
      * @return array<string, mixed>
      */
     public function checkRecentOrdersByPhone(string $phone, ?int $days = 30): array
@@ -170,9 +169,9 @@ class DuplicateDetectionService
      * on the same or different Facebook pages, indicating the same person may
      * have multiple open conversation threads.
      *
-     * @param string      $psid             The provider_user_id (PSID) to check
-     * @param int|null    $facebookPageId   Optional: scope to a specific page
-     * @param int|null    $excludeConversationId  Conversation ID to exclude
+     * @param  string  $psid  The provider_user_id (PSID) to check
+     * @param  int|null  $facebookPageId  Optional: scope to a specific page
+     * @param  int|null  $excludeConversationId  Conversation ID to exclude
      * @return array<string, mixed>
      */
     public function detectDuplicateConversationsByPsid(
@@ -274,15 +273,13 @@ class DuplicateDetectionService
      * Convenience method to check for duplicate conversations when
      * the customer_identity_id is already known (e.g., from a webhook).
      *
-     * @param int      $identityId
-     * @param int|null $excludeConversationId
      * @return array<string, mixed>
      */
     public function detectDuplicateConversationsByIdentity(int $identityId, ?int $excludeConversationId = null): array
     {
         $identity = CustomerIdentity::find($identityId);
 
-        if (!$identity || $identity->provider !== 'facebook') {
+        if (! $identity || $identity->provider !== 'facebook') {
             return [
                 'is_duplicate' => false,
                 'psid' => '',
@@ -302,8 +299,7 @@ class DuplicateDetectionService
     /**
      * Determine severity for conversation duplicates based on count.
      *
-     * @param int $count
-     * @return string  'none', 'low', 'medium', 'high'
+     * @return string 'none', 'low', 'medium', 'high'
      */
     private function determineConversationSeverity(int $count): string
     {
@@ -325,9 +321,7 @@ class DuplicateDetectionService
     /**
      * Determine the severity level based on duplicate count and time window.
      *
-     * @param int $count
-     * @param int $windowHours
-     * @return string  'none', 'low', 'medium', 'high'
+     * @return string 'none', 'low', 'medium', 'high'
      */
     private function determineSeverity(int $count, int $windowHours): string
     {
@@ -349,15 +343,15 @@ class DuplicateDetectionService
     /**
      * Detect duplicate customer records by phone, PSID, or name similarity.
      *
-     * @param int      $customerId    The primary customer to check against
-     * @param array    $methods       Detection methods: 'phone', 'psid', 'name'
+     * @param  int  $customerId  The primary customer to check against
+     * @param  array  $methods  Detection methods: 'phone', 'psid', 'name'
      * @return array<string, mixed>
      */
     public function detectDuplicateCustomers(int $customerId, array $methods = ['phone', 'psid', 'name']): array
     {
         $customer = Customer::find($customerId);
 
-        if (!$customer) {
+        if (! $customer) {
             return [
                 'is_duplicate' => false,
                 'customer_id' => $customerId,
@@ -486,8 +480,6 @@ class DuplicateDetectionService
     /**
      * Preview what will happen when merging $source into $target.
      *
-     * @param int $targetId
-     * @param int $sourceId
      * @return array<string, mixed>
      */
     public function previewMerge(int $targetId, int $sourceId): array
@@ -495,7 +487,7 @@ class DuplicateDetectionService
         $target = Customer::find($targetId);
         $source = Customer::find($sourceId);
 
-        if (!$target || !$source || $targetId === $sourceId) {
+        if (! $target || ! $source || $targetId === $sourceId) {
             return [
                 'can_merge' => false,
                 'reason' => 'Invalid customer IDs or same customer.',
@@ -515,7 +507,7 @@ class DuplicateDetectionService
         // Determine which fields will be filled from source
         $filledFields = [];
         foreach (['phone', 'facebook_name', 'canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region'] as $field) {
-            if (empty($target->{$field}) && !empty($source->{$field})) {
+            if (empty($target->{$field}) && ! empty($source->{$field})) {
                 $filledFields[] = $field;
             }
         }
@@ -574,10 +566,10 @@ class DuplicateDetectionService
      * similarity for address fields. Returns candidates above the
      * configured thresholds.
      *
-     * @param int      $customerId       The primary customer to check against
-     * @param float    $nameThreshold    Minimum name similarity (0-100, default 80)
-     * @param float    $addressThreshold Minimum address similarity (0-1, default 0.6)
-     * @param int      $limit            Max results (default 20)
+     * @param  int  $customerId  The primary customer to check against
+     * @param  float  $nameThreshold  Minimum name similarity (0-100, default 80)
+     * @param  float  $addressThreshold  Minimum address similarity (0-1, default 0.6)
+     * @param  int  $limit  Max results (default 20)
      * @return array<string, mixed>
      */
     public function detectFuzzyDuplicateCustomers(
@@ -588,7 +580,7 @@ class DuplicateDetectionService
     ): array {
         $customer = Customer::find($customerId);
 
-        if (!$customer) {
+        if (! $customer) {
             return [
                 'is_duplicate' => false,
                 'customer_id' => $customerId,
@@ -604,7 +596,7 @@ class DuplicateDetectionService
 
         $addressFields = ['barangay', 'city_municipality', 'province'];
         foreach ($addressFields as $field) {
-            if (!empty($customer->{$field})) {
+            if (! empty($customer->{$field})) {
                 $matches = Customer::query()
                     ->whereKeyNot($customer->id)
                     ->where($field, $customer->{$field})
@@ -620,8 +612,8 @@ class DuplicateDetectionService
             $nameMatches = Customer::query()
                 ->whereKeyNot($customer->id)
                 ->where(function ($q) use ($namePrefix) {
-                    $q->whereRaw('LOWER(name) LIKE ?', [strtolower($namePrefix) . '%'])
-                        ->orWhereRaw('LOWER(facebook_name) LIKE ?', [strtolower($namePrefix) . '%']);
+                    $q->whereRaw('LOWER(name) LIKE ?', [strtolower($namePrefix).'%'])
+                        ->orWhereRaw('LOWER(facebook_name) LIKE ?', [strtolower($namePrefix).'%']);
                 })
                 ->limit(50)
                 ->get();
@@ -771,7 +763,7 @@ class DuplicateDetectionService
 
         // Remove common stop words
         $stopWords = ['the', 'st', 'street', 'brgy', 'barangay', 'city', 'municipality', 'province', 'region', 'of', 'and'];
-        $tokens = array_filter($tokens, fn ($t) => !in_array($t, $stopWords, true));
+        $tokens = array_filter($tokens, fn ($t) => ! in_array($t, $stopWords, true));
 
         return array_values(array_unique($tokens));
     }
@@ -779,7 +771,7 @@ class DuplicateDetectionService
     /**
      * Scan for all duplicate types and populate the review queue.
      *
-     * @param int $limit  Max items per type to create
+     * @param  int  $limit  Max items per type to create
      * @return array{created: int, skipped: int, type_breakdown: array<string, int>}
      */
     public function scanForReviewQueue(int $limit = 50): array
@@ -800,6 +792,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -820,6 +813,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -840,6 +834,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -858,7 +853,7 @@ class DuplicateDetectionService
     /**
      * Get the review queue with filtering and pagination.
      *
-     * @param array{type?: string, status?: string, severity?: string, per_page?: int} $filters
+     * @param  array{type?: string, status?: string, severity?: string, per_page?: int}  $filters
      * @return array<string, mixed>
      */
     public function getReviewQueue(array $filters = []): array
@@ -868,17 +863,17 @@ class DuplicateDetectionService
             ->orderByDesc('severity')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['type'])) {
+        if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         } else {
             $query->where('status', 'pending');
         }
 
-        if (!empty($filters['severity'])) {
+        if (! empty($filters['severity'])) {
             $query->where('severity', $filters['severity']);
         }
 
@@ -901,17 +896,13 @@ class DuplicateDetectionService
     /**
      * Resolve a review item (mark as reviewed, dismissed, or actioned).
      *
-     * @param int    $itemId
-     * @param string $status     reviewed|dismissed|actioned
-     * @param int    $userId
-     * @param string|null $note
-     * @return DuplicateReviewItem|null
+     * @param  string  $status  reviewed|dismissed|actioned
      */
     public function resolveReviewItem(int $itemId, string $status, int $userId, ?string $note = null): ?DuplicateReviewItem
     {
         $item = DuplicateReviewItem::find($itemId);
 
-        if (!$item) {
+        if (! $item) {
             return null;
         }
 
@@ -967,7 +958,6 @@ class DuplicateDetectionService
     /**
      * Scan for duplicate orders and return review item data.
      *
-     * @param int $limit
      * @return array<int, array<string, mixed>>
      */
     private function scanDuplicateOrdersForQueue(int $limit): array
@@ -1036,7 +1026,6 @@ class DuplicateDetectionService
     /**
      * Scan for duplicate customers by phone and return review item data.
      *
-     * @param int $limit
      * @return array<int, array<string, mixed>>
      */
     private function scanDuplicateCustomersForQueue(int $limit): array
@@ -1093,7 +1082,6 @@ class DuplicateDetectionService
     /**
      * Scan for duplicate conversations by PSID and return review item data.
      *
-     * @param int $limit
      * @return array<int, array<string, mixed>>
      */
     private function scanDuplicateConversationsForQueue(int $limit): array
@@ -1118,7 +1106,7 @@ class DuplicateDetectionService
             $conversations = collect();
             foreach ($identities as $identity) {
                 foreach ($identity->conversations as $conv) {
-                    if (in_array($conv->status, Conversation::ACTIVE_STATUSES) && !$conv->merged_into_id) {
+                    if (in_array($conv->status, Conversation::ACTIVE_STATUSES) && ! $conv->merged_into_id) {
                         $conversations->push($conv);
                     }
                 }
@@ -1176,7 +1164,7 @@ class DuplicateDetectionService
     /**
      * Get enabled rules for a given type, ordered by priority.
      *
-     * @param string $type  order|customer|conversation
+     * @param  string  $type  order|customer|conversation
      * @return \Illuminate\Database\Eloquent\Collection<int, DuplicateDetectionRule>
      */
     public function getActiveRules(string $type)
@@ -1191,9 +1179,7 @@ class DuplicateDetectionService
     /**
      * Create a new detection rule.
      *
-     * @param array{name:string,type:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null} $data
-     * @param int $userId
-     * @return DuplicateDetectionRule
+     * @param  array{name:string,type:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null}  $data
      */
     public function createRule(array $data, int $userId): DuplicateDetectionRule
     {
@@ -1213,16 +1199,13 @@ class DuplicateDetectionService
     /**
      * Update an existing detection rule.
      *
-     * @param int $ruleId
-     * @param array{name?:string,type?:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null} $data
-     * @param int $userId
-     * @return DuplicateDetectionRule|null
+     * @param  array{name?:string,type?:string,match_method?:string|null,is_enabled?:bool,priority?:int,config?:array|null,description?:string|null}  $data
      */
     public function updateRule(int $ruleId, array $data, int $userId): ?DuplicateDetectionRule
     {
         $rule = DuplicateDetectionRule::find($ruleId);
 
-        if (!$rule) {
+        if (! $rule) {
             return null;
         }
 
@@ -1241,15 +1224,12 @@ class DuplicateDetectionService
 
     /**
      * Delete a detection rule.
-     *
-     * @param int $ruleId
-     * @return bool
      */
     public function deleteRule(int $ruleId): bool
     {
         $rule = DuplicateDetectionRule::find($ruleId);
 
-        if (!$rule) {
+        if (! $rule) {
             return false;
         }
 
@@ -1258,21 +1238,17 @@ class DuplicateDetectionService
 
     /**
      * Toggle a rule's enabled status.
-     *
-     * @param int $ruleId
-     * @param int $userId
-     * @return DuplicateDetectionRule|null
      */
     public function toggleRule(int $ruleId, int $userId): ?DuplicateDetectionRule
     {
         $rule = DuplicateDetectionRule::find($ruleId);
 
-        if (!$rule) {
+        if (! $rule) {
             return null;
         }
 
         $rule->update([
-            'is_enabled' => !$rule->is_enabled,
+            'is_enabled' => ! $rule->is_enabled,
             'updated_by' => $userId,
         ]);
 
@@ -1283,7 +1259,6 @@ class DuplicateDetectionService
      * Get the effective config for a detection type by merging
      * enabled rules' config values. Later-priority rules override earlier.
      *
-     * @param string $type
      * @return array<string, mixed>
      */
     public function getEffectiveConfig(string $type): array
@@ -1306,7 +1281,7 @@ class DuplicateDetectionService
     /**
      * Get a comprehensive analytics overview for the duplicate review system.
      *
-     * @param int $days  Look-back period (default 30)
+     * @param  int  $days  Look-back period (default 30)
      * @return array<string, mixed>
      */
     public function getAnalyticsOverview(int $days = 30): array
@@ -1364,7 +1339,8 @@ class DuplicateDetectionService
             ->limit(5)
             ->get()
             ->map(function ($row) {
-                $user = \App\Models\User::find($row->reviewed_by);
+                $user = User::find($row->reviewed_by);
+
                 return [
                     'user_id' => $row->reviewed_by,
                     'name' => $user?->name ?? "User #{$row->reviewed_by}",
@@ -1396,7 +1372,7 @@ class DuplicateDetectionService
     /**
      * Get daily/weekly trend of duplicate items created and resolved.
      *
-     * @param int $days  Look-back period (default 30)
+     * @param  int  $days  Look-back period (default 30)
      * @return array<int, array<string, mixed>>
      */
     public function getAnalyticsTrend(int $days = 30): array
@@ -1404,20 +1380,20 @@ class DuplicateDetectionService
         $cutoff = Carbon::now()->subDays($days);
 
         $created = DuplicateReviewItem::query()
-            ->selectRaw("DATE(created_at) as date, COUNT(*) as count")
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', $cutoff)
-            ->groupByRaw("DATE(created_at)")
-            ->orderByRaw("DATE(created_at)")
+            ->groupByRaw('DATE(created_at)')
+            ->orderByRaw('DATE(created_at)')
             ->get()
             ->pluck('count', 'date')
             ->toArray();
 
         $resolved = DuplicateReviewItem::query()
-            ->selectRaw("DATE(reviewed_at) as date, COUNT(*) as count")
+            ->selectRaw('DATE(reviewed_at) as date, COUNT(*) as count')
             ->where('reviewed_at', '>=', $cutoff)
             ->whereNotNull('reviewed_at')
-            ->groupByRaw("DATE(reviewed_at)")
-            ->orderByRaw("DATE(reviewed_at)")
+            ->groupByRaw('DATE(reviewed_at)')
+            ->orderByRaw('DATE(reviewed_at)')
             ->get()
             ->pluck('count', 'date')
             ->toArray();
@@ -1508,7 +1484,7 @@ class DuplicateDetectionService
      *  - Exact address match: +10
      *  - Minimum threshold to create suggestion: 70
      *
-     * @param int $limit  Max pairs to evaluate
+     * @param  int  $limit  Max pairs to evaluate
      * @return array{created: int, skipped: int, evaluated: int}
      */
     public function scanForAutoMergeSuggestions(int $limit = 100): array
@@ -1543,6 +1519,7 @@ class DuplicateDetectionService
                     $result = $this->evaluateAutoMergePair($target, $source);
                     if ($result === null) {
                         $skipped++;
+
                         continue;
                     }
 
@@ -1560,6 +1537,7 @@ class DuplicateDetectionService
 
                     if ($exists) {
                         $skipped++;
+
                         continue;
                     }
 
@@ -1613,12 +1591,14 @@ class DuplicateDetectionService
 
                     if ($exists) {
                         $skipped++;
+
                         continue;
                     }
 
                     $result = $this->evaluateAutoMergePair($target, $source);
                     if ($result === null) {
                         $skipped++;
+
                         continue;
                     }
 
@@ -1638,7 +1618,7 @@ class DuplicateDetectionService
     /**
      * Evaluate a customer pair for auto-merge suitability.
      *
-     * @return array<string, mixed>|null  Suggestion data or null if below threshold
+     * @return array<string, mixed>|null Suggestion data or null if below threshold
      */
     private function evaluateAutoMergePair(Customer $target, Customer $source): ?array
     {
@@ -1722,7 +1702,7 @@ class DuplicateDetectionService
     /**
      * Get paginated auto-merge suggestions with filters.
      *
-     * @param array{status?: string, min_confidence?: float, per_page?: int} $filters
+     * @param  array{status?: string, min_confidence?: float, per_page?: int}  $filters
      * @return array<string, mixed>
      */
     public function getAutoMergeSuggestions(array $filters = []): array
@@ -1736,13 +1716,13 @@ class DuplicateDetectionService
             ->orderByDesc('confidence_score')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         } else {
             $query->where('status', 'pending');
         }
 
-        if (!empty($filters['min_confidence'])) {
+        if (! empty($filters['min_confidence'])) {
             $query->where('confidence_score', '>=', (float) $filters['min_confidence']);
         }
 
@@ -1765,16 +1745,13 @@ class DuplicateDetectionService
     /**
      * Approve and execute an auto-merge suggestion.
      *
-     * @param int    $suggestionId
-     * @param int    $userId
-     * @param string|null $note
      * @return array{success: bool, suggestion?: AutoMergeSuggestion, error?: string}
      */
     public function approveAutoMergeSuggestion(int $suggestionId, int $userId, ?string $note = null): array
     {
         $suggestion = AutoMergeSuggestion::find($suggestionId);
 
-        if (!$suggestion) {
+        if (! $suggestion) {
             return ['success' => false, 'error' => 'Suggestion not found.'];
         }
 
@@ -1785,13 +1762,14 @@ class DuplicateDetectionService
         $target = Customer::find($suggestion->target_customer_id);
         $source = Customer::find($suggestion->source_customer_id);
 
-        if (!$target || !$source) {
+        if (! $target || ! $source) {
             $suggestion->update([
                 'status' => 'rejected',
                 'actioned_by' => $userId,
                 'actioned_at' => now(),
                 'action_note' => 'Customer record no longer exists.',
             ]);
+
             return ['success' => false, 'error' => 'Customer record no longer exists.'];
         }
 
@@ -1823,7 +1801,7 @@ class DuplicateDetectionService
                 'status' => 'actioned',
                 'reviewed_by' => $userId,
                 'reviewed_at' => now(),
-                'review_note' => 'Auto-merged via suggestion #' . $suggestionId,
+                'review_note' => 'Auto-merged via suggestion #'.$suggestionId,
             ]);
 
         return ['success' => true, 'suggestion' => $suggestion->fresh()];
@@ -1831,17 +1809,12 @@ class DuplicateDetectionService
 
     /**
      * Reject an auto-merge suggestion.
-     *
-     * @param int    $suggestionId
-     * @param int    $userId
-     * @param string|null $note
-     * @return AutoMergeSuggestion|null
      */
     public function rejectAutoMergeSuggestion(int $suggestionId, int $userId, ?string $note = null): ?AutoMergeSuggestion
     {
         $suggestion = AutoMergeSuggestion::find($suggestionId);
 
-        if (!$suggestion) {
+        if (! $suggestion) {
             return null;
         }
 
@@ -1895,7 +1868,7 @@ class DuplicateDetectionService
      * Each group of 2+ customers becomes a DuplicateFamily with members.
      * Existing active families for the same group_key are skipped.
      *
-     * @param int $limit  Max groups to process per method
+     * @param  int  $limit  Max groups to process per method
      * @return array{created: int, skipped: int, members_grouped: int}
      */
     public function buildFamilies(int $limit = 100): array
@@ -1925,6 +1898,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -2000,6 +1974,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -2070,7 +2045,7 @@ class DuplicateDetectionService
     /**
      * Get paginated duplicate families with filters.
      *
-     * @param array{status?: string, method?: string, min_members?: int, per_page?: int} $filters
+     * @param  array{status?: string, method?: string, min_members?: int, per_page?: int}  $filters
      * @return array<string, mixed>
      */
     public function getFamilies(array $filters = []): array
@@ -2081,17 +2056,17 @@ class DuplicateDetectionService
             ->orderByDesc('member_count')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         } else {
             $query->where('status', 'active');
         }
 
-        if (!empty($filters['method'])) {
+        if (! empty($filters['method'])) {
             $query->where('group_method', $filters['method']);
         }
 
-        if (!empty($filters['min_members'])) {
+        if (! empty($filters['min_members'])) {
             $query->having('members_count', '>=', (int) $filters['min_members']);
         }
 
@@ -2120,7 +2095,7 @@ class DuplicateDetectionService
     {
         $family = DuplicateFamily::with(['members', 'actioner:id,name'])->find($familyId);
 
-        if (!$family) {
+        if (! $family) {
             return null;
         }
 
@@ -2129,7 +2104,7 @@ class DuplicateDetectionService
             $data = $member->member_data ?? [];
             $preview = null;
 
-            if (!$member->is_anchor && $member->customer_id && $family->anchor_ref_id) {
+            if (! $member->is_anchor && $member->customer_id && $family->anchor_ref_id) {
                 $preview = $this->previewMerge($family->anchor_ref_id, $member->customer_id);
             }
 
@@ -2174,16 +2149,13 @@ class DuplicateDetectionService
     /**
      * Merge all non-anchor members of a family into the anchor customer.
      *
-     * @param int    $familyId
-     * @param int    $userId
-     * @param string|null $note
      * @return array{success: bool, merged_count?: int, error?: string}
      */
     public function mergeFamily(int $familyId, int $userId, ?string $note = null): array
     {
         $family = DuplicateFamily::with('members')->find($familyId);
 
-        if (!$family) {
+        if (! $family) {
             return ['success' => false, 'error' => 'Family not found.'];
         }
 
@@ -2192,7 +2164,7 @@ class DuplicateDetectionService
         }
 
         $anchor = Customer::find($family->anchor_ref_id);
-        if (!$anchor) {
+        if (! $anchor) {
             return ['success' => false, 'error' => 'Anchor customer no longer exists.'];
         }
 
@@ -2200,12 +2172,12 @@ class DuplicateDetectionService
         $mergedCount = 0;
 
         foreach ($family->members as $member) {
-            if ($member->is_anchor || !$member->customer_id) {
+            if ($member->is_anchor || ! $member->customer_id) {
                 continue;
             }
 
             $source = Customer::find($member->customer_id);
-            if (!$source) {
+            if (! $source) {
                 continue;
             }
 
@@ -2226,14 +2198,12 @@ class DuplicateDetectionService
 
     /**
      * Dismiss a family without merging.
-     *
-     * @return DuplicateFamily|null
      */
     public function dismissFamily(int $familyId, int $userId, ?string $note = null): ?DuplicateFamily
     {
         $family = DuplicateFamily::find($familyId);
 
-        if (!$family) {
+        if (! $family) {
             return null;
         }
 
@@ -2303,7 +2273,7 @@ class DuplicateDetectionService
     /**
      * Create a single duplicate notification.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createNotification(array $data): DuplicateNotification
     {
@@ -2329,7 +2299,7 @@ class DuplicateDetectionService
      * - New auto-merge suggestions with confidence >= 90 → notification
      * - Large families (3+ members) → notification
      *
-     * @param int|null $supervisorId  Target supervisor user ID, null = broadcast
+     * @param  int|null  $supervisorId  Target supervisor user ID, null = broadcast
      * @return array{created: int, skipped: int}
      */
     public function generateNotificationsFromScan(?int $supervisorId = null): array
@@ -2356,6 +2326,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -2396,6 +2367,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -2407,7 +2379,7 @@ class DuplicateDetectionService
                 'type' => 'auto_merge',
                 'severity' => 'high',
                 'title' => "Auto-merge suggestion: {$targetName}",
-                'message' => "High-confidence ({$suggestion->confidence_score}%) merge suggestion between \"{$targetName}\" and \"{$sourceName}\". Match reasons: " . implode(', ', $suggestion->match_reasons ?? []) . '.',
+                'message' => "High-confidence ({$suggestion->confidence_score}%) merge suggestion between \"{$targetName}\" and \"{$sourceName}\". Match reasons: ".implode(', ', $suggestion->match_reasons ?? []).'.',
                 'entity_type' => 'customer',
                 'entity_id' => $suggestion->id,
                 'action_url' => '/shop/duplicate-review/auto-merge',
@@ -2439,6 +2411,7 @@ class DuplicateDetectionService
 
             if ($exists) {
                 $skipped++;
+
                 continue;
             }
 
@@ -2470,7 +2443,7 @@ class DuplicateDetectionService
     /**
      * Get paginated notifications with filters.
      *
-     * @param array{user_id?: int, type?: string, severity?: string, unread_only?: bool, per_page?: int} $filters
+     * @param  array{user_id?: int, type?: string, severity?: string, unread_only?: bool, per_page?: int}  $filters
      * @return array<string, mixed>
      */
     public function getNotifications(array $filters = []): array
@@ -2479,22 +2452,22 @@ class DuplicateDetectionService
             ->with('reader:id,name')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['user_id'])) {
+        if (! empty($filters['user_id'])) {
             $query->where(function ($q) use ($filters) {
                 $q->where('user_id', $filters['user_id'])
                     ->orWhereNull('user_id');
             });
         }
 
-        if (!empty($filters['type'])) {
+        if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['severity'])) {
+        if (! empty($filters['severity'])) {
             $query->where('severity', $filters['severity']);
         }
 
-        if (!empty($filters['unread_only'])) {
+        if (! empty($filters['unread_only'])) {
             $query->whereNull('read_at');
         }
 
@@ -2521,7 +2494,7 @@ class DuplicateDetectionService
     {
         $notification = DuplicateNotification::find($notificationId);
 
-        if (!$notification) {
+        if (! $notification) {
             return null;
         }
 
@@ -2557,7 +2530,7 @@ class DuplicateDetectionService
     /**
      * Get notification summary stats.
      *
-     * @param int|null $userId  Filter to user + broadcasts, null = all
+     * @param  int|null  $userId  Filter to user + broadcasts, null = all
      * @return array<string, mixed>
      */
     public function getNotificationStats(?int $userId = null): array
@@ -2621,7 +2594,7 @@ class DuplicateDetectionService
     /**
      * Record an audit log entry.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function logAction(array $data): DuplicateAuditLog
     {
@@ -2642,7 +2615,7 @@ class DuplicateDetectionService
     /**
      * Get paginated audit logs with filters.
      *
-     * @param array{user_id?: int, action?: string, entity_type?: string, entity_id?: int, from?: string, to?: string, per_page?: int} $filters
+     * @param  array{user_id?: int, action?: string, entity_type?: string, entity_id?: int, from?: string, to?: string, per_page?: int}  $filters
      * @return array<string, mixed>
      */
     public function getAuditLogs(array $filters = []): array
@@ -2651,27 +2624,27 @@ class DuplicateDetectionService
             ->with('user:id,name')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['user_id'])) {
+        if (! empty($filters['user_id'])) {
             $query->where('user_id', $filters['user_id']);
         }
 
-        if (!empty($filters['action'])) {
+        if (! empty($filters['action'])) {
             $query->where('action', $filters['action']);
         }
 
-        if (!empty($filters['entity_type'])) {
+        if (! empty($filters['entity_type'])) {
             $query->where('entity_type', $filters['entity_type']);
         }
 
-        if (!empty($filters['entity_id'])) {
+        if (! empty($filters['entity_id'])) {
             $query->where('entity_id', $filters['entity_id']);
         }
 
-        if (!empty($filters['from'])) {
+        if (! empty($filters['from'])) {
             $query->where('created_at', '>=', $filters['from']);
         }
 
-        if (!empty($filters['to'])) {
+        if (! empty($filters['to'])) {
             $query->where('created_at', '<=', $filters['to']);
         }
 
@@ -2694,7 +2667,7 @@ class DuplicateDetectionService
     /**
      * Get audit log summary stats.
      *
-     * @param int $days  Lookback period
+     * @param  int  $days  Lookback period
      * @return array<string, mixed>
      */
     public function getAuditLogStats(int $days = 30): array
@@ -2730,8 +2703,8 @@ class DuplicateDetectionService
             ->toArray();
 
         $topUsers = [];
-        if (!empty($byUser)) {
-            $users = \App\Models\User::whereIn('id', array_keys($byUser))->pluck('name', 'id');
+        if (! empty($byUser)) {
+            $users = User::whereIn('id', array_keys($byUser))->pluck('name', 'id');
             foreach ($byUser as $uid => $count) {
                 $topUsers[] = [
                     'user_id' => $uid,
@@ -2771,8 +2744,8 @@ class DuplicateDetectionService
     /**
      * Export audit logs as CSV.
      *
-     * @param array<string, mixed> $filters
-     * @return string  CSV content
+     * @param  array<string, mixed>  $filters
+     * @return string CSV content
      */
     public function exportAuditLogsCsv(array $filters = []): string
     {
@@ -2780,19 +2753,19 @@ class DuplicateDetectionService
             ->with('user:id,name')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['action'])) {
+        if (! empty($filters['action'])) {
             $query->where('action', $filters['action']);
         }
 
-        if (!empty($filters['entity_type'])) {
+        if (! empty($filters['entity_type'])) {
             $query->where('entity_type', $filters['entity_type']);
         }
 
-        if (!empty($filters['from'])) {
+        if (! empty($filters['from'])) {
             $query->where('created_at', '>=', $filters['from']);
         }
 
-        if (!empty($filters['to'])) {
+        if (! empty($filters['to'])) {
             $query->where('created_at', '<=', $filters['to']);
         }
 
@@ -2817,7 +2790,7 @@ class DuplicateDetectionService
 
         $csv = '';
         foreach ($rows as $row) {
-            $csv .= implode(',', array_map(fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', $row)) . "\n";
+            $csv .= implode(',', array_map(fn ($v) => '"'.str_replace('"', '""', (string) $v).'"', $row))."\n";
         }
 
         return $csv;
@@ -2828,8 +2801,7 @@ class DuplicateDetectionService
     /**
      * Export review queue items as CSV.
      *
-     * @param array{type?: string, status?: string, severity?: string} $filters
-     * @return string
+     * @param  array{type?: string, status?: string, severity?: string}  $filters
      */
     public function exportReviewQueueCsv(array $filters = []): string
     {
@@ -2838,13 +2810,13 @@ class DuplicateDetectionService
             ->orderByDesc('severity')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['type'])) {
+        if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
-        if (!empty($filters['severity'])) {
+        if (! empty($filters['severity'])) {
             $query->where('severity', $filters['severity']);
         }
 
@@ -2876,8 +2848,7 @@ class DuplicateDetectionService
     /**
      * Export auto-merge suggestions as CSV.
      *
-     * @param array{status?: string, min_confidence?: float} $filters
-     * @return string
+     * @param  array{status?: string, min_confidence?: float}  $filters
      */
     public function exportAutoMergeSuggestionsCsv(array $filters = []): string
     {
@@ -2890,10 +2861,10 @@ class DuplicateDetectionService
             ->orderByDesc('confidence_score')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
-        if (!empty($filters['min_confidence'])) {
+        if (! empty($filters['min_confidence'])) {
             $query->where('confidence_score', '>=', (float) $filters['min_confidence']);
         }
 
@@ -2929,8 +2900,7 @@ class DuplicateDetectionService
     /**
      * Export duplicate families as CSV.
      *
-     * @param array{status?: string, method?: string, min_members?: int} $filters
-     * @return string
+     * @param  array{status?: string, method?: string, min_members?: int}  $filters
      */
     public function exportFamiliesCsv(array $filters = []): string
     {
@@ -2940,10 +2910,10 @@ class DuplicateDetectionService
             ->orderByDesc('member_count')
             ->orderByDesc('created_at');
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
-        if (!empty($filters['method'])) {
+        if (! empty($filters['method'])) {
             $query->where('group_method', $filters['method']);
         }
 
@@ -2974,8 +2944,6 @@ class DuplicateDetectionService
 
     /**
      * Export cross-page duplicates as CSV.
-     *
-     * @return string
      */
     public function exportCrossPageCsv(): string
     {
@@ -2986,7 +2954,7 @@ class DuplicateDetectionService
 
         foreach ($result['groups'] as $group) {
             $pagesSummary = collect($group['pages'])
-                ->map(fn ($p) => $p['page_name'] . ' (' . ($p['order_count'] ?? $p['conversation_count'] ?? $p['identity_count'] ?? 0) . ')')
+                ->map(fn ($p) => $p['page_name'].' ('.($p['order_count'] ?? $p['conversation_count'] ?? $p['identity_count'] ?? 0).')')
                 ->implode('; ');
 
             $rows[] = [
@@ -3008,8 +2976,6 @@ class DuplicateDetectionService
 
     /**
      * Export a combined duplicate report with all sections.
-     *
-     * @return string
      */
     public function exportAllDuplicatesCsv(): string
     {
@@ -3040,15 +3006,15 @@ class DuplicateDetectionService
     /**
      * Build CSV from array of rows.
      *
-     * @param array<int, array<int, mixed>> $rows
-     * @return string
+     * @param  array<int, array<int, mixed>>  $rows
      */
     private function buildCsv(array $rows): string
     {
         $csv = '';
         foreach ($rows as $row) {
-            $csv .= implode(',', array_map(fn ($v) => '"' . str_replace('"', '""', (string) $v) . '"', $row)) . "\n";
+            $csv .= implode(',', array_map(fn ($v) => '"'.str_replace('"', '""', (string) $v).'"', $row))."\n";
         }
+
         return $csv;
     }
 
@@ -3060,7 +3026,7 @@ class DuplicateDetectionService
      * Finds orders, conversations, or customer identities that span
      * multiple Facebook pages for the same customer.
      *
-     * @param array{phone?: string, psid?: string, time_window_hours?: int} $params
+     * @param  array{phone?: string, psid?: string, time_window_hours?: int}  $params
      * @return array<string, mixed>
      */
     public function detectCrossPageDuplicates(array $params): array
@@ -3079,7 +3045,7 @@ class DuplicateDetectionService
         $pageIds = collect();
 
         // Cross-page orders by phone
-        if (!empty($params['phone'])) {
+        if (! empty($params['phone'])) {
             $normalizedPhone = $this->phones->normalize($params['phone']);
             $windowHours = $params['time_window_hours'] ?? $this->defaultTimeWindowHours;
             $cutoff = Carbon::now()->subHours($windowHours);
@@ -3099,6 +3065,7 @@ class DuplicateDetectionService
             if ($ordersByPage->count() > 1) {
                 $results['cross_page_orders'] = $ordersByPage->map(function ($pageOrders, $pageId) {
                     $page = $pageOrders->first()->facebookPage;
+
                     return [
                         'facebook_page_id' => (int) $pageId,
                         'page_name' => $page?->page_name ?? "Page #{$pageId}",
@@ -3120,7 +3087,7 @@ class DuplicateDetectionService
         }
 
         // Cross-page conversations by PSID
-        if (!empty($params['psid'])) {
+        if (! empty($params['psid'])) {
             $identities = CustomerIdentity::query()
                 ->where('provider', 'facebook')
                 ->where('provider_user_id', $params['psid'])
@@ -3137,6 +3104,7 @@ class DuplicateDetectionService
                 $results['cross_page_conversations'] = $identitiesByPage->map(function ($pageIdentities, $pageId) {
                     $page = $pageIdentities->first()->facebookPage;
                     $conversations = $pageIdentities->flatMap->conversations;
+
                     return [
                         'facebook_page_id' => (int) $pageId,
                         'page_name' => $page?->page_name ?? "Page #{$pageId}",
@@ -3175,7 +3143,7 @@ class DuplicateDetectionService
     /**
      * Scan for all cross-page duplicates across the system.
      *
-     * @param int $limit  Max number of cross-page groups to return
+     * @param  int  $limit  Max number of cross-page groups to return
      * @return array<string, mixed>
      */
     public function scanCrossPageDuplicates(int $limit = 100): array
@@ -3283,7 +3251,7 @@ class DuplicateDetectionService
 
         foreach ($customerPageGroups as $group) {
             $customer = Customer::find($group->customer_id);
-            if (!$customer) {
+            if (! $customer) {
                 continue;
             }
 
@@ -3383,6 +3351,7 @@ class DuplicateDetectionService
             ->get()
             ->map(function ($row) {
                 $page = FacebookPage::find($row->facebook_page_id);
+
                 return [
                     'facebook_page_id' => $row->facebook_page_id,
                     'page_name' => $page?->page_name ?? "Page #{$row->facebook_page_id}",
@@ -3405,8 +3374,7 @@ class DuplicateDetectionService
     /**
      * Determine severity for cross-page duplicates based on page count.
      *
-     * @param int $pageCount
-     * @return string  'none', 'low', 'medium', 'high'
+     * @return string 'none', 'low', 'medium', 'high'
      */
     private function determineCrossPageSeverity(int $pageCount): string
     {
@@ -3554,7 +3522,7 @@ class DuplicateDetectionService
         $model = DuplicateMlModel::where('name', 'default')->where('is_active', true)->latest()->first();
 
         if ($model) {
-            return $model->version . ' (trained ' . $model->trained_at?->diffForHumans() . ')';
+            return $model->version.' (trained '.$model->trained_at?->diffForHumans().')';
         }
 
         return 'default (untrained)';
@@ -3563,7 +3531,7 @@ class DuplicateDetectionService
     /**
      * Score a batch of customer pairs.
      *
-     * @param array<array{customer_a: int, customer_b: int}> $pairs
+     * @param  array<array{customer_a: int, customer_b: int}>  $pairs
      * @return array<int, array<string, mixed>>
      */
     public function scoreBatch(array $pairs): array
@@ -3579,7 +3547,7 @@ class DuplicateDetectionService
             $a = $customers->get($pair['customer_a']);
             $b = $customers->get($pair['customer_b']);
 
-            if (!$a || !$b) {
+            if (! $a || ! $b) {
                 continue;
             }
 
@@ -3603,8 +3571,8 @@ class DuplicateDetectionService
     /**
      * Scan for high-scoring duplicate pairs using the ML model.
      *
-     * @param float $minScore  Minimum score (0-100)
-     * @param int $limit  Max pairs to return
+     * @param  float  $minScore  Minimum score (0-100)
+     * @param  int  $limit  Max pairs to return
      * @return array<string, mixed>
      */
     public function scanMlDuplicates(float $minScore = 70.0, int $limit = 100): array
@@ -3666,6 +3634,7 @@ class DuplicateDetectionService
         $candidatePairs = $candidatePairs->unique(function ($pair) {
             $sorted = $pair;
             sort($sorted);
+
             return implode('-', $sorted);
         })->take(500);
 
@@ -3677,7 +3646,7 @@ class DuplicateDetectionService
             $a = $customers->get($pair[0]);
             $b = $customers->get($pair[1]);
 
-            if (!$a || !$b || $a->id === $b->id) {
+            if (! $a || ! $b || $a->id === $b->id) {
                 continue;
             }
             if ($a->is_blacklisted || $b->is_blacklisted) {
@@ -3723,8 +3692,6 @@ class DuplicateDetectionService
      * Positive: review items 'actioned' + auto-merge 'merged'.
      * Negative: review items 'dismissed' + auto-merge 'rejected'.
      *
-     * @param int $epochs
-     * @param float $learningRate
      * @return array<string, mixed>
      */
     public function trainModel(int $epochs = 100, float $learningRate = 0.01): array
@@ -3738,13 +3705,13 @@ class DuplicateDetectionService
 
         foreach ($actioned as $item) {
             $meta = $item->metadata ?? [];
-            if (!empty($meta['target_customer_id']) && !empty($meta['source_customer_id'])) {
+            if (! empty($meta['target_customer_id']) && ! empty($meta['source_customer_id'])) {
                 $positivePairs->push([$meta['target_customer_id'], $meta['source_customer_id']]);
             }
         }
         foreach ($dismissed as $item) {
             $meta = $item->metadata ?? [];
-            if (!empty($meta['target_customer_id']) && !empty($meta['source_customer_id'])) {
+            if (! empty($meta['target_customer_id']) && ! empty($meta['source_customer_id'])) {
                 $negativePairs->push([$meta['target_customer_id'], $meta['source_customer_id']]);
             }
         }
@@ -3760,8 +3727,8 @@ class DuplicateDetectionService
             $negativePairs->push([$s->target_customer_id, $s->source_customer_id]);
         }
 
-        $positivePairs = $positivePairs->unique(fn ($p) => min($p) . '-' . max($p));
-        $negativePairs = $negativePairs->unique(fn ($p) => min($p) . '-' . max($p));
+        $positivePairs = $positivePairs->unique(fn ($p) => min($p).'-'.max($p));
+        $negativePairs = $negativePairs->unique(fn ($p) => min($p).'-'.max($p));
 
         if ($positivePairs->isEmpty() && $negativePairs->isEmpty()) {
             return [
@@ -3838,10 +3805,15 @@ class DuplicateDetectionService
             $predicted = $pred >= 0.5 ? 1.0 : 0.0;
             $actual = $sample['label'];
 
-            if ($predicted == 1 && $actual == 1) $tp++;
-            elseif ($predicted == 1 && $actual == 0) $fp++;
-            elseif ($predicted == 0 && $actual == 0) $tn++;
-            else $fn++;
+            if ($predicted == 1 && $actual == 1) {
+                $tp++;
+            } elseif ($predicted == 1 && $actual == 0) {
+                $fp++;
+            } elseif ($predicted == 0 && $actual == 0) {
+                $tn++;
+            } else {
+                $fn++;
+            }
         }
 
         $accuracy = ($tp + $tn) / max($tp + $fp + $tn + $fn, 1);
@@ -3855,7 +3827,7 @@ class DuplicateDetectionService
         $modelCount = DuplicateMlModel::where('name', 'default')->count();
         $model = DuplicateMlModel::create([
             'name' => 'default',
-            'version' => 'v' . ($modelCount + 1),
+            'version' => 'v'.($modelCount + 1),
             'feature_weights' => $weights,
             'training_stats' => [
                 'tp' => $tp, 'fp' => $fp, 'tn' => $tn, 'fn' => $fn,

@@ -46,12 +46,12 @@ class FacebookConnectorService
 
         $query = http_build_query($parameters);
 
-        return "https://www.facebook.com/" . config('services.meta.graph_version') . "/dialog/oauth?{$query}";
+        return 'https://www.facebook.com/'.config('services.meta.graph_version')."/dialog/oauth?{$query}";
     }
 
     public function connectFromCallback(User $user, string $code): int
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
         $token = Http::get("{$baseUrl}/oauth/access_token", [
             'client_id' => config('services.meta.app_id'),
             'client_secret' => config('services.meta.app_secret'),
@@ -109,7 +109,7 @@ class FacebookConnectorService
 
     public function subscribePage(FacebookPage $page): void
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         Http::post("{$baseUrl}/{$page->page_id}/subscribed_apps", [
             'access_token' => $page->page_access_token,
@@ -128,7 +128,7 @@ class FacebookConnectorService
 
     public function checkPageSubscription(FacebookPage $page): array
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         $apps = Http::get("{$baseUrl}/{$page->page_id}/subscribed_apps", [
             'access_token' => $page->page_access_token,
@@ -166,7 +166,7 @@ class FacebookConnectorService
 
     public function sendMessage(FacebookPage $page, string $recipientPsid, string $body): array
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         return Http::post("{$baseUrl}/me/messages", [
             'access_token' => $page->page_access_token,
@@ -177,11 +177,11 @@ class FacebookConnectorService
     }
 
     /**
-     * @param array<int, array{title: string, payload: string, image_url?: string}> $quickReplies
+     * @param  array<int, array{title: string, payload: string, image_url?: string}>  $quickReplies
      */
     public function sendMessageWithQuickReplies(FacebookPage $page, string $recipientPsid, string $body, array $quickReplies): array
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         $message = [
             'text' => $body,
@@ -203,7 +203,7 @@ class FacebookConnectorService
 
     public function sendTypingIndicator(FacebookPage $page, string $recipientPsid): array
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         return Http::post("{$baseUrl}/me/messages", [
             'access_token' => $page->page_access_token,

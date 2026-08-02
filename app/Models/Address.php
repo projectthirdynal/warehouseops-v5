@@ -6,17 +6,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Address extends Model
 {
     use HasFactory, SoftDeletes;
 
-    const TYPE_BILLING  = 'billing';
+    const TYPE_BILLING = 'billing';
+
     const TYPE_SHIPPING = 'shipping';
-    const TYPE_BRANCH   = 'branch';
-    const TYPE_OTHER    = 'other';
+
+    const TYPE_BRANCH = 'branch';
+
+    const TYPE_OTHER = 'other';
 
     protected $fillable = [
         'third_party_id',
@@ -53,6 +56,7 @@ class Address extends Model
             $this->state_province,
             $this->postal_code,
         ]);
+
         return implode(', ', $parts);
     }
 }

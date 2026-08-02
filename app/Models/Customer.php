@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Domain\Order\Models\Order;
+use App\Domain\Shop\Models\CustomerIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
 {
@@ -63,12 +65,12 @@ class Customer extends Model
 
     public function orders(): HasMany
     {
-        return $this->hasMany(\App\Domain\Order\Models\Order::class);
+        return $this->hasMany(Order::class);
     }
 
     public function identities(): HasMany
     {
-        return $this->hasMany(\App\Domain\Shop\Models\CustomerIdentity::class);
+        return $this->hasMany(CustomerIdentity::class);
     }
 
     public function addresses(): HasMany

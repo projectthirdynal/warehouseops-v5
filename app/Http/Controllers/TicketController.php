@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Ticket;
-use App\Models\TicketComment;
-use App\Models\TicketCategory;
-use App\Models\TicketPriority;
-use App\Models\TicketCannedResponse;
 use App\Models\ActivityLog;
+use App\Models\Ticket;
+use App\Models\TicketCannedResponse;
+use App\Models\TicketCategory;
+use App\Models\TicketComment;
+use App\Models\TicketPriority;
 use App\Models\User;
+use App\Notifications\TicketAssignedNotification;
 use App\Notifications\TicketCreatedNotification;
 use App\Notifications\TicketRepliedNotification;
 use App\Notifications\TicketStatusChangedNotification;
-use App\Notifications\TicketAssignedNotification;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class TicketController extends Controller
@@ -23,55 +24,55 @@ class TicketController extends Controller
     public function index(Request $request)
     {
         $validated = $request->validate([
-            'search'      => ['nullable', 'string', 'max:200'],
-            'status'      => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
-            'priority'    => ['nullable', 'string'],
-            'category'    => ['nullable', 'string'],
+            'search' => ['nullable', 'string', 'max:200'],
+            'status' => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
+            'priority' => ['nullable', 'string'],
+            'category' => ['nullable', 'string'],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
-            'date_from'   => ['nullable', 'date'],
-            'date_to'     => ['nullable', 'date'],
-            'sla_status'  => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
-            'sort_by'     => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
-            'sort_dir'    => ['nullable', 'string', 'in:asc,desc'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'sla_status' => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
+            'sort_by' => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
+            'sort_dir' => ['nullable', 'string', 'in:asc,desc'],
         ]);
 
         $query = Ticket::with(['createdBy:id,name', 'assignedTo:id,name']);
 
         // Search across subject, ticket_number, description
-        if (!empty($validated['search'])) {
+        if (! empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('subject', 'ilike', "%{$search}%")
-                  ->orWhere('ticket_number', 'ilike', "%{$search}%")
-                  ->orWhere('description', 'ilike', "%{$search}%");
+                    ->orWhere('ticket_number', 'ilike', "%{$search}%")
+                    ->orWhere('description', 'ilike', "%{$search}%");
             });
         }
 
         // Status filter
-        if (!empty($validated['status'])) {
+        if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
 
         // Priority filter
-        if (!empty($validated['priority'])) {
+        if (! empty($validated['priority'])) {
             $query->where('priority', $validated['priority']);
         }
 
         // Category filter
-        if (!empty($validated['category'])) {
+        if (! empty($validated['category'])) {
             $query->where('category', $validated['category']);
         }
 
         // Assignee filter
-        if (!empty($validated['assigned_to'])) {
+        if (! empty($validated['assigned_to'])) {
             $query->where('assigned_to', $validated['assigned_to']);
         }
 
         // Date range filter
-        if (!empty($validated['date_from'])) {
+        if (! empty($validated['date_from'])) {
             $query->whereDate('created_at', '>=', $validated['date_from']);
         }
-        if (!empty($validated['date_to'])) {
+        if (! empty($validated['date_to'])) {
             $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
@@ -81,37 +82,37 @@ class TicketController extends Controller
         $query->orderBy($sortBy, $sortDir);
 
         $tickets = $query->limit(100)->get()->map(fn ($t) => [
-            'id'              => $t->id,
-            'ticket_number'   => $t->ticket_number,
-            'subject'         => $t->subject,
-            'description'     => $t->description,
-            'status'          => $t->status,
-            'priority'        => $t->priority,
-            'category'        => $t->category,
-            'created_by'      => $t->createdBy,
-            'assigned_to'     => $t->assignedTo,
+            'id' => $t->id,
+            'ticket_number' => $t->ticket_number,
+            'subject' => $t->subject,
+            'description' => $t->description,
+            'status' => $t->status,
+            'priority' => $t->priority,
+            'category' => $t->category,
+            'created_by' => $t->createdBy,
+            'assigned_to' => $t->assignedTo,
             'related_waybill' => $t->related_waybill,
-            'related_lead'    => $t->related_lead,
-            'created_at'      => $t->created_at,
-            'updated_at'      => $t->updated_at,
-            'messages_count'  => $t->comments()->count(),
-            'due_at'          => $t->due_at?->toIso8601String(),
-            'sla_status'      => $t->slaStatus(),
-            'sla_remaining'   => $t->timeRemaining(),
+            'related_lead' => $t->related_lead,
+            'created_at' => $t->created_at,
+            'updated_at' => $t->updated_at,
+            'messages_count' => $t->comments()->count(),
+            'due_at' => $t->due_at?->toIso8601String(),
+            'sla_status' => $t->slaStatus(),
+            'sla_remaining' => $t->timeRemaining(),
         ]);
 
         // SLA status post-filter
-        if (!empty($validated['sla_status'])) {
+        if (! empty($validated['sla_status'])) {
             $slaFilter = $validated['sla_status'];
             $tickets = $tickets->filter(fn ($t) => $t['sla_status'] === $slaFilter);
         }
 
         $stats = [
-            'total'          => Ticket::count(),
-            'open'           => Ticket::where('status', 'open')->count(),
-            'in_progress'    => Ticket::where('status', 'in_progress')->count(),
+            'total' => Ticket::count(),
+            'open' => Ticket::where('status', 'open')->count(),
+            'in_progress' => Ticket::where('status', 'in_progress')->count(),
             'resolved_today' => Ticket::where('status', 'resolved')->whereDate('updated_at', today())->count(),
-            'overdue'        => Ticket::whereNotNull('due_at')->where('due_at', '<', now())->whereNotIn('status', ['resolved', 'closed'])->count(),
+            'overdue' => Ticket::whereNotNull('due_at')->where('due_at', '<', now())->whereNotIn('status', ['resolved', 'closed'])->count(),
         ];
 
         $categories = TicketCategory::orderBy('sort_order')->get(['id', 'name', 'slug', 'color', 'is_active']);
@@ -122,36 +123,36 @@ class TicketController extends Controller
             ->get(['id', 'name']);
 
         return Inertia::render('Tickets/Index', [
-            'tickets'        => $tickets->values(),
-            'stats'          => $stats,
-            'categories'     => $categories,
-            'priorities'     => $priorities,
+            'tickets' => $tickets->values(),
+            'stats' => $stats,
+            'categories' => $categories,
+            'priorities' => $priorities,
             'assignableUsers' => $assignableUsers,
-            'currentUserId'  => $request->user()->id,
-            'filters'        => $request->only(['search', 'status', 'priority', 'category', 'assigned_to', 'date_from', 'date_to', 'sla_status', 'sort_by', 'sort_dir']),
+            'currentUserId' => $request->user()->id,
+            'filters' => $request->only(['search', 'status', 'priority', 'category', 'assigned_to', 'date_from', 'date_to', 'sla_status', 'sort_by', 'sort_dir']),
         ]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'subject'         => ['required', 'string', 'max:255'],
-            'description'     => ['nullable', 'string', 'max:5000'],
-            'priority'        => ['required', 'string', 'max:50'],
-            'category'        => ['required', 'string', 'max:100'],
+            'subject' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'priority' => ['required', 'string', 'max:50'],
+            'category' => ['required', 'string', 'max:100'],
             'related_waybill' => ['nullable', 'string', 'max:100'],
         ]);
 
         $ticket = Ticket::create([
-            'ticket_number'   => Ticket::generateTicketNumber(),
-            'subject'         => $validated['subject'],
-            'description'     => $validated['description'] ?? null,
-            'priority'        => $validated['priority'],
-            'category'        => $validated['category'],
+            'ticket_number' => Ticket::generateTicketNumber(),
+            'subject' => $validated['subject'],
+            'description' => $validated['description'] ?? null,
+            'priority' => $validated['priority'],
+            'category' => $validated['category'],
             'related_waybill' => $validated['related_waybill'] ?? null,
-            'status'          => 'open',
-            'created_by'      => $request->user()->id,
-            'due_at'          => Ticket::calculateDueAt($validated['priority']),
+            'status' => 'open',
+            'created_by' => $request->user()->id,
+            'due_at' => Ticket::calculateDueAt($validated['priority']),
         ]);
 
         // Notify assignable users about new ticket
@@ -161,7 +162,7 @@ class TicketController extends Controller
             ->where('id', '!=', $creator->id)
             ->get();
 
-        \Illuminate\Support\Facades\Notification::send(
+        Notification::send(
             $assignableUsers,
             new TicketCreatedNotification($ticket, $creator->name),
         );
@@ -178,11 +179,11 @@ class TicketController extends Controller
             ->with('user:id,name')
             ->get()
             ->map(fn ($c) => [
-                'id'           => $c->id,
-                'body'         => $c->body,
-                'is_internal'  => $c->is_internal,
-                'user'         => $c->user,
-                'created_at'   => $c->created_at,
+                'id' => $c->id,
+                'body' => $c->body,
+                'is_internal' => $c->is_internal,
+                'user' => $c->user,
+                'created_at' => $c->created_at,
             ]);
 
         $activityLogs = ActivityLog::where('entity_type', 'ticket')
@@ -192,10 +193,10 @@ class TicketController extends Controller
             ->limit(50)
             ->get()
             ->map(fn ($log) => [
-                'id'         => $log->id,
-                'action'     => $log->action,
-                'user'       => $log->user,
-                'metadata'   => $log->metadata,
+                'id' => $log->id,
+                'action' => $log->action,
+                'user' => $log->user,
+                'metadata' => $log->metadata,
                 'created_at' => $log->created_at,
             ]);
 
@@ -211,49 +212,49 @@ class TicketController extends Controller
             ->get(['id', 'title', 'body', 'category']);
 
         return Inertia::render('Tickets/Show', [
-            'ticket'       => [
-                'id'              => $ticket->id,
-                'ticket_number'   => $ticket->ticket_number,
-                'subject'         => $ticket->subject,
-                'description'     => $ticket->description,
-                'status'          => $ticket->status,
-                'priority'        => $ticket->priority,
-                'category'        => $ticket->category,
-                'created_by'      => $ticket->createdBy,
-                'assigned_to'     => $ticket->assignedTo,
+            'ticket' => [
+                'id' => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+                'subject' => $ticket->subject,
+                'description' => $ticket->description,
+                'status' => $ticket->status,
+                'priority' => $ticket->priority,
+                'category' => $ticket->category,
+                'created_by' => $ticket->createdBy,
+                'assigned_to' => $ticket->assignedTo,
                 'related_waybill' => $ticket->related_waybill,
-                'related_lead'    => $ticket->related_lead,
-                'created_at'      => $ticket->created_at,
-                'updated_at'      => $ticket->updated_at,
-                'due_at'          => $ticket->due_at?->toIso8601String(),
-                'resolved_at'     => $ticket->resolved_at?->toIso8601String(),
-                'sla_status'      => $ticket->slaStatus(),
-                'sla_remaining'   => $ticket->timeRemaining(),
-                'satisfaction_rating'       => $ticket->satisfaction_rating,
-                'satisfaction_comment'      => $ticket->satisfaction_comment,
+                'related_lead' => $ticket->related_lead,
+                'created_at' => $ticket->created_at,
+                'updated_at' => $ticket->updated_at,
+                'due_at' => $ticket->due_at?->toIso8601String(),
+                'resolved_at' => $ticket->resolved_at?->toIso8601String(),
+                'sla_status' => $ticket->slaStatus(),
+                'sla_remaining' => $ticket->timeRemaining(),
+                'satisfaction_rating' => $ticket->satisfaction_rating,
+                'satisfaction_comment' => $ticket->satisfaction_comment,
                 'satisfaction_submitted_at' => $ticket->satisfaction_submitted_at?->toIso8601String(),
             ],
-            'activityLogs'    => $activityLogs,
-            'comments'        => $comments,
+            'activityLogs' => $activityLogs,
+            'comments' => $comments,
             'assignableUsers' => $assignableUsers,
-            'categories'      => $categories,
-            'priorities'      => $priorities,
+            'categories' => $categories,
+            'priorities' => $priorities,
             'cannedResponses' => $cannedResponses,
-            'currentUserId'   => $request->user()->id,
+            'currentUserId' => $request->user()->id,
         ]);
     }
 
     public function storeComment(Request $request, Ticket $ticket)
     {
         $validated = $request->validate([
-            'body'        => ['required', 'string', 'max:5000'],
+            'body' => ['required', 'string', 'max:5000'],
             'is_internal' => ['boolean'],
         ]);
 
         $comment = TicketComment::create([
-            'ticket_id'   => $ticket->id,
-            'user_id'     => $request->user()->id,
-            'body'        => $validated['body'],
+            'ticket_id' => $ticket->id,
+            'user_id' => $request->user()->id,
+            'body' => $validated['body'],
             'is_internal' => $validated['is_internal'] ?? false,
         ]);
 
@@ -263,7 +264,7 @@ class TicketController extends Controller
         ]);
 
         // Notify ticket creator and assignee about the reply (skip internal notes for non-admin)
-        if (!$comment->is_internal) {
+        if (! $comment->is_internal) {
             $recipients = collect();
             if ($ticket->created_by && $ticket->created_by !== $request->user()->id) {
                 $recipients->push(User::find($ticket->created_by));
@@ -272,7 +273,7 @@ class TicketController extends Controller
                 $recipients->push(User::find($ticket->assigned_to));
             }
             $recipients = $recipients->filter()->unique('id');
-            \Illuminate\Support\Facades\Notification::send(
+            Notification::send(
                 $recipients,
                 new TicketRepliedNotification($ticket, $request->user()->name, $comment->body, false),
             );
@@ -301,13 +302,13 @@ class TicketController extends Controller
     public function submitSurvey(Request $request, Ticket $ticket)
     {
         $validated = $request->validate([
-            'satisfaction_rating'  => ['required', 'integer', 'min:1', 'max:5'],
+            'satisfaction_rating' => ['required', 'integer', 'min:1', 'max:5'],
             'satisfaction_comment' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $ticket->update([
-            'satisfaction_rating'       => $validated['satisfaction_rating'],
-            'satisfaction_comment'      => $validated['satisfaction_comment'] ?? null,
+            'satisfaction_rating' => $validated['satisfaction_rating'],
+            'satisfaction_comment' => $validated['satisfaction_comment'] ?? null,
             'satisfaction_submitted_at' => now(),
         ]);
 
@@ -328,29 +329,29 @@ class TicketController extends Controller
         $newStatus = $validated['status'];
 
         $allowedTransitions = [
-            'open'         => ['in_progress', 'waiting', 'resolved', 'closed'],
-            'in_progress'  => ['waiting', 'resolved', 'closed', 'open'],
-            'waiting'      => ['in_progress', 'resolved', 'closed', 'open'],
-            'resolved'     => ['closed', 'in_progress', 'open'],
-            'closed'       => ['in_progress', 'open'],
+            'open' => ['in_progress', 'waiting', 'resolved', 'closed'],
+            'in_progress' => ['waiting', 'resolved', 'closed', 'open'],
+            'waiting' => ['in_progress', 'resolved', 'closed', 'open'],
+            'resolved' => ['closed', 'in_progress', 'open'],
+            'closed' => ['in_progress', 'open'],
         ];
 
-        if (!in_array($newStatus, $allowedTransitions[$oldStatus] ?? [])) {
+        if (! in_array($newStatus, $allowedTransitions[$oldStatus] ?? [])) {
             return back()->withErrors(['status' => "Cannot transition from {$oldStatus} to {$newStatus}."]);
         }
 
         $updateData = ['status' => $newStatus];
-        if (in_array($newStatus, ['resolved', 'closed']) && !$ticket->resolved_at) {
+        if (in_array($newStatus, ['resolved', 'closed']) && ! $ticket->resolved_at) {
             $updateData['resolved_at'] = now();
         }
-        if (!in_array($newStatus, ['resolved', 'closed'])) {
+        if (! in_array($newStatus, ['resolved', 'closed'])) {
             $updateData['resolved_at'] = null;
         }
         $ticket->update($updateData);
 
         ActivityLog::log('ticket_status_changed', $request->user(), 'ticket', $ticket->id, [
             'from' => $oldStatus,
-            'to'   => $newStatus,
+            'to' => $newStatus,
         ]);
 
         // Notify ticket creator and assignee about status change
@@ -362,7 +363,7 @@ class TicketController extends Controller
             $recipients->push(User::find($ticket->assigned_to));
         }
         $recipients = $recipients->filter()->unique('id');
-        \Illuminate\Support\Facades\Notification::send(
+        Notification::send(
             $recipients,
             new TicketStatusChangedNotification($ticket, $oldStatus, $newStatus, $request->user()->name),
         );
@@ -385,7 +386,7 @@ class TicketController extends Controller
 
         ActivityLog::log('ticket_assigned', $request->user(), 'ticket', $ticket->id, [
             'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssigneeName] : null,
-            'to'   => ['id' => $newAssignee->id, 'name' => $newAssignee->name],
+            'to' => ['id' => $newAssignee->id, 'name' => $newAssignee->name],
         ]);
 
         // Notify the new assignee
@@ -419,26 +420,26 @@ class TicketController extends Controller
         $cannedResponses = TicketCannedResponse::orderByDesc('created_at')->get();
 
         return Inertia::render('Tickets/Settings', [
-            'categories'       => $categories,
-            'priorities'       => $priorities,
-            'cannedResponses'  => $cannedResponses,
+            'categories' => $categories,
+            'priorities' => $priorities,
+            'cannedResponses' => $cannedResponses,
         ]);
     }
 
     public function storeCategory(Request $request)
     {
         $validated = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'color'      => ['required', 'string', 'max:20'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:100'],
+            'color' => ['required', 'string', 'max:20'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer'],
         ]);
 
         TicketCategory::create([
-            'name'       => $validated['name'],
-            'slug'       => Str::slug($validated['name']),
-            'color'      => $validated['color'],
-            'is_active'  => $validated['is_active'] ?? true,
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'color' => $validated['color'],
+            'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
@@ -448,17 +449,17 @@ class TicketController extends Controller
     public function updateCategory(Request $request, TicketCategory $category)
     {
         $validated = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'color'      => ['required', 'string', 'max:20'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:100'],
+            'color' => ['required', 'string', 'max:20'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer'],
         ]);
 
         $category->update([
-            'name'       => $validated['name'],
-            'slug'       => Str::slug($validated['name']),
-            'color'      => $validated['color'],
-            'is_active'  => $validated['is_active'] ?? true,
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'color' => $validated['color'],
+            'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
@@ -475,19 +476,19 @@ class TicketController extends Controller
     public function storePriority(Request $request)
     {
         $validated = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'color'      => ['required', 'string', 'max:20'],
-            'level'      => ['required', 'integer'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:100'],
+            'color' => ['required', 'string', 'max:20'],
+            'level' => ['required', 'integer'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer'],
         ]);
 
         TicketPriority::create([
-            'name'       => $validated['name'],
-            'slug'       => Str::slug($validated['name']),
-            'color'      => $validated['color'],
-            'level'      => $validated['level'],
-            'is_active'  => $validated['is_active'] ?? true,
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'color' => $validated['color'],
+            'level' => $validated['level'],
+            'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
@@ -497,19 +498,19 @@ class TicketController extends Controller
     public function updatePriority(Request $request, TicketPriority $priority)
     {
         $validated = $request->validate([
-            'name'       => ['required', 'string', 'max:100'],
-            'color'      => ['required', 'string', 'max:20'],
-            'level'      => ['required', 'integer'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:100'],
+            'color' => ['required', 'string', 'max:20'],
+            'level' => ['required', 'integer'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer'],
         ]);
 
         $priority->update([
-            'name'       => $validated['name'],
-            'slug'       => Str::slug($validated['name']),
-            'color'      => $validated['color'],
-            'level'      => $validated['level'],
-            'is_active'  => $validated['is_active'] ?? true,
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'color' => $validated['color'],
+            'level' => $validated['level'],
+            'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
@@ -528,15 +529,15 @@ class TicketController extends Controller
     public function storeCannedResponse(Request $request)
     {
         $validated = $request->validate([
-            'title'    => ['required', 'string', 'max:200'],
-            'body'     => ['required', 'string', 'max:5000'],
+            'title' => ['required', 'string', 'max:200'],
+            'body' => ['required', 'string', 'max:5000'],
             'category' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ]);
 
         TicketCannedResponse::create([
-            'title'    => $validated['title'],
-            'body'     => $validated['body'],
+            'title' => $validated['title'],
+            'body' => $validated['body'],
             'category' => $validated['category'] ?? 'general',
             'is_active' => $validated['is_active'] ?? true,
             'created_by' => $request->user()->id,
@@ -548,15 +549,15 @@ class TicketController extends Controller
     public function updateCannedResponse(Request $request, TicketCannedResponse $cannedResponse)
     {
         $validated = $request->validate([
-            'title'    => ['required', 'string', 'max:200'],
-            'body'     => ['required', 'string', 'max:5000'],
+            'title' => ['required', 'string', 'max:200'],
+            'body' => ['required', 'string', 'max:5000'],
             'category' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ]);
 
         $cannedResponse->update([
-            'title'    => $validated['title'],
-            'body'     => $validated['body'],
+            'title' => $validated['title'],
+            'body' => $validated['body'],
             'category' => $validated['category'] ?? 'general',
             'is_active' => $validated['is_active'] ?? true,
         ]);
@@ -583,9 +584,9 @@ class TicketController extends Controller
     public function bulkAssign(Request $request)
     {
         $validated = $request->validate([
-            'ticket_ids'   => ['required', 'array', 'min:1'],
+            'ticket_ids' => ['required', 'array', 'min:1'],
             'ticket_ids.*' => ['integer', 'exists:tickets,id'],
-            'assigned_to'  => ['required', 'exists:users,id'],
+            'assigned_to' => ['required', 'exists:users,id'],
         ]);
 
         $tickets = Ticket::whereIn('id', $validated['ticket_ids'])->get();
@@ -599,7 +600,7 @@ class TicketController extends Controller
 
                 ActivityLog::log('ticket_assigned', $request->user(), 'ticket', $ticket->id, [
                     'from' => $previousAssignee ? ['id' => $previousAssignee, 'name' => $previousAssignee] : null,
-                    'to'   => ['id' => $assignee->id, 'name' => $assignee->name],
+                    'to' => ['id' => $assignee->id, 'name' => $assignee->name],
                     'bulk' => true,
                 ]);
                 $count++;
@@ -624,13 +625,13 @@ class TicketController extends Controller
         foreach ($tickets as $ticket) {
             $oldStatus = $ticket->status;
             $ticket->update([
-                'status'      => 'closed',
+                'status' => 'closed',
                 'resolved_at' => $ticket->resolved_at ?? now(),
             ]);
 
             ActivityLog::log('ticket_status_changed', $request->user(), 'ticket', $ticket->id, [
                 'from' => $oldStatus,
-                'to'   => 'closed',
+                'to' => 'closed',
                 'bulk' => true,
             ]);
             $count++;
@@ -644,7 +645,7 @@ class TicketController extends Controller
         $validated = $request->validate([
             'ticket_ids' => ['required', 'array', 'min:1'],
             'ticket_ids.*' => ['integer', 'exists:tickets,id'],
-            'priority'   => ['required', 'string', 'max:50'],
+            'priority' => ['required', 'string', 'max:50'],
         ]);
 
         $tickets = Ticket::whereIn('id', $validated['ticket_ids'])->get();
@@ -655,12 +656,12 @@ class TicketController extends Controller
                 $oldPriority = $ticket->priority;
                 $ticket->update([
                     'priority' => $validated['priority'],
-                    'due_at'    => Ticket::calculateDueAt($validated['priority'], $ticket->created_at),
+                    'due_at' => Ticket::calculateDueAt($validated['priority'], $ticket->created_at),
                 ]);
 
                 ActivityLog::log('ticket_priority_changed', $request->user(), 'ticket', $ticket->id, [
                     'from' => $oldPriority,
-                    'to'   => $validated['priority'],
+                    'to' => $validated['priority'],
                     'bulk' => true,
                 ]);
                 $count++;
@@ -673,10 +674,10 @@ class TicketController extends Controller
     public function analytics()
     {
         // ── Overview stats ──
-        $totalTickets    = Ticket::count();
-        $openTickets     = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->count();
+        $totalTickets = Ticket::count();
+        $openTickets = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->count();
         $resolvedTickets = Ticket::whereIn('status', ['resolved', 'closed'])->count();
-        $overdueCount    = Ticket::whereNotNull('due_at')->whereIn('status', ['open', 'in_progress', 'waiting'])->where('due_at', '<', now())->count();
+        $overdueCount = Ticket::whereNotNull('due_at')->whereIn('status', ['open', 'in_progress', 'waiting'])->where('due_at', '<', now())->count();
 
         // ── Resolution time (avg hours for resolved/closed tickets with resolved_at) ──
         $resolutionStats = Ticket::whereIn('status', ['resolved', 'closed'])
@@ -711,18 +712,18 @@ class TicketController extends Controller
             ->toArray();
 
         // ── SLA compliance ──
-        $slaMet    = Ticket::whereIn('status', ['resolved', 'closed'])->whereNotNull('due_at')->whereNotNull('resolved_at')->where('resolved_at', '<=', DB::raw('due_at'))->count();
+        $slaMet = Ticket::whereIn('status', ['resolved', 'closed'])->whereNotNull('due_at')->whereNotNull('resolved_at')->where('resolved_at', '<=', DB::raw('due_at'))->count();
         $slaBreached = Ticket::whereIn('status', ['resolved', 'closed'])->whereNotNull('due_at')->whereNotNull('resolved_at')->where('resolved_at', '>', DB::raw('due_at'))->count();
-        $slaPending  = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '<', now())->count();
-        $slaOnTrack  = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '>=', now())->count();
+        $slaPending = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '<', now())->count();
+        $slaOnTrack = Ticket::whereIn('status', ['open', 'in_progress', 'waiting'])->whereNotNull('due_at')->where('due_at', '>=', now())->count();
 
         $totalSla = $slaMet + $slaBreached;
         $slaComplianceRate = $totalSla > 0 ? round(($slaMet / $totalSla) * 100, 1) : null;
 
         // ── Satisfaction stats ──
         $satisfactionRated = Ticket::whereNotNull('satisfaction_rating')->count();
-        $avgSatisfaction   = Ticket::whereNotNull('satisfaction_rating')->avg('satisfaction_rating');
-        $satisfactionDist  = Ticket::whereNotNull('satisfaction_rating')
+        $avgSatisfaction = Ticket::whereNotNull('satisfaction_rating')->avg('satisfaction_rating');
+        $satisfactionDist = Ticket::whereNotNull('satisfaction_rating')
             ->select('satisfaction_rating', DB::raw('count(*) as count'))
             ->groupBy('satisfaction_rating')
             ->pluck('count', 'satisfaction_rating')
@@ -748,12 +749,12 @@ class TicketController extends Controller
         // Merge trends on date
         $trendDates = $trend->pluck('date')->merge($resolutionTrend->pluck('date'))->unique()->sort()->values();
         $trendMerged = $trendDates->map(function ($date) use ($trend, $resolutionTrend) {
-            $created  = $trend->firstWhere('date', $date);
+            $created = $trend->firstWhere('date', $date);
             $resolved = $resolutionTrend->firstWhere('date', $date);
 
             return [
-                'date'     => $date,
-                'created'  => $created['total'] ?? 0,
+                'date' => $date,
+                'created' => $created['total'] ?? 0,
                 'resolved' => $resolved['resolved'] ?? 0,
             ];
         });
@@ -767,83 +768,83 @@ class TicketController extends Controller
             ->limit(5)
             ->get()
             ->map(fn ($row) => [
-                'name'        => $row->assignedTo?->name ?? 'Unknown',
+                'name' => $row->assignedTo?->name ?? 'Unknown',
                 'ticket_count' => (int) $row->ticket_count,
             ]);
 
         return Inertia::render('Tickets/Analytics', [
             'overview' => [
-                'total'     => $totalTickets,
-                'open'      => $openTickets,
-                'resolved'  => $resolvedTickets,
-                'overdue'   => $overdueCount,
+                'total' => $totalTickets,
+                'open' => $openTickets,
+                'resolved' => $resolvedTickets,
+                'overdue' => $overdueCount,
             ],
             'resolutionTime' => [
                 'avg_hours' => $avgResolutionHours,
                 'min_hours' => $minResolutionHours,
                 'max_hours' => $maxResolutionHours,
             ],
-            'statusBreakdown'    => $statusBreakdown,
-            'priorityBreakdown'  => $priorityBreakdown,
-            'categoryBreakdown'  => $categoryBreakdown,
+            'statusBreakdown' => $statusBreakdown,
+            'priorityBreakdown' => $priorityBreakdown,
+            'categoryBreakdown' => $categoryBreakdown,
             'sla' => [
-                'met'             => $slaMet,
-                'breached'        => $slaBreached,
+                'met' => $slaMet,
+                'breached' => $slaBreached,
                 'pending_overdue' => $slaPending,
-                'on_track'        => $slaOnTrack,
+                'on_track' => $slaOnTrack,
                 'compliance_rate' => $slaComplianceRate,
             ],
             'satisfaction' => [
-                'rated'   => $satisfactionRated,
+                'rated' => $satisfactionRated,
                 'average' => $avgSatisfaction ? round((float) $avgSatisfaction, 2) : null,
                 'distribution' => $satisfactionDist,
             ],
-            'trend'          => $trendMerged,
-            'topAssignees'   => $topAssignees,
+            'trend' => $trendMerged,
+            'topAssignees' => $topAssignees,
         ]);
     }
 
     public function exportCsv(Request $request)
     {
         $validated = $request->validate([
-            'search'      => ['nullable', 'string', 'max:200'],
-            'status'      => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
-            'priority'    => ['nullable', 'string'],
-            'category'    => ['nullable', 'string'],
+            'search' => ['nullable', 'string', 'max:200'],
+            'status' => ['nullable', 'string', 'in:open,in_progress,waiting,resolved,closed'],
+            'priority' => ['nullable', 'string'],
+            'category' => ['nullable', 'string'],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
-            'date_from'   => ['nullable', 'date'],
-            'date_to'     => ['nullable', 'date'],
-            'sla_status'  => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
-            'sort_by'     => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
-            'sort_dir'    => ['nullable', 'string', 'in:asc,desc'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'sla_status' => ['nullable', 'string', 'in:on_track,warning,overdue,breached,met'],
+            'sort_by' => ['nullable', 'string', 'in:created_at,updated_at,due_at,priority,subject'],
+            'sort_dir' => ['nullable', 'string', 'in:asc,desc'],
         ]);
 
         $query = Ticket::with(['createdBy:id,name', 'assignedTo:id,name']);
 
-        if (!empty($validated['search'])) {
+        if (! empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('subject', 'ilike', "%{$search}%")
-                  ->orWhere('ticket_number', 'ilike', "%{$search}%")
-                  ->orWhere('description', 'ilike', "%{$search}%");
+                    ->orWhere('ticket_number', 'ilike', "%{$search}%")
+                    ->orWhere('description', 'ilike', "%{$search}%");
             });
         }
-        if (!empty($validated['status'])) {
+        if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
-        if (!empty($validated['priority'])) {
+        if (! empty($validated['priority'])) {
             $query->where('priority', $validated['priority']);
         }
-        if (!empty($validated['category'])) {
+        if (! empty($validated['category'])) {
             $query->where('category', $validated['category']);
         }
-        if (!empty($validated['assigned_to'])) {
+        if (! empty($validated['assigned_to'])) {
             $query->where('assigned_to', $validated['assigned_to']);
         }
-        if (!empty($validated['date_from'])) {
+        if (! empty($validated['date_from'])) {
             $query->whereDate('created_at', '>=', $validated['date_from']);
         }
-        if (!empty($validated['date_to'])) {
+        if (! empty($validated['date_to'])) {
             $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
@@ -854,14 +855,14 @@ class TicketController extends Controller
         $tickets = $query->limit(500)->get();
 
         // SLA status post-filter
-        if (!empty($validated['sla_status'])) {
+        if (! empty($validated['sla_status'])) {
             $slaFilter = $validated['sla_status'];
             $tickets = $tickets->filter(fn ($t) => $t->slaStatus() === $slaFilter);
         }
 
         $headers = [
-            'Content-Type'        => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="tickets-export-' . now()->format('Y-m-d') . '.csv"',
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="tickets-export-'.now()->format('Y-m-d').'.csv"',
         ];
 
         $columns = [
@@ -885,7 +886,7 @@ class TicketController extends Controller
 
         $callback = function () use ($tickets, $columns) {
             $fh = fopen('php://output', 'w');
-            fprintf($fh, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fprintf($fh, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($fh, $columns);
 
             foreach ($tickets as $t) {
@@ -902,7 +903,7 @@ class TicketController extends Controller
                     $t->slaStatus(),
                     $t->due_at?->format('Y-m-d H:i') ?? '',
                     $t->resolved_at?->format('Y-m-d H:i') ?? '',
-                    $t->satisfaction_rating !== null ? (string) $t->satisfaction_rating . '/5' : '',
+                    $t->satisfaction_rating !== null ? (string) $t->satisfaction_rating.'/5' : '',
                     $t->satisfaction_comment ?? '',
                     $t->created_at?->format('Y-m-d H:i') ?? '',
                     $t->updated_at?->format('Y-m-d H:i') ?? '',

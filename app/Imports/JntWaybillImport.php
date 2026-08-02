@@ -6,18 +6,23 @@ use App\Models\Upload;
 use App\Models\Waybill;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
-class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
+class JntWaybillImport implements ToCollection, WithChunkReading, WithHeadingRow
 {
     protected Upload $upload;
+
     protected int $userId;
+
     protected array $errors = [];
+
     protected int $successCount = 0;
+
     protected int $errorCount = 0;
+
     protected int $updatedCount = 0;
 
     // Column mapping from J&T Excel headers to our database fields
@@ -117,7 +122,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
         }
 
         // Bulk upsert - single query for entire chunk
-        if (!empty($batchData)) {
+        if (! empty($batchData)) {
             $this->bulkUpsert($batchData);
 
             // Update upload progress in single query
@@ -150,6 +155,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
             foreach ($allColumns as $col) {
                 $normalized[$col] = $row[$col] ?? null;
             }
+
             return $normalized;
         }, $data);
 
@@ -256,7 +262,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
         // Handle Excel numeric dates
         if (is_numeric($value)) {
             try {
-                return Carbon::instance(\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value));
+                return Carbon::instance(Date::excelToDateTimeObject($value));
             } catch (\Exception $e) {
                 return null;
             }
@@ -311,7 +317,7 @@ class JntWaybillImport implements ToCollection, WithHeadingRow, WithChunkReading
 
         // Ensure PH numbers start with proper format
         if (strlen($phone) === 10 && str_starts_with($phone, '9')) {
-            $phone = '0' . $phone;
+            $phone = '0'.$phone;
         }
 
         return $phone;

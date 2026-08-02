@@ -19,7 +19,7 @@ class Supplier extends Model
     ];
 
     protected $casts = [
-        'is_active'      => 'boolean',
+        'is_active' => 'boolean',
         'lead_time_days' => 'integer',
     ];
 

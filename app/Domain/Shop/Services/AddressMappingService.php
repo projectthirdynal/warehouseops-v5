@@ -11,7 +11,7 @@ class AddressMappingService
     /**
      * Autocomplete address fields from mapped data.
      *
-     * @param array{field: string, q: string, province?: ?string, city_municipality?: ?string} $input
+     * @param  array{field: string, q: string, province?: ?string, city_municipality?: ?string}  $input
      * @return string[]
      */
     public function autocomplete(array $input): array
@@ -21,7 +21,7 @@ class AddressMappingService
         $province = $this->normalizeText($input['province'] ?? '');
         $city = $this->normalizeText($input['city_municipality'] ?? '');
 
-        if ($q === '' || !in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
+        if ($q === '' || ! in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
             return [];
         }
 
@@ -56,8 +56,9 @@ class AddressMappingService
             default => [],
         };
     }
+
     /**
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $input
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string}  $input
      * @return array{mapping: ?AddressMapping, confidence: float, requires_encoder_review: bool}
      */
     public function match(array $input): array
@@ -123,7 +124,7 @@ class AddressMappingService
     /**
      * Compute granular confidence score with per-component breakdown.
      *
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $input
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string}  $input
      * @return array{
      *     total: float,
      *     components: array{province: float, city_municipality: float, barangay: float, address_text: float},
@@ -205,7 +206,7 @@ class AddressMappingService
     /**
      * Suggest corrections for misspelled address fields using fuzzy matching.
      *
-     * @param array{field: string, q: string, province?: ?string, city_municipality?: ?string} $input
+     * @param  array{field: string, q: string, province?: ?string, city_municipality?: ?string}  $input
      * @return string[]
      */
     public function suggestCorrections(array $input): array
@@ -215,7 +216,7 @@ class AddressMappingService
         $province = $this->normalizeText($input['province'] ?? '');
         $city = $this->normalizeText($input['city_municipality'] ?? '');
 
-        if ($q === '' || !in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
+        if ($q === '' || ! in_array($field, ['province', 'city_municipality', 'barangay'], true)) {
             return [];
         }
 
@@ -248,7 +249,7 @@ class AddressMappingService
     }
 
     /**
-     * @param string[] $candidates
+     * @param  string[]  $candidates
      * @return string[]
      */
     private function fuzzyMatch(array $candidates, string $query, int $threshold = 3): array
@@ -262,13 +263,14 @@ class AddressMappingService
             }
         }
         asort($scored);
+
         return array_keys(array_slice($scored, 0, 5, true));
     }
 
     /**
      * Validate individual address fields against the mapping table.
      *
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string} $input
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string}  $input
      * @return array{
      *     province: array{valid: bool, suggestions: string[]},
      *     city_municipality: array{valid: bool, suggestions: string[]},

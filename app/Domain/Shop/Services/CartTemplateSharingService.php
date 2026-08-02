@@ -23,7 +23,7 @@ class CartTemplateSharingService
             ->firstOrFail();
 
         $template->update([
-            'is_shared'     => $shared,
+            'is_shared' => $shared,
             'allowed_roles' => $shared ? $this->normalizeRoles($allowedRoles) : null,
         ]);
 
@@ -40,17 +40,17 @@ class CartTemplateSharingService
             ->findOrFail($templateId);
 
         $clone = CartTemplate::query()->create([
-            'user_id'         => $userId,
-            'name'            => $name ?? "{$source->name} (Copy)",
-            'items'           => $source->items,
-            'courier_code'    => $source->courier_code,
-            'shipping_fee'    => $source->shipping_fee,
+            'user_id' => $userId,
+            'name' => $name ?? "{$source->name} (Copy)",
+            'items' => $source->items,
+            'courier_code' => $source->courier_code,
+            'shipping_fee' => $source->shipping_fee,
             'discount_amount' => $source->discount_amount,
-            'tax_rate'        => $source->tax_rate,
-            'remarks'         => $source->remarks,
-            'is_shared'       => false,
-            'allowed_roles'   => null,
-            'cloned_from'     => $source->id,
+            'tax_rate' => $source->tax_rate,
+            'remarks' => $source->remarks,
+            'is_shared' => false,
+            'allowed_roles' => null,
+            'cloned_from' => $source->id,
         ]);
 
         return $clone;
@@ -96,8 +96,8 @@ class CartTemplateSharingService
             ->get()
             ->map(fn ($row) => [
                 'user_id' => $row->user_id,
-                'name'    => $row->user?->name ?? 'Unknown',
-                'count'   => $row->count,
+                'name' => $row->user?->name ?? 'Unknown',
+                'count' => $row->count,
             ]);
 
         $recentClones = CartTemplate::query()
@@ -107,22 +107,22 @@ class CartTemplateSharingService
             ->limit(10)
             ->get()
             ->map(fn ($t) => [
-                'id'           => $t->id,
-                'name'         => $t->name,
-                'cloned_from'  => $t->cloned_from,
-                'source_name'  => $t->clonedFrom?->name,
+                'id' => $t->id,
+                'name' => $t->name,
+                'cloned_from' => $t->cloned_from,
+                'source_name' => $t->clonedFrom?->name,
                 'source_owner' => $t->clonedFrom?->user_id !== $t->user_id,
-                'user_name'    => $t->user?->name ?? 'Unknown',
-                'created_at'   => $t->created_at?->toIso8601String(),
+                'user_name' => $t->user?->name ?? 'Unknown',
+                'created_at' => $t->created_at?->toIso8601String(),
             ]);
 
         return [
-            'total'         => $total,
-            'shared'        => $shared,
-            'private'       => $total - $shared,
-            'cloned'        => $cloned,
-            'by_role'       => $byRole,
-            'top_owners'    => $topOwners,
+            'total' => $total,
+            'shared' => $shared,
+            'private' => $total - $shared,
+            'cloned' => $cloned,
+            'by_role' => $byRole,
+            'top_owners' => $topOwners,
             'recent_clones' => $recentClones,
         ];
     }

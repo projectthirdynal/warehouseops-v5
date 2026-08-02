@@ -23,7 +23,7 @@ class UnknownWaybillScan extends Model
     ];
 
     protected $casts = [
-        'scanned_at'  => 'datetime',
+        'scanned_at' => 'datetime',
         'resolved_at' => 'datetime',
     ];
 

@@ -25,22 +25,23 @@ class CourierWebhookController
         $providerId = CourierProvider::where('code', strtoupper($courier))->value('id');
         CourierApiLog::create([
             'courier_provider_id' => $providerId,
-            'courier_code'        => strtoupper($courier),
-            'action'              => 'webhook',
-            'direction'           => 'inbound',
-            'request_data'        => $request->all(),
-            'is_success'          => true,
+            'courier_code' => strtoupper($courier),
+            'action' => 'webhook',
+            'direction' => 'inbound',
+            'request_data' => $request->all(),
+            'is_success' => true,
         ]);
 
         $payload = $service->parseWebhookPayload($request->all());
 
         $waybill = Waybill::where('waybill_number', $payload->waybillNumber)->first();
 
-        if (!$waybill) {
+        if (! $waybill) {
             Log::warning('Webhook received for unknown waybill', [
                 'courier' => $courier,
-                'number'  => $payload->waybillNumber,
+                'number' => $payload->waybillNumber,
             ]);
+
             // ACK anyway to stop courier retries
             return $this->ack($courier);
         }
@@ -49,7 +50,7 @@ class CourierWebhookController
         $currentStatus = $waybill->status;
         $isTerminal = in_array($currentStatus, ['DELIVERED', 'RETURNED', 'CANCELLED']);
 
-        if (!$isTerminal && $currentStatus !== $payload->mappedStatus->value) {
+        if (! $isTerminal && $currentStatus !== $payload->mappedStatus->value) {
             // Use domain model for status update (creates tracking history)
             $domainWaybill = \App\Domain\Waybill\Models\Waybill::find($waybill->id);
             $domainWaybill->updateStatus($payload->mappedStatus, $payload->reason);
@@ -66,7 +67,7 @@ class CourierWebhookController
             // Update waybill's last-known location
             $domainWaybill->update([
                 'last_location_description' => $payload->location,
-                'last_location_at'          => now(),
+                'last_location_at' => now(),
             ]);
 
             // Fire event for SMS triggers and other listeners
@@ -76,15 +77,15 @@ class CourierWebhookController
         // Extract and store delivery proofs (photos/signatures) from webhook payload
         $proofService = app(DeliveryProofService::class);
         $proofs = $proofService->extractProofsFromWebhook($request->all());
-        if (!empty($proofs)) {
+        if (! empty($proofs)) {
             $domainWaybill = $domainWaybill ?? \App\Domain\Waybill\Models\Waybill::find($waybill->id);
             foreach ($proofs as $proofData) {
                 $proofService->storeFromCourierCallback($domainWaybill, strtoupper($courier), $proofData);
             }
             Log::info('Delivery proofs stored from webhook', [
-                'courier'  => $courier,
-                'waybill'  => $waybill->waybill_number,
-                'count'    => count($proofs),
+                'courier' => $courier,
+                'waybill' => $waybill->waybill_number,
+                'count' => count($proofs),
             ]);
         }
 

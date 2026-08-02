@@ -63,20 +63,20 @@ class InventoryScannerController extends Controller
 
         $stockData = $stocks->isNotEmpty()
             ? $stocks->map(fn ($s) => [
-                'warehouse_id'   => $s->warehouse_id,
+                'warehouse_id' => $s->warehouse_id,
                 'warehouse_name' => $s->warehouse?->name ?? 'Default',
-                'current_stock'  => $s->current_stock,
+                'current_stock' => $s->current_stock,
                 'available_stock' => $s->available_stock,
-                'reorder_point'  => $s->reorder_point,
-                'is_low_stock'   => $s->is_low_stock,
+                'reorder_point' => $s->reorder_point,
+                'is_low_stock' => $s->is_low_stock,
             ])->toArray()
             : [[
-                'warehouse_id'   => $defaultWarehouse?->id,
+                'warehouse_id' => $defaultWarehouse?->id,
                 'warehouse_name' => $defaultWarehouse?->name ?? 'Default',
-                'current_stock'  => 0,
+                'current_stock' => 0,
                 'available_stock' => 0,
-                'reorder_point'  => 0,
-                'is_low_stock'   => false,
+                'reorder_point' => 0,
+                'is_low_stock' => false,
             ]];
 
         return response()->json([

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Domain\Courier\Services\StatusMapper;
+use App\Domain\Waybill\Models\DeliveryProof;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Waybill extends Model
 {
@@ -99,7 +101,7 @@ class Waybill extends Model
 
     public function deliveryProofs(): HasMany
     {
-        return $this->hasMany(\App\Domain\Waybill\Models\DeliveryProof::class);
+        return $this->hasMany(DeliveryProof::class);
     }
 
     /**
@@ -107,7 +109,7 @@ class Waybill extends Model
      */
     public static function mapCourierStatus(string $courierCode, string $courierStatus): string
     {
-        $mapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+        $mapper = app(StatusMapper::class);
 
         return $mapper->resolve($courierCode, $courierStatus)->value;
     }

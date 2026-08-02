@@ -24,6 +24,7 @@ class SyncTrackingStatusJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 600;
+
     public int $tries = 1;
 
     public function __construct(
@@ -35,6 +36,7 @@ class SyncTrackingStatusJob implements ShouldQueue
     {
         if (empty(config('services.couriers.jnt.api_key')) && empty(config('services.couriers.flash.api_key'))) {
             Log::warning('SyncTrackingStatusJob: no courier API keys configured, skipping.');
+
             return;
         }
 
@@ -92,7 +94,7 @@ class SyncTrackingStatusJob implements ShouldQueue
                         }
                     } catch (\Exception $e) {
                         Log::error("Tracking sync failed for {$code}", [
-                            'error'      => $e->getMessage(),
+                            'error' => $e->getMessage(),
                             'batch_size' => $batch->count(),
                         ]);
                         $allErrors[] = "{$code}: {$e->getMessage()}";
@@ -103,7 +105,7 @@ class SyncTrackingStatusJob implements ShouldQueue
                     $totalUpdated += $batchUpdated;
                     $totalUnchanged += $batchUnchanged;
 
-                    if (!isset($perCourierStats[$code])) {
+                    if (! isset($perCourierStats[$code])) {
                         $perCourierStats[$code] = ['checked' => 0, 'updated' => 0, 'unchanged' => 0];
                     }
                     $perCourierStats[$code]['checked'] += $batchChecked;
@@ -134,7 +136,7 @@ class SyncTrackingStatusJob implements ShouldQueue
     private function processTrackingResult(TrackingResultDTO $result, $waybills): bool
     {
         $waybill = $waybills->firstWhere('waybill_number', $result->waybillNumber);
-        if (!$waybill) {
+        if (! $waybill) {
             return false;
         }
 
@@ -164,17 +166,17 @@ class SyncTrackingStatusJob implements ShouldQueue
         // Update waybill's last-known location
         $domainWaybill->update([
             'last_location_description' => $result->location,
-            'last_location_at'          => now(),
+            'last_location_at' => now(),
         ]);
 
         // Fire event for SMS triggers
         $payload = new WebhookPayloadDTO(
             waybillNumber: $result->waybillNumber,
-            mappedStatus:  $result->mappedStatus,
+            mappedStatus: $result->mappedStatus,
             courierStatus: $result->courierStatus,
-            location:      $result->location,
-            statusAt:      $result->statusAt,
-            rawData:       $result->rawData,
+            location: $result->location,
+            statusAt: $result->statusAt,
+            rawData: $result->rawData,
         );
 
         event(new TrackingStatusUpdated($waybill->fresh(), $payload));

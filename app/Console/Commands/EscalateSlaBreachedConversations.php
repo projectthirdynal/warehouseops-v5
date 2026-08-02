@@ -6,18 +6,17 @@ namespace App\Console\Commands;
 
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\ConversationStatusHistory;
-use App\Events\ConversationStatusChanged;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\ConversationEscalatedNotification;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 class EscalateSlaBreachedConversations extends Command
 {
     protected $signature = 'shop:escalate-sla-breached';
+
     protected $description = 'Escalate conversations with breached SLA thresholds — flag, notify supervisors, and optionally reassign.';
 
     public function handle(): int

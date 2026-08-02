@@ -21,11 +21,11 @@ class CogsEntry extends Model
     ];
 
     protected $casts = [
-        'quantity'         => 'decimal:4',
-        'unit_cost'        => 'decimal:4',
-        'total_cost'       => 'decimal:4',
-        'exchange_rate'    => 'decimal:6',
-        'recorded_at'      => 'datetime',
+        'quantity' => 'decimal:4',
+        'unit_cost' => 'decimal:4',
+        'total_cost' => 'decimal:4',
+        'exchange_rate' => 'decimal:6',
+        'recorded_at' => 'datetime',
         'synced_to_qbo_at' => 'datetime',
     ];
 

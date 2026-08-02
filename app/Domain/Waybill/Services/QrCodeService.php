@@ -14,26 +14,26 @@ class QrCodeService
         $qrContent = $this->buildQrContent($waybill, $trackingUrl);
 
         return [
-            'waybill_number'   => $waybill->waybill_number,
-            'qr_content'       => $qrContent,
-            'tracking_url'     => $trackingUrl,
-            'destination'      => [
-                'receiver_name'    => $waybill->receiver_name,
-                'receiver_phone'   => $waybill->receiver_phone,
+            'waybill_number' => $waybill->waybill_number,
+            'qr_content' => $qrContent,
+            'tracking_url' => $trackingUrl,
+            'destination' => [
+                'receiver_name' => $waybill->receiver_name,
+                'receiver_phone' => $waybill->receiver_phone,
                 'receiver_address' => $waybill->receiver_address,
-                'barangay'         => $waybill->barangay,
-                'city'             => $waybill->city,
-                'state'            => $waybill->state,
-                'postal_code'      => $waybill->postal_code ?? null,
+                'barangay' => $waybill->barangay,
+                'city' => $waybill->city,
+                'state' => $waybill->state,
+                'postal_code' => $waybill->postal_code ?? null,
             ],
             'shipment' => [
                 'courier_provider' => $waybill->courier_provider,
-                'item_name'        => $waybill->item_name,
-                'item_qty'         => $waybill->item_qty,
-                'cod_amount'       => (float) $waybill->cod_amount,
-                'shipping_cost'    => (float) $waybill->shipping_cost,
-                'status'           => $waybill->status,
-                'express_type'     => $waybill->express_type ?? null,
+                'item_name' => $waybill->item_name,
+                'item_qty' => $waybill->item_qty,
+                'cod_amount' => (float) $waybill->cod_amount,
+                'shipping_cost' => (float) $waybill->shipping_cost,
+                'status' => $waybill->status,
+                'express_type' => $waybill->express_type ?? null,
             ],
             'created_at' => $waybill->created_at?->toIso8601String(),
         ];
@@ -44,27 +44,27 @@ class QrCodeService
         $trackingUrl = $trackingUrl ?? $this->buildTrackingUrl($waybill);
 
         $parts = [
-            'WB:' . $waybill->waybill_number,
-            'R:' . $waybill->receiver_name,
-            'P:' . $waybill->receiver_phone,
-            'A:' . implode(', ', array_filter([
+            'WB:'.$waybill->waybill_number,
+            'R:'.$waybill->receiver_name,
+            'P:'.$waybill->receiver_phone,
+            'A:'.implode(', ', array_filter([
                 $waybill->receiver_address,
                 $waybill->barangay,
                 $waybill->city,
                 $waybill->state,
             ])),
-            'C:' . $waybill->courier_provider,
+            'C:'.$waybill->courier_provider,
         ];
 
         if ($waybill->cod_amount && $waybill->cod_amount > 0) {
-            $parts[] = 'COD:' . number_format((float) $waybill->cod_amount, 2);
+            $parts[] = 'COD:'.number_format((float) $waybill->cod_amount, 2);
         }
 
         if ($waybill->item_name) {
-            $parts[] = 'I:' . $waybill->item_name . ' x' . ($waybill->item_qty ?? 1);
+            $parts[] = 'I:'.$waybill->item_name.' x'.($waybill->item_qty ?? 1);
         }
 
-        $parts[] = 'U:' . $trackingUrl;
+        $parts[] = 'U:'.$trackingUrl;
 
         return implode('|', $parts);
     }
@@ -74,8 +74,8 @@ class QrCodeService
         $courier = strtoupper($waybill->courier_provider ?? '');
 
         return match ($courier) {
-            'JNT', 'J&T' => "https://www.jtexpress.ph/index/query/index?billcode=" . urlencode($waybill->waybill_number),
-            'FLASH', 'FLASH_EXPRESS' => "https://www.flashexpress.ph/fle/tracking?se=" . urlencode($waybill->waybill_number),
+            'JNT', 'J&T' => 'https://www.jtexpress.ph/index/query/index?billcode='.urlencode($waybill->waybill_number),
+            'FLASH', 'FLASH_EXPRESS' => 'https://www.flashexpress.ph/fle/tracking?se='.urlencode($waybill->waybill_number),
             default => url("/waybills/{$waybill->id}"),
         };
     }

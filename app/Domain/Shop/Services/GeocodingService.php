@@ -13,7 +13,6 @@ class GeocodingService
     /**
      * Geocode an address string using Nominatim (OpenStreetMap).
      *
-     * @param string $address
      * @return array{
      *     success: bool,
      *     latitude: ?float,
@@ -45,12 +44,12 @@ class GeocodingService
                 'countrycodes' => 'ph',
             ]);
 
-            if (!$response->ok()) {
+            if (! $response->ok()) {
                 return $this->emptyResult();
             }
 
             $data = $response->json();
-            if (empty($data) || !isset($data[0])) {
+            if (empty($data) || ! isset($data[0])) {
                 return $this->emptyResult();
             }
 

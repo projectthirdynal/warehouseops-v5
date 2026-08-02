@@ -12,6 +12,7 @@ use Illuminate\Console\Command;
 class ProcessScheduledMessages extends Command
 {
     protected $signature = 'shop:process-scheduled-messages';
+
     protected $description = 'Send scheduled messages that are due';
 
     public function handle(FacebookConnectorService $facebookConnector): int
@@ -25,6 +26,7 @@ class ProcessScheduledMessages extends Command
 
         if ($due->isEmpty()) {
             $this->info('No scheduled messages due.');
+
             return self::SUCCESS;
         }
 
@@ -40,6 +42,7 @@ class ProcessScheduledMessages extends Command
                     'error_message' => 'Missing Facebook page access token or customer PSID',
                 ])->save();
                 $failed++;
+
                 continue;
             }
 
@@ -65,7 +68,7 @@ class ProcessScheduledMessages extends Command
                     'conversation_id' => $conversation->id,
                     'facebook_page_id' => $conversation->facebook_page_id,
                     'customer_identity_id' => $conversation->customer_identity_id,
-                    'external_message_id' => $delivery['message_id'] ?? ('local-' . str()->uuid()),
+                    'external_message_id' => $delivery['message_id'] ?? ('local-'.str()->uuid()),
                     'direction' => 'outbound',
                     'message_type' => $quickReplies !== [] ? 'quick_reply' : 'text',
                     'body' => $scheduled->body,
@@ -98,6 +101,7 @@ class ProcessScheduledMessages extends Command
         }
 
         $this->info("Processed {$due->count()} scheduled messages: {$sent} sent, {$failed} failed.");
+
         return self::SUCCESS;
     }
 }

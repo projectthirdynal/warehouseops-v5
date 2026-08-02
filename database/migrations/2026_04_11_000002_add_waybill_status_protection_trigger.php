@@ -66,9 +66,9 @@ return new class extends Migration
             return;
         }
 
-        DB::unprepared("
+        DB::unprepared('
             DROP TRIGGER IF EXISTS waybill_protect_terminal ON waybills;
             DROP FUNCTION IF EXISTS protect_waybill_terminal_status();
-        ");
+        ');
     }
 };

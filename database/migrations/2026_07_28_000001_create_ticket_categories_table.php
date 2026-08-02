@@ -30,10 +30,10 @@ return new class extends Migration
         ];
 
         foreach ($defaults as $cat) {
-            \DB::table('ticket_categories')->insert(array_merge($cat, [
-                'is_active'   => true,
-                'created_at'  => now(),
-                'updated_at'  => now(),
+            DB::table('ticket_categories')->insert(array_merge($cat, [
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]));
         }
     }

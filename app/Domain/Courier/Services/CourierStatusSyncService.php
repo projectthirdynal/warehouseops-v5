@@ -19,17 +19,17 @@ use Illuminate\Support\Facades\Log;
 class CourierStatusSyncService
 {
     private const STATUS_MAP = [
-        WaybillStatus::PENDING->value         => null,
-        WaybillStatus::DISPATCHED->value      => OrderStatus::DISPATCHED->value,
-        WaybillStatus::PICKED_UP->value       => OrderStatus::DISPATCHED->value,
-        WaybillStatus::IN_TRANSIT->value      => OrderStatus::DISPATCHED->value,
-        WaybillStatus::ARRIVED_HUB->value     => OrderStatus::DISPATCHED->value,
+        WaybillStatus::PENDING->value => null,
+        WaybillStatus::DISPATCHED->value => OrderStatus::DISPATCHED->value,
+        WaybillStatus::PICKED_UP->value => OrderStatus::DISPATCHED->value,
+        WaybillStatus::IN_TRANSIT->value => OrderStatus::DISPATCHED->value,
+        WaybillStatus::ARRIVED_HUB->value => OrderStatus::DISPATCHED->value,
         WaybillStatus::OUT_FOR_DELIVERY->value => OrderStatus::DISPATCHED->value,
-        WaybillStatus::DELIVERY_FAILED->value  => OrderStatus::ON_HOLD->value,
-        WaybillStatus::DELIVERED->value        => OrderStatus::DELIVERED->value,
-        WaybillStatus::RETURNING->value        => OrderStatus::ON_HOLD->value,
-        WaybillStatus::RETURNED->value         => OrderStatus::RETURNED->value,
-        WaybillStatus::CANCELLED->value        => OrderStatus::CANCELLED->value,
+        WaybillStatus::DELIVERY_FAILED->value => OrderStatus::ON_HOLD->value,
+        WaybillStatus::DELIVERED->value => OrderStatus::DELIVERED->value,
+        WaybillStatus::RETURNING->value => OrderStatus::ON_HOLD->value,
+        WaybillStatus::RETURNED->value => OrderStatus::RETURNED->value,
+        WaybillStatus::CANCELLED->value => OrderStatus::CANCELLED->value,
     ];
 
     public function __construct(
@@ -39,7 +39,7 @@ class CourierStatusSyncService
     public function syncWaybillToOrder(Waybill $waybill): ?Order
     {
         $order = Order::where('waybill_id', $waybill->id)->first();
-        if (!$order) {
+        if (! $order) {
             return null;
         }
 
@@ -47,12 +47,12 @@ class CourierStatusSyncService
             ? $waybill->status
             : WaybillStatus::tryFrom($waybill->status);
 
-        if (!$waybillStatus) {
+        if (! $waybillStatus) {
             return null;
         }
 
         $mappedOrderStatus = self::STATUS_MAP[$waybillStatus->value] ?? null;
-        if (!$mappedOrderStatus) {
+        if (! $mappedOrderStatus) {
             return null;
         }
 
@@ -64,6 +64,7 @@ class CourierStatusSyncService
 
         if ($order->status->isTerminal()) {
             Log::info("CourierStatusSync: skipping sync for order {$order->order_number} — already in terminal status {$order->status->value}");
+
             return $order;
         }
 
@@ -110,12 +111,12 @@ class CourierStatusSyncService
 
     private function syncToConversation(Order $order, OrderStatus $orderStatus, WaybillStatus $waybillStatus): void
     {
-        if (!$order->conversation_id) {
+        if (! $order->conversation_id) {
             return;
         }
 
         $conversation = Conversation::find($order->conversation_id);
-        if (!$conversation) {
+        if (! $conversation) {
             return;
         }
 
@@ -125,7 +126,7 @@ class CourierStatusSyncService
             'conversation_id' => $order->conversation_id,
             'facebook_page_id' => $conversation->facebook_page_id,
             'sent_by' => null,
-            'external_message_id' => 'system-' . str()->uuid(),
+            'external_message_id' => 'system-'.str()->uuid(),
             'direction' => 'system',
             'message_type' => 'courier_status_sync',
             'body' => $body,
@@ -379,6 +380,7 @@ class CourierStatusSyncService
                 'order_label' => $order ? (OrderStatus::tryFrom($order)?->label() ?? $order) : '(no sync)',
             ];
         }
+
         return $map;
     }
 }
