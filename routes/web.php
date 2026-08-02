@@ -630,7 +630,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/customers/{customer}/audit-logs', [ShopController::class, 'customerAuditLogs'])->name('shop.customers.audit-logs');
     Route::post('/shop/customers/{customer}/image', [ShopController::class, 'uploadCustomerImage'])->name('shop.customers.image.upload');
     Route::delete('/shop/customers/{customer}/image', [ShopController::class, 'deleteCustomerImage'])->name('shop.customers.image.delete');
-    Route::get('/shop/customers/{customer}/export', [ShopController::class, 'exportCustomerProfile'])->name('shop.customers.export');
     Route::get('/shop/customers/{customer}/orders', [ShopController::class, 'customerOrderHistory'])->name('shop.customers.orders');
     Route::get('/shop/orders', [ShopController::class, 'orders'])->name('shop.orders.index');
     Route::get('/shop/templates', [ShopController::class, 'templates'])->name('shop.templates');
