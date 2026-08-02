@@ -8,12 +8,12 @@ use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\RecyclingRule;
 use App\Models\User;
 use Database\Seeders\RecyclingRulesSeeder;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RecyclingControllerTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private User $supervisor;
 

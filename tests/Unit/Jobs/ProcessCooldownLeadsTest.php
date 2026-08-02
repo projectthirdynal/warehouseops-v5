@@ -8,13 +8,13 @@ use App\Jobs\ProcessCooldownLeads;
 use App\Models\RecyclingRule;
 use App\Services\LeadRecyclingService;
 use Database\Seeders\RecyclingRulesSeeder;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class ProcessCooldownLeadsTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

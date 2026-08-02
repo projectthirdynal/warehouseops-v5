@@ -13,12 +13,12 @@ use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
 use App\Services\LeadRecyclingService;
 use Database\Seeders\RecyclingRulesSeeder;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class LeadRecyclingServiceTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private LeadRecyclingService $service;
 

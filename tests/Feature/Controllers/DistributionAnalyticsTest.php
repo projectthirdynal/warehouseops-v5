@@ -6,12 +6,12 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\LeadCycle;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DistributionAnalyticsTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private User $supervisor;
 

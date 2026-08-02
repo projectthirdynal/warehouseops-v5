@@ -8,12 +8,12 @@ use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\CallTrackingService;
 use App\Services\LeadAuditService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CallTrackingServiceTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private CallTrackingService $service;
 

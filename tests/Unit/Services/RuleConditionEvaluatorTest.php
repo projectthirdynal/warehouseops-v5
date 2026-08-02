@@ -6,12 +6,12 @@ use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Models\Lead;
 use App\Models\DistributionRule;
 use App\Services\RuleConditionEvaluator;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RuleConditionEvaluatorTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private RuleConditionEvaluator $evaluator;
 

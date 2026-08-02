@@ -14,13 +14,13 @@ use App\Services\DistributionEngine;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
 use App\Services\RuleConditionEvaluator;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class DistributionEngineTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private DistributionEngine $engine;
 

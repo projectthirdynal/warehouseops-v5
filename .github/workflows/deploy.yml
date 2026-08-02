@@ -120,7 +120,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: none
 
       - name: Cache Composer dependencies
@@ -175,6 +175,20 @@ jobs:
       matrix:
         php-version: ['8.3']
       fail-fast: false
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: warehouseops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d warehouseops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -183,7 +197,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: xdebug
 
       - name: Cache Composer dependencies
@@ -199,14 +213,15 @@ jobs:
       - name: Prepare test environment
         run: |
           cp .env.example .env
-          sed -i 's/DB_CONNECTION=pgsql/DB_CONNECTION=sqlite/' .env
-          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=database\/database.sqlite/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env
           sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env
           sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
           sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env
           sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
           php artisan key:generate --ansi
-          touch database/database.sqlite
           php artisan migrate --force
 
       - name: Run unit tests (Pest)
@@ -343,7 +358,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: none
 
       - name: Cache Composer dependencies
