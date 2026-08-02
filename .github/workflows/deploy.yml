@@ -431,7 +431,7 @@ jobs:
   docker-build:
     name: Build and Publish Image
     needs: build-app
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
+    if: always() && needs.build-app.result != 'failure' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -700,8 +700,8 @@ jobs:
   # ============================================
   deploy-production:
     name: Deploy to Production
-    needs: staging-smoke-tests
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event.inputs.target_environment == 'production')
+    needs: [docker-build, container-scan, staging-smoke-tests]
+    if: always() && needs.docker-build.result == 'success' && (needs.container-scan.result == 'success' || needs.container-scan.result == 'skipped') && (needs.staging-smoke-tests.result == 'success' || needs.staging-smoke-tests.result == 'skipped') && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event.inputs.target_environment == 'production')
     runs-on: self-hosted
     timeout-minutes: 20
     environment:
@@ -825,7 +825,7 @@ jobs:
   rollback:
     name: Automatic Rollback
     needs: deploy-production
-    if: failure() && needs.deploy-production.result == 'failure'
+    if: always() && needs.deploy-production.result == 'failure'
     runs-on: self-hosted
     timeout-minutes: 15
     environment: production
@@ -878,7 +878,7 @@ jobs:
   verify-production:
     name: Verify Production
     needs: deploy-production
-    if: success() && needs.deploy-production.result == 'success'
+    if: always() && needs.deploy-production.result == 'success'
     runs-on: self-hosted
     timeout-minutes: 10
     environment: production
@@ -973,11 +973,17 @@ jobs:
 
           # Determine overall pipeline status
           FAILED_JOBS=""
-          for result in "${{ needs.validate-source.result }}" "${{ needs.unit-tests.result }}" "${{ needs.integration-tests.result }}" "${{ needs.security-scan.result }}" "${{ needs.build-app.result }}"; do
-            if [ "$result" == "failure" ]; then
-              FAILED_JOBS="$FAILED_JOBS (validation/testing/build stage)"
-            fi
-          done
+          if [ "${{ needs.validate-source.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS validation"; fi
+          if [ "${{ needs.unit-tests.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS unit-tests"; fi
+          if [ "${{ needs.integration-tests.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS integration-tests"; fi
+          if [ "${{ needs.security-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS security"; fi
+          if [ "${{ needs.build-app.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS build"; fi
+          if [ "${{ needs.docker-build.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS docker-build"; fi
+          if [ "${{ needs.container-scan.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS container-scan"; fi
+          if [ "${{ needs.deploy-staging.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS staging"; fi
+          if [ "${{ needs.staging-smoke-tests.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS smoke-tests"; fi
+          if [ "${{ needs.deploy-production.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS production"; fi
+          if [ "${{ needs.verify-production.result }}" == "failure" ]; then FAILED_JOBS="$FAILED_JOBS verify"; fi
 
           if [ -n "$FAILED_JOBS" ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"

@@ -45,7 +45,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-dev --prefer-dist --optimize-autoloader
+RUN composer install --no-interaction --no-dev --prefer-dist --optimize-autoloader --no-scripts
 
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -59,6 +59,9 @@ COPY . .
 
 # Build frontend assets
 RUN npm run build
+
+# Run composer scripts now that artisan exists
+RUN composer dump-autoload --optimize --no-dev
 
 # Optimize Laravel for production
 RUN php artisan config:clear && php artisan route:clear && php artisan view:clear
