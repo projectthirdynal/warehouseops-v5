@@ -22,7 +22,9 @@ use App\Models\DuplicateMlModel;
 use App\Models\DuplicateNotification;
 use App\Models\DuplicateReviewItem;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DuplicateDetectionService
 {
@@ -498,9 +500,9 @@ class DuplicateDetectionService
         $conversationsCount = Conversation::query()->where('customer_id', $sourceId)->count();
         $identitiesCount = CustomerIdentity::query()->where('customer_id', $sourceId)->count();
 
-        $addressCount = \DB::table('customer_addresses')->where('customer_id', $sourceId)->count();
-        $notesCount = \DB::table('customer_notes')->where('customer_id', $sourceId)->count();
-        $leadsCount = \DB::table('leads')->where('customer_id', $sourceId)->count();
+        $addressCount = DB::table('customer_addresses')->where('customer_id', $sourceId)->count();
+        $notesCount = DB::table('customer_notes')->where('customer_id', $sourceId)->count();
+        $leadsCount = DB::table('leads')->where('customer_id', $sourceId)->count();
 
         $totalRecords = $ordersCount + $conversationsCount + $identitiesCount + $addressCount + $notesCount + $leadsCount;
 
@@ -1150,7 +1152,7 @@ class DuplicateDetectionService
     /**
      * Get all detection rules, ordered by priority.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, DuplicateDetectionRule>
+     * @return Collection<int, DuplicateDetectionRule>
      */
     public function getAllRules()
     {
@@ -1165,7 +1167,7 @@ class DuplicateDetectionService
      * Get enabled rules for a given type, ordered by priority.
      *
      * @param  string  $type  order|customer|conversation
-     * @return \Illuminate\Database\Eloquent\Collection<int, DuplicateDetectionRule>
+     * @return Collection<int, DuplicateDetectionRule>
      */
     public function getActiveRules(string $type)
     {
