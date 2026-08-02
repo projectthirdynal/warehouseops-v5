@@ -6,7 +6,6 @@ use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
-use App\Models\AgentWorkload;
 use App\Models\DistributionRule;
 use App\Models\User;
 use App\Services\AgentAvailability;
