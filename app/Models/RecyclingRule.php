@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use App\Domain\Lead\Enums\LeadOutcome;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class RecyclingRule extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'outcome',
         'cooldown_hours',

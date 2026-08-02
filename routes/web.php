@@ -34,6 +34,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\ReceivingReportController;
+use App\Http\Controllers\RecyclingController;
 use App\Http\Controllers\ReplyTemplateController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnReceiptController;
@@ -863,6 +864,16 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Recycling Pool
     Route::prefix('recycling')->name('recycling.')->group(function () {
         Route::get('/pool', [LeadController::class, 'recyclingPool'])->name('pool');
+        Route::get('/', [RecyclingController::class, 'index'])->name('index');
+        Route::get('/stats', [RecyclingController::class, 'stats'])->name('stats');
+        Route::post('/trigger', [RecyclingController::class, 'trigger'])->name('trigger');
+        Route::post('/{lead}/revive', [RecyclingController::class, 'revive'])->name('revive')->whereNumber('lead');
+
+        // Recycling Rules CRUD
+        Route::get('/rules', [RecyclingController::class, 'rules'])->name('rules.index');
+        Route::post('/rules', [RecyclingController::class, 'storeRule'])->name('rules.store');
+        Route::patch('/rules/{rule}', [RecyclingController::class, 'updateRule'])->name('rules.update')->whereNumber('rule');
+        Route::delete('/rules/{rule}', [RecyclingController::class, 'destroyRule'])->name('rules.destroy')->whereNumber('rule');
     });
 
     // Monitoring

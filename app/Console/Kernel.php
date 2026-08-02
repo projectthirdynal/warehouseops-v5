@@ -17,7 +17,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
+        $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
         $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
         $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
             ->withoutOverlapping()
