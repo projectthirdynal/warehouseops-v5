@@ -6653,6 +6653,16 @@ class ShopController extends Controller
             abort(403);
         }
 
+        if ($template->is_shared && $template->user_id !== auth()->id()) {
+            $user = auth()->user();
+            $role = $user?->roles?->first()?->name ?? $user?->role ?? null;
+            $allowedRoles = $template->allowed_roles ?? [];
+
+            if (! empty($allowedRoles) && ! in_array($role, $allowedRoles)) {
+                abort(403, 'Your role is not allowed to use this template.');
+            }
+        }
+
         $this->cartTemplateSharingService->markUsed($template->id);
 
         return response()->json([
@@ -7953,18 +7963,25 @@ class ShopController extends Controller
         $to = \Carbon\Carbon::parse($filters['date_to'] ?? today()->toDateString())->startOfDay();
         $days = (int) min(31, $from->diffInDays($to));
 
+        $dailyData = $this->filteredShopOrderQuery($filters)
+            ->whereDate('orders.created_at', '>=', $from->toDateString())
+            ->whereDate('orders.created_at', '<=', $to->toDateString())
+            ->selectRaw('DATE(orders.created_at) as date, COUNT(*) as orders_count, COALESCE(SUM(orders.total_amount), 0) as sales_total')
+            ->groupByRaw('DATE(orders.created_at)')
+            ->get()
+            ->keyBy('date');
+
         return collect(range($days, 0))
-            ->map(function (int $daysAgo) use ($to, $filters) {
+            ->map(function (int $daysAgo) use ($to, $dailyData) {
                 $date = $to->copy()->subDays($daysAgo);
-                $query = $this->filteredShopOrderQuery($filters)->whereDate('orders.created_at', $date);
+                $dateStr = $date->toDateString();
+                $row = $dailyData->get($dateStr);
 
                 return [
-                    'date' => $date->toDateString(),
+                    'date' => $dateStr,
                     'label' => $date->format('M j'),
-                    'orders_count' => $query->count(),
-                    'sales_total' => $this->filteredShopOrderQuery($filters)
-                        ->whereDate('orders.created_at', $date)
-                        ->sum('total_amount'),
+                    'orders_count' => (int) ($row?->orders_count ?? 0),
+                    'sales_total' => (float) ($row?->sales_total ?? 0),
                 ];
             })
             ->values()
@@ -8582,7 +8599,7 @@ class ShopController extends Controller
         ]);
 
         OrderRemark::query()->create([
-            'order_id' => 0,
+            'order_id' => null,
             'conversation_id' => $conversation->id,
             'user_id' => $request->user()->id,
             'type' => 'conversation_note',
@@ -8846,10 +8863,14 @@ class ShopController extends Controller
 
     public function gamificationTrackStreak(): JsonResponse
     {
-        $userId = (int) request()->input('user_id', auth()->id());
+        $requestedUserId = (int) request()->input('user_id', auth()->id());
         $streakType = (string) request()->input('streak_type', 'daily_activity');
 
-        return response()->json($this->gamificationService->trackStreak($userId, $streakType));
+        if ($requestedUserId !== (int) auth()->id() && ! in_array(auth()->user()->role, ['admin', 'superadmin'])) {
+            abort(403, 'You can only track your own streaks.');
+        }
+
+        return response()->json($this->gamificationService->trackStreak($requestedUserId, $streakType));
     }
 
     public function gamificationSeedDefaults(): JsonResponse

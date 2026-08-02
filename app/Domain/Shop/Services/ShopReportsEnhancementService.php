@@ -229,9 +229,13 @@ class ShopReportsEnhancementService
         $query->whereDate('messages.created_at', '>=', $dateFrom)
               ->whereDate('messages.created_at', '<=', $dateTo);
 
+        $hourExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "CAST(strftime('%H', messages.created_at) AS INTEGER)"
+            : "EXTRACT(HOUR FROM messages.created_at)";
+
         $hourly = (clone $query)
-            ->selectRaw('EXTRACT(HOUR FROM messages.created_at) as hour, COUNT(*) as count')
-            ->groupByRaw('EXTRACT(HOUR FROM messages.created_at)')
+            ->selectRaw($hourExpr . ' as hour, COUNT(*) as count')
+            ->groupByRaw($hourExpr)
             ->orderByRaw('hour')
             ->get()
             ->keyBy('hour')
@@ -245,9 +249,13 @@ class ShopReportsEnhancementService
             ];
         }
 
+        $dayExpr = DB::connection()->getDriverName() === 'sqlite'
+            ? "CAST(strftime('%w', messages.created_at) AS INTEGER)"
+            : "EXTRACT(DOW FROM messages.created_at)";
+
         $byDay = (clone $query)
-            ->selectRaw('EXTRACT(DOW FROM messages.created_at) as day, COUNT(*) as count')
-            ->groupByRaw('EXTRACT(DOW FROM messages.created_at)')
+            ->selectRaw($dayExpr . ' as day, COUNT(*) as count')
+            ->groupByRaw($dayExpr)
             ->orderByRaw('day')
             ->get()
             ->keyBy('day')
@@ -264,8 +272,8 @@ class ShopReportsEnhancementService
         }
 
         $heatmapRaw = (clone $query)
-            ->selectRaw('EXTRACT(DOW FROM messages.created_at) as day, EXTRACT(HOUR FROM messages.created_at) as hour, COUNT(*) as count')
-            ->groupByRaw('EXTRACT(DOW FROM messages.created_at), EXTRACT(HOUR FROM messages.created_at)')
+            ->selectRaw($dayExpr . ' as day, ' . $hourExpr . ' as hour, COUNT(*) as count')
+            ->groupByRaw($dayExpr . ', ' . $hourExpr)
             ->get();
 
         $heatmap = [];
@@ -374,22 +382,42 @@ class ShopReportsEnhancementService
             $monthStart = Carbon::now()->subMonths($i)->startOfMonth();
             $monthEnd = Carbon::now()->subMonths($i)->endOfMonth();
 
-            $monthOrders = DB::table('orders')
+            $monthQuery = DB::table('orders')
                 ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
                 ->whereBetween('created_at', [$monthStart, $monthEnd])
-                ->whereNotNull('customer_id')
+                ->whereNotNull('customer_id');
+
+            if (! empty($filters['page_id'])) {
+                $monthQuery->where('facebook_page_id', (int) $filters['page_id']);
+            }
+
+            if (! empty($filters['agent_id'])) {
+                $monthQuery->where('assigned_agent_id', (int) $filters['agent_id']);
+            }
+
+            $monthOrders = (clone $monthQuery)
                 ->select('customer_id', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('customer_id')
                 ->get();
+
+            $customerIds = $monthOrders->pluck('customer_id')->all();
+
+            $firstOrderDates = [];
+            if (! empty($customerIds)) {
+                $firstOrderDates = DB::table('orders')
+                    ->whereIn('customer_id', $customerIds)
+                    ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
+                    ->select('customer_id', DB::raw('MIN(created_at) as first_order'))
+                    ->groupBy('customer_id')
+                    ->pluck('first_order', 'customer_id')
+                    ->toArray();
+            }
 
             $monthNew = 0;
             $monthReturning = 0;
 
             foreach ($monthOrders as $mo) {
-                $firstOrderDate = DB::table('orders')
-                    ->where('customer_id', $mo->customer_id)
-                    ->whereIn('source_channel', ['manual_shop', 'facebook_shop'])
-                    ->min('created_at');
+                $firstOrderDate = $firstOrderDates[$mo->customer_id] ?? null;
 
                 if ($firstOrderDate && Carbon::parse($firstOrderDate)->between($monthStart, $monthEnd)) {
                     $monthNew++;

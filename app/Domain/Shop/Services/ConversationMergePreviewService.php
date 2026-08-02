@@ -126,12 +126,16 @@ class ConversationMergePreviewService
         DB::transaction(function () use ($source, $target): void {
             $source->messages()->update(['conversation_id' => $target->id]);
 
+            $source->assignmentHistories()->update(['conversation_id' => $target->id]);
+            $source->statusHistories()->update(['conversation_id' => $target->id]);
+
             $sourceTagIds = $source->tags()->pluck('tags.id');
             $target->tags()->syncWithoutDetaching($sourceTagIds);
 
             $source->forceFill([
                 'merged_into_id' => $target->id,
                 'status' => 'archived',
+                'archived_at' => now(),
             ])->save();
 
             if ($source->last_message_at && (!$target->last_message_at || $source->last_message_at > $target->last_message_at)) {

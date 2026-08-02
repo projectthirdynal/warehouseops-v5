@@ -17,11 +17,15 @@ class SentimentAnalysisService
         'confirm', 'ship', 'deliver', 'padala', 'approve', 'interested',
     ];
 
+    private const NEGATIVE_PHRASES = [
+        'hindi na',
+    ];
+
     private const NEGATIVE_WORDS = [
         'bad', 'terrible', 'awful', 'hate', 'angry', 'mad', 'disappointed',
         'slow', 'late', 'broken', 'defective', 'damage', 'wrong', 'error',
         'problem', 'issue', 'complaint', 'refund', 'return', 'cancel',
-        'cancel', 'never', 'no', 'hindi', 'wag', 'ayaw', 'hindi na',
+        'cancel', 'never', 'no', 'hindi', 'wag', 'ayaw',
         'scam', 'fake', 'poor', 'horrible', 'worst', 'useless',
         'frustrated', 'annoying', 'waste', 'overpriced', 'expensive',
         'delayed', 'missing', 'lost', 'undelivered', 'bukas',
@@ -39,6 +43,13 @@ class SentimentAnalysisService
         $positiveHits = 0;
         $negativeHits = 0;
         $flaggedWords = [];
+
+        foreach (self::NEGATIVE_PHRASES as $phrase) {
+            if (str_contains($lower, $phrase)) {
+                $negativeHits++;
+                $flaggedWords[] = $phrase;
+            }
+        }
 
         foreach ($words as $word) {
             if (in_array($word, self::POSITIVE_WORDS, true)) {

@@ -119,6 +119,7 @@ class GamificationService
     {
         $agents = User::where('role', 'agent')
             ->where('is_active', true)
+            ->with(['streaks' => fn ($q) => $q->where('streak_type', 'daily_activity')])
             ->withCount([
                 'badges as badge_count',
                 'milestones as completed_milestones' => fn ($q) => $q->whereNotNull('completed_at'),
@@ -131,7 +132,7 @@ class GamificationService
                 'role' => $user->role,
                 'badge_count' => $user->badge_count,
                 'completed_milestones' => $user->completed_milestones,
-                'current_streak' => $user->streaks()->where('streak_type', 'daily_activity')->value('current_streak') ?? 0,
+                'current_streak' => $user->streaks->first()?->current_streak ?? 0,
             ])
             ->sortByDesc(fn ($a) => $a['badge_count'] + $a['completed_milestones'])
             ->take($limit)

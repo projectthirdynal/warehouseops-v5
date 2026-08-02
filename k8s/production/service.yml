@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: warehouseops-production
+  namespace: warehouseops-production
+  labels:
+    app: warehouseops
+    environment: production
+spec:
+  type: ClusterIP
+  selector:
+    app: warehouseops
+    environment: production
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

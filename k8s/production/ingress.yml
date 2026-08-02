@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: warehouseops-production
+  namespace: warehouseops-production
+  labels:
+    app: warehouseops
+    environment: production
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '100M'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '600'
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - warehouseops.thirdynals.org
+      secretName: warehouseops-production-tls
+  rules:
+    - host: warehouseops.thirdynals.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: warehouseops-production
+                port:
+                  number: 80

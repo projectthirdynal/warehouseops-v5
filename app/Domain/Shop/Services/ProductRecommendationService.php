@@ -32,7 +32,7 @@ class ProductRecommendationService
 
         $algorithm = $this->getSetting('recommendation_algorithm', 'hybrid');
         $limit = max(1, min(20, $limit));
-        $cacheKey = 'product_recs:' . md5(implode(',', $productIds) . ':' . $algorithm . ':' . $limit);
+        $cacheKey = 'product_recs:' . $this->cacheVersion() . ':' . md5(implode(',', $productIds) . ':' . $algorithm . ':' . $limit);
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($productIds, $algorithm, $limit) {
             return match ($algorithm) {
@@ -46,7 +46,7 @@ class ProductRecommendationService
 
     public function recommendForCustomer(int $customerId, int $limit = 5): array
     {
-        $cacheKey = 'customer_recs:' . $customerId . ':' . $limit;
+        $cacheKey = 'customer_recs:' . $this->cacheVersion() . ':' . $customerId . ':' . $limit;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($customerId, $limit) {
             $productIds = Order::query()
@@ -118,20 +118,16 @@ class ProductRecommendationService
 
     public function clearCache(): int
     {
-        $cleared = 0;
-        $prefix = config('cache.prefix', '');
-        $redis = Cache::getRedis();
+        $versionKey = 'product_recs_cache_version';
+        $current = (int) Cache::get($versionKey, 0);
+        Cache::put($versionKey, $current + 1, now()->addYear());
 
-        foreach (['product_recs:*', 'customer_recs:*'] as $pattern) {
-            $fullPattern = $prefix ? $prefix . ':' . $pattern : $pattern;
-            $keys = $redis->keys($fullPattern);
-            if (!empty($keys)) {
-                $redis->del($keys);
-                $cleared += count($keys);
-            }
-        }
+        return 1;
+    }
 
-        return $cleared;
+    private function cacheVersion(): int
+    {
+        return (int) Cache::get('product_recs_cache_version', 0);
     }
 
     private function itemBasedRecommend(array $productIds, int $limit): array

@@ -512,12 +512,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Archive Compression
     Route::get('/shop/archive/stats', [ShopController::class, 'archiveStats'])->name('shop.archive.stats');
     Route::get('/shop/archive/settings', [ShopController::class, 'archiveSettings'])->name('shop.archive.settings');
-    Route::patch('/shop/archive/settings', [ShopController::class, 'updateArchiveSettings'])->name('shop.archive.settings.update');
-    Route::post('/shop/archive/bulk-archive', [ShopController::class, 'bulkArchiveConversations'])->name('shop.archive.bulk-archive');
-    Route::post('/shop/archive/bulk-compress', [ShopController::class, 'bulkCompressConversations'])->name('shop.archive.bulk-compress');
     Route::post('/shop/archive/{conversation}/archive', [ShopController::class, 'archiveConversation'])->name('shop.archive.conversation.archive');
     Route::post('/shop/archive/{conversation}/compress', [ShopController::class, 'compressConversation'])->name('shop.archive.conversation.compress');
     Route::post('/shop/archive/{conversation}/restore', [ShopController::class, 'restoreConversation'])->name('shop.archive.conversation.restore');
+    Route::middleware('role:superadmin,admin')->group(function () {
+        Route::patch('/shop/archive/settings', [ShopController::class, 'updateArchiveSettings'])->name('shop.archive.settings.update');
+        Route::post('/shop/archive/bulk-archive', [ShopController::class, 'bulkArchiveConversations'])->name('shop.archive.bulk-archive');
+        Route::post('/shop/archive/bulk-compress', [ShopController::class, 'bulkCompressConversations'])->name('shop.archive.bulk-compress');
+    });
 
     // Gamification
     Route::get('/shop/gamification/stats', [ShopController::class, 'gamificationStats'])->name('shop.gamification.stats');
@@ -526,10 +528,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::get('/shop/gamification/badges', [ShopController::class, 'gamificationBadges'])->name('shop.gamification.badges');
     Route::get('/shop/gamification/milestones', [ShopController::class, 'gamificationMilestones'])->name('shop.gamification.milestones');
     Route::get('/shop/gamification/settings', [ShopController::class, 'gamificationSettings'])->name('shop.gamification.settings');
-    Route::patch('/shop/gamification/settings', [ShopController::class, 'updateGamificationSettings'])->name('shop.gamification.settings.update');
-    Route::post('/shop/gamification/bulk-check', [ShopController::class, 'gamificationBulkCheck'])->name('shop.gamification.bulk-check');
-    Route::post('/shop/gamification/track-streak', [ShopController::class, 'gamificationTrackStreak'])->name('shop.gamification.track-streak');
-    Route::post('/shop/gamification/seed-defaults', [ShopController::class, 'gamificationSeedDefaults'])->name('shop.gamification.seed-defaults');
+    Route::middleware('role:superadmin,admin')->group(function () {
+        Route::patch('/shop/gamification/settings', [ShopController::class, 'updateGamificationSettings'])->name('shop.gamification.settings.update');
+        Route::post('/shop/gamification/bulk-check', [ShopController::class, 'gamificationBulkCheck'])->name('shop.gamification.bulk-check');
+        Route::post('/shop/gamification/track-streak', [ShopController::class, 'gamificationTrackStreak'])->name('shop.gamification.track-streak');
+        Route::post('/shop/gamification/seed-defaults', [ShopController::class, 'gamificationSeedDefaults'])->name('shop.gamification.seed-defaults');
+    });
 
     Route::get('/shop/inbox/{conversation}', [ShopController::class, 'conversation'])->name('shop.conversation');
     Route::post('/shop/inbox/{conversation}/read', [ShopController::class, 'markMessagesRead'])->name('shop.conversation.read');
@@ -570,8 +574,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::post('/shop/recommendations/customer', [ShopController::class, 'aiRecommendForCustomer'])->name('shop.recommendations.customer');
     Route::get('/shop/recommendations/stats', [ShopController::class, 'recommendationStats'])->name('shop.recommendations.stats');
     Route::get('/shop/recommendations/settings', [ShopController::class, 'recommendationSettings'])->name('shop.recommendations.settings');
-    Route::patch('/shop/recommendations/settings', [ShopController::class, 'updateRecommendationSettings'])->name('shop.recommendations.update');
-    Route::post('/shop/recommendations/clear-cache', [ShopController::class, 'clearRecommendationCache'])->name('shop.recommendations.clear-cache');
+    Route::middleware('role:superadmin,admin')->group(function () {
+        Route::patch('/shop/recommendations/settings', [ShopController::class, 'updateRecommendationSettings'])->name('shop.recommendations.update');
+        Route::post('/shop/recommendations/clear-cache', [ShopController::class, 'clearRecommendationCache'])->name('shop.recommendations.clear-cache');
+    });
     Route::post('/shop/inbox/bulk-priority', [ShopController::class, 'bulkUpdateConversationPriority'])->name('shop.conversation.bulk-priority');
     Route::post('/shop/inbox/bulk-tag', [ShopController::class, 'bulkTagConversations'])->name('shop.conversation.bulk-tag');
     Route::patch('/shop/inbox/{conversation}/priority', [ShopController::class, 'updateConversationPriority'])->name('shop.conversation.priority');

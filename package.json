@@ -8,6 +8,12 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "format": "prettier --write \"resources/js/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"resources/js/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vendor/bin/pest --testsuite=Unit --exclude-group=broken",
+    "test:integration": "vendor/bin/pest --testsuite=Feature --exclude-group=broken",
+    "db:migrate": "php artisan migrate --force",
+    "start": "php artisan serve",
     "prepare": "husky"
   },
   "dependencies": {
