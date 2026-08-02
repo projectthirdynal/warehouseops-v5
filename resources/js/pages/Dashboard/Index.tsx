@@ -450,6 +450,51 @@ export default function Dashboard({
     }
   }, []);
 
+  // Initial lazy-load of secondary widgets on mount
+  useEffect(() => {
+    fetch('/api/dashboard/alerts', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveAlerts(d.alerts);
+      })
+      .catch(() => {});
+
+    fetch('/api/dashboard/revenue-summary', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveRevenue(d.revenue);
+      })
+      .catch(() => {});
+
+    fetch('/api/dashboard/operation-heatmap', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveHeatmap(d.heatmap);
+      })
+      .catch(() => {});
+
+    fetch('/api/dashboard/agent-leaderboard', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveLeaderboard(d.leaderboard);
+      })
+      .catch(() => {});
+
+    fetch('/api/dashboard/weather', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveWeather(d.weather);
+      })
+      .catch(() => {});
+
+    fetch('/api/dashboard/birthday-anniversary', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLiveCelebrations(d.celebrations);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(refreshStats, 30_000);
     return () => clearInterval(interval);

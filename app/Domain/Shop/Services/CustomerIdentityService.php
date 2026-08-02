@@ -17,8 +17,11 @@ class CustomerIdentityService
         $normalized = $this->phones->normalize($phone);
 
         return Customer::query()
-            ->where('normalized_phone', $normalized)
-            ->orWhere('phone', $phone)
+            ->where(function ($query) use ($normalized, $phone) {
+                $query
+                    ->where('normalized_phone', $normalized)
+                    ->orWhere('phone', $phone);
+            })
             ->first();
     }
 
@@ -37,17 +40,23 @@ class CustomerIdentityService
             ]);
         }
 
-        $customer->fill([
-            'name' => $attributes['name'],
+        $updateData = [
             'normalized_phone' => $normalized,
-            'canonical_address' => $attributes['address'] ?? null,
-            'landmark' => $attributes['landmark'] ?? null,
-            'barangay' => $attributes['barangay'] ?? null,
-            'city_municipality' => $attributes['city_municipality'] ?? null,
-            'province' => $attributes['province'] ?? null,
-            'region' => $attributes['region'] ?? null,
             'last_order_date' => now(),
-        ])->save();
+        ];
+
+        if (!empty($attributes['name']) && empty($customer->name)) {
+            $updateData['name'] = $attributes['name'];
+        }
+
+        $addressFields = ['canonical_address', 'landmark', 'barangay', 'city_municipality', 'province', 'region'];
+        foreach ($addressFields as $field) {
+            if (isset($attributes[$field]) && empty($customer->$field)) {
+                $updateData[$field] = $attributes[$field];
+            }
+        }
+
+        $customer->fill($updateData)->save();
 
         return $customer;
     }

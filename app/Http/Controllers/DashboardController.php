@@ -15,6 +15,7 @@ use App\Models\Ticket;
 use App\Models\Upload;
 use App\Models\User;
 use App\Models\Waybill;
+use App\Domain\Analytics\Services\RevenueMetricService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,8 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly RevenueMetricService $revenueMetrics) {}
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -80,34 +83,29 @@ class DashboardController extends Controller
 
     private function buildRevenueSummary(): array
     {
-        // Revenue from invoices (amount_paid) for today, this week, this month
-        $revenueToday = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereDate('updated_at', today())
-            ->sum('amount_paid');
+        $summary = $this->revenueMetrics->revenueSummary();
 
-        $revenueWeek = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereBetween('updated_at', [now()->startOfWeek(), now()->endOfWeek()])
-            ->sum('amount_paid');
+        return [
+            'today'      => $summary['today_collected'],
+            'week'       => $summary['this_week_collected'],
+            'month'      => $summary['this_month_collected'],
+            'today_gross' => $summary['today_gross'],
+            'week_gross'  => $summary['this_week_gross'],
+            'month_gross' => $summary['this_month_gross'],
+            'today_net'   => $summary['today_net'],
+            'week_net'    => $summary['this_week_net'],
+            'month_net'   => $summary['this_month_net'],
+            'today_trend' => $summary['today_trend'],
+            'week_trend'  => $summary['week_trend'],
+            'month_trend' => $summary['month_trend'],
+            'yesterday'   => $this->revenueMetrics->collectedRevenue(today()->subDay(), today()->subDay()),
+            'last_week'   => $this->revenueMetrics->collectedRevenue(now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()),
+            'last_month'  => $this->revenueMetrics->collectedRevenue(now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()),
+        ];
+    }
 
-        $revenueMonth = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereMonth('updated_at', now()->month)
-            ->whereYear('updated_at', now()->year)
-            ->sum('amount_paid');
-
-        // Previous period comparisons
-        $revenueYesterday = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereDate('updated_at', today()->subDay())
-            ->sum('amount_paid');
-
-        $revenueLastWeek = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereBetween('updated_at', [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()])
-            ->sum('amount_paid');
-
-        $revenueLastMonth = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])
-            ->whereMonth('updated_at', now()->subMonth()->month)
-            ->whereYear('updated_at', now()->subMonth()->year)
-            ->sum('amount_paid');
-
+    private function buildConversionTrend(): array
+    {
         // Conversion trend (last 7 days)
         $conversionTrend = [];
         for ($i = 6; $i >= 0; $i--) {
@@ -148,22 +146,13 @@ class DashboardController extends Controller
             ];
         })->values()->all();
 
-        // Calculate trend percentages
-        $todayTrend = $revenueYesterday > 0
-            ? round((($revenueToday - $revenueYesterday) / $revenueYesterday) * 100, 1)
-            : null;
-        $weekTrend = $revenueLastWeek > 0
-            ? round((($revenueWeek - $revenueLastWeek) / $revenueLastWeek) * 100, 1)
-            : null;
-        $monthTrend = $revenueLastMonth > 0
-            ? round((($revenueMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1)
-            : null;
+        $revenueSummary = $this->buildRevenueSummary();
 
         return [
             'periods' => [
-                'today' => ['value' => round($revenueToday, 2), 'trend' => $todayTrend],
-                'week' => ['value' => round($revenueWeek, 2), 'trend' => $weekTrend],
-                'month' => ['value' => round($revenueMonth, 2), 'trend' => $monthTrend],
+                'today' => ['value' => $revenueSummary['today'], 'trend' => $revenueSummary['today_trend']],
+                'week'  => ['value' => $revenueSummary['week'], 'trend' => $revenueSummary['week_trend']],
+                'month' => ['value' => $revenueSummary['month'], 'trend' => $revenueSummary['month_trend']],
             ],
             'conversion_trend' => $conversionTrend,
             'top_products' => $topProducts,
@@ -612,11 +601,9 @@ class DashboardController extends Controller
 
         // Invoice statistics
         $invoicesOverdue = Invoice::where('status', 'OVERDUE')->count();
-        $invoicesUnpaid = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
-        $totalRevenue = (float) Invoice::whereIn('status', ['PAID', 'PARTIAL'])->sum('amount_paid');
-        $revenueToday = (float) Invoice::whereDate('updated_at', today())
-            ->whereIn('status', ['PAID', 'PARTIAL'])
-            ->sum('amount_paid');
+        $invoicesUnpaid   = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
+        $totalRevenue     = $this->revenueMetrics->collectedRevenue(Carbon::parse('2000-01-01'), today());
+        $revenueToday     = $this->revenueMetrics->collectedRevenue(today(), today());
 
         // Inventory statistics
         $lowStockCount = ProductStock::whereRaw('current_stock - reserved_stock <= reorder_point')->count();

@@ -5909,8 +5909,23 @@ class ShopController extends Controller
 
         $request->validate(['code' => ['required', 'string']]);
 
-        if ($request->filled('state') && ! hash_equals(csrf_token(), (string) $request->query('state'))) {
-            return redirect()->route('shop.index')->with('error', 'Facebook connection state check failed.');
+        abort_unless($request->filled('state'), 403, 'Missing OAuth state.');
+
+        $storedState = session('facebook_oauth_state');
+        $stateExpiresAt = session('facebook_oauth_state_expires_at');
+
+        session()->forget([
+            'facebook_oauth_state',
+            'facebook_oauth_state_expires_at',
+        ]);
+
+        if (
+            !$storedState
+            || !$stateExpiresAt
+            || now()->greaterThan($stateExpiresAt)
+            || !hash_equals($storedState, hash('sha256', (string) $request->query('state')))
+        ) {
+            return redirect()->route('shop.index')->with('error', 'OAuth state mismatch or expired. Please try again.');
         }
 
         $pageCount = $this->facebookConnector->connectFromCallback($request->user(), (string) $request->query('code'));
@@ -5948,14 +5963,13 @@ class ShopController extends Controller
 
     public function disconnectFacebookPage(FacebookPage $page): RedirectResponse
     {
-        $page->forceFill([
-            'connected_status' => 'disconnected',
-            'webhook_status' => 'unsubscribed',
-            'page_access_token' => null,
-            'token_expires_at' => null,
-        ])->save();
+        try {
+            $this->facebookConnector->disconnectPage($page);
+        } catch (\Throwable $exception) {
+            return back()->with('error', "Disconnect failed: {$exception->getMessage()}");
+        }
 
-        return back()->with('success', "{$page->page_name} disconnected. Reconnect via Facebook OAuth to restore access.");
+        return back()->with('success', "{$page->page_name} disconnected. Meta subscription revoked and tokens removed.");
     }
 
     public function pos(): Response
@@ -6176,22 +6190,6 @@ class ShopController extends Controller
                 throw new \RuntimeException('No warehouse configured for stock deduction.');
             }
 
-            foreach ($preparedItems as $item) {
-                try {
-                    $this->stockService->stockOut(
-                        productId: $item['product']->id,
-                        variantId: $item['variant']?->id,
-                        warehouseId: $warehouse->id,
-                        quantity: $item['quantity'],
-                        referenceType: 'pos_order',
-                        referenceId: 0,
-                        performedBy: auth()->id(),
-                    );
-                } catch (InsufficientStockException $e) {
-                    abort(422, "Insufficient stock for {$item['display_name']}: requested {$e->requested}, available {$e->available}.");
-                }
-            }
-
             $order = Order::query()->create([
                 'order_number' => Order::generateOrderNumber(),
                 'customer_id' => $customer?->id,
@@ -6209,6 +6207,22 @@ class ShopController extends Controller
                 'confirmed_at' => now(),
                 'notes' => $validated['notes'] ?? null,
             ]);
+
+            foreach ($preparedItems as $item) {
+                try {
+                    $this->stockService->stockOut(
+                        productId: $item['product']->id,
+                        variantId: $item['variant']?->id,
+                        warehouseId: $warehouse->id,
+                        quantity: $item['quantity'],
+                        referenceType: 'pos_order',
+                        referenceId: $order->id,
+                        performedBy: auth()->id(),
+                    );
+                } catch (InsufficientStockException $e) {
+                    abort(422, "Insufficient stock for {$item['display_name']}: requested {$e->requested}, available {$e->available}.");
+                }
+            }
 
             foreach ($preparedItems as $item) {
                 ShopOrderItem::query()->create([
@@ -7645,7 +7659,7 @@ class ShopController extends Controller
 
                 $conversation->forceFill([
                     'customer_id' => $customer->id,
-                    'status' => 'resolved',
+                    'status' => Conversation::STATUS_ORDER_CREATED,
                     'metadata' => array_merge($conversation->metadata ?? [], [
                         'latest_order_id' => $order->id,
                         'converted_at' => now()->toIso8601String(),

@@ -49,7 +49,20 @@ class MetaConversationIngestor
         $reactionAction = data_get($payload, 'reaction.action');
         if (is_string($reactionAction)) {
             $this->handleReaction($webhookEvent, $senderPsid, $reactionAction, data_get($payload, 'reaction.emoji'));
+            return;
+        }
 
+        // Handle delivery events
+        $deliveryWatermark = data_get($payload, 'delivery.watermark');
+        if (is_numeric($deliveryWatermark)) {
+            $this->handleDelivery($webhookEvent, $senderPsid, (int) $deliveryWatermark);
+            return;
+        }
+
+        // Handle read events
+        $readWatermark = data_get($payload, 'read.watermark');
+        if (is_numeric($readWatermark)) {
+            $this->handleRead($webhookEvent, $senderPsid, (int) $readWatermark);
             return;
         }
 
@@ -81,6 +94,8 @@ class MetaConversationIngestor
                 'status' => Conversation::STATUS_NEW,
                 'last_message_preview' => str($body)->limit(160)->toString(),
                 'last_message_at' => $this->eventTimestamp($payload),
+                'last_customer_message_at' => $this->eventTimestamp($payload),
+                'response_window_expires_at' => $this->eventTimestamp($payload)->addHours(24),
                 'unread_count' => ((int) $conversation->unread_count) + 1,
             ])->save();
 
@@ -324,6 +339,50 @@ class MetaConversationIngestor
                 $message->forceFill(['reactions' => $reactions])->save();
             }
         }
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
+    }
+
+    private function handleDelivery(FacebookWebhookEvent $webhookEvent, string $senderPsid, int $watermark): void
+    {
+        $deliveredAt = Carbon::createFromTimestampMs($watermark);
+
+        Message::query()
+            ->where('direction', 'outbound')
+            ->whereNull('delivered_at')
+            ->where('sent_at', '<=', $deliveredAt)
+            ->whereHas('conversation', function ($q) use ($webhookEvent, $senderPsid) {
+                $q->where('thread_key', "facebook:{$webhookEvent->facebookPage->page_id}:{$senderPsid}");
+            })
+            ->update([
+                'delivered_at' => $deliveredAt,
+                'send_status' => 'delivered',
+            ]);
+
+        $webhookEvent->forceFill([
+            'processed_at' => now(),
+            'error_message' => null,
+        ])->save();
+    }
+
+    private function handleRead(FacebookWebhookEvent $webhookEvent, string $senderPsid, int $watermark): void
+    {
+        $readAt = Carbon::createFromTimestampMs($watermark);
+
+        Message::query()
+            ->where('direction', 'outbound')
+            ->whereNull('read_at')
+            ->where('sent_at', '<=', $readAt)
+            ->whereHas('conversation', function ($q) use ($webhookEvent, $senderPsid) {
+                $q->where('thread_key', "facebook:{$webhookEvent->facebookPage->page_id}:{$senderPsid}");
+            })
+            ->update([
+                'read_at' => $readAt,
+                'send_status' => 'read',
+            ]);
 
         $webhookEvent->forceFill([
             'processed_at' => now(),
