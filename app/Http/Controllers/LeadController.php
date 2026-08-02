@@ -8,12 +8,17 @@ use App\Domain\Lead\Models\Lead;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Models\User;
+use App\Services\LeadLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class LeadController extends Controller
 {
+    public function __construct(
+        private LeadLifecycleService $lifecycleService,
+    ) {}
+
     public function index(Request $request)
     {
         $query = Lead::with('assignedAgent');
@@ -78,11 +83,21 @@ class LeadController extends Controller
 
     public function show(Lead $lead)
     {
-        $lead->load(['assignedAgent', 'customer', 'cycles.assignedAgent']);
+        $lead->load(['assignedAgent', 'customer', 'cycles.assignedAgent', 'uploader', 'waybills']);
+
+        $lifecycle = $this->lifecycleService->getLifecycle($lead);
 
         return Inertia::render('Leads/Show', [
             'lead' => $lead,
+            'lifecycle' => $lifecycle,
         ]);
+    }
+
+    public function lifecycle(Lead $lead)
+    {
+        $lifecycle = $this->lifecycleService->getLifecycle($lead);
+
+        return response()->json($lifecycle);
     }
 
     public function qcIndex()

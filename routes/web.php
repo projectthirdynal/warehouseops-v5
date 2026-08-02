@@ -843,6 +843,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
             return redirect('/lead-pool');
         })->name('index');
         Route::get('/{lead}', [LeadController::class, 'show'])->name('show');
+        Route::get('/{lead}/lifecycle', [LeadController::class, 'lifecycle'])->name('lifecycle');
     });
 
     // Orders
