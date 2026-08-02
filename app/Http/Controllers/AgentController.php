@@ -19,7 +19,7 @@ class AgentController extends Controller
             ->get()
             ->map(function ($agent) {
                 // Calculate today's stats for each agent
-                $agent->stats = [
+                $stats = [
                     'leads_today' => Lead::where('assigned_to', $agent->id)
                         ->whereDate('created_at', today())
                         ->count(),
@@ -34,11 +34,13 @@ class AgentController extends Controller
                 ];
 
                 // Calculate conversion rate
-                if ($agent->stats['leads_today'] > 0) {
-                    $agent->stats['conversion_rate'] = round(
-                        ($agent->stats['sales_today'] / $agent->stats['leads_today']) * 100
+                if ($stats['leads_today'] > 0) {
+                    $stats['conversion_rate'] = round(
+                        ($stats['sales_today'] / $stats['leads_today']) * 100
                     );
                 }
+
+                $agent->stats = $stats;
 
                 return $agent;
             });
