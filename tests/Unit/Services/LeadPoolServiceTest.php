@@ -7,7 +7,7 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\User;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 /**
@@ -17,7 +17,7 @@ use Tests\TestCase;
  */
 class LeadPoolServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private LeadPoolService $service;
 

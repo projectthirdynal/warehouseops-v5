@@ -963,6 +963,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/analytics', [DistributionAnalyticsController::class, 'index'])->name('analytics');
         Route::get('/analytics/alerts', [DistributionAnalyticsController::class, 'alerts'])->name('analytics.alerts');
         Route::get('/analytics/rebalancing', [DistributionAnalyticsController::class, 'rebalancing'])->name('analytics.rebalancing');
+        Route::get('/analytics/fairness', [DistributionAnalyticsController::class, 'fairness'])->name('analytics.fairness');
+        Route::get('/analytics/imbalance-alerts', [DistributionAnalyticsController::class, 'imbalanceAlerts'])->name('analytics.imbalance');
+        Route::get('/analytics/fairness-trend', [DistributionAnalyticsController::class, 'fairnessTrend'])->name('analytics.fairness-trend');
+        Route::post('/analytics/rebalance', [DistributionAnalyticsController::class, 'applyRebalancing'])->name('analytics.rebalance');
     });
 });
 

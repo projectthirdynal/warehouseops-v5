@@ -45,6 +45,11 @@ class SystemSampleDataSeeder extends Seeder
 {
     public function run(): void
     {
+        $superadmin = User::firstOrCreate(
+            ['email' => 'admin@test.local'],
+            ['name' => 'Super Admin', 'password' => bcrypt('!Admin00'), 'role' => 'superadmin', 'is_active' => true, 'email_verified_at' => now()]
+        );
+
         $admin = User::firstOrCreate(
             ['email' => 'admin@tecc.ph'],
             ['name' => 'Admin User', 'password' => bcrypt('password'), 'role' => 'admin', 'is_active' => true]

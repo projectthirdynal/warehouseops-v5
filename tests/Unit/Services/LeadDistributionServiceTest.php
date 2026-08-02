@@ -10,12 +10,12 @@ use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class LeadDistributionServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private LeadDistributionService $service;
 

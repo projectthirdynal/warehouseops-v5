@@ -8,7 +8,7 @@ use App\Models\AgentProfile;
 use App\Models\LeadCycle;
 use App\Models\User;
 use Database\Seeders\RecyclingRulesSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 /**
@@ -18,7 +18,7 @@ use Tests\TestCase;
  */
 class AgentLeadControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $agent;
 

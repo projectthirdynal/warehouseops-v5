@@ -8,7 +8,7 @@ use App\Models\FraudFlag;
 use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\FraudDetectionService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 /**
@@ -18,7 +18,7 @@ use Tests\TestCase;
  */
 class FraudDetectionServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private FraudDetectionService $service;
 

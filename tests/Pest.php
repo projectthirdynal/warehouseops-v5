@@ -1,9 +1,9 @@
 <?php
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 uses(
     TestCase::class,
-    RefreshDatabase::class,
+    DatabaseTransactions::class,
 )->in('Feature');

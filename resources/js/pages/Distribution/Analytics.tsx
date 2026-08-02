@@ -1,6 +1,18 @@
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Clock, AlertTriangle, TrendingUp, Users, Activity, ArrowUpDown } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+import {
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  Users,
+  Activity,
+  ArrowUpDown,
+  Scale,
+  Zap,
+  Loader2,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +41,41 @@ interface RebalancingItem {
   skew: number;
 }
 
+interface FairnessShare {
+  agent_id: number;
+  name: string;
+  assigned: number;
+  actual_share: number;
+  expected_share: number;
+  weight: number;
+  deviation: number;
+}
+
+interface FairnessData {
+  gini: number;
+  total_assigned: number;
+  agent_count: number;
+  shares: FairnessShare[];
+  status: string;
+}
+
+interface ImbalanceAlert {
+  agent_id: number;
+  name: string;
+  type: string;
+  assigned: number;
+  actual_share: number;
+  expected_share: number;
+  deviation: number;
+  severity: string;
+}
+
+interface FairnessTrendPoint {
+  date: string;
+  gini: number;
+  total_assigned: number;
+}
+
 interface Props {
   timeToAssign: number;
   timeDistribution: Record<string, number>;
@@ -48,6 +95,9 @@ interface Props {
     queue_depth: number;
   };
   rebalancing: RebalancingItem[];
+  fairness: FairnessData;
+  imbalanceAlerts: ImbalanceAlert[];
+  fairnessTrend: FairnessTrendPoint[];
   days: number;
 }
 
@@ -60,9 +110,13 @@ export default function DistributionAnalytics({
   strategyPerformance,
   alerts,
   rebalancing,
+  fairness,
+  imbalanceAlerts,
+  fairnessTrend,
   days,
 }: Props) {
   const [selectedDays, setSelectedDays] = useState(days);
+  const [rebalancing_, setRebalancing] = useState(false);
 
   const handleDaysChange = (d: number) => {
     setSelectedDays(d);
@@ -86,6 +140,41 @@ export default function DistributionAnalytics({
     bucket,
     count,
   }));
+
+  const fairnessTrendData = fairnessTrend.map((p) => ({
+    date: p.date.slice(5),
+    gini: p.gini,
+    total_assigned: p.total_assigned,
+  }));
+
+  const fairnessStatusVariant: Record<string, string> = {
+    fair: 'success',
+    warning: 'warning',
+    imbalanced: 'default',
+    critical: 'destructive',
+  };
+
+  const severityVariant: Record<string, string> = {
+    low: 'outline',
+    medium: 'default',
+    high: 'warning',
+    critical: 'destructive',
+  };
+
+  const handleApplyRebalancing = async () => {
+    setRebalancing(true);
+    try {
+      const res = await axios.post('/distribution/analytics/rebalance', { threshold: 0.15 });
+      toast.success(
+        `Rebalancing complete: ${res.data.adjusted} agents adjusted, ${res.data.skipped} skipped`
+      );
+      router.reload();
+    } catch {
+      toast.error('Rebalancing failed. Please try again.');
+    } finally {
+      setRebalancing(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -226,13 +315,185 @@ export default function DistributionAnalytics({
           </Card>
         </div>
 
+        {/* Fairness Metrics */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Distribution Fairness
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Gini Coefficient</span>
+                <span className="text-2xl font-bold">{fairness.gini.toFixed(3)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <Badge
+                  variant={
+                    fairnessStatusVariant[fairness.status] as
+                      | 'default'
+                      | 'destructive'
+                      | 'success'
+                      | 'warning'
+                      | 'outline'
+                  }
+                >
+                  {fairness.status}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Assigned</span>
+                <span className="text-sm font-medium">{fairness.total_assigned}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Active Agents</span>
+                <span className="text-sm font-medium">{fairness.agent_count}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Share vs Expected</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {fairness.shares.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">No data yet.</p>
+              ) : (
+                fairness.shares.map((s) => (
+                  <div key={s.agent_id} className="flex items-center gap-3">
+                    <span className="w-24 text-xs truncate">{s.name}</span>
+                    <div className="flex-1 space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${Math.min(100, s.actual_share * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-10 text-right">
+                          {(s.actual_share * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-muted-foreground/40"
+                            style={{ width: `${Math.min(100, s.expected_share * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground/60 w-10 text-right">
+                          {(s.expected_share * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-xs w-12 text-right font-medium ${s.deviation > 0.05 ? 'text-destructive' : s.deviation < -0.05 ? 'text-warning' : 'text-muted-foreground'}`}
+                    >
+                      {s.deviation > 0 ? '+' : ''}
+                      {(s.deviation * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Fairness Trend */}
+        <ChartCard
+          title="Fairness Trend (Gini Coefficient)"
+          data={fairnessTrendData}
+          type="area"
+          dataKey="gini"
+          xKey="date"
+          color="hsl(var(--primary))"
+          height={200}
+        />
+
+        {/* Imbalance Alerts */}
+        {imbalanceAlerts.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Imbalance Alerts
+                <Badge variant="destructive">{imbalanceAlerts.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 font-medium">Agent</th>
+                      <th className="pb-2 font-medium">Type</th>
+                      <th className="pb-2 font-medium text-right">Assigned</th>
+                      <th className="pb-2 font-medium text-right">Actual Share</th>
+                      <th className="pb-2 font-medium text-right">Expected Share</th>
+                      <th className="pb-2 font-medium text-right">Deviation</th>
+                      <th className="pb-2 font-medium text-right">Severity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {imbalanceAlerts.map((a) => (
+                      <tr key={a.agent_id} className="border-b border-border/50">
+                        <td className="py-2">{a.name}</td>
+                        <td className="py-2">
+                          <Badge variant={a.type === 'over_assigned' ? 'destructive' : 'warning'}>
+                            {a.type.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="py-2 text-right">{a.assigned}</td>
+                        <td className="py-2 text-right">{(a.actual_share * 100).toFixed(1)}%</td>
+                        <td className="py-2 text-right">{(a.expected_share * 100).toFixed(1)}%</td>
+                        <td className="py-2 text-right">
+                          {a.deviation > 0 ? '+' : ''}
+                          {(a.deviation * 100).toFixed(1)}%
+                        </td>
+                        <td className="py-2 text-right">
+                          <Badge
+                            variant={
+                              severityVariant[a.severity] as
+                                | 'default'
+                                | 'destructive'
+                                | 'success'
+                                | 'warning'
+                                | 'outline'
+                            }
+                          >
+                            {a.severity}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Rebalancing Report */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ArrowUpDown className="h-4 w-4" />
-              Weekly Rebalancing Report
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4" />
+                Weekly Rebalancing Report
+              </CardTitle>
+              <Button size="sm" onClick={handleApplyRebalancing} disabled={rebalancing_}>
+                {rebalancing_ ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Zap className="h-3 w-3" />
+                )}
+                Auto-Rebalance
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {rebalancing.length === 0 ? (

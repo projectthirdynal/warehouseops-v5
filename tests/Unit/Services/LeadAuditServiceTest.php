@@ -6,12 +6,12 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\LeadPoolAudit;
 use App\Models\User;
 use App\Services\LeadAuditService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class LeadAuditServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private LeadAuditService $service;
 

@@ -8,12 +8,12 @@ use App\Models\Customer;
 use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\LeadScoringService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class LeadScoringServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private LeadScoringService $service;
 
