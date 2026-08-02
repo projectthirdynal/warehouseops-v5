@@ -362,6 +362,7 @@ jobs:
   build-app:
     name: Build Application
     needs: [unit-tests, integration-tests, security-scan]
+    if: always() && needs.security-scan.result == 'success' && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') && (needs.integration-tests.result == 'success' || needs.integration-tests.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
