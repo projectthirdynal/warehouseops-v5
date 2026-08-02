@@ -426,7 +426,9 @@ export default function BatchDispatch({ pendingWaybills, stats, couriers, filter
                 variant={page === pendingWaybills.current_page ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
-                  window.location.href = `/waybills/batch-dispatch?page=${page}${search ? `&search=${search}` : ''}`;
+                  const params = new URLSearchParams({ page: String(page) });
+                  if (search) params.set('search', search);
+                  window.location.href = `/waybills/batch-dispatch?${params.toString()}`;
                 }}
               >
                 {page}
