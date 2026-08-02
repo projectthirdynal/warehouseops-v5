@@ -48,6 +48,165 @@ class TelesalesLeadImportService
         return $this->importCsv($file, $userId);
     }
 
+    /**
+     * Preview import: parse file, detect duplicates, return validation results without writing.
+     *
+     * @return array{summary: array, rows: array}
+     */
+    public function preview(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $rawRows = in_array($extension, ['xlsx', 'xls'])
+            ? $this->parseXlsxRawRows($file)
+            : $this->parseCsvRawRows($file);
+
+        $previewRows = [];
+        $seenPhones = [];
+        $summary = ['total' => 0, 'new' => 0, 'duplicate_db' => 0, 'duplicate_file' => 0, 'errors' => 0];
+
+        // Pre-fetch existing phones from DB in one query
+        $phonesToCheck = [];
+        foreach ($rawRows as $row) {
+            $phone = $this->normalizePhone($row[2] ?? null);
+            if ($phone) {
+                $phonesToCheck[] = $phone;
+            }
+        }
+        $existingPhones = Lead::whereIn('phone', array_unique($phonesToCheck))
+            ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
+            ->pluck('phone')
+            ->flip();
+
+        foreach ($rawRows as $index => $row) {
+            $summary['total']++;
+            $rowNum = $index + 1;
+            $name = trim($row[1] ?? '');
+            $phoneRaw = $row[2] ?? null;
+            $phone = $this->normalizePhone($phoneRaw);
+
+            if (empty($name)) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => '',
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'error',
+                    'error' => 'Name is required',
+                ];
+
+                continue;
+            }
+
+            if (! $phone) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'error',
+                    'error' => 'Invalid phone number',
+                ];
+
+                continue;
+            }
+
+            if (isset($seenPhones[$phone])) {
+                $summary['duplicate_file']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'duplicate_file',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $seenPhones[$phone] = true;
+
+            if ($existingPhones->has($phone)) {
+                $summary['duplicate_db']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'duplicate_db',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $summary['new']++;
+            $previewRows[] = [
+                'row' => $rowNum,
+                'name' => $name,
+                'phone' => $phone,
+                'city' => trim($row[5] ?? ''),
+                'status' => 'new',
+                'error' => null,
+            ];
+        }
+
+        return ['summary' => $summary, 'rows' => $previewRows];
+    }
+
+    /**
+     * Parse CSV into raw row arrays (positional, no header mapping).
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function parseCsvRawRows(UploadedFile $file): array
+    {
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        if ($this->isHeaderRow($rows[0] ?? [])) {
+            array_shift($rows);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Parse XLSX into raw row arrays (positional).
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function parseXlsxRawRows(UploadedFile $file): array
+    {
+        $rows = [];
+        try {
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+            $highestColIndex = Coordinate::columnIndexFromString(
+                $sheet->getHighestColumn()
+            );
+
+            for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
+                $row = [];
+                for ($col = 1; $col <= $highestColIndex; $col++) {
+                    $row[] = $sheet->getCellByColumnAndRow($col, $rowNum)->getValue();
+                }
+                $rows[] = $row;
+            }
+        } catch (\Exception $e) {
+            Log::error('Telesales XLSX preview parse failed: '.$e->getMessage());
+
+            return [];
+        }
+
+        if ($this->isHeaderRow($rows[0] ?? [])) {
+            array_shift($rows);
+        }
+
+        return $rows;
+    }
+
     private function importCsv(UploadedFile $file, int $userId): array
     {
         $rows = array_map('str_getcsv', file($file->getRealPath()));

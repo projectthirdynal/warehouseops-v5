@@ -34,6 +34,190 @@ class LeadImportService
     }
 
     /**
+     * Preview import: parse file, detect duplicates, return validation results without writing.
+     *
+     * @return array{summary: array, rows: array}
+     */
+    public function preview(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $rows = in_array($extension, ['xlsx', 'xls'])
+            ? $this->parseXlsxRows($file)
+            : $this->parseCsvRows($file);
+
+        $previewRows = [];
+        $seenPhones = [];
+        $summary = ['total' => 0, 'new' => 0, 'duplicate_db' => 0, 'duplicate_file' => 0, 'errors' => 0];
+
+        // Pre-fetch all existing phones from the file to check DB in one query
+        $phonesToCheck = [];
+        foreach ($rows as $rowData) {
+            $phone = $this->normalizePhone($rowData['phone_raw'] ?? ($rowData['phone'] ?? null));
+            if ($phone) {
+                $phonesToCheck[] = $phone;
+            }
+        }
+        $existingPhones = Lead::whereIn('phone', array_unique($phonesToCheck))
+            ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
+            ->pluck('phone')
+            ->flip();
+
+        foreach ($rows as $row) {
+            $summary['total']++;
+            $name = trim($row['name'] ?? '');
+            $phoneRaw = $row['phone_raw'] ?? ($row['phone'] ?? null);
+            $phone = $this->normalizePhone($phoneRaw);
+
+            if (empty($name)) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => '',
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => $row['city'] ?? '',
+                    'status' => 'error',
+                    'error' => 'Name is required',
+                ];
+
+                continue;
+            }
+
+            if (! $phone) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => $row['city'] ?? '',
+                    'status' => 'error',
+                    'error' => 'Invalid phone number',
+                ];
+
+                continue;
+            }
+
+            // Check in-file duplicate
+            if (isset($seenPhones[$phone])) {
+                $summary['duplicate_file']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => $row['city'] ?? '',
+                    'status' => 'duplicate_file',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $seenPhones[$phone] = true;
+
+            // Check DB duplicate
+            if ($existingPhones->has($phone)) {
+                $summary['duplicate_db']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => $row['city'] ?? '',
+                    'status' => 'duplicate_db',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $summary['new']++;
+            $previewRows[] = [
+                'row' => $row['_row_num'] ?? $summary['total'],
+                'name' => $name,
+                'phone' => $phone,
+                'city' => $row['city'] ?? '',
+                'status' => 'new',
+                'error' => null,
+            ];
+        }
+
+        return ['summary' => $summary, 'rows' => $previewRows];
+    }
+
+    /**
+     * Parse CSV file into normalized row data array.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseCsvRows(UploadedFile $file): array
+    {
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        $header = array_shift($rows);
+        $header = array_map(fn ($h) => strtolower(trim($h)), $header);
+        $result = [];
+
+        foreach ($rows as $index => $row) {
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if (count($row) !== count($header)) {
+                $result[] = ['_row_num' => $index + 2, 'name' => '', 'phone_raw' => null, '_error' => 'Column count mismatch'];
+
+                continue;
+            }
+            $data = array_combine($header, $row);
+            $data['_row_num'] = $index + 2;
+            $result[] = $data;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse XLSX file into normalized row data array.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseXlsxRows(UploadedFile $file): array
+    {
+        $result = [];
+
+        try {
+            $reader = new IOFactory;
+            $spreadsheet = $reader::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+
+            for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
+                $row = [];
+                for ($col = 1; $col <= 14; $col++) {
+                    $cell = $sheet->getCellByColumnAndRow($col, $rowNum);
+                    $row[] = $cell->getValue();
+                }
+
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+
+                $result[] = [
+                    '_row_num' => $rowNum,
+                    'name' => $row[0] ?? null,
+                    'phone_raw' => $row[1] ?? null,
+                    'address' => $row[2] ?? null,
+                    'state' => $row[3] ?? null,
+                    'city' => $row[4] ?? null,
+                    'barangay' => $row[5] ?? null,
+                    'amount' => $row[11] ?? null,
+                    'product_name' => $row[12] ?? null,
+                    'lead_status' => $row[13] ?? null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            Log::error('XLSX preview parse failed', ['exception' => $e->getMessage()]);
+        }
+
+        return $result;
+    }
+
+    /**
      * Import from CSV with header row (legacy format).
      */
     private function importCsv(UploadedFile $file, int $userId): array

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\LeadImportService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -25,10 +26,24 @@ class LeadImportController extends Controller
         return Inertia::render('LeadPool/Import');
     }
 
+    /**
+     * Preview import: validate file, detect duplicates, return results without writing.
+     */
+    public function preview(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+        ]);
+
+        $result = $this->importService->preview($request->file('file'));
+
+        return response()->json($result);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
         ]);
 
         $result = $this->importService->import(

@@ -937,12 +937,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
+        Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
     });
 
     // Telesales Import
     Route::prefix('telesales')->name('telesales.')->group(function () {
         Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
         Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
+        Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
     });
 
     // Distribution Engine
