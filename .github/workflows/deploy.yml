@@ -548,7 +548,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: staging
-      url: ${{ vars.APPLICATION_URL || 'https://staging.warehouseops.thirdynals.org' }}
+      url: https://staging.warehouseops.thirdynals.org
     concurrency:
       group: staging-deploy
       cancel-in-progress: true
@@ -625,7 +625,7 @@ jobs:
     steps:
       - name: Smoke test endpoints
         env:
-          STAGING_URL: ${{ vars.APPLICATION_URL || 'http://localhost:8103' }}
+          STAGING_URL: http://localhost:8103
         run: |
           ENDPOINTS=("/health" "/login" "/api/status")
           MAX_RETRIES=3
@@ -676,7 +676,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: ${{ vars.APPLICATION_URL || 'https://warehouseops.thirdynals.org' }}
+      url: https://warehouseops.thirdynals.org
     concurrency:
       group: production-deploy
       cancel-in-progress: false
@@ -855,7 +855,7 @@ jobs:
     steps:
       - name: Verify production endpoints
         env:
-          PROD_URL: ${{ vars.APPLICATION_URL || 'http://localhost:8102' }}
+          PROD_URL: http://localhost:8102
         run: |
           ENDPOINTS=("/health" "/login" "/api/status")
           MAX_RETRIES=3
