@@ -81,18 +81,9 @@ RUN apk add --no-cache \
     postgresql-libs \
     && rm -rf /var/cache/apk/*
 
-# Install only required PHP extensions (no build deps)
-RUN docker-php-ext-install -j$(nproc) \
-        pdo_pgsql \
-        pgsql \
-        gd \
-        zip \
-        intl \
-        mbstring \
-        opcache \
-        pcntl \
-        bcmath \
-    && pecl install redis && docker-php-ext-enable redis
+# Copy compiled PHP extensions from dependencies stage
+COPY --from=dependencies /usr/local/lib/php/extensions/no-debug-non-zts-20230831/ /usr/local/lib/php/extensions/no-debug-non-zts-20230831/
+COPY --from=dependencies /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 
 # Create non-root user
 RUN addgroup -g 1000 www && adduser -u 1000 -G www -s /bin/sh -D www
