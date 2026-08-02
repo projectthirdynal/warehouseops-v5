@@ -221,6 +221,13 @@ jobs:
           sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
           sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env
           sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env.testing
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env.testing
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env.testing
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env.testing
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env.testing
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env.testing
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env.testing
           php artisan key:generate --ansi
           php artisan migrate --force
 
@@ -298,6 +305,13 @@ jobs:
           sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env
           sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
           sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env.testing
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env.testing
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env.testing
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env.testing
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env.testing
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env.testing
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env.testing
           php artisan key:generate --ansi
           php artisan migrate --force
 
