@@ -20,6 +20,10 @@ class LeadScoringServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Clean up pre-existing leads (PostgreSQL doesn't reset auto-increment on rollback)
+        Lead::query()->delete();
+
         $this->service = new LeadScoringService;
     }
 

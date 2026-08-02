@@ -18,6 +18,7 @@ class DistributionEngine
         private AgentAvailability $agentAvailability,
         private LeadPoolService $poolService,
         private LeadAuditService $auditService,
+        private RuleConditionEvaluator $conditionEvaluator,
     ) {}
 
     /**
@@ -30,6 +31,11 @@ class DistributionEngine
         $rules = DistributionRule::active()->get();
 
         foreach ($rules as $rule) {
+            // C2: Skip this rule if the lead doesn't match the rule's lead-side conditions
+            if (! $this->conditionEvaluator->matches($lead, $rule)) {
+                continue;
+            }
+
             $eligible = $this->filterEligibleAgents($lead, $rule);
             if ($eligible->isEmpty()) {
                 continue;
