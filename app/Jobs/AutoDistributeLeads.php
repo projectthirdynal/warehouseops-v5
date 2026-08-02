@@ -77,10 +77,13 @@ class AutoDistributeLeads implements ShouldQueue
         }
 
         // 2. Then process fresh available leads
+        // Prioritize distribution: higher quality_score leads get processed first (C1: Lead Scoring)
         $remaining = $this->batchSize - $distributed;
         if ($remaining > 0) {
             $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
                 ->whereDoesntHave('distributionQueues', fn ($q) => $q->whereIn('status', ['pending', 'assigned']))
+                ->orderByDesc('quality_score')
+                ->orderBy('created_at')
                 ->limit($remaining)
                 ->get();
 

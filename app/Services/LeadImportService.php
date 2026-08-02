@@ -15,7 +15,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class LeadImportService
 {
     public function __construct(
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private LeadScoringService $scoringService
     ) {}
 
     /**
@@ -172,8 +173,11 @@ class LeadImportService
             $leadStatus = LeadStatus::tryFrom(strtoupper(trim($data['lead_status'])));
         }
 
-        // Compute quality score on import
-        $qualityScore = $this->computeQualityScore($data);
+        // Compute quality score on import (source + demographics + customer history)
+        $qualityScore = $this->scoringService->scoreFromImportData(
+            array_merge($data, ['source' => $data['source'] ?? 'XLSX_IMPORT', 'phone' => $phone]),
+            $customer
+        );
 
         // Check for existing non-exhausted lead
         $existing = Lead::where('phone', $phone)
@@ -285,35 +289,5 @@ class LeadImportService
     private function normalizeRegion(?string $region): ?string
     {
         return $region ? strtoupper(trim($region)) : null;
-    }
-
-    /**
-     * Compute a quality score (0–100) for a lead based on data completeness.
-     */
-    private function computeQualityScore(array $data): int
-    {
-        $score = 50; // Base score
-
-        // Full address present
-        if (! empty($data['address']) || ! empty($data['city'])) {
-            $score += 15;
-        }
-
-        // Province + city + barangay present
-        if (! empty($data['state']) && ! empty($data['city']) && ! empty($data['barangay'])) {
-            $score += 15;
-        }
-
-        // Product specified
-        if (! empty($data['product_name'])) {
-            $score += 10;
-        }
-
-        // Amount present
-        if (! empty($data['amount']) && is_numeric($data['amount']) && (float) $data['amount'] > 0) {
-            $score += 10;
-        }
-
-        return min(100, $score);
     }
 }

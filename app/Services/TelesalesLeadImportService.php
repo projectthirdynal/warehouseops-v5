@@ -17,7 +17,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class TelesalesLeadImportService
 {
     public function __construct(
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private LeadScoringService $scoringService
     ) {}
 
     /**
@@ -166,11 +167,17 @@ class TelesalesLeadImportService
 
         $leadStatus = $this->mapOrderStatusToLeadStatus($orderStatus);
 
-        // High quality score for existing customers (delivered orders)
-        $qualityScore = 75;
-        if (strtolower($orderStatus) === 'delivered') {
-            $qualityScore = 85;
-        }
+        // Source + demographics + customer history quality score (LeadScoringService)
+        $qualityScore = $this->scoringService->scoreFromImportData([
+            'source' => LeadSource::TELESALES_IMPORT->value,
+            'address' => $address,
+            'city' => $city,
+            'state' => $province,
+            'barangay' => $barangay,
+            'phone' => $phone,
+            'product_name' => $product,
+            'amount' => $amount,
+        ], $customer);
 
         $existing = Lead::where('customer_id', $customer->id)
             ->whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])

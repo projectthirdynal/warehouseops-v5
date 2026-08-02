@@ -235,7 +235,10 @@ class DistributionController extends Controller
         $limit = $validated['limit'] ?? 10;
         $distributed = 0;
 
+        // Prioritize distribution: higher quality_score leads get processed first (C1: Lead Scoring)
         $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
+            ->orderByDesc('quality_score')
+            ->orderBy('created_at')
             ->limit($limit)
             ->get();
 
