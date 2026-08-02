@@ -26,13 +26,13 @@ class CartTemplate extends Model
     ];
 
     protected $casts = [
-        'items'         => 'array',
-        'shipping_fee'  => 'decimal:2',
+        'items' => 'array',
+        'shipping_fee' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'tax_rate'      => 'decimal:2',
-        'is_shared'     => 'boolean',
+        'tax_rate' => 'decimal:2',
+        'is_shared' => 'boolean',
         'allowed_roles' => 'array',
-        'last_used_at'  => 'datetime',
+        'last_used_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

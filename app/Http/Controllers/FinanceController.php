@@ -27,8 +27,8 @@ class FinanceController extends Controller
         $dailyRevenue = $this->revenue->getDailyRevenue(30);
 
         $commissionStats = [
-            'pending_total'  => (float) AgentCommission::where('status', 'PENDING')->sum('commission_amount'),
-            'pending_count'  => AgentCommission::where('status', 'PENDING')->count(),
+            'pending_total' => (float) AgentCommission::where('status', 'PENDING')->sum('commission_amount'),
+            'pending_count' => AgentCommission::where('status', 'PENDING')->count(),
             'approved_total' => (float) AgentCommission::where('status', 'APPROVED')->sum('commission_amount'),
             'paid_this_month' => (float) AgentCommission::where('status', 'PAID')
                 ->whereMonth('paid_at', now()->month)->sum('commission_amount'),
@@ -41,11 +41,11 @@ class FinanceController extends Controller
         ];
 
         return Inertia::render('Finance/Dashboard', [
-            'summary'         => $summary,
-            'dailyRevenue'    => $dailyRevenue,
+            'summary' => $summary,
+            'dailyRevenue' => $dailyRevenue,
             'commissionStats' => $commissionStats,
-            'codStats'        => $codStats,
-            'filters'         => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'codStats' => $codStats,
+            'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
         ]);
     }
 
@@ -64,18 +64,18 @@ class FinanceController extends Controller
         $commissions = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
 
         $stats = [
-            'pending'  => (float) AgentCommission::where('status', 'PENDING')->sum('commission_amount'),
+            'pending' => (float) AgentCommission::where('status', 'PENDING')->sum('commission_amount'),
             'approved' => (float) AgentCommission::where('status', 'APPROVED')->sum('commission_amount'),
-            'paid'     => (float) AgentCommission::where('status', 'PAID')->sum('commission_amount'),
+            'paid' => (float) AgentCommission::where('status', 'PAID')->sum('commission_amount'),
         ];
 
         $rules = CommissionRule::with('product')->where('is_active', true)->get();
 
         return Inertia::render('Finance/Commissions', [
             'commissions' => $commissions,
-            'stats'       => $stats,
-            'rules'       => $rules,
-            'filters'     => $request->only(['status', 'agent_id']),
+            'stats' => $stats,
+            'rules' => $rules,
+            'filters' => $request->only(['status', 'agent_id']),
         ]);
     }
 
@@ -106,9 +106,9 @@ class FinanceController extends Controller
     public function storeRule(Request $request)
     {
         $validated = $request->validate([
-            'product_id'      => ['nullable', 'exists:products,id'],
-            'rate_type'       => ['required', 'in:PERCENTAGE,FIXED'],
-            'rate_value'      => ['required', 'numeric', 'min:0'],
+            'product_id' => ['nullable', 'exists:products,id'],
+            'rate_type' => ['required', 'in:PERCENTAGE,FIXED'],
+            'rate_value' => ['required', 'numeric', 'min:0'],
             'min_sale_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
@@ -124,28 +124,28 @@ class FinanceController extends Controller
             ->withQueryString();
 
         $stats = [
-            'pending_amount'  => (float) CodSettlement::where('status', 'PENDING')->sum('net_amount'),
+            'pending_amount' => (float) CodSettlement::where('status', 'PENDING')->sum('net_amount'),
             'received_amount' => (float) CodSettlement::where('status', 'RECEIVED')->sum('net_amount'),
-            'total_collected'  => (float) CodSettlement::sum('total_cod_collected'),
+            'total_collected' => (float) CodSettlement::sum('total_cod_collected'),
         ];
 
         return Inertia::render('Finance/CodSettlements', [
             'settlements' => $settlements,
-            'stats'       => $stats,
+            'stats' => $stats,
         ]);
     }
 
     public function storeCodSettlement(Request $request)
     {
         $validated = $request->validate([
-            'courier_code'       => ['required', 'string'],
-            'reference_number'   => ['nullable', 'string'],
-            'period_start'       => ['required', 'date'],
-            'period_end'         => ['required', 'date', 'after_or_equal:period_start'],
+            'courier_code' => ['required', 'string'],
+            'reference_number' => ['nullable', 'string'],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
             'total_cod_collected' => ['required', 'numeric', 'min:0'],
-            'courier_fee'        => ['required', 'numeric', 'min:0'],
-            'order_count'        => ['required', 'integer', 'min:0'],
-            'notes'              => ['nullable', 'string'],
+            'courier_fee' => ['required', 'numeric', 'min:0'],
+            'order_count' => ['required', 'integer', 'min:0'],
+            'notes' => ['nullable', 'string'],
         ]);
 
         $validated['net_amount'] = $validated['total_cod_collected'] - $validated['courier_fee'];
@@ -159,7 +159,7 @@ class FinanceController extends Controller
     public function receiveCodSettlement(CodSettlement $settlement)
     {
         $settlement->update([
-            'status'      => 'RECEIVED',
+            'status' => 'RECEIVED',
             'received_at' => now(),
         ]);
 

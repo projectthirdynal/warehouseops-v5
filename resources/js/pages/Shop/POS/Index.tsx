@@ -922,6 +922,11 @@ export default function POSIndex({ products, payment_methods }: Props) {
               <Receipt className="h-5 w-5 text-primary" />
               Sale Complete
             </DialogTitle>
+            <DialogDescription>
+              {receipt
+                ? `Order ${receipt.order_number} has been recorded.`
+                : 'Order has been recorded.'}
+            </DialogDescription>
           </DialogHeader>
 
           {receipt && (

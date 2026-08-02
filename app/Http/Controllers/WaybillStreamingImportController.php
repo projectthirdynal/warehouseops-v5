@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Upload;
 use App\Jobs\ProcessStreamingChunk;
+use App\Models\Upload;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class WaybillStreamingImportController extends Controller
 {
@@ -25,7 +24,7 @@ class WaybillStreamingImportController extends Controller
 
         $upload = Upload::create([
             'uuid' => Str::uuid(),
-            'filename' => 'streaming_' . time() . '.xlsx',
+            'filename' => 'streaming_'.time().'.xlsx',
             'original_filename' => $validated['filename'],
             'courier' => $validated['courier'],
             'type' => 'waybill',
@@ -122,7 +121,7 @@ class WaybillStreamingImportController extends Controller
                 'total' => $upload->total_chunks,
                 'processed' => $upload->processed_chunks,
             ],
-            'progress_percentage' => $upload->total_rows > 0 
+            'progress_percentage' => $upload->total_rows > 0
                 ? round(($upload->processed_rows / $upload->total_rows) * 100, 2)
                 : 0,
         ]);
@@ -134,7 +133,7 @@ class WaybillStreamingImportController extends Controller
     public function cancel($uploadId)
     {
         $upload = Upload::findOrFail($uploadId);
-        
+
         $upload->update([
             'status' => Upload::STATUS_CANCELLED,
             'completed_at' => now(),
@@ -142,7 +141,7 @@ class WaybillStreamingImportController extends Controller
 
         // Clean up Redis chunks
         $keys = Redis::keys("upload:{$upload->id}:chunk:*");
-        if (!empty($keys)) {
+        if (! empty($keys)) {
             Redis::del($keys);
         }
 
@@ -164,7 +163,7 @@ class WaybillStreamingImportController extends Controller
 
         foreach ($data as $index => $row) {
             foreach ($requiredFields as $field) {
-                if (!isset($row[$field]) || empty($row[$field])) {
+                if (! isset($row[$field]) || empty($row[$field])) {
                     throw new \InvalidArgumentException(
                         "Row {$index}: Missing required field '{$field}'"
                     );

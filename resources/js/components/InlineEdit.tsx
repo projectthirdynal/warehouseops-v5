@@ -84,19 +84,21 @@ export function InlineEdit({
           aria-describedby={error ? 'inline-edit-error' : undefined}
           className={cn(
             'h-8 rounded-md border bg-background px-2 py-1 text-sm outline-none transition-colors',
-            error ? 'border-destructive focus:ring-1 focus:ring-destructive' : 'border-input focus:ring-1 focus:ring-ring',
+            error
+              ? 'border-destructive focus:ring-1 focus:ring-destructive'
+              : 'border-input focus:ring-1 focus:ring-ring',
             inputClassName
           )}
         />
         {error && (
           <>
             <X className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
-            <span id="inline-edit-error" className="sr-only">{error}</span>
+            <span id="inline-edit-error" className="sr-only">
+              {error}
+            </span>
           </>
         )}
-        {!error && (
-          <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
+        {!error && <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
       </div>
     );
   }

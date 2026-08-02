@@ -21,7 +21,7 @@ class ClaimController extends Controller
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
             ->when($request->from, fn ($q, $v) => $q->where('filed_at', '>=', $v))
-            ->when($request->to, fn ($q, $v) => $q->where('filed_at', '<=', $v . ' 23:59:59'))
+            ->when($request->to, fn ($q, $v) => $q->where('filed_at', '<=', $v.' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('claim_number', 'ILIKE', "%{$v}%")
                     ->orWhereHas('waybill', fn ($wq) => $wq->where('waybill_number', 'ILIKE', "%{$v}%"));
@@ -31,15 +31,15 @@ class ClaimController extends Controller
             ->withQueryString();
 
         $stats = [
-            'total'          => Claim::count(),
-            'draft'          => Claim::where('status', ClaimStatus::DRAFT->value)->count(),
+            'total' => Claim::count(),
+            'draft' => Claim::where('status', ClaimStatus::DRAFT->value)->count(),
             'pending_review' => Claim::whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
-            'approved'       => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
-            'rejected'       => Claim::where('status', ClaimStatus::REJECTED->value)->count(),
-            'auto_created'   => Claim::where('auto_created', true)->count(),
-            'auto_draft'     => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
-            'auto_filed'     => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
-            'auto_resolved'  => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
+            'approved' => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
+            'rejected' => Claim::where('status', ClaimStatus::REJECTED->value)->count(),
+            'auto_created' => Claim::where('auto_created', true)->count(),
+            'auto_draft' => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
+            'auto_filed' => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
+            'auto_resolved' => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
             'pending_returned' => Waybill::where('status', WaybillStatus::RETURNED->value)
                 ->whereDoesntHave('claims')
                 ->count(),
@@ -47,8 +47,8 @@ class ClaimController extends Controller
         ];
 
         return Inertia::render('Waybills/Claims/Index', [
-            'claims'  => $claims,
-            'stats'   => $stats,
+            'claims' => $claims,
+            'stats' => $stats,
             'filters' => $request->only(['status', 'type', 'search', 'from', 'to']),
         ]);
     }
@@ -62,23 +62,23 @@ class ClaimController extends Controller
 
         return Inertia::render('Waybills/Claims/Create', [
             'prefill_waybill' => $waybill,
-            'prefill_type'    => $request->type,
+            'prefill_type' => $request->type,
         ]);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'waybill_id'   => 'required|exists:waybills,id',
-            'type'         => 'required|in:LOST,DAMAGED,BEYOND_SLA',
-            'description'  => 'nullable|string|max:2000',
+            'waybill_id' => 'required|exists:waybills,id',
+            'type' => 'required|in:LOST,DAMAGED,BEYOND_SLA',
+            'description' => 'nullable|string|max:2000',
             'claim_amount' => 'required|numeric|min:0',
         ]);
 
         $claim = Claim::create([
             'claim_number' => Claim::generateClaimNumber(),
-            'status'       => ClaimStatus::DRAFT->value,
-            'filed_by'     => $request->user()->id,
+            'status' => ClaimStatus::DRAFT->value,
+            'filed_by' => $request->user()->id,
             ...$data,
         ]);
 
@@ -103,7 +103,7 @@ class ClaimController extends Controller
         }
 
         $claim->update([
-            'status'   => ClaimStatus::FILED->value,
+            'status' => ClaimStatus::FILED->value,
             'filed_at' => now(),
         ]);
 
@@ -117,19 +117,19 @@ class ClaimController extends Controller
         }
 
         $data = $request->validate([
-            'approved_amount'      => 'required|numeric|min:0',
+            'approved_amount' => 'required|numeric|min:0',
             'jnt_reference_number' => 'nullable|string|max:100',
-            'resolution_notes'     => 'nullable|string|max:2000',
+            'resolution_notes' => 'nullable|string|max:2000',
         ]);
 
         $claim->update([
-            'status'               => ClaimStatus::APPROVED->value,
-            'approved_amount'      => $data['approved_amount'],
+            'status' => ClaimStatus::APPROVED->value,
+            'approved_amount' => $data['approved_amount'],
             'jnt_reference_number' => $data['jnt_reference_number'] ?? null,
-            'resolution_notes'     => $data['resolution_notes'] ?? null,
-            'reviewed_by'          => $request->user()->id,
-            'reviewed_at'          => now(),
-            'resolved_at'          => now(),
+            'resolution_notes' => $data['resolution_notes'] ?? null,
+            'reviewed_by' => $request->user()->id,
+            'reviewed_at' => now(),
+            'resolved_at' => now(),
         ]);
 
         return back()->with('success', 'Claim approved.');
@@ -146,11 +146,11 @@ class ClaimController extends Controller
         ]);
 
         $claim->update([
-            'status'           => ClaimStatus::REJECTED->value,
+            'status' => ClaimStatus::REJECTED->value,
             'resolution_notes' => $data['resolution_notes'],
-            'reviewed_by'      => $request->user()->id,
-            'reviewed_at'      => now(),
-            'resolved_at'      => now(),
+            'reviewed_by' => $request->user()->id,
+            'reviewed_at' => now(),
+            'resolved_at' => now(),
         ]);
 
         return back()->with('success', 'Claim rejected.');
@@ -163,7 +163,7 @@ class ClaimController extends Controller
         }
 
         $claim->update([
-            'status'      => ClaimStatus::SETTLED->value,
+            'status' => ClaimStatus::SETTLED->value,
             'resolved_at' => now(),
         ]);
 
@@ -175,7 +175,7 @@ class ClaimController extends Controller
         $claims = Claim::with(['waybill', 'filedBy', 'reviewedBy'])
             ->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])
             ->when($request->from, fn ($q, $v) => $q->where('resolved_at', '>=', $v))
-            ->when($request->to, fn ($q, $v) => $q->where('resolved_at', '<=', $v . ' 23:59:59'))
+            ->when($request->to, fn ($q, $v) => $q->where('resolved_at', '<=', $v.' 23:59:59'))
             ->when($request->search, function ($q, $v) {
                 $q->where('claim_number', 'ILIKE', "%{$v}%")
                     ->orWhereHas('waybill', fn ($wq) => $wq->where('waybill_number', 'ILIKE', "%{$v}%"));
@@ -185,15 +185,15 @@ class ClaimController extends Controller
             ->withQueryString();
 
         $totals = [
-            'total_claimed'  => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->sum('claim_amount'),
+            'total_claimed' => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->sum('claim_amount'),
             'total_approved' => Claim::whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->sum('approved_amount'),
             'approved_count' => Claim::where('status', ClaimStatus::APPROVED->value)->count(),
-            'settled_count'  => Claim::where('status', ClaimStatus::SETTLED->value)->count(),
+            'settled_count' => Claim::where('status', ClaimStatus::SETTLED->value)->count(),
         ];
 
         return Inertia::render('Waybills/Claims/Approved', [
-            'claims'  => $claims,
-            'totals'  => $totals,
+            'claims' => $claims,
+            'totals' => $totals,
             'filters' => $request->only(['search', 'from', 'to']),
         ]);
     }
@@ -204,21 +204,23 @@ class ClaimController extends Controller
         // physically receive it by day D+1. A parcel returned YESTERDAY appears
         // in Beyond SLA TODAY. Cutoff = today 00:00 Manila — anything with a
         // returned_at before that and no return_receipt is overdue.
-        $manilaNow   = now()->setTimezone('Asia/Manila');
-        $slaCutoff   = $manilaNow->copy()->startOfDay();           // today 00:00 Manila
-        $latestDate  = $slaCutoff->copy()->subDay()->toDateString();  // yesterday — most recent day of overdue zone
+        $manilaNow = now()->setTimezone('Asia/Manila');
+        $slaCutoff = $manilaNow->copy()->startOfDay();           // today 00:00 Manila
+        $latestDate = $slaCutoff->copy()->subDay()->toDateString();  // yesterday — most recent day of overdue zone
         $defaultFrom = $slaCutoff->copy()->subDays(14)->toDateString();
 
         // Honor explicit user dates, but cap 'to' so picking today/tomorrow doesn't empty the page
         $from = $request->from ?: $defaultFrom;
-        $to   = $request->to   ?: $latestDate;
-        if ($to > $latestDate) $to = $latestDate;
+        $to = $request->to ?: $latestDate;
+        if ($to > $latestDate) {
+            $to = $latestDate;
+        }
 
         $query = Waybill::where('status', 'RETURNED')
             ->where('returned_at', '<', $slaCutoff->utc())
             ->whereDoesntHave('returnReceipt')
             ->where('returned_at', '>=', $from)
-            ->where('returned_at', '<=', $to . ' 23:59:59')
+            ->where('returned_at', '<=', $to.' 23:59:59')
             ->when($request->search, function ($q, $v) {
                 $q->where('waybill_number', 'ILIKE', "%{$v}%")
                     ->orWhere('receiver_name', 'ILIKE', "%{$v}%");
@@ -226,16 +228,16 @@ class ClaimController extends Controller
             ->with(['claims'])
             ->latest('returned_at');
 
-        $waybills       = (clone $query)->paginate(30)->withQueryString();
+        $waybills = (clone $query)->paginate(30)->withQueryString();
         $beyondSlaCount = (clone $query)->count();
 
         return Inertia::render('Waybills/Claims/BeyondSla', [
-            'waybills'         => $waybills,
+            'waybills' => $waybills,
             'beyond_sla_count' => $beyondSlaCount,
-            'filters'          => [
+            'filters' => [
                 'search' => $request->search,
-                'from'   => $from,
-                'to'     => $to,
+                'from' => $from,
+                'to' => $to,
             ],
         ]);
     }
@@ -243,11 +245,11 @@ class ClaimController extends Controller
     public function autoCreateStats()
     {
         $stats = [
-            'auto_created'   => Claim::where('auto_created', true)->count(),
-            'auto_draft'     => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
-            'auto_filed'     => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
-            'auto_resolved'  => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
-            'auto_rejected'  => Claim::where('auto_created', true)->where('status', ClaimStatus::REJECTED->value)->count(),
+            'auto_created' => Claim::where('auto_created', true)->count(),
+            'auto_draft' => Claim::where('auto_created', true)->where('status', ClaimStatus::DRAFT->value)->count(),
+            'auto_filed' => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::FILED->value, ClaimStatus::UNDER_REVIEW->value])->count(),
+            'auto_resolved' => Claim::where('auto_created', true)->whereIn('status', [ClaimStatus::APPROVED->value, ClaimStatus::SETTLED->value])->count(),
+            'auto_rejected' => Claim::where('auto_created', true)->where('status', ClaimStatus::REJECTED->value)->count(),
             'pending_returned' => Waybill::where('status', WaybillStatus::RETURNED->value)
                 ->whereDoesntHave('claims')
                 ->count(),
@@ -283,15 +285,15 @@ class ClaimController extends Controller
                 $claimAmount = (float) ($waybill->cod_amount ?? $waybill->amount ?? 0);
 
                 Claim::create([
-                    'claim_number'  => Claim::generateClaimNumber(),
-                    'waybill_id'    => $waybill->id,
-                    'type'          => ClaimType::BEYOND_SLA->value,
-                    'status'        => ClaimStatus::DRAFT->value,
-                    'auto_created'  => true,
-                    'source'        => 'bulk_manual',
-                    'description'   => "Auto-created via bulk trigger. Waybill {$waybill->waybill_number} marked as RETURNED.",
-                    'claim_amount'  => $claimAmount,
-                    'filed_by'      => $request->user()->id,
+                    'claim_number' => Claim::generateClaimNumber(),
+                    'waybill_id' => $waybill->id,
+                    'type' => ClaimType::BEYOND_SLA->value,
+                    'status' => ClaimStatus::DRAFT->value,
+                    'auto_created' => true,
+                    'source' => 'bulk_manual',
+                    'description' => "Auto-created via bulk trigger. Waybill {$waybill->waybill_number} marked as RETURNED.",
+                    'claim_amount' => $claimAmount,
+                    'filed_by' => $request->user()->id,
                 ]);
 
                 $created++;
@@ -303,8 +305,8 @@ class ClaimController extends Controller
         return response()->json([
             'success' => true,
             'created' => $created,
-            'errors'  => $errors,
-            'message' => "Created {$created} draft claims." . ($errors > 0 ? " {$errors} errors." : ''),
+            'errors' => $errors,
+            'message' => "Created {$created} draft claims.".($errors > 0 ? " {$errors} errors." : ''),
         ]);
     }
 

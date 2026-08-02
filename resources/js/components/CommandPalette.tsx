@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { router } from '@inertiajs/react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -395,6 +395,9 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Search and jump to any page or action across the app.
+        </DialogDescription>
         <div className="flex items-center border-b px-4 py-3 gap-3">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <Input

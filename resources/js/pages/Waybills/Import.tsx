@@ -147,6 +147,8 @@ export default function WaybillImport({ uploads, stats }: Props) {
     }
   }, []);
 
+  const processingIdsKey = processingIds.join(',');
+
   useEffect(() => {
     if (processingIds.length === 0) {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -161,7 +163,8 @@ export default function WaybillImport({ uploads, stats }: Props) {
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
-  }, [processingIds.join(','), pollStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- processingIdsKey is the stable representation of processingIds
+  }, [processingIdsKey, pollStatus]);
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);

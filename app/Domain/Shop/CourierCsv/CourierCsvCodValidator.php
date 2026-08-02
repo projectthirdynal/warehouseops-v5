@@ -225,5 +225,4 @@ final class CourierCsvCodValidator
             'error' => null,
         ];
     }
-
 }

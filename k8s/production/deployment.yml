@@ -81,14 +81,14 @@ metadata:
   namespace: warehouseops-production
 data:
   APP_ENV: production
-  APP_DEBUG: "false"
+  APP_DEBUG: 'false'
   APP_URL: https://warehouseops.thirdynals.org
   DB_CONNECTION: pgsql
   DB_HOST: postgres-production
-  DB_PORT: "5432"
+  DB_PORT: '5432'
   DB_DATABASE: warehouseops
   REDIS_HOST: redis-production
-  REDIS_PORT: "6379"
+  REDIS_PORT: '6379'
   CACHE_STORE: redis
   QUEUE_CONNECTION: redis
   SESSION_DRIVER: redis

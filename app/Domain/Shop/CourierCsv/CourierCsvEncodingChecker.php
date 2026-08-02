@@ -56,7 +56,7 @@ final class CourierCsvEncodingChecker
             $invalidPositions = $this->findInvalidUtf8($stripped);
             if ($invalidPositions !== []) {
                 $count = count($invalidPositions);
-                $issues[] = "Found {$count} invalid UTF-8 byte sequence(s) at byte offset(s): " . implode(', ', array_slice($invalidPositions, 0, 10)) . ($count > 10 ? ' …' : '');
+                $issues[] = "Found {$count} invalid UTF-8 byte sequence(s) at byte offset(s): ".implode(', ', array_slice($invalidPositions, 0, 10)).($count > 10 ? ' …' : '');
             }
         }
 
@@ -177,6 +177,7 @@ final class CourierCsvEncodingChecker
 
             if ($byte <= 0x7F) {
                 $offset++;
+
                 continue;
             }
 
@@ -189,12 +190,14 @@ final class CourierCsvEncodingChecker
             } else {
                 $positions[] = $offset;
                 $offset++;
+
                 continue;
             }
 
             if ($offset + $seqLen > $len) {
                 $positions[] = $offset;
                 $offset++;
+
                 continue;
             }
 

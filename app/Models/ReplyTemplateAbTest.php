@@ -11,8 +11,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ReplyTemplateAbTest extends Model
 {
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_PAUSED = 'paused';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUSES = [

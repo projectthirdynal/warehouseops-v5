@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('courier_sync_logs')) {
+        if (! Schema::hasTable('courier_sync_logs')) {
             Schema::create('courier_sync_logs', function (Blueprint $table) {
                 $table->id();
                 $table->string('run_id')->index();

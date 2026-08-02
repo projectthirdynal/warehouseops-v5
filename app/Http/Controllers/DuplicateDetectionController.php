@@ -9,8 +9,9 @@ use App\Domain\Shop\Services\CustomerMergeService;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Inertia\Response;
 use Inertia\Inertia;
+use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DuplicateDetectionController extends Controller
 {
@@ -283,7 +284,7 @@ class DuplicateDetectionController extends Controller
             $validated['note'] ?? null,
         );
 
-        if (!$item) {
+        if (! $item) {
             return response()->json(['error' => 'Review item not found.'], 404);
         }
 
@@ -418,7 +419,7 @@ class DuplicateDetectionController extends Controller
 
         $rule = $this->service->updateRule($id, $validated, $request->user()->id);
 
-        if (!$rule) {
+        if (! $rule) {
             return response()->json(['error' => 'Rule not found.'], 404);
         }
 
@@ -447,7 +448,7 @@ class DuplicateDetectionController extends Controller
     {
         $deleted = $this->service->deleteRule($id);
 
-        if (!$deleted) {
+        if (! $deleted) {
             return response()->json(['error' => 'Rule not found.'], 404);
         }
 
@@ -470,7 +471,7 @@ class DuplicateDetectionController extends Controller
     {
         $rule = $this->service->toggleRule($id, $request->user()->id);
 
-        if (!$rule) {
+        if (! $rule) {
             return response()->json(['error' => 'Rule not found.'], 404);
         }
 
@@ -637,7 +638,7 @@ class DuplicateDetectionController extends Controller
             $validated['note'] ?? null,
         );
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json(['error' => $result['error']], 400);
         }
 
@@ -672,7 +673,7 @@ class DuplicateDetectionController extends Controller
             $validated['note'] ?? null,
         );
 
-        if (!$suggestion) {
+        if (! $suggestion) {
             return response()->json(['error' => 'Suggestion not found.'], 404);
         }
 
@@ -779,7 +780,7 @@ class DuplicateDetectionController extends Controller
     {
         $detail = $this->service->getFamilyDetail($id);
 
-        if (!$detail) {
+        if (! $detail) {
             return response()->json(['error' => 'Family not found.'], 404);
         }
 
@@ -803,7 +804,7 @@ class DuplicateDetectionController extends Controller
             $validated['note'] ?? null,
         );
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json(['error' => $result['error']], 400);
         }
 
@@ -838,7 +839,7 @@ class DuplicateDetectionController extends Controller
             $validated['note'] ?? null,
         );
 
-        if (!$family) {
+        if (! $family) {
             return response()->json(['error' => 'Family not found.'], 404);
         }
 
@@ -950,7 +951,7 @@ class DuplicateDetectionController extends Controller
     {
         $notification = $this->service->markNotificationRead($id, $request->user()->id);
 
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['error' => 'Notification not found.'], 404);
         }
 
@@ -1045,7 +1046,7 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/audit-log/export
      */
-    public function exportAuditLogs(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportAuditLogs(Request $request): StreamedResponse
     {
         $filters = array_filter($request->only(['action', 'entity_type', 'from', 'to']));
 
@@ -1053,9 +1054,9 @@ class DuplicateDetectionController extends Controller
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-audit-log-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-audit-log-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-audit-log-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-audit-log-'.date('Y-m-d').'.csv"',
         ]);
     }
 
@@ -1171,16 +1172,16 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/export/review-queue
      */
-    public function exportReviewQueue(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportReviewQueue(Request $request): StreamedResponse
     {
         $filters = array_filter($request->only(['type', 'status', 'severity']));
         $csv = $this->service->exportReviewQueueCsv($filters);
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-review-queue-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-review-queue-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-review-queue-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-review-queue-'.date('Y-m-d').'.csv"',
         ]);
     }
 
@@ -1189,16 +1190,16 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/export/auto-merge
      */
-    public function exportAutoMerge(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportAutoMerge(Request $request): StreamedResponse
     {
         $filters = array_filter($request->only(['status', 'min_confidence']));
         $csv = $this->service->exportAutoMergeSuggestionsCsv($filters);
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-auto-merge-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-auto-merge-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-auto-merge-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-auto-merge-'.date('Y-m-d').'.csv"',
         ]);
     }
 
@@ -1207,16 +1208,16 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/export/families
      */
-    public function exportFamilies(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportFamilies(Request $request): StreamedResponse
     {
         $filters = array_filter($request->only(['status', 'method']));
         $csv = $this->service->exportFamiliesCsv($filters);
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-families-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-families-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-families-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-families-'.date('Y-m-d').'.csv"',
         ]);
     }
 
@@ -1225,15 +1226,15 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/export/cross-page
      */
-    public function exportCrossPage(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCrossPage(): StreamedResponse
     {
         $csv = $this->service->exportCrossPageCsv();
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-cross-page-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-cross-page-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-cross-page-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-cross-page-'.date('Y-m-d').'.csv"',
         ]);
     }
 
@@ -1242,7 +1243,7 @@ class DuplicateDetectionController extends Controller
      *
      * GET /api/duplicate-check/export/all
      */
-    public function exportAll(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportAll(Request $request): StreamedResponse
     {
         $csv = $this->service->exportAllDuplicatesCsv();
 
@@ -1257,9 +1258,9 @@ class DuplicateDetectionController extends Controller
 
         return response()->streamDownload(function () use ($csv) {
             echo $csv;
-        }, 'duplicate-report-' . date('Y-m-d') . '.csv', [
+        }, 'duplicate-report-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="duplicate-report-' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="duplicate-report-'.date('Y-m-d').'.csv"',
         ]);
     }
 

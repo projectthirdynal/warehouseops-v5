@@ -5,7 +5,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -207,6 +213,11 @@ function SupplierDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? 'Edit Supplier' : 'New Supplier'}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? 'Update the details for this supplier.'
+              : 'Add a new supplier for procurement.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">

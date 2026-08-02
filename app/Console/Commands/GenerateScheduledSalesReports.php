@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 class GenerateScheduledSalesReports extends Command
 {
     protected $signature = 'sales-dashboard:generate-scheduled-reports';
+
     protected $description = 'Generate and send scheduled sales reports that are due.';
 
     public function handle(SalesDashboardService $service): int
@@ -24,6 +25,7 @@ class GenerateScheduledSalesReports extends Command
 
         if ($due->isEmpty()) {
             $this->info('No scheduled sales reports due.');
+
             return self::SUCCESS;
         }
 
@@ -48,10 +50,10 @@ class GenerateScheduledSalesReports extends Command
                 Storage::disk('local')->put($path, $content);
 
                 $recipients = $report->recipients ?? [];
-                if (!empty($recipients)) {
+                if (! empty($recipients)) {
                     Mail::raw(
                         "Scheduled sales report '{$report->name}' for period {$from} to {$to}.\n\nReport attached.",
-                        function ($mail) use ($recipients, $filename, $path, $ext, $mime) {
+                        function ($mail) use ($recipients, $filename, $path, $mime) {
                             $mail->to($recipients)
                                 ->subject("Scheduled Sales Report: {$filename}")
                                 ->attach(Storage::disk('local')->path($path), [
@@ -75,6 +77,7 @@ class GenerateScheduledSalesReports extends Command
         }
 
         $this->info("Processed {$sent} scheduled sales report(s).");
+
         return self::SUCCESS;
     }
 
@@ -99,6 +102,7 @@ class GenerateScheduledSalesReports extends Command
         if ($daysUntil === 0) {
             $daysUntil = 7;
         }
+
         return $now->copy()->addDays($daysUntil)->setTimeFromTimeString($report->send_at);
     }
 
@@ -108,6 +112,7 @@ class GenerateScheduledSalesReports extends Command
         $next = $now->copy()->addMonth();
         $lastDay = (int) $next->format('t');
         $dom = min($dom, $lastDay);
+
         return $next->setDay($dom)->setTimeFromTimeString($report->send_at);
     }
 }

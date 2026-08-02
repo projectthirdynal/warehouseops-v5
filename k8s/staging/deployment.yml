@@ -81,14 +81,14 @@ metadata:
   namespace: warehouseops-staging
 data:
   APP_ENV: staging
-  APP_DEBUG: "true"
+  APP_DEBUG: 'true'
   APP_URL: https://staging.warehouseops.thirdynals.org
   DB_CONNECTION: pgsql
   DB_HOST: postgres-staging
-  DB_PORT: "5432"
+  DB_PORT: '5432'
   DB_DATABASE: warehouseops_staging
   REDIS_HOST: redis-staging
-  REDIS_PORT: "6379"
+  REDIS_PORT: '6379'
   CACHE_STORE: redis
   QUEUE_CONNECTION: redis
   SESSION_DRIVER: redis

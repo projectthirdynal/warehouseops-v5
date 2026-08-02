@@ -24,12 +24,13 @@ use RuntimeException;
 class QboClient
 {
     private const DISCOVERY = [
-        'sandbox'    => 'https://sandbox-quickbooks.api.intuit.com',
+        'sandbox' => 'https://sandbox-quickbooks.api.intuit.com',
         'production' => 'https://quickbooks.api.intuit.com',
     ];
 
     private const OAUTH_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-    private const MINOR_VERSION   = 70;
+
+    private const MINOR_VERSION = 70;
 
     private QboConnection $connection;
 
@@ -48,7 +49,9 @@ class QboClient
      */
     public function ensureFreshToken(): void
     {
-        if (! $this->connection->expiresWithinMinutes(10)) return;
+        if (! $this->connection->expiresWithinMinutes(10)) {
+            return;
+        }
 
         $environment = $this->connection->environment === 'PRODUCTION' ? 'production' : 'sandbox';
         $clientId = (string) config("services.qbo.{$environment}.client_id");
@@ -58,20 +61,20 @@ class QboClient
             ->withBasicAuth($clientId, $clientSecret)
             ->withHeaders(['Accept' => 'application/json'])
             ->post(self::OAUTH_TOKEN_URL, [
-                'grant_type'    => 'refresh_token',
+                'grant_type' => 'refresh_token',
                 'refresh_token' => $this->connection->refresh_token,
             ]);
 
         if (! $resp->successful()) {
             Log::error('QBO token refresh failed', ['status' => $resp->status(), 'body' => $resp->body()]);
-            throw new RuntimeException('QBO token refresh failed: ' . $resp->body());
+            throw new RuntimeException('QBO token refresh failed: '.$resp->body());
         }
 
         $data = $resp->json();
         $this->connection->update([
-            'access_token'  => $data['access_token'],
+            'access_token' => $data['access_token'],
             'refresh_token' => $data['refresh_token'] ?? $this->connection->refresh_token,
-            'expires_at'    => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
+            'expires_at' => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
         ]);
     }
 
@@ -92,35 +95,39 @@ class QboClient
     public function query(string $sql): array
     {
         $base = self::DISCOVERY[$this->connection->environment === 'PRODUCTION' ? 'production' : 'sandbox'];
-        $url  = "{$base}/v3/company/{$this->connection->realm_id}/query";
+        $url = "{$base}/v3/company/{$this->connection->realm_id}/query";
 
         $resp = Http::withToken($this->connection->access_token)
             ->withHeaders(['Accept' => 'application/json', 'Content-Type' => 'application/text'])
             ->withBody($sql, 'application/text')
-            ->post($url . '?minorversion=' . self::MINOR_VERSION);
+            ->post($url.'?minorversion='.self::MINOR_VERSION);
 
         $this->throwOnFailure($resp);
+
         return $resp->json();
     }
 
     private function request(string $method, string $entity, array $payload, string $idempotencyKey): array
     {
         $base = self::DISCOVERY[$this->connection->environment === 'PRODUCTION' ? 'production' : 'sandbox'];
-        $url  = "{$base}/v3/company/{$this->connection->realm_id}/{$entity}";
-        $url .= '?minorversion=' . self::MINOR_VERSION . '&requestid=' . urlencode($idempotencyKey);
+        $url = "{$base}/v3/company/{$this->connection->realm_id}/{$entity}";
+        $url .= '?minorversion='.self::MINOR_VERSION.'&requestid='.urlencode($idempotencyKey);
 
         $resp = Http::withToken($this->connection->access_token)
             ->withHeaders(['Accept' => 'application/json'])
             ->send($method, $url, ['json' => $payload]);
 
         $this->throwOnFailure($resp);
+
         return $resp->json();
     }
 
     private function throwOnFailure(Response $resp): void
     {
-        if ($resp->successful()) return;
-        $msg = "QBO API error {$resp->status()}: " . $resp->body();
+        if ($resp->successful()) {
+            return;
+        }
+        $msg = "QBO API error {$resp->status()}: ".$resp->body();
         Log::error($msg);
         throw new RuntimeException($msg);
     }

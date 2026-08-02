@@ -32,10 +32,10 @@ class Product extends Model
 
     protected $casts = [
         'selling_price' => 'decimal:2',
-        'cost_price'    => 'decimal:2',
-        'weight_grams'  => 'integer',
-        'is_active'     => 'boolean',
-        'requires_qa'   => 'boolean',
+        'cost_price' => 'decimal:2',
+        'weight_grams' => 'integer',
+        'is_active' => 'boolean',
+        'requires_qa' => 'boolean',
     ];
 
     // Relationships
@@ -75,9 +75,9 @@ class Product extends Model
     public function scopeSearch($query, string $term)
     {
         return $query->where(function ($q) use ($term) {
-            $q->whereRaw('LOWER(name) LIKE ?', ['%' . mb_strtolower($term) . '%'])
-              ->orWhereRaw('LOWER(sku) LIKE ?', ['%' . mb_strtolower($term) . '%'])
-              ->orWhereRaw('LOWER(brand) LIKE ?', ['%' . mb_strtolower($term) . '%']);
+            $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($term).'%'])
+                ->orWhereRaw('LOWER(sku) LIKE ?', ['%'.mb_strtolower($term).'%'])
+                ->orWhereRaw('LOWER(brand) LIKE ?', ['%'.mb_strtolower($term).'%']);
         });
     }
 
@@ -88,6 +88,7 @@ class Product extends Model
         if ($this->selling_price <= 0) {
             return 0;
         }
+
         return round(($this->selling_price - $this->cost_price) / $this->selling_price * 100, 1);
     }
 
@@ -96,14 +97,16 @@ class Product extends Model
         if (! $this->stock) {
             return 0;
         }
+
         return $this->stock->current_stock - $this->stock->reserved_stock;
     }
 
     public function getIsLowStockAttribute(): bool
     {
-        if (!$this->stock) {
+        if (! $this->stock) {
             return false;
         }
+
         return ($this->stock->current_stock - $this->stock->reserved_stock) <= $this->stock->reorder_point;
     }
 }

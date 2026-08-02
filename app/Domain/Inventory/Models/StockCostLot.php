@@ -19,12 +19,12 @@ class StockCostLot extends Model
     ];
 
     protected $casts = [
-        'quantity_received'  => 'decimal:4',
+        'quantity_received' => 'decimal:4',
         'quantity_remaining' => 'decimal:4',
-        'unit_cost'          => 'decimal:4',
-        'exchange_rate'      => 'decimal:6',
-        'received_at'        => 'datetime',
-        'expiry_date'        => 'date',
+        'unit_cost' => 'decimal:4',
+        'exchange_rate' => 'decimal:6',
+        'received_at' => 'datetime',
+        'expiry_date' => 'date',
     ];
 
     public function product(): BelongsTo

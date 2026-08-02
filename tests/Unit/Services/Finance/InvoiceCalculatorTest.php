@@ -77,4 +77,3 @@ describe('calculateLineTotals', function () {
         expect($result['total_ht'])->toBe(92.22);       // 100 - 7.78 = 92.22
     });
 });
-

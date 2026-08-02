@@ -138,7 +138,7 @@ class ConversationMergePreviewService
                 'archived_at' => now(),
             ])->save();
 
-            if ($source->last_message_at && (!$target->last_message_at || $source->last_message_at > $target->last_message_at)) {
+            if ($source->last_message_at && (! $target->last_message_at || $source->last_message_at > $target->last_message_at)) {
                 $target->forceFill([
                     'last_message_at' => $source->last_message_at,
                     'last_message_preview' => $source->last_message_preview,

@@ -16,7 +16,10 @@ class ProcessCooldownLeads implements ShouldQueue
 
     public function handle(LeadRecyclingService $recyclingService): void
     {
-        $processed = $recyclingService->processExpiredCooldowns();
-        Log::info("ProcessCooldownLeads: Processed {$processed} leads");
+        $cooldownProcessed = $recyclingService->processExpiredCooldowns();
+        $callbackProcessed = $recyclingService->processExpiredCallbacks();
+        $total = $cooldownProcessed + $callbackProcessed;
+
+        Log::info("ProcessCooldownLeads: Processed {$total} leads (cooldowns: {$cooldownProcessed}, callbacks: {$callbackProcessed})");
     }
 }

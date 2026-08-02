@@ -16,11 +16,11 @@ use App\Services\ApprovalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StockAdjustmentController extends Controller
 {
@@ -30,11 +30,11 @@ class StockAdjustmentController extends Controller
     {
         return Inertia::render('Inventory/StockAdjustments', [
             'adjustments' => $this->adjustmentQuery($request)->paginate(25)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a)),
-            'warehouses'  => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
-            'products'    => Product::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
-            'supplies'    => Supply::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
-            'stats'       => [
-                'pending'  => StockAdjustment::where('status', 'PENDING')->count(),
+            'warehouses' => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
+            'products' => Product::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
+            'supplies' => Supply::where('is_active', true)->select('id', 'name', 'sku')->orderBy('name')->get(),
+            'stats' => [
+                'pending' => StockAdjustment::where('status', 'PENDING')->count(),
                 'approved' => StockAdjustment::where('status', 'APPROVED')->count(),
                 'rejected' => StockAdjustment::where('status', 'REJECTED')->count(),
             ],
@@ -45,65 +45,65 @@ class StockAdjustmentController extends Controller
     public function report(Request $request): Response
     {
         $from = $request->from ?? now()->startOfMonth()->format('Y-m-d');
-        $to   = $request->to   ?? now()->format('Y-m-d');
+        $to = $request->to ?? now()->format('Y-m-d');
 
         $baseQuery = $this->adjustmentQuery($request)
             ->when($from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
-            ->when($to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+            ->when($to, fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
             ->when($request->reason_code, fn ($q, string $code) => $q->where('reason_code', $code));
 
         $rows = $baseQuery->paginate(50)->withQueryString()->through(fn ($a) => $this->flattenAdjustment($a))->toArray();
 
         $scoped = $this->adjustmentQuery($request)
             ->when($from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
-            ->when($to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+            ->when($to, fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
             ->when($request->reason_code, fn ($q, string $code) => $q->where('reason_code', $code));
 
         $all = $scoped->get();
 
         $summary = [
-            'total'            => $all->count(),
-            'pending'          => $all->where('status', 'PENDING')->count(),
-            'approved'         => $all->where('status', 'APPROVED')->count(),
-            'rejected'         => $all->where('status', 'REJECTED')->count(),
-            'positive_count'   => $all->where('variance', '>', 0)->count(),
-            'negative_count'   => $all->where('variance', '<', 0)->count(),
-            'zero_count'       => $all->where('variance', 0)->count(),
-            'total_added'      => $all->where('variance', '>', 0)->sum('variance'),
-            'total_deducted'   => $all->where('variance', '<', 0)->sum('variance'),
+            'total' => $all->count(),
+            'pending' => $all->where('status', 'PENDING')->count(),
+            'approved' => $all->where('status', 'APPROVED')->count(),
+            'rejected' => $all->where('status', 'REJECTED')->count(),
+            'positive_count' => $all->where('variance', '>', 0)->count(),
+            'negative_count' => $all->where('variance', '<', 0)->count(),
+            'zero_count' => $all->where('variance', 0)->count(),
+            'total_added' => $all->where('variance', '>', 0)->sum('variance'),
+            'total_deducted' => $all->where('variance', '<', 0)->sum('variance'),
             'total_units_moved' => $all->sum(fn ($a) => abs($a->variance)),
         ];
 
         $byReason = $all->groupBy('reason_code')->map(fn ($group, $code) => [
-            'reason_code'  => $code,
-            'count'        => $group->count(),
-            'approved'     => $group->where('status', 'APPROVED')->count(),
-            'pending'      => $group->where('status', 'PENDING')->count(),
-            'rejected'     => $group->where('status', 'REJECTED')->count(),
+            'reason_code' => $code,
+            'count' => $group->count(),
+            'approved' => $group->where('status', 'APPROVED')->count(),
+            'pending' => $group->where('status', 'PENDING')->count(),
+            'rejected' => $group->where('status', 'REJECTED')->count(),
             'net_variance' => $group->sum('variance'),
         ])->sortByDesc('count')->values();
 
         $byWarehouse = $all->groupBy(fn ($a) => $a->warehouse?->name ?? 'Unknown')->map(fn ($group, $name) => [
-            'warehouse_name'  => $name,
-            'warehouse_code'  => $group->first()->warehouse?->code ?? '',
-            'count'           => $group->count(),
-            'approved'        => $group->where('status', 'APPROVED')->count(),
-            'pending'         => $group->where('status', 'PENDING')->count(),
-            'total_added'     => $group->where('variance', '>', 0)->sum('variance'),
-            'total_deducted'  => $group->where('variance', '<', 0)->sum('variance'),
+            'warehouse_name' => $name,
+            'warehouse_code' => $group->first()->warehouse?->code ?? '',
+            'count' => $group->count(),
+            'approved' => $group->where('status', 'APPROVED')->count(),
+            'pending' => $group->where('status', 'PENDING')->count(),
+            'total_added' => $group->where('variance', '>', 0)->sum('variance'),
+            'total_deducted' => $group->where('variance', '<', 0)->sum('variance'),
         ])->sortByDesc('count')->values();
 
         $bySubmitter = $all->groupBy(fn ($a) => $a->submittedBy?->name ?? 'System')->map(fn ($group, $name) => [
             'submitter_name' => $name,
-            'count'          => $group->count(),
-            'approved'       => $group->where('status', 'APPROVED')->count(),
-            'rejected'       => $group->where('status', 'REJECTED')->count(),
-            'pending'        => $group->where('status', 'PENDING')->count(),
+            'count' => $group->count(),
+            'approved' => $group->where('status', 'APPROVED')->count(),
+            'rejected' => $group->where('status', 'REJECTED')->count(),
+            'pending' => $group->where('status', 'PENDING')->count(),
         ])->sortByDesc('count')->values();
 
         $byHour = $all->groupBy(fn ($a) => $a->created_at->hour)->map(fn ($group, $hour) => [
-            'hour'     => (int) $hour,
-            'count'    => $group->count(),
+            'hour' => (int) $hour,
+            'count' => $group->count(),
             'approved' => $group->where('status', 'APPROVED')->count(),
         ])->sortBy('hour')->values();
 
@@ -112,23 +112,23 @@ class StockAdjustmentController extends Controller
         $pendingRows = $all->where('status', 'PENDING')->sortBy('created_at')->map(fn ($a) => $this->flattenAdjustment($a))->values();
 
         return Inertia::render('Inventory/AdjustmentReport', [
-            'rows'         => $rows,
-            'warehouses'   => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
-            'summary'      => $summary,
-            'by_reason'    => $byReason,
+            'rows' => $rows,
+            'warehouses' => Warehouse::select('id', 'name', 'code')->orderBy('name')->get(),
+            'summary' => $summary,
+            'by_reason' => $byReason,
             'by_warehouse' => $byWarehouse,
             'by_submitter' => $bySubmitter,
-            'by_hour'      => $byHour,
-            'top_impact'   => $topImpact,
+            'by_hour' => $byHour,
+            'top_impact' => $topImpact,
             'pending_rows' => $pendingRows,
-            'filters'      => $request->only(['from', 'to', 'status', 'warehouse_id', 'reason_code']),
-            'period'       => ['from' => $from, 'to' => $to],
+            'filters' => $request->only(['from', 'to', 'status', 'warehouse_id', 'reason_code']),
+            'period' => ['from' => $from, 'to' => $to],
         ]);
     }
 
     public function downloadReport(Request $request): StreamedResponse
     {
-        $filename = 'adjustment-report-' . now()->format('Ymd-His') . '.csv';
+        $filename = 'adjustment-report-'.now()->format('Ymd-His').'.csv';
 
         return response()->streamDownload(function () use ($request): void {
             $out = fopen('php://output', 'w');
@@ -141,11 +141,11 @@ class StockAdjustmentController extends Controller
 
             $this->adjustmentQuery($request)
                 ->when($request->from, fn ($q, string $d) => $q->whereDate('created_at', '>=', $d))
-                ->when($request->to,   fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
+                ->when($request->to, fn ($q, string $d) => $q->whereDate('created_at', '<=', $d))
                 ->chunk(200, function ($adjustments) use ($out): void {
                     foreach ($adjustments as $a) {
                         $itemName = $a->supply?->name ?? $a->product?->name ?? '-';
-                        $itemSku  = $a->supply?->sku  ?? $a->product?->sku  ?? '-';
+                        $itemSku = $a->supply?->sku ?? $a->product?->sku ?? '-';
                         fputcsv($out, [
                             $a->id,
                             $a->created_at?->format('Y-m-d H:i:s'),
@@ -175,32 +175,32 @@ class StockAdjustmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'product_id'     => ['nullable', 'required_without:supply_id', 'exists:products,id'],
-            'supply_id'      => ['nullable', 'required_without:product_id', 'exists:supplies,id'],
-            'variant_id'     => ['nullable', 'exists:product_variants,id'],
-            'warehouse_id'   => ['required', 'exists:warehouses,id'],
-            'reason_code'    => ['required', 'string', 'max:50'],
-            'reason_notes'   => ['nullable', 'string', 'max:1000'],
+            'product_id' => ['nullable', 'required_without:supply_id', 'exists:products,id'],
+            'supply_id' => ['nullable', 'required_without:product_id', 'exists:supplies,id'],
+            'variant_id' => ['nullable', 'exists:product_variants,id'],
+            'warehouse_id' => ['required', 'exists:warehouses,id'],
+            'reason_code' => ['required', 'string', 'max:50'],
+            'reason_notes' => ['nullable', 'string', 'max:1000'],
             'quantity_after' => ['required', 'integer', 'min:0'],
         ]);
 
         $adj = null;
         DB::transaction(function () use ($data, $request, &$adj): void {
             $quantityBefore = $this->currentQuantity($data);
-            $quantityAfter  = (int) $data['quantity_after'];
+            $quantityAfter = (int) $data['quantity_after'];
 
             $adj = StockAdjustment::create([
-                'product_id'      => $data['product_id'] ?? null,
-                'supply_id'       => $data['supply_id'] ?? null,
-                'variant_id'      => $data['variant_id'] ?? null,
-                'warehouse_id'    => $data['warehouse_id'],
-                'reason_code'     => $data['reason_code'],
-                'reason_notes'    => $data['reason_notes'] ?? null,
+                'product_id' => $data['product_id'] ?? null,
+                'supply_id' => $data['supply_id'] ?? null,
+                'variant_id' => $data['variant_id'] ?? null,
+                'warehouse_id' => $data['warehouse_id'],
+                'reason_code' => $data['reason_code'],
+                'reason_notes' => $data['reason_notes'] ?? null,
                 'quantity_before' => $quantityBefore,
-                'quantity_after'  => $quantityAfter,
-                'variance'        => $quantityAfter - $quantityBefore,
-                'status'          => 'PENDING',
-                'submitted_by'    => $request->user()?->id,
+                'quantity_after' => $quantityAfter,
+                'variance' => $quantityAfter - $quantityBefore,
+                'status' => 'PENDING',
+                'submitted_by' => $request->user()?->id,
             ]);
         });
 
@@ -231,62 +231,62 @@ class StockAdjustmentController extends Controller
             if ($adjustment->supply_id) {
                 $stock = SupplyStock::lockForUpdate()->firstOrCreate(
                     [
-                        'supply_id'    => $adjustment->supply_id,
+                        'supply_id' => $adjustment->supply_id,
                         'warehouse_id' => $adjustment->warehouse_id,
-                        'location_id'  => $adjustment->location_id,
+                        'location_id' => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
                 );
                 if ($adjustment->quantity_after < (int) $stock->reserved_stock) {
                     throw new \RuntimeException("Adjustment rejected: quantity_after ({$adjustment->quantity_after}) is below reserved_stock ({$stock->reserved_stock}). Release reservations first.");
                 }
-                $stock->current_stock    = $adjustment->quantity_after;
+                $stock->current_stock = $adjustment->quantity_after;
                 $stock->last_movement_at = now();
                 $stock->save();
             } else {
                 $stock = ProductStock::lockForUpdate()->firstOrCreate(
                     [
-                        'product_id'   => $adjustment->product_id,
-                        'variant_id'   => $adjustment->variant_id,
+                        'product_id' => $adjustment->product_id,
+                        'variant_id' => $adjustment->variant_id,
                         'warehouse_id' => $adjustment->warehouse_id,
-                        'location_id'  => $adjustment->location_id,
+                        'location_id' => $adjustment->location_id,
                     ],
                     ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
                 );
                 if ($adjustment->quantity_after < (int) $stock->reserved_stock) {
                     throw new \RuntimeException("Adjustment rejected: quantity_after ({$adjustment->quantity_after}) is below reserved_stock ({$stock->reserved_stock}). Release reservations first.");
                 }
-                $stock->current_stock    = $adjustment->quantity_after;
+                $stock->current_stock = $adjustment->quantity_after;
                 $stock->last_movement_at = now();
                 $stock->save();
             }
 
             // Write the movement ledger entry so the Movements page reflects this
             if ($adjustment->supply_id) {
-                \Illuminate\Support\Facades\DB::table('supply_movements')->insert([
-                    'supply_id'      => $adjustment->supply_id,
-                    'warehouse_id'   => $adjustment->warehouse_id,
-                    'type'           => 'ADJUSTMENT',
-                    'quantity'       => $adjustment->variance,
+                DB::table('supply_movements')->insert([
+                    'supply_id' => $adjustment->supply_id,
+                    'warehouse_id' => $adjustment->warehouse_id,
+                    'type' => 'ADJUSTMENT',
+                    'quantity' => $adjustment->variance,
                     'reference_type' => StockAdjustment::class,
-                    'reference_id'   => $adjustment->id,
-                    'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
-                    'performed_by'   => $request->user()?->id,
-                    'created_at'     => now(),
-                    'updated_at'     => now(),
+                    'reference_id' => $adjustment->id,
+                    'notes' => '['.$adjustment->reason_code.'] '.($adjustment->reason_notes ?? ''),
+                    'performed_by' => $request->user()?->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             } else {
                 InventoryMovement::create([
-                    'product_id'     => $adjustment->product_id,
-                    'variant_id'     => $adjustment->variant_id,
-                    'warehouse_id'   => $adjustment->warehouse_id,
-                    'location_id'    => $adjustment->location_id,
-                    'type'           => 'ADJUSTMENT',
-                    'quantity'       => $adjustment->variance,
+                    'product_id' => $adjustment->product_id,
+                    'variant_id' => $adjustment->variant_id,
+                    'warehouse_id' => $adjustment->warehouse_id,
+                    'location_id' => $adjustment->location_id,
+                    'type' => 'ADJUSTMENT',
+                    'quantity' => $adjustment->variance,
                     'reference_type' => StockAdjustment::class,
-                    'reference_id'   => $adjustment->id,
-                    'notes'          => '[' . $adjustment->reason_code . '] ' . ($adjustment->reason_notes ?? ''),
-                    'performed_by'   => $request->user()?->id,
+                    'reference_id' => $adjustment->id,
+                    'notes' => '['.$adjustment->reason_code.'] '.($adjustment->reason_notes ?? ''),
+                    'performed_by' => $request->user()?->id,
                 ]);
             }
         });
@@ -314,7 +314,7 @@ class StockAdjustmentController extends Controller
             'status' => 'REJECTED',
             'approved_by' => $request->user()?->id,
             'approved_at' => now(),
-            'reason_notes' => trim(($adjustment->reason_notes ?? '') . "\n[REJECTED] " . ($request->input('reason') ?? 'No reason provided')),
+            'reason_notes' => trim(($adjustment->reason_notes ?? '')."\n[REJECTED] ".($request->input('reason') ?? 'No reason provided')),
         ]);
 
         $adjustment->load(['product', 'supply', 'warehouse']);
@@ -336,30 +336,30 @@ class StockAdjustmentController extends Controller
     private function flattenAdjustment(StockAdjustment $a): array
     {
         $itemName = $a->supply?->name ?? $a->product?->name ?? '-';
-        $itemSku  = $a->supply?->sku  ?? $a->product?->sku  ?? '-';
+        $itemSku = $a->supply?->sku ?? $a->product?->sku ?? '-';
         $itemType = $a->supply_id ? 'Supply' : 'Product';
 
         return [
-            'id'              => $a->id,
-            'reason_code'     => $a->reason_code,
-            'reason_notes'    => $a->reason_notes,
+            'id' => $a->id,
+            'reason_code' => $a->reason_code,
+            'reason_notes' => $a->reason_notes,
             'quantity_before' => $a->quantity_before,
-            'quantity_after'  => $a->quantity_after,
-            'variance'        => $a->variance,
-            'status'          => $a->status,
-            'created_at'      => $a->created_at,
-            'approved_at'     => $a->approved_at,
-            'item_name'       => $itemName,
-            'item_sku'        => $itemSku,
-            'item_type'       => $itemType,
-            'product_name'    => $a->product?->name,
-            'product_sku'     => $a->product?->sku,
-            'supply_name'     => $a->supply?->name,
-            'supply_sku'      => $a->supply?->sku,
-            'warehouse_name'  => $a->warehouse?->name,
-            'warehouse_code'  => $a->warehouse?->code,
-            'submitted_by'    => $a->submittedBy?->name,
-            'approved_by'     => $a->approvedBy?->name,
+            'quantity_after' => $a->quantity_after,
+            'variance' => $a->variance,
+            'status' => $a->status,
+            'created_at' => $a->created_at,
+            'approved_at' => $a->approved_at,
+            'item_name' => $itemName,
+            'item_sku' => $itemSku,
+            'item_type' => $itemType,
+            'product_name' => $a->product?->name,
+            'product_sku' => $a->product?->sku,
+            'supply_name' => $a->supply?->name,
+            'supply_sku' => $a->supply?->sku,
+            'warehouse_name' => $a->warehouse?->name,
+            'warehouse_code' => $a->warehouse?->code,
+            'submitted_by' => $a->submittedBy?->name,
+            'approved_by' => $a->approvedBy?->name,
         ];
     }
 

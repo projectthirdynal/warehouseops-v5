@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Models\User;
 
 class Message extends Model
 {

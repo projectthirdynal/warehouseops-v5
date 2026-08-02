@@ -37,7 +37,7 @@ class CogsService
         }
 
         $methodSetting = FinanceSetting::getValue('cogs_method') ?? ['method' => 'FIFO'];
-        $method        = $methodSetting['method'] ?? 'FIFO';
+        $method = $methodSetting['method'] ?? 'FIFO';
 
         return DB::transaction(function () use ($productId, $variantId, $quantity, $waybillId, $orderId, $userId, $warehouseId, $method) {
             // Lock cogs_method on first record
@@ -45,7 +45,7 @@ class CogsService
                 FinanceSetting::lock(
                     'cogs_method',
                     $userId ?? 0,
-                    "first cogs entry product={$productId} waybill=" . ($waybillId ?? 'null')
+                    "first cogs entry product={$productId} waybill=".($waybillId ?? 'null')
                 );
             }
 
@@ -67,30 +67,34 @@ class CogsService
             $lots = $lotsQuery->lockForUpdate()->get();
 
             $remaining = $quantity;
-            $entries   = collect();
+            $entries = collect();
 
             foreach ($lots as $lot) {
-                if ($remaining <= 0) break;
+                if ($remaining <= 0) {
+                    break;
+                }
 
                 $consume = min((float) $lot->quantity_remaining, $remaining);
-                if ($consume <= 0) continue;
+                if ($consume <= 0) {
+                    continue;
+                }
 
                 $lot->quantity_remaining = (float) $lot->quantity_remaining - $consume;
                 $lot->save();
 
                 $entry = CogsEntry::create([
-                    'product_id'    => $productId,
-                    'variant_id'    => $variantId,
-                    'waybill_id'    => $waybillId,
-                    'order_id'      => $orderId,
-                    'cost_lot_id'   => $lot->id,
-                    'method'        => $method,
-                    'quantity'      => $consume,
-                    'unit_cost'     => $lot->unit_cost,
-                    'total_cost'    => round($consume * (float) $lot->unit_cost, 4),
+                    'product_id' => $productId,
+                    'variant_id' => $variantId,
+                    'waybill_id' => $waybillId,
+                    'order_id' => $orderId,
+                    'cost_lot_id' => $lot->id,
+                    'method' => $method,
+                    'quantity' => $consume,
+                    'unit_cost' => $lot->unit_cost,
+                    'total_cost' => round($consume * (float) $lot->unit_cost, 4),
                     'currency_code' => $lot->currency_code,
                     'exchange_rate' => $lot->exchange_rate,
-                    'recorded_at'   => now(),
+                    'recorded_at' => now(),
                 ]);
 
                 $entries->push($entry);

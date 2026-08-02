@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 class ArchiveStaleConversations extends Command
 {
     protected $signature = 'shop:archive-stale-conversations';
+
     protected $description = 'Archive and compress conversations older than configured thresholds';
 
     public function handle(ConversationArchiveService $service): int
@@ -30,7 +31,7 @@ class ArchiveStaleConversations extends Command
             $this->info('Compressing archived conversations...');
             $compressResult = $service->bulkCompress($settings['batch_size']);
             $this->info($compressResult['message']);
-            $this->info("Bytes saved: " . number_format($compressResult['total_bytes_saved']));
+            $this->info('Bytes saved: '.number_format($compressResult['total_bytes_saved']));
         }
 
         return self::SUCCESS;

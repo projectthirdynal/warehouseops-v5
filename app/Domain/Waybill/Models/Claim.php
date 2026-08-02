@@ -35,14 +35,14 @@ class Claim extends Model
     ];
 
     protected $casts = [
-        'type'            => ClaimType::class,
-        'status'          => ClaimStatus::class,
-        'auto_created'    => 'boolean',
-        'claim_amount'    => 'decimal:2',
+        'type' => ClaimType::class,
+        'status' => ClaimStatus::class,
+        'auto_created' => 'boolean',
+        'claim_amount' => 'decimal:2',
         'approved_amount' => 'decimal:2',
-        'filed_at'        => 'datetime',
-        'reviewed_at'     => 'datetime',
-        'resolved_at'     => 'datetime',
+        'filed_at' => 'datetime',
+        'reviewed_at' => 'datetime',
+        'resolved_at' => 'datetime',
     ];
 
     // -------------------------------------------------------------------------
@@ -93,6 +93,6 @@ class Claim extends Model
 
         $next = $last ? ((int) substr($last, -4)) + 1 : 1;
 
-        return $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 }

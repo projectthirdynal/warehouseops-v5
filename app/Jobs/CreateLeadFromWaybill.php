@@ -8,6 +8,7 @@ use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\Customer;
 use App\Services\LeadAuditService;
+use App\Services\LeadScoringService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,11 +23,11 @@ class CreateLeadFromWaybill implements ShouldQueue
         private int $waybillId
     ) {}
 
-    public function handle(LeadAuditService $auditService): void
+    public function handle(LeadAuditService $auditService, LeadScoringService $scoringService): void
     {
         $waybill = Waybill::find($this->waybillId);
 
-        if (!$waybill || $waybill->status !== WaybillStatus::DELIVERED) {
+        if (! $waybill || $waybill->status !== WaybillStatus::DELIVERED) {
             return;
         }
 
@@ -60,11 +61,24 @@ class CreateLeadFromWaybill implements ShouldQueue
             ->where('pool_status', '!=', PoolStatus::EXHAUSTED)
             ->first();
 
+        $qualityScore = $scoringService->scoreFromImportData([
+            'source' => 'DELIVERED_WAYBILL',
+            'address' => $waybill->receiver_address,
+            'city' => $waybill->city ?? null,
+            'state' => $waybill->state ?? null,
+            'barangay' => $waybill->barangay ?? null,
+            'phone' => $waybill->receiver_phone,
+            'product_name' => $waybill->item_name,
+            'amount' => $waybill->amount,
+        ], $customer);
+
         if ($lead) {
             $lead->update([
                 'product_name' => $waybill->item_name,
                 'amount' => $waybill->amount,
                 'source' => 'DELIVERED_WAYBILL',
+                'quality_score' => $qualityScore,
+                'last_scored_at' => now(),
             ]);
         } else {
             $lead = Lead::create([
@@ -79,6 +93,8 @@ class CreateLeadFromWaybill implements ShouldQueue
                 'amount' => $waybill->amount,
                 'source' => 'DELIVERED_WAYBILL',
                 'pool_status' => PoolStatus::AVAILABLE,
+                'quality_score' => $qualityScore,
+                'last_scored_at' => now(),
             ]);
 
             $auditService->log(

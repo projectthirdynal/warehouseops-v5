@@ -8,6 +8,7 @@ use App\Domain\Courier\Models\CourierProvider;
 use App\Models\Waybill;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CourierAnalyticsService
 {
@@ -25,14 +26,14 @@ class CourierAnalyticsService
             ->when($courier, fn ($q) => $q->where('courier_provider', $courier));
 
         return [
-            'overview'    => $this->getOverview($baseQuery),
-            'by_courier'  => $this->getByCourier($from, $to),
-            'trends'      => $this->getTrends($from, $to, $courier),
+            'overview' => $this->getOverview($baseQuery),
+            'by_courier' => $this->getByCourier($from, $to),
+            'trends' => $this->getTrends($from, $to, $courier),
             'status_dist' => $this->getStatusDistribution($baseQuery),
-            'transit'     => $this->getTransitTimes($baseQuery),
-            'top_cities'  => $this->getTopCities($baseQuery),
-            'couriers'    => $this->getActiveCouriers(),
-            'filters'     => ['from' => $from, 'to' => $to, 'courier' => $courier],
+            'transit' => $this->getTransitTimes($baseQuery),
+            'top_cities' => $this->getTopCities($baseQuery),
+            'couriers' => $this->getActiveCouriers(),
+            'filters' => ['from' => $from, 'to' => $to, 'courier' => $courier],
         ];
     }
 
@@ -65,22 +66,22 @@ class CourierAnalyticsService
         $shippingCost = (float) (clone $baseQuery)->sum('shipping_cost');
 
         return [
-            'total'           => $total,
-            'delivered'       => $delivered,
-            'returned'        => $returned,
-            'failed'          => $failed,
-            'in_transit'      => $inTransit,
-            'cancelled'       => $cancelled,
-            'on_time'         => $onTime,
-            'on_time_rate'    => $delivered > 0 ? round(($onTime / $delivered) * 100, 1) : 0,
-            'delivery_rate'   => $total > 0 ? round(($delivered / $total) * 100, 1) : 0,
-            'return_rate'     => $total > 0 ? round(($returned / $total) * 100, 1) : 0,
-            'failure_rate'    => $total > 0 ? round(($failed / $total) * 100, 1) : 0,
+            'total' => $total,
+            'delivered' => $delivered,
+            'returned' => $returned,
+            'failed' => $failed,
+            'in_transit' => $inTransit,
+            'cancelled' => $cancelled,
+            'on_time' => $onTime,
+            'on_time_rate' => $delivered > 0 ? round(($onTime / $delivered) * 100, 1) : 0,
+            'delivery_rate' => $total > 0 ? round(($delivered / $total) * 100, 1) : 0,
+            'return_rate' => $total > 0 ? round(($returned / $total) * 100, 1) : 0,
+            'failure_rate' => $total > 0 ? round(($failed / $total) * 100, 1) : 0,
             'avg_transit_hrs' => $avgTransitHours ? round($avgTransitHours, 1) : null,
-            'avg_transit_days'=> $avgTransitHours ? round($avgTransitHours / 24, 1) : null,
-            'cod_collected'   => $codCollected,
-            'cod_at_risk'     => $codAtRisk,
-            'shipping_cost'   => $shippingCost,
+            'avg_transit_days' => $avgTransitHours ? round($avgTransitHours / 24, 1) : null,
+            'cod_collected' => $codCollected,
+            'cod_at_risk' => $codAtRisk,
+            'shipping_cost' => $shippingCost,
         ];
     }
 
@@ -99,7 +100,7 @@ class CourierAnalyticsService
             ->selectRaw("SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled")
             ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN cod_amount ELSE 0 END) as cod_collected")
             ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN cod_amount ELSE 0 END) as cod_at_risk")
-            ->selectRaw("COALESCE(SUM(shipping_cost), 0) as shipping_cost")
+            ->selectRaw('COALESCE(SUM(shipping_cost), 0) as shipping_cost')
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->groupBy('courier_provider')
@@ -133,23 +134,23 @@ class CourierAnalyticsService
                     ->count();
 
                 return [
-                    'courier_code'    => $row->courier_provider,
-                    'courier_name'    => $couriers[$row->courier_provider] ?? $row->courier_provider,
-                    'total'           => $total,
-                    'delivered'       => $delivered,
-                    'returned'        => (int) $row->returned,
-                    'failed'          => (int) $row->failed,
-                    'in_transit'      => (int) $row->in_transit,
-                    'cancelled'       => (int) $row->cancelled,
-                    'delivery_rate'   => $total > 0 ? round(($delivered / $total) * 100, 1) : 0,
-                    'return_rate'     => $total > 0 ? round(((int) $row->returned / $total) * 100, 1) : 0,
-                    'failure_rate'    => $total > 0 ? round(((int) $row->failed / $total) * 100, 1) : 0,
-                    'on_time_rate'    => $onTimeDelivered > 0 ? round(($onTime / $onTimeDelivered) * 100, 1) : 0,
+                    'courier_code' => $row->courier_provider,
+                    'courier_name' => $couriers[$row->courier_provider] ?? $row->courier_provider,
+                    'total' => $total,
+                    'delivered' => $delivered,
+                    'returned' => (int) $row->returned,
+                    'failed' => (int) $row->failed,
+                    'in_transit' => (int) $row->in_transit,
+                    'cancelled' => (int) $row->cancelled,
+                    'delivery_rate' => $total > 0 ? round(($delivered / $total) * 100, 1) : 0,
+                    'return_rate' => $total > 0 ? round(((int) $row->returned / $total) * 100, 1) : 0,
+                    'failure_rate' => $total > 0 ? round(((int) $row->failed / $total) * 100, 1) : 0,
+                    'on_time_rate' => $onTimeDelivered > 0 ? round(($onTime / $onTimeDelivered) * 100, 1) : 0,
                     'avg_transit_hrs' => $avgTransit ? round($avgTransit, 1) : null,
-                    'avg_transit_days'=> $avgTransit ? round($avgTransit / 24, 1) : null,
-                    'cod_collected'   => (float) $row->cod_collected,
-                    'cod_at_risk'     => (float) $row->cod_at_risk,
-                    'shipping_cost'   => (float) $row->shipping_cost,
+                    'avg_transit_days' => $avgTransit ? round($avgTransit / 24, 1) : null,
+                    'cod_collected' => (float) $row->cod_collected,
+                    'cod_at_risk' => (float) $row->cod_at_risk,
+                    'shipping_cost' => (float) $row->shipping_cost,
                 ];
             })
             ->sortByDesc('total')
@@ -176,46 +177,46 @@ class CourierAnalyticsService
 
         if ($groupBy === 'day') {
             $rows = (clone $query)
-                ->selectRaw("DATE(created_at) as period")
-                ->selectRaw("COUNT(*) as total")
+                ->selectRaw('DATE(created_at) as period')
+                ->selectRaw('COUNT(*) as total')
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered")
                 ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END) as returned")
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERY_FAILED' THEN 1 ELSE 0 END) as failed")
-                ->groupByRaw("DATE(created_at)")
-                ->orderByRaw("DATE(created_at)")
+                ->groupByRaw('DATE(created_at)')
+                ->orderByRaw('DATE(created_at)')
                 ->get();
         } elseif ($groupBy === 'week') {
             $rows = (clone $query)
-                ->selectRaw("DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) as period")
-                ->selectRaw("COUNT(*) as total")
+                ->selectRaw('DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) as period')
+                ->selectRaw('COUNT(*) as total')
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered")
                 ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END) as returned")
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERY_FAILED' THEN 1 ELSE 0 END) as failed")
-                ->groupByRaw("period")
-                ->orderByRaw("period")
+                ->groupByRaw('period')
+                ->orderByRaw('period')
                 ->get();
         } else {
             $rows = (clone $query)
                 ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as period")
-                ->selectRaw("COUNT(*) as total")
+                ->selectRaw('COUNT(*) as total')
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered")
                 ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END) as returned")
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERY_FAILED' THEN 1 ELSE 0 END) as failed")
-                ->groupByRaw("period")
-                ->orderByRaw("period")
+                ->groupByRaw('period')
+                ->orderByRaw('period')
                 ->get();
         }
 
         return [
             'group_by' => $groupBy,
             'data' => $rows->map(fn ($r) => [
-                'period'    => $r->period,
-                'total'     => (int) $r->total,
+                'period' => $r->period,
+                'total' => (int) $r->total,
                 'delivered' => (int) $r->delivered,
-                'returned'  => (int) $r->returned,
-                'failed'    => (int) $r->failed,
+                'returned' => (int) $r->returned,
+                'failed' => (int) $r->failed,
                 'delivery_rate' => (int) $r->total > 0 ? round(((int) $r->delivered / (int) $r->total) * 100, 1) : 0,
-                'return_rate'   => (int) $r->total > 0 ? round(((int) $r->returned / (int) $r->total) * 100, 1) : 0,
+                'return_rate' => (int) $r->total > 0 ? round(((int) $r->returned / (int) $r->total) * 100, 1) : 0,
             ])->toArray(),
         ];
     }
@@ -240,22 +241,29 @@ class CourierAnalyticsService
             ->get();
 
         $buckets = [
-            '0-1 day'   => 0,
-            '1-2 days'  => 0,
-            '2-3 days'  => 0,
-            '3-5 days'  => 0,
-            '5-7 days'  => 0,
-            '7+ days'   => 0,
+            '0-1 day' => 0,
+            '1-2 days' => 0,
+            '2-3 days' => 0,
+            '3-5 days' => 0,
+            '5-7 days' => 0,
+            '7+ days' => 0,
         ];
 
         foreach ($waybills as $w) {
             $days = $w->delivered_at->diffInDays($w->dispatched_at);
-            if ($days <= 1) $buckets['0-1 day']++;
-            elseif ($days <= 2) $buckets['1-2 days']++;
-            elseif ($days <= 3) $buckets['2-3 days']++;
-            elseif ($days <= 5) $buckets['3-5 days']++;
-            elseif ($days <= 7) $buckets['5-7 days']++;
-            else $buckets['7+ days']++;
+            if ($days <= 1) {
+                $buckets['0-1 day']++;
+            } elseif ($days <= 2) {
+                $buckets['1-2 days']++;
+            } elseif ($days <= 3) {
+                $buckets['2-3 days']++;
+            } elseif ($days <= 5) {
+                $buckets['3-5 days']++;
+            } elseif ($days <= 7) {
+                $buckets['5-7 days']++;
+            } else {
+                $buckets['7+ days']++;
+            }
         }
 
         return array_map(fn ($k, $v) => ['bucket' => $k, 'count' => $v], array_keys($buckets), $buckets);
@@ -274,12 +282,12 @@ class CourierAnalyticsService
             ->limit(15)
             ->get()
             ->map(fn ($r) => [
-                'city'      => $r->city,
-                'total'     => (int) $r->total,
+                'city' => $r->city,
+                'total' => (int) $r->total,
                 'delivered' => (int) $r->delivered,
-                'returned'  => (int) $r->returned,
+                'returned' => (int) $r->returned,
                 'delivery_rate' => (int) $r->total > 0 ? round(((int) $r->delivered / (int) $r->total) * 100, 1) : 0,
-                'return_rate'   => (int) $r->total > 0 ? round(((int) $r->returned / (int) $r->total) * 100, 1) : 0,
+                'return_rate' => (int) $r->total > 0 ? round(((int) $r->returned / (int) $r->total) * 100, 1) : 0,
             ])
             ->toArray();
     }
@@ -293,20 +301,20 @@ class CourierAnalyticsService
             ->toArray();
     }
 
-    public function exportCsv(string $from, string $to): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCsv(string $from, string $to): StreamedResponse
     {
         $data = $this->getDashboardData(['from' => $from, 'to' => $to]);
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="courier-analytics-' . $from . '-to-' . $to . '.csv"',
+            'Content-Disposition' => 'attachment; filename="courier-analytics-'.$from.'-to-'.$to.'.csv"',
         ];
 
         return response()->stream(function () use ($data) {
             $out = fopen('php://output', 'w');
 
             fputcsv($out, ['Courier Analytics Report']);
-            fputcsv($out, ['Period', $data['filters']['from'] . ' to ' . $data['filters']['to']]);
+            fputcsv($out, ['Period', $data['filters']['from'].' to '.$data['filters']['to']]);
             fputcsv($out, []);
 
             fputcsv($out, ['--- Overview ---']);
@@ -344,7 +352,7 @@ class CourierAnalyticsService
             }
             fputcsv($out, []);
 
-            fputcsv($out, ['--- Trends (' . $data['trends']['group_by'] . ') ---']);
+            fputcsv($out, ['--- Trends ('.$data['trends']['group_by'].') ---']);
             fputcsv($out, ['Period', 'Total', 'Delivered', 'Returned', 'Failed', 'Delivery Rate (%)', 'Return Rate (%)']);
             foreach ($data['trends']['data'] as $row) {
                 fputcsv($out, [

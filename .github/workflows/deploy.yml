@@ -15,11 +15,11 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
-    tags: ["v*.*.*"]
+    tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
       target_environment:
-        description: "Target environment for deployment"
+        description: 'Target environment for deployment'
         required: false
         type: choice
         default: staging
@@ -42,8 +42,8 @@ permissions:
   attestations: write
 
 env:
-  PHP_VERSION: "8.3"
-  NODE_VERSION: "20"
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '20'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -51,7 +51,6 @@ env:
 # Jobs
 # ─────────────────────────────────────────────
 jobs:
-
   # ============================================
   # 1. Change Detection
   # ============================================
@@ -121,7 +120,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: none
 
       - name: Cache Composer dependencies
@@ -174,8 +173,22 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        php-version: ["8.2", "8.3"]
+        php-version: ['8.3']
       fail-fast: false
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: warehouseops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d warehouseops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -184,7 +197,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: xdebug
 
       - name: Cache Composer dependencies
@@ -200,14 +213,22 @@ jobs:
       - name: Prepare test environment
         run: |
           cp .env.example .env
-          sed -i 's/DB_CONNECTION=pgsql/DB_CONNECTION=sqlite/' .env
-          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=database\/database.sqlite/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env
           sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env
           sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
           sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env
           sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env.testing
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env.testing
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env.testing
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env.testing
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env.testing
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env.testing
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env.testing
           php artisan key:generate --ansi
-          touch database/database.sqlite
           php artisan migrate --force
 
       - name: Run unit tests (Pest)
@@ -284,6 +305,13 @@ jobs:
           sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env
           sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
           sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
+          sed -i 's/DB_HOST=postgres/DB_HOST=127.0.0.1/' .env.testing
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/' .env.testing
+          sed -i 's/DB_USERNAME=warehouseops/DB_USERNAME=test_user/' .env.testing
+          sed -i 's/DB_PASSWORD=secret/DB_PASSWORD=test_password/' .env.testing
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env.testing
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env.testing
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env.testing
           php artisan key:generate --ansi
           php artisan migrate --force
 
@@ -326,7 +354,7 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:javascript-typescript"
+          category: '/language:javascript-typescript'
 
   # ============================================
   # 6. Application Build
@@ -344,7 +372,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
           coverage: none
 
       - name: Cache Composer dependencies
@@ -476,6 +504,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Normalize image name
+        id: image_name
+        run: echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Generate provenance attestation
         uses: actions/attest-build-provenance@v2
         with:
@@ -511,7 +543,7 @@ jobs:
         run: echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.name }}@${{ needs.docker-build.outputs.image_digest }}
           format: sarif
@@ -545,7 +577,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: staging
-      url: ${{ vars.APPLICATION_URL || 'https://staging.warehouseops.thirdynals.org' }}
+      url: https://staging.warehouseops.thirdynals.org
     concurrency:
       group: staging-deploy
       cancel-in-progress: true
@@ -622,7 +654,7 @@ jobs:
     steps:
       - name: Smoke test endpoints
         env:
-          STAGING_URL: ${{ vars.APPLICATION_URL || 'http://localhost:8103' }}
+          STAGING_URL: http://localhost:8103
         run: |
           ENDPOINTS=("/health" "/login" "/api/status")
           MAX_RETRIES=3
@@ -673,14 +705,16 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: ${{ vars.APPLICATION_URL || 'https://warehouseops.thirdynals.org' }}
+      url: https://warehouseops.thirdynals.org
     concurrency:
       group: production-deploy
       cancel-in-progress: false
     env:
       APP_DIR: /opt/warehouseops
       BACKUP_DIR: /opt/warehouseops-backups/$(date +%Y%m%d%H%M%S)
-      DEPLOYMENT_SUCCESS: "false"
+      DEPLOYMENT_SUCCESS: 'false'
+    outputs:
+      BACKUP_DIR: ${{ env.BACKUP_DIR }}
     steps:
       - name: Fix workspace permissions
         run: sudo chown -R $(whoami):$(whoami) $GITHUB_WORKSPACE 2>/dev/null || true
@@ -850,7 +884,7 @@ jobs:
     steps:
       - name: Verify production endpoints
         env:
-          PROD_URL: ${{ vars.APPLICATION_URL || 'http://localhost:8102' }}
+          PROD_URL: http://localhost:8102
         run: |
           ENDPOINTS=("/health" "/login" "/api/status")
           MAX_RETRIES=3
@@ -888,7 +922,21 @@ jobs:
   # ============================================
   pipeline-summary:
     name: Pipeline Summary
-    needs: [detect-changes, validate-source, unit-tests, integration-tests, security-scan, build-app, docker-build, container-scan, deploy-staging, staging-smoke-tests, deploy-production, verify-production]
+    needs:
+      [
+        detect-changes,
+        validate-source,
+        unit-tests,
+        integration-tests,
+        security-scan,
+        build-app,
+        docker-build,
+        container-scan,
+        deploy-staging,
+        staging-smoke-tests,
+        deploy-production,
+        verify-production,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -16,6 +16,7 @@ class RecalculateCustomerStats implements ShouldQueue
     use Dispatchable, InteractsWithQueue, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 10;
 
     public function __construct(

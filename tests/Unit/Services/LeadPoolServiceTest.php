@@ -12,6 +12,7 @@ use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Lead model requires Customer model which does not exist yet
  */
 class LeadPoolServiceTest extends TestCase
@@ -23,7 +24,7 @@ class LeadPoolServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new LeadPoolService(new LeadAuditService());
+        $this->service = new LeadPoolService(new LeadAuditService);
     }
 
     public function test_get_available_leads_returns_only_available(): void

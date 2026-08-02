@@ -33,11 +33,11 @@ use App\Models\CustomerNote;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Lead;
+use App\Models\SiteSetting;
 use App\Models\SmsCampaign;
 use App\Models\SmsLog;
 use App\Models\ThirdParty;
 use App\Models\User;
-use App\Models\SiteSetting;
 use App\Models\Waybill;
 use Illuminate\Database\Seeder;
 
@@ -45,6 +45,11 @@ class SystemSampleDataSeeder extends Seeder
 {
     public function run(): void
     {
+        $superadmin = User::firstOrCreate(
+            ['email' => 'admin@test.local'],
+            ['name' => 'Super Admin', 'password' => bcrypt('!Admin00'), 'role' => 'superadmin', 'is_active' => true, 'email_verified_at' => now()]
+        );
+
         $admin = User::firstOrCreate(
             ['email' => 'admin@tecc.ph'],
             ['name' => 'Admin User', 'password' => bcrypt('password'), 'role' => 'admin', 'is_active' => true]
@@ -231,8 +236,8 @@ class SystemSampleDataSeeder extends Seeder
         $wh = Warehouse::firstOrCreate(
             ['code' => 'WH-MAIN'],
             ['name' => 'Main Warehouse - Manila', 'address' => '123 Warehouse Rd, Port Area, Manila',
-             'contact_person' => 'Pedro Warehouse', 'contact_phone' => '09190001111',
-             'is_active' => true, 'is_default' => true]
+                'contact_person' => 'Pedro Warehouse', 'contact_phone' => '09190001111',
+                'is_active' => true, 'is_default' => true]
         );
         WarehouseLocation::firstOrCreate(
             ['warehouse_id' => $wh->id, 'code' => 'A-01-01'],
@@ -241,42 +246,42 @@ class SystemSampleDataSeeder extends Seeder
         ProductStock::firstOrCreate(
             ['product_id' => $p1->id, 'warehouse_id' => $wh->id],
             ['current_stock' => 120, 'reserved_stock' => 15, 'reorder_point' => 30,
-             'last_restock_at' => now()->subDays(7), 'last_movement_at' => now()->subHours(3)]
+                'last_restock_at' => now()->subDays(7), 'last_movement_at' => now()->subHours(3)]
         );
         ProductStock::firstOrCreate(
             ['product_id' => $p2->id, 'warehouse_id' => $wh->id],
             ['current_stock' => 25, 'reserved_stock' => 5, 'reorder_point' => 20,
-             'last_restock_at' => now()->subDays(14), 'last_movement_at' => now()->subDays(2)]
+                'last_restock_at' => now()->subDays(14), 'last_movement_at' => now()->subDays(2)]
         );
         StockAdjustment::firstOrCreate(
             ['product_id' => $p2->id, 'warehouse_id' => $wh->id, 'reason_code' => 'DAMAGE'],
             ['quantity_before' => 30, 'quantity_after' => 25, 'variance' => -5, 'status' => 'approved',
-             'submitted_by' => $warehouseUser->id, 'approved_by' => $admin->id,
-             'approved_at' => now()->subDays(2), 'reason_notes' => '5 units damaged during handling']
+                'submitted_by' => $warehouseUser->id, 'approved_by' => $admin->id,
+                'approved_at' => now()->subDays(2), 'reason_notes' => '5 units damaged during handling']
         );
         $cust = Customer::where('phone', '09175551234')->first();
         Order::firstOrCreate(
-            ['order_number' => 'ORD-' . now()->format('Ymd') . '-0001'],
+            ['order_number' => 'ORD-'.now()->format('Ymd').'-0001'],
             ['customer_id' => $cust?->id, 'product_id' => $p1->id, 'assigned_agent_id' => $agent->id,
-             'status' => OrderStatus::DISPATCHED, 'courier_code' => 'JNT', 'quantity' => 1,
-             'unit_price' => 8500.00, 'total_amount' => 8500.00, 'cod_amount' => 8500.00,
-             'shipping_cost' => 150.00, 'receiver_name' => 'Maria Santos',
-             'receiver_phone' => '09175551234', 'receiver_address' => '123 Mabini St, Quezon City',
-             'city' => 'Quezon City', 'state' => 'Metro Manila', 'barangay' => 'San Roque',
-             'source_channel' => 'facebook', 'confirmed_at' => now()->subDays(2),
-             'dispatched_at' => now()->subHours(6)]
+                'status' => OrderStatus::DISPATCHED, 'courier_code' => 'JNT', 'quantity' => 1,
+                'unit_price' => 8500.00, 'total_amount' => 8500.00, 'cod_amount' => 8500.00,
+                'shipping_cost' => 150.00, 'receiver_name' => 'Maria Santos',
+                'receiver_phone' => '09175551234', 'receiver_address' => '123 Mabini St, Quezon City',
+                'city' => 'Quezon City', 'state' => 'Metro Manila', 'barangay' => 'San Roque',
+                'source_channel' => 'facebook', 'confirmed_at' => now()->subDays(2),
+                'dispatched_at' => now()->subHours(6)]
         );
         Waybill::firstOrCreate(
             ['waybill_number' => 'WB-2026-00123'],
             ['creator_code' => 'JNT', 'status' => 'dispatched', 'receiver_name' => 'Maria Santos',
-             'receiver_phone' => '09175551234', 'receiver_address' => '123 Mabini St, Quezon City',
-             'city' => 'Quezon City', 'state' => 'Metro Manila',
-             'item_name' => 'Smartphone X Pro 128GB', 'item_qty' => 1, 'item_value' => 8500.00,
-             'amount' => 8500.00, 'cod_amount' => 8500.00, 'payment_method' => 'COD',
-             'shipping_cost' => 150.00, 'courier_provider' => 'JNT', 'express_type' => 'STANDARD',
-             'sender_name' => 'TECC Official Store', 'sender_phone' => '09190001234',
-             'sender_province' => 'Metro Manila', 'sender_city' => 'Manila',
-             'dispatched_at' => now()->subHours(6)]
+                'receiver_phone' => '09175551234', 'receiver_address' => '123 Mabini St, Quezon City',
+                'city' => 'Quezon City', 'state' => 'Metro Manila',
+                'item_name' => 'Smartphone X Pro 128GB', 'item_qty' => 1, 'item_value' => 8500.00,
+                'amount' => 8500.00, 'cod_amount' => 8500.00, 'payment_method' => 'COD',
+                'shipping_cost' => 150.00, 'courier_provider' => 'JNT', 'express_type' => 'STANDARD',
+                'sender_name' => 'TECC Official Store', 'sender_phone' => '09190001234',
+                'sender_province' => 'Metro Manila', 'sender_city' => 'Manila',
+                'dispatched_at' => now()->subHours(6)]
         );
     }
 
@@ -285,9 +290,9 @@ class SystemSampleDataSeeder extends Seeder
         $supplier = Supplier::firstOrCreate(
             ['code' => 'SUP-001'],
             ['name' => 'TechBrand Distributors Inc.', 'contact_person' => 'Lisa Chen',
-             'email' => 'orders@techbrand-dist.com', 'phone' => '09220003333',
-             'address' => '8F Corporate Tower, Makati City',
-             'payment_terms' => 'NET_30', 'lead_time_days' => 7, 'is_active' => true]
+                'email' => 'orders@techbrand-dist.com', 'phone' => '09220003333',
+                'address' => '8F Corporate Tower, Makati City',
+                'payment_terms' => 'NET_30', 'lead_time_days' => 7, 'is_active' => true]
         );
         $uom = UnitOfMeasure::firstOrCreate(
             ['abbreviation' => 'pc'],
@@ -297,33 +302,33 @@ class SystemSampleDataSeeder extends Seeder
         $product = Product::where('sku', 'TECC-PHONE-001')->first();
 
         $pr = PurchaseRequest::firstOrCreate(
-            ['pr_number' => 'PR-' . now()->format('Ymd') . '-0001'],
+            ['pr_number' => 'PR-'.now()->format('Ymd').'-0001'],
             ['requested_by' => $warehouseUser->id, 'department' => 'Operations',
-             'reason' => 'Restocking for Q3 demand', 'priority' => 'high',
-             'needed_by_date' => now()->addDays(10), 'status' => PrStatus::APPROVED,
-             'approved_by' => $admin->id, 'approved_at' => now()->subDays(3),
-             'estimated_total' => 310000.00]
+                'reason' => 'Restocking for Q3 demand', 'priority' => 'high',
+                'needed_by_date' => now()->addDays(10), 'status' => PrStatus::APPROVED,
+                'approved_by' => $admin->id, 'approved_at' => now()->subDays(3),
+                'estimated_total' => 310000.00]
         );
         PurchaseRequestItem::firstOrCreate(
             ['pr_id' => $pr->id, 'product_id' => $product?->id],
             ['uom_id' => $uom->id, 'quantity_requested' => 50,
-             'unit_price_estimate' => 6200.00, 'notes' => 'Black variant preferred']
+                'unit_price_estimate' => 6200.00, 'notes' => 'Black variant preferred']
         );
 
         $po = PurchaseOrder::firstOrCreate(
-            ['po_number' => 'PO-' . now()->format('Ymd') . '-0001'],
+            ['po_number' => 'PO-'.now()->format('Ymd').'-0001'],
             ['pr_id' => $pr->id, 'supplier_id' => $supplier->id, 'warehouse_id' => $wh?->id,
-             'payment_terms' => 'NET_30', 'expected_delivery_date' => now()->addDays(7),
-             'status' => PoStatus::SENT, 'currency_code' => 'PHP',
-             'exchange_rate' => 1.000000, 'subtotal' => 310000.00,
-             'tax_amount' => 0.00, 'total_amount' => 310000.00,
-             'approved_by' => $admin->id, 'approved_at' => now()->subDays(2),
-             'sent_at' => now()->subDays(1), 'created_by' => $admin->id]
+                'payment_terms' => 'NET_30', 'expected_delivery_date' => now()->addDays(7),
+                'status' => PoStatus::SENT, 'currency_code' => 'PHP',
+                'exchange_rate' => 1.000000, 'subtotal' => 310000.00,
+                'tax_amount' => 0.00, 'total_amount' => 310000.00,
+                'approved_by' => $admin->id, 'approved_at' => now()->subDays(2),
+                'sent_at' => now()->subDays(1), 'created_by' => $admin->id]
         );
         PurchaseOrderItem::firstOrCreate(
             ['po_id' => $po->id, 'product_id' => $product?->id],
             ['uom_id' => $uom->id, 'quantity_ordered' => 50, 'quantity_received' => 0,
-             'unit_price' => 6200.00, 'tax_rate' => 0.00, 'line_total' => 310000.00]
+                'unit_price' => 6200.00, 'tax_rate' => 0.00, 'line_total' => 310000.00]
         );
     }
 
@@ -332,24 +337,24 @@ class SystemSampleDataSeeder extends Seeder
         $tp = ThirdParty::firstOrCreate(
             ['ref' => 'TP-0001'],
             ['name' => 'TechBrand Distributors Inc.', 'type' => ThirdParty::TYPE_SUPPLIER,
-             'email' => 'orders@techbrand-dist.com', 'phone' => '09220003333',
-             'status' => ThirdParty::STATUS_ACTIVE, 'payment_terms' => 'NET_30',
-             'credit_limit' => 500000.00, 'address_line1' => '8F Corporate Tower, Makati City',
-             'city' => 'Makati City', 'state_province' => 'Metro Manila',
-             'country' => 'Philippines', 'risk_level' => ThirdParty::RISK_LOW,
-             'created_by' => $admin->id]
+                'email' => 'orders@techbrand-dist.com', 'phone' => '09220003333',
+                'status' => ThirdParty::STATUS_ACTIVE, 'payment_terms' => 'NET_30',
+                'credit_limit' => 500000.00, 'address_line1' => '8F Corporate Tower, Makati City',
+                'city' => 'Makati City', 'state_province' => 'Metro Manila',
+                'country' => 'Philippines', 'risk_level' => ThirdParty::RISK_LOW,
+                'created_by' => $admin->id]
         );
 
         $inv = Invoice::firstOrCreate(
-            ['ref' => 'INV-' . now()->year . '-00001'],
+            ['ref' => 'INV-'.now()->year.'-00001'],
             ['type' => 'standard', 'status' => 'SENT', 'third_party_id' => $tp->id,
-             'client_name' => 'TechBrand Distributors Inc.',
-             'client_email' => 'orders@techbrand-dist.com',
-             'date_invoice' => now()->subDays(5), 'date_due' => now()->addDays(25),
-             'payment_terms' => 'NET_30', 'currency' => 'PHP',
-             'subtotal' => 310000.00, 'discount_amount' => 0.00, 'tax_rate' => 0.00,
-             'tax_amount' => 0.00, 'shipping_amount' => 0.00, 'total_amount' => 310000.00,
-             'amount_paid' => 0.00, 'amount_due' => 310000.00, 'created_by' => $financeUser->id]
+                'client_name' => 'TechBrand Distributors Inc.',
+                'client_email' => 'orders@techbrand-dist.com',
+                'date_invoice' => now()->subDays(5), 'date_due' => now()->addDays(25),
+                'payment_terms' => 'NET_30', 'currency' => 'PHP',
+                'subtotal' => 310000.00, 'discount_amount' => 0.00, 'tax_rate' => 0.00,
+                'tax_amount' => 0.00, 'shipping_amount' => 0.00, 'total_amount' => 310000.00,
+                'amount_paid' => 0.00, 'amount_due' => 310000.00, 'created_by' => $financeUser->id]
         );
         InvoiceLine::firstOrCreate(
             ['invoice_id' => $inv->id, 'description' => 'Smartphone X Pro 128GB x50 units'],
@@ -359,22 +364,22 @@ class SystemSampleDataSeeder extends Seeder
         CommissionRule::firstOrCreate(
             ['product_id' => null],
             ['rate_type' => 'PERCENTAGE', 'rate_value' => 3.00,
-             'min_sale_amount' => 500.00, 'is_active' => true]
+                'min_sale_amount' => 500.00, 'is_active' => true]
         );
 
         CodSettlement::firstOrCreate(
             ['reference_number' => 'COD-2026-07-001'],
             ['courier_code' => 'JNT', 'period_start' => now()->subDays(15),
-             'period_end' => now()->subDays(1), 'total_cod_collected' => 42500.00,
-             'courier_fee' => 1275.00, 'net_amount' => 41225.00,
-             'order_count' => 5, 'status' => 'PENDING']
+                'period_end' => now()->subDays(1), 'total_cod_collected' => 42500.00,
+                'courier_fee' => 1275.00, 'net_amount' => 41225.00,
+                'order_count' => 5, 'status' => 'PENDING']
         );
 
         FinancialTransaction::firstOrCreate(
             ['description' => 'COD Settlement - JNT - July Batch 1'],
             ['type' => 'income', 'amount' => 41225.00,
-             'reference_type' => 'App\\Domain\\Finance\\Models\\CodSettlement',
-             'recorded_by' => $financeUser->id, 'transaction_date' => now()->subDay()]
+                'reference_type' => 'App\\Domain\\Finance\\Models\\CodSettlement',
+                'recorded_by' => $financeUser->id, 'transaction_date' => now()->subDay()]
         );
     }
 
@@ -383,21 +388,21 @@ class SystemSampleDataSeeder extends Seeder
         Lead::firstOrCreate(
             ['phone' => '09195558888', 'name' => 'Cristina Reyes'],
             ['address' => '789 Aurora Blvd, Cubao, Quezon City',
-             'city' => 'Quezon City', 'state' => 'Metro Manila',
-             'status' => 'NEW', 'sales_status' => 'NEW', 'source' => 'FACEBOOK',
-             'assigned_to' => $agent->id, 'product_name' => 'Smartphone X Pro 128GB',
-             'product_brand' => 'TechBrand', 'amount' => 8500.00,
-             'total_cycles' => 1, 'quality_score' => 85]
+                'city' => 'Quezon City', 'state' => 'Metro Manila',
+                'status' => 'NEW', 'sales_status' => 'NEW', 'source' => 'FACEBOOK',
+                'assigned_to' => $agent->id, 'product_name' => 'Smartphone X Pro 128GB',
+                'product_brand' => 'TechBrand', 'amount' => 8500.00,
+                'total_cycles' => 1, 'quality_score' => 85]
         );
 
         $campaign = SmsCampaign::firstOrCreate(
             ['name' => 'July Flash Sale Blast'],
             ['message' => 'Hi! Get 15% off on Smartphone X Pro this weekend only. Visit TECC Official Store to order now!',
-             'type' => 'broadcast', 'status' => 'completed',
-             'target_audience' => 'all_customers', 'total_recipients' => 150,
-             'sent_count' => 148, 'failed_count' => 2, 'delivered_count' => 145,
-             'created_by' => $admin->id, 'started_at' => now()->subDays(3),
-             'completed_at' => now()->subDays(3)]
+                'type' => 'broadcast', 'status' => 'completed',
+                'target_audience' => 'all_customers', 'total_recipients' => 150,
+                'sent_count' => 148, 'failed_count' => 2, 'delivered_count' => 145,
+                'created_by' => $admin->id, 'started_at' => now()->subDays(3),
+                'completed_at' => now()->subDays(3)]
         );
 
         SmsLog::firstOrCreate(
@@ -411,19 +416,19 @@ class SystemSampleDataSeeder extends Seeder
         CourierProvider::firstOrCreate(
             ['code' => 'JNT'],
             ['name' => 'J&T Express', 'is_active' => true,
-             'api_endpoint' => 'https://api.jtexpress.ph/v1']
+                'api_endpoint' => 'https://api.jtexpress.ph/v1']
         );
         CourierProvider::firstOrCreate(
             ['code' => 'LBC'],
             ['name' => 'LBC Express', 'is_active' => true,
-             'api_endpoint' => 'https://api.lbcexpress.com/v1']
+                'api_endpoint' => 'https://api.lbcexpress.com/v1']
         );
 
         Supply::firstOrCreate(
             ['sku' => 'SUP-BOX-SM'],
             ['name' => 'Small Box (20x15x10cm)', 'section' => Supply::SECTION_STOCK,
-             'stock_category' => 'MERCHANDISE', 'cost_price' => 12.00,
-             'min_stock_level' => 100, 'reorder_point' => 50, 'is_active' => true]
+                'stock_category' => 'MERCHANDISE', 'cost_price' => 12.00,
+                'min_stock_level' => 100, 'reorder_point' => 50, 'is_active' => true]
         );
 
         $wh = Warehouse::where('code', 'WH-MAIN')->first();
@@ -432,7 +437,7 @@ class SystemSampleDataSeeder extends Seeder
             SupplyStock::firstOrCreate(
                 ['supply_id' => $supply->id, 'warehouse_id' => $wh->id],
                 ['current_stock' => 250, 'reserved_stock' => 30, 'reorder_point' => 50,
-                 'last_restock_at' => now()->subDays(10)]
+                    'last_restock_at' => now()->subDays(10)]
             );
         }
     }

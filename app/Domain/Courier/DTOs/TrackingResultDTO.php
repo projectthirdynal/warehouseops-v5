@@ -9,11 +9,11 @@ use App\Domain\Waybill\Enums\WaybillStatus;
 final readonly class TrackingResultDTO
 {
     public function __construct(
-        public string         $waybillNumber,
-        public WaybillStatus  $mappedStatus,
-        public string         $courierStatus,
-        public ?string        $location = null,
+        public string $waybillNumber,
+        public WaybillStatus $mappedStatus,
+        public string $courierStatus,
+        public ?string $location = null,
         public ?\DateTimeInterface $statusAt = null,
-        public array          $rawData = [],
+        public array $rawData = [],
     ) {}
 }

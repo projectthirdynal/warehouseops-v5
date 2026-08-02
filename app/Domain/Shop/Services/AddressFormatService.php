@@ -14,7 +14,7 @@ class AddressFormatService
 
         return match ($courier) {
             'FLASH' => $this->formatForFlash($order),
-            'JNT'   => $this->formatForJnt($order),
+            'JNT' => $this->formatForJnt($order),
             default => $this->formatGeneric($order),
         };
     }
@@ -28,20 +28,20 @@ class AddressFormatService
         $postalCode = $order->postal_code ?? '';
 
         $fields = [
-            'dstDetailAddress'  => $address,
-            'dstDistrictName'   => $barangay,
-            'dstCityName'       => $city,
-            'dstProvinceName'   => $province,
-            'dstPostalCode'     => $postalCode,
+            'dstDetailAddress' => $address,
+            'dstDistrictName' => $barangay,
+            'dstCityName' => $city,
+            'dstProvinceName' => $province,
+            'dstPostalCode' => $postalCode,
         ];
 
-        $combined = trim(implode(', ', array_filter([$address, $barangay, $city, $province . ($postalCode ? ' ' . $postalCode : '')])));
+        $combined = trim(implode(', ', array_filter([$address, $barangay, $city, $province.($postalCode ? ' '.$postalCode : '')])));
 
         return [
             'formatted' => $combined,
-            'fields'    => $fields,
-            'courier'   => 'FLASH',
-            'notes'     => [
+            'fields' => $fields,
+            'courier' => 'FLASH',
+            'notes' => [
                 'FLASH requires barangay as dstDistrictName',
                 'Postal code is included with province in the combined string',
             ],
@@ -58,18 +58,18 @@ class AddressFormatService
         $receiverAddress = trim(implode(', ', array_filter([$address, $barangay])));
 
         $fields = [
-            'receiverAddress'  => $receiverAddress,
+            'receiverAddress' => $receiverAddress,
             'receiverProvince' => $province,
-            'receiverCity'     => $city,
+            'receiverCity' => $city,
         ];
 
         $combined = trim(implode(', ', array_filter([$receiverAddress, $city, $province])));
 
         return [
             'formatted' => $combined,
-            'fields'    => $fields,
-            'courier'   => 'J&T',
-            'notes'     => [
+            'fields' => $fields,
+            'courier' => 'J&T',
+            'notes' => [
                 'J&T combines barangay into the address field',
                 'Province and city are separate fields',
             ],
@@ -85,20 +85,20 @@ class AddressFormatService
         $postalCode = $order->postal_code ?? '';
 
         $fields = [
-            'address'    => $address,
-            'barangay'   => $barangay,
-            'city'       => $city,
-            'province'   => $province,
+            'address' => $address,
+            'barangay' => $barangay,
+            'city' => $city,
+            'province' => $province,
             'postalCode' => $postalCode,
         ];
 
-        $combined = trim(implode(', ', array_filter([$address, $barangay, $city, $province . ($postalCode ? ' ' . $postalCode : '')])));
+        $combined = trim(implode(', ', array_filter([$address, $barangay, $city, $province.($postalCode ? ' '.$postalCode : '')])));
 
         return [
             'formatted' => $combined,
-            'fields'    => $fields,
-            'courier'   => 'Generic',
-            'notes'     => [],
+            'fields' => $fields,
+            'courier' => 'Generic',
+            'notes' => [],
         ];
     }
 }

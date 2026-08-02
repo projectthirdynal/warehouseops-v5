@@ -14,8 +14,8 @@ class CustomerAuditService
     /**
      * Log a customer profile change.
      *
-     * @param array<string, mixed> $before
-     * @param array<string, mixed> $after
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
      */
     public function logChange(Customer $customer, string $action, array $before = [], array $after = [], ?string $field = null): CustomerAuditLog
     {

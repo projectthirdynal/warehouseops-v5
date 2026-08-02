@@ -64,6 +64,7 @@ class ConversationExportService
 
                 if ($conversation->messages->isEmpty()) {
                     fputcsv($handle, $this->conversationRow($conversation, 0, '', '', '', ''));
+
                     continue;
                 }
 

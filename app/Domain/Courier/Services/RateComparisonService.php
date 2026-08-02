@@ -17,8 +17,8 @@ class RateComparisonService
     /**
      * Compare shipping rates across all active couriers for a given address + weight.
      *
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $addressInput
-     * @param array{weight?: float, cod_amount?: float, item_value?: float} $options
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string}  $addressInput
+     * @param  array{weight?: float, cod_amount?: float, item_value?: float}  $options
      * @return array{
      *     zone: ?string,
      *     rates: array<int, array{
@@ -72,16 +72,16 @@ class RateComparisonService
             $estimatedDays = $this->getEstimatedDays($provider->code);
 
             $rates[] = [
-                'courier_code'    => $provider->code,
-                'courier_name'    => $provider->name,
-                'base_fee'        => $baseFee,
-                'per_kg_fee'      => $perKgFee,
-                'cod_fee'         => $codFee,
-                'total_fee'       => $totalFee,
-                'estimated_days'  => $estimatedDays,
-                'is_active'       => $provider->is_active,
-                'has_rate'        => $result['has_rate'],
-                'zone'            => $result['zone'],
+                'courier_code' => $provider->code,
+                'courier_name' => $provider->name,
+                'base_fee' => $baseFee,
+                'per_kg_fee' => $perKgFee,
+                'cod_fee' => $codFee,
+                'total_fee' => $totalFee,
+                'estimated_days' => $estimatedDays,
+                'is_active' => $provider->is_active,
+                'has_rate' => $result['has_rate'],
+                'zone' => $result['zone'],
             ];
         }
 
@@ -139,8 +139,8 @@ class RateComparisonService
         if (empty($withRates)) {
             return null;
         }
-        return array_reduce($withRates, fn ($carry, $item) =>
-            $carry === null || $item['total_fee'] < $carry['total_fee'] ? $item : $carry
+
+        return array_reduce($withRates, fn ($carry, $item) => $carry === null || $item['total_fee'] < $carry['total_fee'] ? $item : $carry
         );
     }
 
@@ -150,8 +150,8 @@ class RateComparisonService
         if (empty($withRates)) {
             return null;
         }
-        return array_reduce($withRates, fn ($carry, $item) =>
-            $carry === null || $item['estimated_days'] < $carry['estimated_days'] ? $item : $carry
+
+        return array_reduce($withRates, fn ($carry, $item) => $carry === null || $item['estimated_days'] < $carry['estimated_days'] ? $item : $carry
         );
     }
 }

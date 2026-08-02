@@ -7,11 +7,13 @@ use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\LeadCycle;
 use App\Models\User;
+use Database\Seeders\RecyclingRulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Lead model requires Customer model which does not exist yet
  */
 class AgentLeadControllerTest extends TestCase
@@ -25,7 +27,7 @@ class AgentLeadControllerTest extends TestCase
         parent::setUp();
         $this->agent = User::factory()->create(['role' => 'agent']);
         AgentProfile::factory()->create(['user_id' => $this->agent->id]);
-        $this->seed(\Database\Seeders\RecyclingRulesSeeder::class);
+        $this->seed(RecyclingRulesSeeder::class);
     }
 
     public function test_index_returns_only_assigned_leads(): void

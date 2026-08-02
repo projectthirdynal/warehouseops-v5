@@ -16,24 +16,24 @@ enum ClaimStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::DRAFT       => 'Draft',
-            self::FILED       => 'Filed',
+            self::DRAFT => 'Draft',
+            self::FILED => 'Filed',
             self::UNDER_REVIEW => 'Under Review',
-            self::APPROVED    => 'Approved',
-            self::REJECTED    => 'Rejected',
-            self::SETTLED     => 'Settled',
+            self::APPROVED => 'Approved',
+            self::REJECTED => 'Rejected',
+            self::SETTLED => 'Settled',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::DRAFT       => 'secondary',
-            self::FILED       => 'info',
+            self::DRAFT => 'secondary',
+            self::FILED => 'info',
             self::UNDER_REVIEW => 'warning',
-            self::APPROVED    => 'success',
-            self::REJECTED    => 'danger',
-            self::SETTLED     => 'success',
+            self::APPROVED => 'success',
+            self::REJECTED => 'danger',
+            self::SETTLED => 'success',
         };
     }
 

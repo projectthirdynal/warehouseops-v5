@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\TelesalesLeadImportService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -12,9 +13,10 @@ class TelesalesLeadImportController extends Controller
         private TelesalesLeadImportService $importService
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+            if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403);
             }
+
             return $next($request);
         });
     }
@@ -24,10 +26,24 @@ class TelesalesLeadImportController extends Controller
         return Inertia::render('Telesales/Import');
     }
 
+    /**
+     * Preview import: validate file, detect duplicates, return results without writing.
+     */
+    public function preview(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+        ]);
+
+        $result = $this->importService->preview($request->file('file'));
+
+        return response()->json($result);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
         ]);
 
         $result = $this->importService->import(

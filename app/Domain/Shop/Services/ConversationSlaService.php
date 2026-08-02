@@ -173,6 +173,7 @@ class ConversationSlaService
         if (isset($data['breach_notify_channel'])) {
             SiteSetting::set('conversation_sla_breach_notify_channel', $data['breach_notify_channel']);
         }
+
         return $this->getSettings();
     }
 
@@ -186,15 +187,19 @@ class ConversationSlaService
             ->get()
             ->filter(function (Conversation $conv) use ($thresholds) {
                 $threshold = $thresholds[$conv->status] ?? null;
-                if ($threshold === null) return false;
+                if ($threshold === null) {
+                    return false;
+                }
                 $startedAt = $conv->first_response_at ?? $conv->created_at;
                 $elapsedMinutes = $startedAt ? (int) now()->diffInMinutes($startedAt) : 0;
+
                 return $elapsedMinutes >= $threshold;
             })
             ->sortByDesc(function (Conversation $conv) use ($thresholds) {
                 $threshold = $thresholds[$conv->status] ?? 1;
                 $startedAt = $conv->first_response_at ?? $conv->created_at;
                 $elapsedMinutes = $startedAt ? (int) now()->diffInMinutes($startedAt) : 0;
+
                 return $elapsedMinutes - $threshold;
             })
             ->take($limit);
@@ -203,6 +208,7 @@ class ConversationSlaService
             $threshold = $thresholds[$conv->status] ?? null;
             $startedAt = $conv->first_response_at ?? $conv->created_at;
             $elapsedMinutes = $startedAt ? (int) now()->diffInMinutes($startedAt) : 0;
+
             return [
                 'id' => $conv->id,
                 'status' => $conv->status,

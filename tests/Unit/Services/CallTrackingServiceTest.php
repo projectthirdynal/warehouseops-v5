@@ -20,7 +20,7 @@ class CallTrackingServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new CallTrackingService(new LeadAuditService());
+        $this->service = new CallTrackingService(new LeadAuditService);
     }
 
     public function test_initiate_call_returns_sip_link(): void

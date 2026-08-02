@@ -23,11 +23,12 @@ class ReleaseExpiredReservations extends Command
 
         if ($expired->isEmpty()) {
             $this->info('No expired reservations found.');
+
             return self::SUCCESS;
         }
 
         $released = 0;
-        $failed   = 0;
+        $failed = 0;
 
         foreach ($expired as $reservation) {
             try {

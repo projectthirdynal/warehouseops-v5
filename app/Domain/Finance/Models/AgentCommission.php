@@ -30,13 +30,13 @@ class AgentCommission extends Model
     ];
 
     protected $casts = [
-        'sale_amount'       => 'decimal:2',
-        'commission_rate'   => 'decimal:4',
+        'sale_amount' => 'decimal:2',
+        'commission_rate' => 'decimal:4',
         'commission_amount' => 'decimal:2',
-        'earned_at'         => 'datetime',
-        'approved_at'       => 'datetime',
-        'paid_at'           => 'datetime',
-        'cancelled_at'      => 'datetime',
+        'earned_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function agent(): BelongsTo

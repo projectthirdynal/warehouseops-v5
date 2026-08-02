@@ -26,12 +26,12 @@ class CourierExportBatchReadyNotification extends Notification implements Should
     public function toDatabase(object $notifiable): array
     {
         return [
-            'type'    => 'courier_export_batch_ready',
-            'title'   => 'Export Batch Ready',
+            'type' => 'courier_export_batch_ready',
+            'title' => 'Export Batch Ready',
             'message' => "Courier export batch {$this->batch->batch_number} is ready for download.",
-            'url'     => '/shop/encoder',
-            'meta'    => [
-                'batch_id'     => $this->batch->id,
+            'url' => '/shop/encoder',
+            'meta' => [
+                'batch_id' => $this->batch->id,
                 'batch_number' => $this->batch->batch_number,
                 'courier_code' => $this->batch->courier_code,
             ],

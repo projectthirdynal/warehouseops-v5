@@ -13,8 +13,8 @@ enum ClaimType: string
     public function label(): string
     {
         return match ($this) {
-            self::LOST      => 'Lost Parcel',
-            self::DAMAGED   => 'Damaged Parcel',
+            self::LOST => 'Lost Parcel',
+            self::DAMAGED => 'Damaged Parcel',
             self::BEYOND_SLA => 'Beyond SLA',
         };
     }
@@ -22,8 +22,8 @@ enum ClaimType: string
     public function color(): string
     {
         return match ($this) {
-            self::LOST      => 'danger',
-            self::DAMAGED   => 'warning',
+            self::LOST => 'danger',
+            self::DAMAGED => 'warning',
             self::BEYOND_SLA => 'info',
         };
     }
@@ -31,8 +31,8 @@ enum ClaimType: string
     public function description(): string
     {
         return match ($this) {
-            self::LOST      => 'Parcel was lost in transit by J&T Express.',
-            self::DAMAGED   => 'Parcel was delivered in damaged condition.',
+            self::LOST => 'Parcel was lost in transit by J&T Express.',
+            self::DAMAGED => 'Parcel was delivered in damaged condition.',
             self::BEYOND_SLA => 'J&T tagged as returned but parcel not received by next calendar day.',
         };
     }

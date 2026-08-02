@@ -35,7 +35,7 @@ class FraudDetectionService
                 ->whereDate('created_at', today())
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 $flag = FraudFlag::create([
                     'agent_id' => $record->assigned_agent_id,
                     'flag_type' => 'SUSPICIOUS_VELOCITY',
@@ -68,7 +68,7 @@ class FraudDetectionService
                 ->where('flag_type', 'NO_CALL_INITIATED')
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 $flag = FraudFlag::create([
                     'agent_id' => $cycle->assigned_agent_id,
                     'lead_id' => $cycle->lead_id,
@@ -101,7 +101,7 @@ class FraudDetectionService
                 ->where('flag_type', 'LEAD_HOARDING')
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 $flag = FraudFlag::create([
                     'agent_id' => $cycle->assigned_agent_id,
                     'lead_id' => $cycle->lead_id,

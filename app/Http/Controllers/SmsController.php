@@ -14,9 +14,7 @@ use Inertia\Inertia;
 
 class SmsController extends Controller
 {
-    public function __construct(private SmsService $smsService)
-    {
-    }
+    public function __construct(private SmsService $smsService) {}
 
     public function index()
     {
@@ -109,7 +107,7 @@ class SmsController extends Controller
 
     public function send(SmsCampaign $campaign)
     {
-        if (!in_array($campaign->status, ['draft', 'scheduled'])) {
+        if (! in_array($campaign->status, ['draft', 'scheduled'])) {
             return back()->with('error', 'Campaign cannot be sent in current status');
         }
 
@@ -130,12 +128,15 @@ class SmsController extends Controller
 
         if ($result['failed'] === 0) {
             $campaign->markAsCompleted();
+
             return back()->with('success', "Campaign sent successfully! {$result['sent']} messages delivered.");
         } elseif ($result['sent'] > 0) {
             $campaign->markAsCompleted();
+
             return back()->with('success', "Campaign completed with {$result['sent']} sent, {$result['failed']} failed.");
         } else {
             $campaign->markAsFailed();
+
             return back()->with('error', 'Campaign failed to send. Check logs for details.');
         }
     }
@@ -231,9 +232,10 @@ class SmsController extends Controller
 
     public function toggleSequence(SmsSequence $sequence)
     {
-        $sequence->update(['is_active' => !$sequence->is_active]);
+        $sequence->update(['is_active' => ! $sequence->is_active]);
 
         $status = $sequence->is_active ? 'activated' : 'deactivated';
+
         return back()->with('success', "Sequence {$status} successfully");
     }
 
@@ -274,6 +276,7 @@ class SmsController extends Controller
     public function destroyTemplate(SmsTemplate $template)
     {
         $template->delete();
+
         return back()->with('success', 'Template deleted successfully');
     }
 
@@ -296,7 +299,7 @@ class SmsController extends Controller
             return back()->with('success', 'SMS sent successfully');
         }
 
-        return back()->with('error', 'Failed to send SMS: ' . ($result['error'] ?? 'Unknown error'));
+        return back()->with('error', 'Failed to send SMS: '.($result['error'] ?? 'Unknown error'));
     }
 
     // Logs
@@ -379,17 +382,17 @@ class SmsController extends Controller
                 $query->where('status', 'RETURNED');
                 break;
             case 'custom':
-                if (!empty($campaign->filters)) {
-                    if (!empty($campaign->filters['status'])) {
+                if (! empty($campaign->filters)) {
+                    if (! empty($campaign->filters['status'])) {
                         $query->whereIn('status', (array) $campaign->filters['status']);
                     }
-                    if (!empty($campaign->filters['date_from'])) {
+                    if (! empty($campaign->filters['date_from'])) {
                         $query->whereDate('created_at', '>=', $campaign->filters['date_from']);
                     }
-                    if (!empty($campaign->filters['date_to'])) {
+                    if (! empty($campaign->filters['date_to'])) {
                         $query->whereDate('created_at', '<=', $campaign->filters['date_to']);
                     }
-                    if (!empty($campaign->filters['courier'])) {
+                    if (! empty($campaign->filters['courier'])) {
                         $query->where('courier_provider', $campaign->filters['courier']);
                     }
                 }

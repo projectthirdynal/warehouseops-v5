@@ -18,7 +18,7 @@ return new class extends Migration
             $table->integer('processed_chunks')->default(0)->after('total_chunks');
             $table->json('metadata')->nullable()->after('errors');
             $table->boolean('auto_import')->default(false)->after('import_type');
-            
+
             $table->index(['status', 'created_at'], 'idx_status_created');
         });
 
@@ -35,7 +35,7 @@ return new class extends Migration
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
-            
+
             $table->unique(['upload_id', 'chunk_number']);
             $table->index('status');
         });
@@ -47,7 +47,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('import_chunks');
-        
+
         Schema::table('uploads', function (Blueprint $table) {
             $table->dropIndex('idx_status_created');
             $table->dropColumn([

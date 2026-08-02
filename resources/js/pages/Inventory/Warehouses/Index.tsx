@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
@@ -102,6 +103,9 @@ export default function WarehousesIndex({ warehouses }: Props) {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create Warehouse</DialogTitle>
+                <DialogDescription>
+                  Add a new warehouse location for inventory storage.
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={submitWarehouse} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -279,6 +283,9 @@ function LocationDialog({ warehouseId, onClose }: { warehouseId: number; onClose
     <DialogContent>
       <DialogHeader>
         <DialogTitle>Add Location</DialogTitle>
+        <DialogDescription>
+          Add a storage location (aisle, rack, or shelf) within this warehouse.
+        </DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">

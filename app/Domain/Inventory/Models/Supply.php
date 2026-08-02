@@ -16,23 +16,26 @@ class Supply extends Model
     use HasFactory, SoftDeletes;
 
     public const SECTION_STOCK = 'STOCK';
-    public const SECTION_OPEX  = 'OPEX';
+
+    public const SECTION_OPEX = 'OPEX';
 
     public const STOCK_CATEGORIES = [
-        'RAW_MATERIAL'         => 'Raw Materials',
-        'PRODUCTION_MATERIAL'  => 'Production Materials',
-        'MERCHANDISE'          => 'Merchandise',
-        'RD_SUPPLY'            => 'R&D Supplies',
+        'RAW_MATERIAL' => 'Raw Materials',
+        'PRODUCTION_MATERIAL' => 'Production Materials',
+        'MERCHANDISE' => 'Merchandise',
+        'RD_SUPPLY' => 'R&D Supplies',
     ];
 
     public const OPEX_CATEGORIES = [
-        'OFFICE_SUPPLY'     => 'Office Supplies',
+        'OFFICE_SUPPLY' => 'Office Supplies',
         'CLEANING_MATERIAL' => 'Cleaning Materials',
     ];
 
-    public const STATUS_MOVING     = 'MOVING';
+    public const STATUS_MOVING = 'MOVING';
+
     public const STATUS_NON_MOVING = 'NON_MOVING';
-    public const STATUS_DEAD       = 'DEAD';
+
+    public const STATUS_DEAD = 'DEAD';
 
     protected $table = 'supplies';
 
@@ -45,10 +48,10 @@ class Supply extends Model
     ];
 
     protected $casts = [
-        'cost_price'            => 'decimal:4',
-        'min_stock_level'       => 'integer',
-        'reorder_point'         => 'integer',
-        'is_active'             => 'boolean',
+        'cost_price' => 'decimal:4',
+        'min_stock_level' => 'integer',
+        'reorder_point' => 'integer',
+        'is_active' => 'boolean',
         'stock_status_override' => 'boolean',
     ];
 
@@ -71,6 +74,7 @@ class Supply extends Model
     {
         $this->delete_reason = $reason;
         $this->save();
+
         return $this->delete();
     }
 

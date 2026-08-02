@@ -468,8 +468,13 @@ export default function AppLayout({ children }: PropsWithChildren) {
 
   const navGroupRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openGroup = useCallback((name: string) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     const btn = navGroupRefs.current[name];
     if (btn) {
       const rect = btn.getBoundingClientRect();
@@ -479,8 +484,19 @@ export default function AppLayout({ children }: PropsWithChildren) {
   }, []);
 
   const closeGroup = useCallback(() => {
-    setHoveredGroup(null);
-    setFlyoutPos(null);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
+      setHoveredGroup(null);
+      setFlyoutPos(null);
+    }, 150);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
   }, []);
 
   const renderNavGroup = (group: NavGroup) => {
@@ -493,7 +509,7 @@ export default function AppLayout({ children }: PropsWithChildren) {
       isHovered && children.length > 0 && flyoutPos
         ? createPortal(
             <div
-              className="fixed z-[9999] w-56 rounded-xl border bg-popover p-2 shadow-lg"
+              className="fixed z-[9999] w-56 origin-left animate-in fade-in-0 zoom-in-95 slide-in-from-left-1 rounded-xl border bg-popover p-2 shadow-lg duration-150"
               style={{ top: flyoutPos.top, left: flyoutPos.left }}
               onMouseEnter={() => openGroup(group.name)}
               onMouseLeave={closeGroup}

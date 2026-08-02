@@ -8,7 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -716,6 +722,7 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
       });
       form.clearErrors();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -763,6 +770,9 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Override Stock Status</DialogTitle>
+          <DialogDescription>
+            Manually set the stock status for this material, bypassing automatic thresholds.
+          </DialogDescription>
         </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-4">
@@ -840,6 +850,7 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   useEffect(() => {
     form.setData({ delete_reason: '' });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -859,6 +870,9 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Remove Material</DialogTitle>
+          <DialogDescription>
+            This will permanently remove this material from inventory.
+          </DialogDescription>
         </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-3">
@@ -1014,6 +1028,7 @@ function MaterialDialog({
       warehouse_id: warehouses[0]?.id ? String(warehouses[0].id) : '',
     });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when editing target or dialog open state changes
   }, [editing, open]);
 
   function submit(e: React.FormEvent) {
@@ -1044,6 +1059,9 @@ function MaterialDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? 'Edit Material' : 'New Material'}</DialogTitle>
+          <DialogDescription>
+            {editing ? 'Update the details for this material.' : 'Add a new material to inventory.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -1305,6 +1323,7 @@ function StockDialog({
       notes: '',
     });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -1325,6 +1344,9 @@ function StockDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Adjust Material Stock</DialogTitle>
+          <DialogDescription>
+            Increase or decrease the current stock level for this material.
+          </DialogDescription>
         </DialogHeader>
         {supply && (
           <form onSubmit={submit} className="space-y-3">
@@ -1432,6 +1454,7 @@ function CategorySelect({
   // If editing an existing value not in the list, show custom input
   useEffect(() => {
     if (value && !allOptions.includes(value)) setCustom(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time check on mount
   }, []);
 
   if (custom) {

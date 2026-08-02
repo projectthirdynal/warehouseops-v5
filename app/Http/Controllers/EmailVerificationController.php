@@ -21,7 +21,7 @@ class EmailVerificationController extends Controller
 
         return Inertia::render('Auth/VerifyEmail', [
             'status' => session('status'),
-            'email'  => $request->user()->email,
+            'email' => $request->user()->email,
         ]);
     }
 

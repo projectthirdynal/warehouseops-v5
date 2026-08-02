@@ -1,40 +1,147 @@
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Upload,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Copy,
+  Database,
+  FileWarning,
+  RefreshCw,
+  Loader2,
+  FileText,
+} from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
+interface PreviewRow {
+  row: number;
+  name: string;
+  phone: string;
+  city: string;
+  status: 'new' | 'duplicate_db' | 'duplicate_file' | 'error';
+  error: string | null;
+}
+
+interface PreviewSummary {
+  total: number;
+  new: number;
+  duplicate_db: number;
+  duplicate_file: number;
+  errors: number;
+}
+
+interface PreviewResult {
+  summary: PreviewSummary;
+  rows: PreviewRow[];
+}
+
+const STATUS_CONFIG = {
+  new: { label: 'New', variant: 'default' as const, icon: CheckCircle, color: 'text-success' },
+  duplicate_db: {
+    label: 'Dup (DB)',
+    variant: 'secondary' as const,
+    icon: Database,
+    color: 'text-warning',
+  },
+  duplicate_file: {
+    label: 'Dup (File)',
+    variant: 'secondary' as const,
+    icon: Copy,
+    color: 'text-warning',
+  },
+  error: {
+    label: 'Error',
+    variant: 'destructive' as const,
+    icon: FileWarning,
+    color: 'text-destructive',
+  },
+};
 
 export default function TelesalesImport() {
   const { flash } = usePage().props as any;
   const importErrors: string[] = flash?.importErrors ?? [];
 
-  const { data, setData, post, processing, errors, reset } = useForm({
-    file: null as File | null,
-  });
-
+  const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [filter, setFilter] = useState<'all' | 'new' | 'duplicates' | 'errors'>('all');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePreview = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data.file) return;
+    if (!file) return;
 
-    post('/telesales/import', {
-      onSuccess: () => reset(),
+    setIsPreviewing(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/telesales/import/preview', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRF-TOKEN':
+          (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+        Accept: 'application/json',
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Preview failed');
+        return res.json();
+      })
+      .then((data: PreviewResult) => setPreview(data))
+      .catch(() => setPreview(null))
+      .finally(() => setIsPreviewing(false));
+  };
+
+  const handleConfirmImport = () => {
+    if (!file) return;
+
+    setIsImporting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    router.post('/telesales/import', formData, {
+      onFinish: () => setIsImporting(false),
     });
+  };
+
+  const handleReset = () => {
+    setFile(null);
+    setPreview(null);
+    setFilter('all');
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const dropped = e.dataTransfer.files?.[0];
-    if (dropped) setData('file', dropped);
+    if (dropped) {
+      setFile(dropped);
+      setPreview(null);
+    }
   };
+
+  const filteredRows = preview
+    ? preview.rows.filter((r) => {
+        if (filter === 'all') return true;
+        if (filter === 'new') return r.status === 'new';
+        if (filter === 'duplicates')
+          return r.status === 'duplicate_db' || r.status === 'duplicate_file';
+        if (filter === 'errors') return r.status === 'error';
+        return true;
+      })
+    : [];
 
   return (
     <AppLayout>
       <Head title="Telesales Import" />
-      <div className="max-w-3xl mx-auto space-y-4">
+      <div className="max-w-4xl mx-auto space-y-4">
         <div>
           <h1 className="text-xl font-bold font-display tracking-tight">Telesales Import</h1>
           <p className="text-sm text-muted-foreground">
@@ -71,103 +178,289 @@ export default function TelesalesImport() {
           </div>
         )}
 
-        {/* Instructions */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Expected CSV Format
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-3">
-              Upload a CSV file with the following columns (no header row required):
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">#</th>
-                    <th className="pb-2 font-medium">Column</th>
-                    <th className="pb-2 font-medium">Example</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['1', 'ID (ignored)', '—'],
-                    ['2', 'Customer Name', 'Emelisa Bello Bautista'],
-                    ['3', 'Phone Number', '9772053856'],
-                    ['4', 'Full Address', 'Pagsibol Village, Brgy. Catmon...'],
-                    ['5', 'Province / Region', 'BULACAN'],
-                    ['6', 'City / Municipality', 'BULACAN-SANTA-MARIA'],
-                    ['7', 'Barangay', 'CATMON'],
-                    ['8–12', '(empty columns)', '—'],
-                    ['13', 'Order Amount', '199'],
-                    ['14', 'Product Name', 'AVOCAFE 1 SET B1T2'],
-                    ['15', 'Order Status', 'Delivered'],
-                  ].map(([num, col, ex]) => (
-                    <tr key={num} className="border-b border-border/50">
-                      <td className="py-1.5 text-muted-foreground">{num}</td>
-                      <td className="py-1.5">{col}</td>
-                      <td className="py-1.5 text-muted-foreground">{ex}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Existing customers (matched by phone) will be updated. Leads with status "Delivered"
-              get a quality score of 85.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Upload Form */}
-        <form onSubmit={handleSubmit}>
-          <Card>
-            <CardContent className="pt-6">
-              <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragActive ? 'border-primary bg-primary/5' : 'border-border'
-                } ${errors.file ? 'border-destructive' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={handleDrop}
-              >
-                <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-                <p className="text-sm font-medium">
-                  {data.file ? data.file.name : 'Drag & drop a CSV file here'}
+        {/* Step 1: Upload & Preview */}
+        {!preview && (
+          <>
+            {/* Instructions */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Expected CSV Format
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Upload a CSV or XLSX file with the following columns (no header row required):
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">or click to browse (max 10 MB)</p>
-                <input
-                  type="file"
-                  accept=".csv,.txt"
-                  className="hidden"
-                  id="csv-upload"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) setData('file', f);
-                  }}
-                />
-                <label htmlFor="csv-upload">
-                  <Button type="button" variant="outline" size="sm" className="mt-3" asChild>
-                    <span>Browse Files</span>
-                  </Button>
-                </label>
-                {errors.file && <p className="text-xs text-destructive mt-2">{errors.file}</p>}
-              </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="pb-2 font-medium">#</th>
+                        <th className="pb-2 font-medium">Column</th>
+                        <th className="pb-2 font-medium">Example</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['1', 'ID (ignored)', '—'],
+                        ['2', 'Customer Name', 'Emelisa Bello Bautista'],
+                        ['3', 'Phone Number', '9772053856'],
+                        ['4', 'Full Address', 'Pagsibol Village, Brgy. Catmon...'],
+                        ['5', 'Province / Region', 'BULACAN'],
+                        ['6', 'City / Municipality', 'BULACAN-SANTA-MARIA'],
+                        ['7', 'Barangay', 'CATMON'],
+                        ['8–12', '(empty columns)', '—'],
+                        ['13', 'Order Amount', '199'],
+                        ['14', 'Product Name', 'AVOCAFE 1 SET B1T2'],
+                        ['15', 'Order Status', 'Delivered'],
+                      ].map(([num, col, ex]) => (
+                        <tr key={num} className="border-b border-border/50">
+                          <td className="py-1.5 text-muted-foreground">{num}</td>
+                          <td className="py-1.5">{col}</td>
+                          <td className="py-1.5 text-muted-foreground">{ex}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Existing customers (matched by phone) will be updated. Leads with status
+                  "Delivered" get a quality score of 85.
+                </p>
+              </CardContent>
+            </Card>
 
-              <div className="flex justify-end mt-4">
-                <Button type="submit" disabled={processing || !data.file}>
-                  {processing ? 'Importing...' : 'Import Telesales Leads'}
+            {/* Upload Form */}
+            <form onSubmit={handlePreview}>
+              <Card>
+                <CardContent className="pt-6">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                      dragActive ? 'border-primary bg-primary/5' : 'border-border'
+                    } ${file ? 'border-success/40 bg-success/5' : ''}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragActive(true);
+                    }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={handleDrop}
+                  >
+                    {file ? (
+                      <div className="space-y-2">
+                        <FileText className="mx-auto h-8 w-8 text-success" />
+                        <p className="text-sm font-medium text-success">{file.name}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReset();
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
+                        <p className="text-sm font-medium">Drag & drop a CSV or XLSX file here</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          or click to browse (max 10 MB)
+                        </p>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept=".csv,.txt,.xlsx,.xls"
+                      className="hidden"
+                      id="csv-upload"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          setFile(f);
+                          setPreview(null);
+                        }
+                      }}
+                    />
+                    {!file && (
+                      <label htmlFor="csv-upload">
+                        <Button type="button" variant="outline" size="sm" className="mt-3" asChild>
+                          <span>Browse Files</span>
+                        </Button>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end mt-4">
+                    <Button type="submit" disabled={isPreviewing || !file}>
+                      {isPreviewing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Validating...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Validate & Preview
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+          </>
+        )}
+
+        {/* Step 2: Preview Results */}
+        {preview && (
+          <div className="space-y-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <Card>
+                <CardContent className="pt-4 pb-4 px-4">
+                  <p className="text-xs text-muted-foreground">Total Rows</p>
+                  <p className="text-2xl font-bold">{preview.summary.total}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4 px-4">
+                  <p className="text-xs text-success">New</p>
+                  <p className="text-2xl font-bold text-success">{preview.summary.new}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4 px-4">
+                  <p className="text-xs text-warning">Dup (DB)</p>
+                  <p className="text-2xl font-bold text-warning">{preview.summary.duplicate_db}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4 px-4">
+                  <p className="text-xs text-warning">Dup (File)</p>
+                  <p className="text-2xl font-bold text-warning">
+                    {preview.summary.duplicate_file}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4 px-4">
+                  <p className="text-xs text-destructive">Errors</p>
+                  <p className="text-2xl font-bold text-destructive">{preview.summary.errors}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Action bar */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex gap-2">
+                <Button
+                  variant={filter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilter('all')}
+                >
+                  All ({preview.summary.total})
+                </Button>
+                <Button
+                  variant={filter === 'new' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilter('new')}
+                >
+                  New ({preview.summary.new})
+                </Button>
+                <Button
+                  variant={filter === 'duplicates' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilter('duplicates')}
+                >
+                  Duplicates ({preview.summary.duplicate_db + preview.summary.duplicate_file})
+                </Button>
+                <Button
+                  variant={filter === 'errors' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilter('errors')}
+                >
+                  Errors ({preview.summary.errors})
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </form>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Start Over
+                </Button>
+                <Button
+                  onClick={handleConfirmImport}
+                  disabled={isImporting || preview.summary.new === 0}
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Confirm Import ({preview.summary.new} new)
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Preview table */}
+            <Card>
+              <CardContent className="p-0">
+                <div className="max-h-[500px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-muted/50 backdrop-blur">
+                      <tr className="text-left text-muted-foreground border-b">
+                        <th className="px-3 py-2 font-medium">Row</th>
+                        <th className="px-3 py-2 font-medium">Status</th>
+                        <th className="px-3 py-2 font-medium">Name</th>
+                        <th className="px-3 py-2 font-medium">Phone</th>
+                        <th className="px-3 py-2 font-medium">City</th>
+                        <th className="px-3 py-2 font-medium">Issue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row) => {
+                        const cfg = STATUS_CONFIG[row.status];
+                        const Icon = cfg.icon;
+                        return (
+                          <tr key={row.row} className="border-b border-border/40 hover:bg-muted/30">
+                            <td className="px-3 py-2 text-muted-foreground">{row.row}</td>
+                            <td className="px-3 py-2">
+                              <Badge variant={cfg.variant} className="gap-1">
+                                <Icon className={`h-3 w-3 ${cfg.color}`} />
+                                {cfg.label}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2">{row.name || '—'}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{row.phone || '—'}</td>
+                            <td className="px-3 py-2">{row.city || '—'}</td>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">
+                              {row.error || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredRows.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                            No rows match this filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </AppLayout>
   );

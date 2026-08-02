@@ -29,15 +29,15 @@ class TicketCreatedNotification extends Notification implements ShouldQueue
         $priority = ucfirst($this->ticket->priority);
         $due = $this->ticket->due_at?->format('M d, Y g:i A') ?? 'N/A';
 
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject("New Ticket {$this->ticket->ticket_number}: {$this->ticket->subject}")
-            ->greeting("New Support Ticket")
+            ->greeting('New Support Ticket')
             ->line("A new ticket has been created by {$this->createdByName}.")
             ->line("**Ticket #:** {$this->ticket->ticket_number}")
             ->line("**Subject:** {$this->ticket->subject}")
             ->line("**Priority:** {$priority}")
             ->line("**Due:** {$due}")
-            ->line("**Description:**")
+            ->line('**Description:**')
             ->line($this->ticket->description ?? 'No description provided.')
             ->action('View Ticket', url("/tickets/{$this->ticket->id}"));
     }

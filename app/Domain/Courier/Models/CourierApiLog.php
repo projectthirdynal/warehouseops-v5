@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Courier\Models;
 
+use App\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,6 +39,6 @@ class CourierApiLog extends Model
 
     public function waybill(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Waybill::class);
+        return $this->belongsTo(Waybill::class);
     }
 }

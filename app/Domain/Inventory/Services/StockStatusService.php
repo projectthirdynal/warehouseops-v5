@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class StockStatusService
 {
-    public const MOVING_DAYS     = 30;
+    public const MOVING_DAYS = 30;
+
     public const NON_MOVING_DAYS = 90;
 
     public function recompute(Supply $supply): void

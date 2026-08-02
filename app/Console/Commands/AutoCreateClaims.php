@@ -37,6 +37,7 @@ class AutoCreateClaims extends Command
 
         if ($waybills->isEmpty()) {
             $this->info('No returned waybills without claims found.');
+
             return Command::SUCCESS;
         }
 
@@ -53,6 +54,7 @@ class AutoCreateClaims extends Command
                 ])->toArray()
             );
             $this->info('Dry run — no claims created.');
+
             return Command::SUCCESS;
         }
 
@@ -64,15 +66,15 @@ class AutoCreateClaims extends Command
                 $claimAmount = (float) ($waybill->cod_amount ?? $waybill->amount ?? 0);
 
                 Claim::create([
-                    'claim_number'  => Claim::generateClaimNumber(),
-                    'waybill_id'    => $waybill->id,
-                    'type'          => ClaimType::BEYOND_SLA->value,
-                    'status'        => ClaimStatus::DRAFT->value,
-                    'auto_created'  => true,
-                    'source'        => 'backfill_command',
-                    'description'   => "Auto-created via claims:auto-create command. Waybill {$waybill->waybill_number} marked as RETURNED.",
-                    'claim_amount'  => $claimAmount,
-                    'filed_by'      => $waybill->uploaded_by ?? 1,
+                    'claim_number' => Claim::generateClaimNumber(),
+                    'waybill_id' => $waybill->id,
+                    'type' => ClaimType::BEYOND_SLA->value,
+                    'status' => ClaimStatus::DRAFT->value,
+                    'auto_created' => true,
+                    'source' => 'backfill_command',
+                    'description' => "Auto-created via claims:auto-create command. Waybill {$waybill->waybill_number} marked as RETURNED.",
+                    'claim_amount' => $claimAmount,
+                    'filed_by' => $waybill->uploaded_by ?? 1,
                 ]);
 
                 $created++;

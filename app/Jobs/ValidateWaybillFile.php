@@ -15,6 +15,7 @@ class ValidateWaybillFile implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 300; // 5 minutes
 
     public function __construct(
@@ -26,8 +27,8 @@ class ValidateWaybillFile implements ShouldQueue
     public function handle(): void
     {
         $upload = Upload::find($this->uploadId);
-        
-        if (!$upload || $upload->status === Upload::STATUS_CANCELLED) {
+
+        if (! $upload || $upload->status === Upload::STATUS_CANCELLED) {
             return;
         }
 
@@ -37,12 +38,13 @@ class ValidateWaybillFile implements ShouldQueue
             $validator = new WaybillFileValidator($upload);
             $result = $validator->validate();
 
-            if (!$result->isValid()) {
+            if (! $result->isValid()) {
                 $upload->update([
                     'status' => Upload::STATUS_VALIDATION_FAILED,
                     'errors' => $result->toArray(),
                     'completed_at' => now(),
                 ]);
+
                 return;
             }
 

@@ -8,10 +8,11 @@ use App\Domain\Waybill\Services\ReturnWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ReturnWorkflowController extends Controller
 {
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
         $service = app(ReturnWorkflowService::class);
         $data = $service->getDashboardData($request->only(['from', 'to', 'condition']));
@@ -31,8 +32,8 @@ class ReturnWorkflowController extends Controller
     {
         $validated = $request->validate([
             'waybill_number' => 'required|string|max:60',
-            'condition'      => 'sometimes|in:GOOD,DAMAGED',
-            'notes'          => 'nullable|string|max:1000',
+            'condition' => 'sometimes|in:GOOD,DAMAGED',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         $service = app(ReturnWorkflowService::class);
@@ -51,8 +52,8 @@ class ReturnWorkflowController extends Controller
         $validated = $request->validate([
             'waybill_numbers' => 'required|array|max:50',
             'waybill_numbers.*' => 'string|max:60',
-            'condition'      => 'sometimes|in:GOOD,DAMAGED',
-            'notes'          => 'nullable|string|max:1000',
+            'condition' => 'sometimes|in:GOOD,DAMAGED',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         $service = app(ReturnWorkflowService::class);

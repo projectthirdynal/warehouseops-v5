@@ -44,16 +44,16 @@ class DesktopApiController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             return response()->json(['message' => 'Account is deactivated'], 403);
         }
 
         // Only allow admin roles
-        if (!in_array($user->role, ['superadmin', 'admin', 'supervisor'])) {
+        if (! in_array($user->role, ['superadmin', 'admin', 'supervisor'])) {
             return response()->json(['message' => 'Desktop app is restricted to admin users'], 403);
         }
 
@@ -139,9 +139,9 @@ class DesktopApiController extends Controller
         $hourlyActivity = [];
         for ($h = 8; $h <= 19; $h++) {
             $hourlyActivity[] = [
-                'hour'     => (string) $h,
+                'hour' => (string) $h,
                 'waybills' => (int) ($rawWaybillHourly[$h] ?? 0),
-                'leads'    => (int) ($rawLeadHourly[$h] ?? 0),
+                'leads' => (int) ($rawLeadHourly[$h] ?? 0),
             ];
         }
 
@@ -151,11 +151,11 @@ class DesktopApiController extends Controller
             ->limit(3)
             ->get()
             ->map(fn ($w) => [
-                'id'          => 'waybill-' . $w->id,
-                'type'        => 'Waybill',
+                'id' => 'waybill-'.$w->id,
+                'type' => 'Waybill',
                 'description' => "Waybill #{$w->waybill_number} delivered",
-                'time'        => $w->delivered_at?->diffForHumans() ?? 'recently',
-                '_ts'         => $w->delivered_at?->timestamp ?? 0,
+                'time' => $w->delivered_at?->diffForHumans() ?? 'recently',
+                '_ts' => $w->delivered_at?->timestamp ?? 0,
             ]);
 
         $recentLeads = Lead::whereNotNull('assigned_to')
@@ -163,11 +163,11 @@ class DesktopApiController extends Controller
             ->limit(3)
             ->get()
             ->map(fn ($l) => [
-                'id'          => 'lead-' . $l->id,
-                'type'        => 'Lead',
+                'id' => 'lead-'.$l->id,
+                'type' => 'Lead',
                 'description' => 'Lead assigned to agent',
-                'time'        => $l->updated_at->diffForHumans(),
-                '_ts'         => $l->updated_at->timestamp,
+                'time' => $l->updated_at->diffForHumans(),
+                '_ts' => $l->updated_at->timestamp,
             ]);
 
         $recentActivity = $recentDeliveries->merge($recentLeads)
@@ -175,10 +175,10 @@ class DesktopApiController extends Controller
             ->take(6)
             ->values()
             ->map(fn ($item) => [
-                'id'          => $item['id'],
-                'type'        => $item['type'],
+                'id' => $item['id'],
+                'type' => $item['type'],
                 'description' => $item['description'],
-                'time'        => $item['time'],
+                'time' => $item['time'],
             ])
             ->toArray();
 
@@ -198,7 +198,7 @@ class DesktopApiController extends Controller
 
         $waybill = Waybill::where('waybill_number', $request->waybill_number)->first();
 
-        if (!$waybill) {
+        if (! $waybill) {
             return response()->json([
                 'valid' => false,
                 'message' => 'Waybill not found in system',
@@ -233,13 +233,15 @@ class DesktopApiController extends Controller
         foreach ($request->waybill_numbers as $number) {
             $waybill = Waybill::where('waybill_number', $number)->first();
 
-            if (!$waybill) {
+            if (! $waybill) {
                 $errors[] = ['waybill' => $number, 'error' => 'Not found'];
+
                 continue;
             }
 
             if ($waybill->status !== 'PENDING') {
                 $errors[] = ['waybill' => $number, 'error' => "Cannot dispatch - status is {$waybill->status}"];
+
                 continue;
             }
 
@@ -287,7 +289,7 @@ class DesktopApiController extends Controller
         ];
 
         return response()->json([
-            'uploads' => $uploads->map(fn($u) => [
+            'uploads' => $uploads->map(fn ($u) => [
                 'id' => $u->id,
                 'filename' => $u->filename,
                 'original_filename' => $u->original_filename,
@@ -322,7 +324,7 @@ class DesktopApiController extends Controller
         $file = $request->file('file');
         $courier = $request->input('courier_provider');
 
-        $filename = time() . '_' . $file->getClientOriginalName();
+        $filename = time().'_'.$file->getClientOriginalName();
         $path = $file->storeAs('uploads/waybills', $filename, 'local');
 
         $upload = Upload::create([
@@ -331,7 +333,7 @@ class DesktopApiController extends Controller
             'type' => 'waybill',
             'courier' => $courier,
             'import_type' => 'auto_sync',
-            'file_hash' => hash_file('sha256', storage_path('app/' . $path)),
+            'file_hash' => hash_file('sha256', storage_path('app/'.$path)),
             'status' => 'processing',
             'uploaded_by' => $request->user()->id,
             'started_at' => now(),
@@ -339,7 +341,7 @@ class DesktopApiController extends Controller
 
         try {
             $rowCount = 0;
-            (new FastExcel)->import(storage_path('app/' . $path), function ($row) use (&$rowCount) {
+            (new FastExcel)->import(storage_path('app/'.$path), function ($row) use (&$rowCount) {
                 $rowCount++;
             });
             $upload->update(['total_rows' => $rowCount]);
@@ -348,7 +350,7 @@ class DesktopApiController extends Controller
                 ? new JntWaybillFastImport($upload, $request->user()->id)
                 : new FlashWaybillFastImport($upload, $request->user()->id);
 
-            $import->import(storage_path('app/' . $path));
+            $import->import(storage_path('app/'.$path));
 
             $upload->update([
                 'status' => $import->getErrorCount() > 0
@@ -374,7 +376,7 @@ class DesktopApiController extends Controller
         } catch (\Exception $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);
 
-            return response()->json(['message' => 'Import failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Import failed: '.$e->getMessage()], 500);
         }
     }
 
@@ -411,9 +413,9 @@ class DesktopApiController extends Controller
             return response()->json(['message' => 'Only failed uploads can be retried'], 422);
         }
 
-        $path = 'uploads/waybills/' . $upload->filename;
+        $path = 'uploads/waybills/'.$upload->filename;
 
-        if (!Storage::disk('local')->exists($path)) {
+        if (! Storage::disk('local')->exists($path)) {
             return response()->json(['message' => 'Original file not found'], 404);
         }
 
@@ -435,7 +437,7 @@ class DesktopApiController extends Controller
             $import = $upload->courier === 'flash'
                 ? new FlashWaybillFastImport($upload, $upload->uploaded_by)
                 : new JntWaybillFastImport($upload, $upload->uploaded_by);
-            $import->import(storage_path('app/' . $path));
+            $import->import(storage_path('app/'.$path));
 
             $upload->update([
                 'status' => $import->getErrorCount() > 0
@@ -460,7 +462,7 @@ class DesktopApiController extends Controller
         } catch (\Exception $e) {
             $upload->markAsFailed(['message' => $e->getMessage()]);
 
-            return response()->json(['message' => 'Retry failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Retry failed: '.$e->getMessage()], 500);
         }
     }
 
@@ -539,6 +541,7 @@ class DesktopApiController extends Controller
             ->map(function ($agent) {
                 $leads = Lead::where('assigned_to', $agent->id)->count();
                 $sales = Lead::where('assigned_to', $agent->id)->where('status', 'SALE')->count();
+
                 return [
                     'name' => $agent->name,
                     'leads' => $leads,
@@ -551,7 +554,7 @@ class DesktopApiController extends Controller
             ->values()
             ->toArray();
 
-        $topPerformer = !empty($topAgents) ? $topAgents[0]['name'] : '-';
+        $topPerformer = ! empty($topAgents) ? $topAgents[0]['name'] : '-';
         $avgPerformance = count($topAgents) > 0
             ? round(collect($topAgents)->avg('conversion_rate'), 1)
             : 0;
@@ -607,7 +610,7 @@ class DesktopApiController extends Controller
         $campaigns = SmsCampaign::orderBy('created_at', 'desc')
             ->limit(20)
             ->get()
-            ->map(fn($c) => [
+            ->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'message' => $c->message,
@@ -623,7 +626,7 @@ class DesktopApiController extends Controller
 
         $templates = SmsTemplate::orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($t) => [
+            ->map(fn ($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
                 'message' => $t->message,
@@ -634,7 +637,7 @@ class DesktopApiController extends Controller
         $logs = SmsLog::orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
-            ->map(fn($l) => [
+            ->map(fn ($l) => [
                 'id' => $l->id,
                 'phone' => $l->phone,
                 'message' => $l->message,
@@ -696,7 +699,7 @@ class DesktopApiController extends Controller
         ]);
 
         // Build recipients array for bulk send
-        $recipientList = $recipients->map(fn($w) => [
+        $recipientList = $recipients->map(fn ($w) => [
             'phone' => $w->receiver_phone,
             'name' => $w->receiver_name,
             'waybill' => $w->waybill_number,
@@ -724,7 +727,7 @@ class DesktopApiController extends Controller
         } catch (\Exception $e) {
             $campaign->update(['status' => 'failed']);
 
-            return response()->json(['message' => 'Campaign failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Campaign failed: '.$e->getMessage()], 500);
         }
     }
 
@@ -748,7 +751,7 @@ class DesktopApiController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Send failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Send failed: '.$e->getMessage()], 500);
         }
     }
 
@@ -834,7 +837,7 @@ class DesktopApiController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        if (!Hash::check($request->current_password, $request->user()->password)) {
+        if (! Hash::check($request->current_password, $request->user()->password)) {
             return response()->json(['message' => 'Current password is incorrect'], 422);
         }
 
@@ -859,7 +862,7 @@ class DesktopApiController extends Controller
     {
         $users = User::orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($u) => [
+            ->map(fn ($u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
@@ -896,7 +899,7 @@ class DesktopApiController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $targetUser->id,
+            'email' => 'required|email|unique:users,email,'.$targetUser->id,
             'role' => 'required|string|in:agent,supervisor,admin,superadmin',
             'password' => 'nullable|string|min:8',
         ]);
@@ -916,7 +919,7 @@ class DesktopApiController extends Controller
 
     public function usersToggleActive(User $targetUser): JsonResponse
     {
-        $targetUser->update(['is_active' => !$targetUser->is_active]);
+        $targetUser->update(['is_active' => ! $targetUser->is_active]);
 
         return response()->json([
             'message' => $targetUser->is_active ? 'User activated' : 'User deactivated',

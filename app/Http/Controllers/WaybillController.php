@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\Jobs\BatchDispatchJob;
+use App\Domain\Courier\Models\CourierProvider;
 use App\Domain\Courier\Services\BatchDispatchService;
 use App\Domain\Waybill\Models\DeliveryProof;
 use App\Domain\Waybill\Services\DeliveryProofService;
@@ -14,6 +16,7 @@ use App\Services\SmsSequenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class WaybillController extends Controller
 {
@@ -114,11 +117,11 @@ class WaybillController extends Controller
         $waybill->status = $request->status;
 
         // Update timestamps based on status
-        if ($request->status === 'DISPATCHED' && !$waybill->dispatched_at) {
+        if ($request->status === 'DISPATCHED' && ! $waybill->dispatched_at) {
             $waybill->dispatched_at = now();
-        } elseif ($request->status === 'DELIVERED' && !$waybill->delivered_at) {
+        } elseif ($request->status === 'DELIVERED' && ! $waybill->delivered_at) {
             $waybill->delivered_at = now();
-        } elseif ($request->status === 'RETURNED' && !$waybill->returned_at) {
+        } elseif ($request->status === 'RETURNED' && ! $waybill->returned_at) {
             $waybill->returned_at = now();
         }
 
@@ -172,41 +175,41 @@ class WaybillController extends Controller
         $service = app(BatchDispatchService::class);
         $stats = $service->stats();
 
-        $couriers = \App\Domain\Courier\Models\CourierProvider::where('is_active', true)
+        $couriers = CourierProvider::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'code', 'name']);
 
         return Inertia::render('Waybills/BatchDispatch', [
             'pendingWaybills' => $pendingWaybills,
-            'stats'           => $stats,
-            'couriers'        => $couriers,
-            'filters'         => $request->only(['search']),
+            'stats' => $stats,
+            'couriers' => $couriers,
+            'filters' => $request->only(['search']),
         ]);
     }
 
     public function batchDispatch(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'waybill_ids'  => ['required', 'array', 'min:1', 'max:100'],
+            'waybill_ids' => ['required', 'array', 'min:1', 'max:100'],
             'waybill_ids.*' => ['required', 'integer', 'exists:waybills,id'],
             'courier_code' => ['required', 'string', 'in:FLASH,JNT'],
-            'async'        => ['nullable', 'boolean'],
+            'async' => ['nullable', 'boolean'],
         ]);
 
         $senderDefaults = config('services.couriers.sender_defaults', []);
 
         if ($validated['async'] ?? false) {
-            \App\Domain\Courier\Jobs\BatchDispatchJob::dispatch(
+            BatchDispatchJob::dispatch(
                 $validated['waybill_ids'],
                 $validated['courier_code'],
                 $senderDefaults,
             );
 
             return response()->json([
-                'success'  => true,
-                'async'    => true,
-                'message'  => 'Batch dispatch queued for processing.',
-                'count'    => count($validated['waybill_ids']),
+                'success' => true,
+                'async' => true,
+                'message' => 'Batch dispatch queued for processing.',
+                'count' => count($validated['waybill_ids']),
             ]);
         }
 
@@ -216,14 +219,15 @@ class WaybillController extends Controller
         return response()->json([
             'success' => $result['success'] > 0,
             'message' => "Dispatched {$result['success']}/{$result['total']} waybills to {$validated['courier_code']}."
-                . ($result['failed'] > 0 ? " {$result['failed']} failed." : ''),
-            'result'  => $result,
+                .($result['failed'] > 0 ? " {$result['failed']} failed." : ''),
+            'result' => $result,
         ]);
     }
 
     public function batchDispatchStats(): JsonResponse
     {
         $service = app(BatchDispatchService::class);
+
         return response()->json($service->stats());
     }
 
@@ -245,9 +249,9 @@ class WaybillController extends Controller
             );
 
             return response()->json([
-                'success'  => true,
-                'message'  => 'Delivery proof uploaded.',
-                'proof'    => $proof->load('uploader'),
+                'success' => true,
+                'message' => 'Delivery proof uploaded.',
+                'proof' => $proof->load('uploader'),
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -264,7 +268,7 @@ class WaybillController extends Controller
         return response()->json(['success' => true, 'message' => 'Delivery proof deleted.']);
     }
 
-    public function slaDashboard(Request $request): \Inertia\Response
+    public function slaDashboard(Request $request): Response
     {
         $service = app(SlaDashboardService::class);
         $data = $service->getDashboardData($request->only(['courier', 'from', 'to']));
@@ -290,13 +294,13 @@ class WaybillController extends Controller
         $settings = $service->updateSettings($validated);
 
         return response()->json([
-            'success'  => true,
-            'message'  => 'SLA settings updated.',
+            'success' => true,
+            'message' => 'SLA settings updated.',
             'settings' => $settings,
         ]);
     }
 
-    public function geoMap(Request $request): \Inertia\Response
+    public function geoMap(Request $request): Response
     {
         $service = app(GeolocationMapService::class);
         $data = $service->getMapData($request->only(['courier', 'status']));

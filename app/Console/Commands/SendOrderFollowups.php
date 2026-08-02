@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 class SendOrderFollowups extends Command
 {
     protected $signature = 'shop:send-order-followups {--days=3 : Days in DISPATCHED before triggering follow-up}';
+
     protected $description = 'Post follow-up reminders to conversations for orders stuck in DISPATCHED status.';
 
     public function handle(): int
@@ -53,7 +54,7 @@ class SendOrderFollowups extends Command
                 'conversation_id' => $order->conversation_id,
                 'facebook_page_id' => $conversation->facebook_page_id,
                 'sent_by' => null,
-                'external_message_id' => 'system-' . str()->uuid(),
+                'external_message_id' => 'system-'.str()->uuid(),
                 'direction' => 'system',
                 'message_type' => 'order_followup',
                 'body' => $body,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
+use App\Domain\Courier\Services\CourierServiceManager;
 use App\Domain\Courier\Services\CourierStatusSyncService;
 use Illuminate\Console\Command;
 
@@ -29,7 +30,7 @@ class SyncCourierTracking extends Command
 
         $job = new SyncTrackingStatusJob($courier ? strtoupper($courier) : null, $trigger);
         $job->handle(
-            app(\App\Domain\Courier\Services\CourierServiceManager::class),
+            app(CourierServiceManager::class),
             app(CourierStatusSyncService::class),
         );
 

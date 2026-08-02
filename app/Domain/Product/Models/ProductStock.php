@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Product\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Domain\Inventory\Models\Warehouse;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -28,10 +28,10 @@ class ProductStock extends Model
     protected $appends = ['available_stock', 'is_low_stock'];
 
     protected $casts = [
-        'current_stock'    => 'integer',
-        'reserved_stock'   => 'integer',
-        'reorder_point'    => 'integer',
-        'last_restock_at'  => 'datetime',
+        'current_stock' => 'integer',
+        'reserved_stock' => 'integer',
+        'reorder_point' => 'integer',
+        'last_restock_at' => 'datetime',
         'last_movement_at' => 'datetime',
     ];
 

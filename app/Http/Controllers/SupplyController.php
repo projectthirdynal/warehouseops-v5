@@ -9,9 +9,9 @@ use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\UnitOfMeasure;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockStatusService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -24,13 +24,14 @@ class SupplyController extends Controller
     {
         Cache::remember('supply_status_recompute', 300, function () {
             app(StockStatusService::class)->recomputeAll();
+
             return true;
         });
 
         $supplies = Supply::query()
             ->with(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code'])
             ->when($request->search, function ($query, string $search): void {
-                $like = '%' . mb_strtolower($search) . '%';
+                $like = '%'.mb_strtolower($search).'%';
                 $query->where(function ($inner) use ($like): void {
                     $inner->whereRaw('LOWER(sku) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(name) LIKE ?', [$like]);
@@ -108,14 +109,14 @@ class SupplyController extends Controller
         return Inertia::render('Inventory/Supplies/Index', [
             'supplies' => $supplies,
             'stats' => [
-                'total'      => Supply::count(),
-                'active'     => Supply::where('is_active', true)->count(),
-                'low_stock'  => $lowStock,
-                'trashed'    => Supply::onlyTrashed()->count(),
+                'total' => Supply::count(),
+                'active' => Supply::where('is_active', true)->count(),
+                'low_stock' => $lowStock,
+                'trashed' => Supply::onlyTrashed()->count(),
                 'by_stock_status' => [
-                    'MOVING'       => Supply::where('stock_status', 'MOVING')->count(),
-                    'NON_MOVING'   => Supply::where('stock_status', 'NON_MOVING')->count(),
-                    'DEAD'         => Supply::where('stock_status', 'DEAD')->count(),
+                    'MOVING' => Supply::where('stock_status', 'MOVING')->count(),
+                    'NON_MOVING' => Supply::where('stock_status', 'NON_MOVING')->count(),
+                    'DEAD' => Supply::where('stock_status', 'DEAD')->count(),
                     'OUT_OF_STOCK' => Supply::whereRaw('(SELECT COALESCE(SUM(current_stock - reserved_stock), 0) FROM supply_stocks WHERE supply_stocks.supply_id = supplies.id) <= 0')->count(),
                 ],
                 'categories' => Supply::query()
@@ -134,7 +135,7 @@ class SupplyController extends Controller
         ]);
     }
 
-    public function search(Request $request): \Illuminate\Http\JsonResponse
+    public function search(Request $request): JsonResponse
     {
         $q = trim((string) $request->input('q', ''));
 
@@ -142,12 +143,11 @@ class SupplyController extends Controller
             return response()->json([]);
         }
 
-        $like = '%' . mb_strtolower($q) . '%';
+        $like = '%'.mb_strtolower($q).'%';
         $hits = Supply::where('is_active', true)
             ->whereNull('deleted_at')
-            ->where(fn ($query) =>
-                $query->whereRaw('LOWER(sku) LIKE ?', [$like])
-                      ->orWhereRaw('LOWER(name) LIKE ?', [$like])
+            ->where(fn ($query) => $query->whereRaw('LOWER(sku) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(name) LIKE ?', [$like])
             )
             ->orderBy('name')
             ->limit(6)
@@ -160,10 +160,9 @@ class SupplyController extends Controller
     {
         $query = Supply::query()
             ->with(['uom:id,name,abbreviation', 'stocks'])
-            ->when($request->search, fn ($q, $v) => $q->where(fn ($inner) =>
-                $inner->where('sku', 'like', "%{$v}%")->orWhere('name', 'like', "%{$v}%")
+            ->when($request->search, fn ($q, $v) => $q->where(fn ($inner) => $inner->where('sku', 'like', "%{$v}%")->orWhere('name', 'like', "%{$v}%")
             ))
-            ->when($request->status === 'active',   fn ($q) => $q->where('is_active', true))
+            ->when($request->status === 'active', fn ($q) => $q->where('is_active', true))
             ->when($request->status === 'inactive', fn ($q) => $q->where('is_active', false))
             ->when($request->stock_category && $request->stock_category !== 'all',
                 fn ($q, $v) => $q->where('stock_category', $v))
@@ -173,7 +172,7 @@ class SupplyController extends Controller
                 fn ($q, $v) => $q->where('stock_status', $v))
             ->orderBy('name');
 
-        $filename = 'materials-' . now()->format('Ymd-His') . '.csv';
+        $filename = 'materials-'.now()->format('Ymd-His').'.csv';
 
         return response()->streamDownload(function () use ($query): void {
             $out = fopen('php://output', 'w');
@@ -186,10 +185,10 @@ class SupplyController extends Controller
 
             $query->chunk(500, function ($supplies) use ($out): void {
                 foreach ($supplies as $s) {
-                    $totalStock    = $s->stocks->sum('current_stock');
+                    $totalStock = $s->stocks->sum('current_stock');
                     $reservedStock = $s->stocks->sum('reserved_stock');
-                    $available     = max(0, $totalStock - $reservedStock);
-                    $stockValue    = $available * (float) $s->cost_price;
+                    $available = max(0, $totalStock - $reservedStock);
+                    $stockValue = $available * (float) $s->cost_price;
 
                     fputcsv($out, [
                         $s->sku,
@@ -214,12 +213,12 @@ class SupplyController extends Controller
         ]);
     }
 
-    public function summary(Supply $supply): \Illuminate\Http\JsonResponse
+    public function summary(Supply $supply): JsonResponse
     {
         $supply->load(['uom:id,name,abbreviation', 'stocks.warehouse:id,name,code']);
 
-        $totalStock     = $supply->stocks->sum('current_stock');
-        $reservedStock  = $supply->stocks->sum('reserved_stock');
+        $totalStock = $supply->stocks->sum('current_stock');
+        $reservedStock = $supply->stocks->sum('reserved_stock');
         $availableStock = max(0, $totalStock - $reservedStock);
 
         $movements = DB::table('supply_movements as sm')
@@ -235,45 +234,45 @@ class SupplyController extends Controller
             ->limit(10)
             ->get()
             ->map(fn ($m) => [
-                'id'             => $m->id,
-                'type'           => $m->type,
-                'quantity'       => (int) $m->quantity,
-                'notes'          => $m->notes,
-                'created_at'     => $m->created_at,
+                'id' => $m->id,
+                'type' => $m->type,
+                'quantity' => (int) $m->quantity,
+                'notes' => $m->notes,
+                'created_at' => $m->created_at,
                 'warehouse_name' => $m->warehouse_name,
                 'performer_name' => $m->performer_name,
             ]);
 
         return response()->json([
             'supply' => [
-                'id'             => $supply->id,
-                'sku'            => $supply->sku,
-                'name'           => $supply->name,
-                'category'       => $supply->category,
-                'section'        => $supply->section,
+                'id' => $supply->id,
+                'sku' => $supply->sku,
+                'name' => $supply->name,
+                'category' => $supply->category,
+                'section' => $supply->section,
                 'stock_category' => $supply->stock_category,
-                'opex_category'  => $supply->opex_category,
-                'cost_price'     => $supply->cost_price,
-                'reorder_point'  => $supply->reorder_point,
-                'stock_status'   => $supply->stock_status,
-                'is_active'      => $supply->is_active,
-                'uom'            => $supply->uom,
-                'description'    => $supply->description,
+                'opex_category' => $supply->opex_category,
+                'cost_price' => $supply->cost_price,
+                'reorder_point' => $supply->reorder_point,
+                'stock_status' => $supply->stock_status,
+                'is_active' => $supply->is_active,
+                'uom' => $supply->uom,
+                'description' => $supply->description,
             ],
             'stocks' => $supply->stocks->map(fn ($s) => [
-                'id'             => $s->id,
+                'id' => $s->id,
                 'warehouse_name' => $s->warehouse?->name,
                 'warehouse_code' => $s->warehouse?->code,
-                'current_stock'  => (int) $s->current_stock,
+                'current_stock' => (int) $s->current_stock,
                 'reserved_stock' => (int) $s->reserved_stock,
-                'available'      => max(0, (int) $s->current_stock - (int) $s->reserved_stock),
-                'reorder_point'  => (int) $s->reorder_point,
+                'available' => max(0, (int) $s->current_stock - (int) $s->reserved_stock),
+                'reorder_point' => (int) $s->reorder_point,
             ]),
             'kpi' => [
-                'total_stock'     => (int) $totalStock,
-                'reserved_stock'  => (int) $reservedStock,
+                'total_stock' => (int) $totalStock,
+                'reserved_stock' => (int) $reservedStock,
                 'available_stock' => $availableStock,
-                'reorder_point'   => (int) $supply->reorder_point,
+                'reorder_point' => (int) $supply->reorder_point,
             ],
             'recent_movements' => $movements,
         ]);
@@ -320,12 +319,12 @@ class SupplyController extends Controller
 
             if ($initialStock > 0 || $warehouseId !== null) {
                 SupplyStock::create([
-                    'supply_id'       => $supply->id,
-                    'warehouse_id'    => $warehouseId,
-                    'location_id'     => null,
-                    'current_stock'   => $initialStock,
-                    'reserved_stock'  => 0,
-                    'reorder_point'   => $supply->reorder_point,
+                    'supply_id' => $supply->id,
+                    'warehouse_id' => $warehouseId,
+                    'location_id' => null,
+                    'current_stock' => $initialStock,
+                    'reserved_stock' => 0,
+                    'reorder_point' => $supply->reorder_point,
                     'last_restock_at' => $initialStock > 0 ? now() : null,
                     'last_movement_at' => $initialStock > 0 ? now() : null,
                 ]);
@@ -371,11 +370,11 @@ class SupplyController extends Controller
     public function updateStatus(Request $request, Supply $supply): RedirectResponse
     {
         $data = $request->validate([
-            'stock_status'          => ['required', 'in:MOVING,NON_MOVING,DEAD'],
+            'stock_status' => ['required', 'in:MOVING,NON_MOVING,DEAD'],
             'stock_status_override' => ['required', 'boolean'],
         ]);
 
-        $supply->stock_status          = $data['stock_status'];
+        $supply->stock_status = $data['stock_status'];
         $supply->stock_status_override = $data['stock_status_override'];
         $supply->save();
 
@@ -392,10 +391,10 @@ class SupplyController extends Controller
     public function adjustStock(Request $request, Supply $supply): RedirectResponse
     {
         $data = $request->validate([
-            'type'         => ['required', 'in:stock_in,stock_out,adjustment'],
-            'quantity'     => ['required', 'integer', 'min:0'],
+            'type' => ['required', 'in:stock_in,stock_out,adjustment'],
+            'quantity' => ['required', 'integer', 'min:0'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
-            'notes'        => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         if (in_array($data['type'], ['stock_in', 'stock_out']) && (int) $data['quantity'] < 1) {
@@ -460,28 +459,29 @@ class SupplyController extends Controller
         $id = $supply?->id;
 
         return $request->validate([
-            'sku'                  => ['required', 'string', 'max:60', 'unique:supplies,sku,' . ($id ?? 'NULL')],
-            'name'                 => ['required', 'string', 'max:255'],
-            'category'             => ['nullable', 'string', 'max:100'],
-            'section'              => ['nullable', 'in:STOCK,OPEX'],
-            'stock_category'       => ['nullable', 'in:RAW_MATERIAL,PRODUCTION_MATERIAL,MERCHANDISE,RD_SUPPLY'],
-            'opex_category'        => ['nullable', 'in:OFFICE_SUPPLY,CLEANING_MATERIAL'],
-            'stock_status'         => ['nullable', 'in:MOVING,NON_MOVING,DEAD'],
+            'sku' => ['required', 'string', 'max:60', 'unique:supplies,sku,'.($id ?? 'NULL')],
+            'name' => ['required', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'section' => ['nullable', 'in:STOCK,OPEX'],
+            'stock_category' => ['nullable', 'in:RAW_MATERIAL,PRODUCTION_MATERIAL,MERCHANDISE,RD_SUPPLY'],
+            'opex_category' => ['nullable', 'in:OFFICE_SUPPLY,CLEANING_MATERIAL'],
+            'stock_status' => ['nullable', 'in:MOVING,NON_MOVING,DEAD'],
             'stock_status_override' => ['boolean'],
-            'uom_id'               => ['nullable', 'integer', 'exists:units_of_measure,id'],
-            'cost_price'           => ['required', 'numeric', 'min:0'],
-            'min_stock_level'      => ['nullable', 'integer', 'min:0'],
-            'reorder_point'        => ['nullable', 'integer', 'min:0'],
-            'description'          => ['nullable', 'string'],
-            'is_active'            => ['boolean'],
+            'uom_id' => ['nullable', 'integer', 'exists:units_of_measure,id'],
+            'cost_price' => ['required', 'numeric', 'min:0'],
+            'min_stock_level' => ['nullable', 'integer', 'min:0'],
+            'reorder_point' => ['nullable', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
         ]);
     }
 
     private function normaliseCategory(array $data): array
     {
-        if (!empty($data['category'])) {
+        if (! empty($data['category'])) {
             $data['category'] = ucwords(strtolower(trim($data['category'])));
         }
+
         return $data;
     }
 

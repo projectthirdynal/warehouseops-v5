@@ -8,7 +8,6 @@ use App\Domain\Shop\Models\Conversation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-
 class ReplyTemplateUsage extends Model
 {
     public $timestamps = false;

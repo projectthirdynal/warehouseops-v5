@@ -12,7 +12,7 @@ class ApprovalService
 {
     public function getApprovers(string $type): Collection
     {
-        $rolesKey  = "{$type}_approver_roles";
+        $rolesKey = "{$type}_approver_roles";
         $userIdKey = "{$type}_approver_user_id";
 
         $settings = DB::table('approval_settings')

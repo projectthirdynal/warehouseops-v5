@@ -11,14 +11,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('uploads', function (Blueprint $table) {
-            if (!Schema::hasColumn('uploads', 'retry_count')) {
+            if (! Schema::hasColumn('uploads', 'retry_count')) {
                 $table->integer('retry_count')->default(0)->after('error_rows');
             }
-            if (!Schema::hasColumn('uploads', 'retry_of')) {
+            if (! Schema::hasColumn('uploads', 'retry_of')) {
                 $table->foreignId('retry_of')->nullable()->after('retry_count')
                     ->constrained('uploads')->nullOnDelete();
             }
-            if (!Schema::hasColumn('uploads', 'retry_status')) {
+            if (! Schema::hasColumn('uploads', 'retry_status')) {
                 $table->string('retry_status')->nullable()->after('retry_of');
             }
         });

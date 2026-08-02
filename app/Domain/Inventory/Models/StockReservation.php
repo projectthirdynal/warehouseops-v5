@@ -18,9 +18,9 @@ class StockReservation extends Model
     ];
 
     protected $casts = [
-        'quantity'    => 'integer',
+        'quantity' => 'integer',
         'reserved_at' => 'datetime',
-        'expires_at'  => 'datetime',
+        'expires_at' => 'datetime',
         'released_at' => 'datetime',
     ];
 

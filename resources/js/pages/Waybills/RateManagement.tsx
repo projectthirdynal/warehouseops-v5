@@ -21,7 +21,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react';
 
 interface Provider {
@@ -269,6 +275,11 @@ export default function RateManagement({ rates, providers }: Props) {
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle>{editingRate ? 'Edit Rate' : 'Add New Rate'}</DialogTitle>
+              <DialogDescription>
+                {editingRate
+                  ? 'Update the shipping rate details below.'
+                  : 'Add a new courier shipping rate.'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSave} className="space-y-4">
               <div>

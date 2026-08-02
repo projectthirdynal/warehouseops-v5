@@ -34,7 +34,7 @@ export default function ActivityFeed({ logs }: Props) {
             </div>
           ) : (
             <div className="divide-y">
-              {logs.map(log => {
+              {logs.map((log) => {
                 const iconName = ACTION_ICONS[log.action] ?? 'Activity';
                 const Icon = ICON_MAP[iconName] ?? Activity;
                 const label = ACTION_LABELS[log.action] ?? log.action;
@@ -45,8 +45,7 @@ export default function ActivityFeed({ logs }: Props) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">
-                        <span className="font-medium">{log.user?.name ?? 'System'}</span>
-                        {' '}
+                        <span className="font-medium">{log.user?.name ?? 'System'}</span>{' '}
                         <span className="text-muted-foreground">{label}</span>
                       </p>
                       {log.metadata && (

@@ -12,9 +12,8 @@ class ShippingRateService
     /**
      * Calculate shipping fee for a given address and courier.
      *
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $addressInput
-     * @param string $courierCode
-     * @param array{quantity?: int, weight?: float} $options
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string}  $addressInput
+     * @param  array{quantity?: int, weight?: float}  $options
      * @return array{fee: float, zone: ?string, rate: ?ShippingRate, has_rate: bool}
      */
     public function calculate(array $addressInput, string $courierCode = 'MANUAL', array $options = []): array
@@ -59,7 +58,7 @@ class ShippingRateService
     /**
      * Resolve the courier zone from address input via AddressMapping.
      *
-     * @param array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string} $input
+     * @param  array{province?: ?string, city_municipality?: ?string, barangay?: ?string, address?: ?string}  $input
      */
     private function resolveZone(array $input): ?string
     {

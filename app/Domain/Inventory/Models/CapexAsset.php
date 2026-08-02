@@ -15,16 +15,18 @@ class CapexAsset extends Model
     use SoftDeletes;
 
     public const CATEGORIES = [
-        'EQUIPMENT'              => 'Equipment',
-        'FURNITURE'              => 'Furniture & Fixtures',
-        'VEHICLE'                => 'Vehicle',
-        'IT_HARDWARE'            => 'IT Hardware',
-        'LEASEHOLD_IMPROVEMENT'  => 'Leasehold Improvement',
-        'OTHER'                  => 'Other',
+        'EQUIPMENT' => 'Equipment',
+        'FURNITURE' => 'Furniture & Fixtures',
+        'VEHICLE' => 'Vehicle',
+        'IT_HARDWARE' => 'IT Hardware',
+        'LEASEHOLD_IMPROVEMENT' => 'Leasehold Improvement',
+        'OTHER' => 'Other',
     ];
 
-    public const STATUS_ACTIVE      = 'ACTIVE';
-    public const STATUS_DISPOSED    = 'DISPOSED';
+    public const STATUS_ACTIVE = 'ACTIVE';
+
+    public const STATUS_DISPOSED = 'DISPOSED';
+
     public const STATUS_UNDER_REPAIR = 'UNDER_REPAIR';
 
     protected $table = 'capex_assets';
@@ -40,14 +42,14 @@ class CapexAsset extends Model
     ];
 
     protected $casts = [
-        'acquisition_cost'    => 'decimal:4',
-        'salvage_value'       => 'decimal:4',
-        'current_book_value'  => 'decimal:4',
-        'disposal_value'      => 'decimal:4',
-        'depreciation_years'  => 'integer',
-        'quantity'            => 'integer',
-        'purchase_date'       => 'date',
-        'disposed_at'         => 'datetime',
+        'acquisition_cost' => 'decimal:4',
+        'salvage_value' => 'decimal:4',
+        'current_book_value' => 'decimal:4',
+        'disposal_value' => 'decimal:4',
+        'depreciation_years' => 'integer',
+        'quantity' => 'integer',
+        'purchase_date' => 'date',
+        'disposed_at' => 'datetime',
     ];
 
     public function depreciationSchedule(): HasMany

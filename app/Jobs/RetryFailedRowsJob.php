@@ -20,7 +20,9 @@ class RetryFailedRowsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
+
     public int $timeout = 3600;
+
     public bool $failOnTimeout = true;
 
     public function __construct(
@@ -35,7 +37,7 @@ class RetryFailedRowsJob implements ShouldQueue
         ini_set('memory_limit', '1024M');
 
         $upload = Upload::find($this->uploadId);
-        if (!$upload) {
+        if (! $upload) {
             return;
         }
 
@@ -53,9 +55,10 @@ class RetryFailedRowsJob implements ShouldQueue
             return;
         }
 
-        $filePath = Storage::disk('local')->path('uploads/waybills/' . $upload->filename);
-        if (!file_exists($filePath)) {
+        $filePath = Storage::disk('local')->path('uploads/waybills/'.$upload->filename);
+        if (! file_exists($filePath)) {
             $upload->update(['retry_status' => 'failed_no_file']);
+
             return;
         }
 
@@ -69,6 +72,7 @@ class RetryFailedRowsJob implements ShouldQueue
 
             if (empty($failedRows)) {
                 $upload->update(['retry_status' => 'completed_no_rows']);
+
                 return;
             }
 
@@ -96,9 +100,10 @@ class RetryFailedRowsJob implements ShouldQueue
                 }
             }
 
-            $remainingErrors = array_filter($errors, function ($e) use ($failedRowNumbers) {
+            $remainingErrors = array_filter($errors, function ($e) {
                 $r = $e['row'] ?? null;
-                return !is_numeric($r) || !in_array((int) $r, array_keys($failedRows));
+
+                return ! is_numeric($r) || ! in_array((int) $r, array_keys($failedRows));
             });
 
             $upload->update([
@@ -137,6 +142,7 @@ class RetryFailedRowsJob implements ShouldQueue
     {
         $reflection = new \ReflectionMethod($import, 'mapRow');
         $reflection->setAccessible(true);
+
         return $reflection->invoke($import, $row, $now);
     }
 

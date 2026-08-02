@@ -39,8 +39,8 @@ class SalesTrackingController extends Controller
             ? round(($totalSales / $totalLeadsInPeriod) * 100, 1)
             : 0.0;
 
-        $days       = max((int) $from->diffInDays($to), 1);
-        $avgPerDay  = $days > 0 ? round($totalSales / $days, 1) : 0.0;
+        $days = max((int) $from->diffInDays($to), 1);
+        $avgPerDay = $days > 0 ? round($totalSales / $days, 1) : 0.0;
 
         $topAgentRow = (clone $base)
             ->join('users', 'leads.assigned_to', '=', 'users.id')
@@ -50,20 +50,20 @@ class SalesTrackingController extends Controller
             ->first();
 
         $stats = [
-            'total_sales'     => $totalSales,
+            'total_sales' => $totalSales,
             'conversion_rate' => $conversionRate,
-            'avg_per_day'     => $avgPerDay,
-            'top_agent'       => $topAgentRow?->name ?? 'N/A',
+            'avg_per_day' => $avgPerDay,
+            'top_agent' => $topAgentRow?->name ?? 'N/A',
         ];
 
         // ── Daily trend (line chart) ─────────────────────────────────────────
         $dailyTrend = (clone $base)
-            ->selectRaw("DATE(updated_at) AS date, COUNT(*) AS count")
+            ->selectRaw('DATE(updated_at) AS date, COUNT(*) AS count')
             ->groupBy('date')
             ->orderBy('date')
             ->get()
             ->map(fn ($r) => [
-                'date'  => Carbon::parse($r->date)->format('M d'),
+                'date' => Carbon::parse($r->date)->format('M d'),
                 'count' => (int) $r->count,
             ])
             ->toArray();
@@ -101,19 +101,19 @@ class SalesTrackingController extends Controller
             ->toArray();
 
         return Inertia::render('Sales/Index', [
-            'stats'      => $stats,
+            'stats' => $stats,
             'dailyTrend' => $dailyTrend,
             'agentSales' => $agentSales,
             'funnelData' => $funnelData,
             'salesLeads' => $salesLeads,
-            'agents'     => $agents,
-            'filters'    => [
-                'from'   => $from->toDateString(),
-                'to'     => $to->toDateString(),
+            'agents' => $agents,
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
                 'search' => $request->input('search', ''),
-                'agent'  => $request->input('agent', ''),
-                'sort'   => $request->input('sort', 'updated_at'),
-                'dir'    => $request->input('dir', 'desc'),
+                'agent' => $request->input('agent', ''),
+                'sort' => $request->input('sort', 'updated_at'),
+                'dir' => $request->input('dir', 'desc'),
             ],
         ]);
     }
@@ -123,7 +123,7 @@ class SalesTrackingController extends Controller
     private function dateRange(Request $request): array
     {
         $from = Carbon::parse($request->input('from', now()->startOfMonth()->toDateString()))->startOfDay();
-        $to   = Carbon::parse($request->input('to',   now()->toDateString()))->endOfDay();
+        $to = Carbon::parse($request->input('to', now()->toDateString()))->endOfDay();
 
         // Guard: clamp range to 366 days max
         if ($from->diffInDays($to) > 366) {
@@ -163,14 +163,14 @@ class SalesTrackingController extends Controller
             ->paginate(20)
             ->withQueryString()
             ->through(fn ($lead) => [
-                'id'           => $lead->id,
-                'name'         => $lead->name,
-                'phone'        => $lead->phone,
+                'id' => $lead->id,
+                'name' => $lead->name,
+                'phone' => $lead->phone,
                 'product_name' => $lead->product_name,
-                'amount'       => $lead->amount,
+                'amount' => $lead->amount,
                 'sales_status' => $lead->sales_status,
-                'agent_name'   => $lead->assignedAgent?->name,
-                'updated_at'   => $lead->updated_at->toDateTimeString(),
+                'agent_name' => $lead->assignedAgent?->name,
+                'updated_at' => $lead->updated_at->toDateTimeString(),
             ]);
     }
 }

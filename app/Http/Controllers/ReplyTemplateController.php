@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\FacebookPage;
 use App\Models\ReplyTemplate;
 use App\Models\ReplyTemplateAbTest;
 use App\Models\ReplyTemplateAbVariant;
@@ -38,7 +38,7 @@ class ReplyTemplateController extends Controller
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
                     $sub->whereNull('allowed_roles')
-                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                        ->orWhere('allowed_roles', 'like', '%"'.$userRole.'"%');
                 });
             })
             ->when($request->query('search'), function ($q, $search) {
@@ -172,7 +172,7 @@ class ReplyTemplateController extends Controller
             'shared_page_ids' => 'nullable|array',
             'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'boolean',
-            'language' => 'nullable|string|max:8|in:' . implode(',', array_keys(ReplyTemplate::LANGUAGES)),
+            'language' => 'nullable|string|max:8|in:'.implode(',', array_keys(ReplyTemplate::LANGUAGES)),
         ]);
 
         $validated['created_by'] = $request->user()->id;
@@ -198,7 +198,7 @@ class ReplyTemplateController extends Controller
 
         $template = ReplyTemplate::create($validated);
 
-        if (!empty($sharedPageIds)) {
+        if (! empty($sharedPageIds)) {
             $template->sharedPages()->sync($sharedPageIds);
         }
 
@@ -224,12 +224,12 @@ class ReplyTemplateController extends Controller
             'intent' => 'sometimes|nullable|string|max:100',
             'allowed_roles' => 'sometimes|nullable|array',
             'allowed_roles.*' => 'string|in:admin,supervisor,agent',
-            'shortcut' => 'sometimes|nullable|string|max:50|unique:reply_templates,shortcut,' . $id,
+            'shortcut' => 'sometimes|nullable|string|max:50|unique:reply_templates,shortcut,'.$id,
             'facebook_page_id' => 'sometimes|nullable|exists:facebook_pages,id',
             'shared_page_ids' => 'sometimes|nullable|array',
             'shared_page_ids.*' => 'integer|exists:facebook_pages,id',
             'is_active' => 'sometimes|boolean',
-            'language' => 'sometimes|nullable|string|max:8|in:' . implode(',', array_keys(ReplyTemplate::LANGUAGES)),
+            'language' => 'sometimes|nullable|string|max:8|in:'.implode(',', array_keys(ReplyTemplate::LANGUAGES)),
         ]);
 
         $sharedPageIds = null;
@@ -303,7 +303,7 @@ class ReplyTemplateController extends Controller
     public function toggle(int $id): JsonResponse
     {
         $template = ReplyTemplate::findOrFail($id);
-        $template->update(['is_active' => !$template->is_active]);
+        $template->update(['is_active' => ! $template->is_active]);
 
         return response()->json([
             'success' => true,
@@ -331,7 +331,7 @@ class ReplyTemplateController extends Controller
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
                     $sub->whereNull('allowed_roles')
-                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                        ->orWhere('allowed_roles', 'like', '%"'.$userRole.'"%');
                 });
             })
             ->when($request->query('page_id'), function ($q, $pageId) {
@@ -448,10 +448,12 @@ class ReplyTemplateController extends Controller
         $dailySeries = collect(range(0, 29))
             ->map(function ($daysAgo) use ($startOfLast30) {
                 $date = $startOfLast30->copy()->addDays($daysAgo)->format('Y-m-d');
+
                 return ['date' => $date, 'count' => 0];
             })
             ->map(function ($item) use ($last30Days) {
                 $item['count'] = $last30Days[$item['date']] ?? 0;
+
                 return $item;
             })
             ->values();
@@ -629,7 +631,7 @@ class ReplyTemplateController extends Controller
             ->when($userRole && $userRole !== 'superadmin' && $userRole !== 'admin', function ($q) use ($userRole) {
                 $q->where(function ($sub) use ($userRole) {
                     $sub->whereNull('allowed_roles')
-                        ->orWhere('allowed_roles', 'like', '%"' . $userRole . '"%');
+                        ->orWhere('allowed_roles', 'like', '%"'.$userRole.'"%');
                 });
             })
             ->when($userId, function ($q) use ($userId) {
@@ -693,7 +695,7 @@ class ReplyTemplateController extends Controller
         $statusIntentScores = $intentScores[$convStatus] ?? [];
 
         // Score each template
-        $scored = $templates->map(function (ReplyTemplate $template) use ($statusIntentScores, $detectedIntents, $lastMessage, $hasOrder, $userId) {
+        $scored = $templates->map(function (ReplyTemplate $template) use ($statusIntentScores, $detectedIntents, $lastMessage, $hasOrder) {
             $score = 0;
             $reasons = [];
 
@@ -718,7 +720,7 @@ class ReplyTemplateController extends Controller
             if ($overlap > 0) {
                 $score += min($overlap, 3);
                 if ($overlap >= 2) {
-                    $reasons[] = "Content overlaps with customer message";
+                    $reasons[] = 'Content overlaps with customer message';
                 }
             }
 
@@ -734,19 +736,19 @@ class ReplyTemplateController extends Controller
             // 5. Favorite boost
             if ($template->is_favorited ?? false) {
                 $score += 1;
-                $reasons[] = "In your favorites";
+                $reasons[] = 'In your favorites';
             }
 
             // 6. Order-related templates get boost if customer has orders
             if ($hasOrder && in_array($template->intent, ['order_confirmation', 'shipping_update', 'payment_reminder'])) {
                 $score += 1;
-                $reasons[] = "Customer has order history";
+                $reasons[] = 'Customer has order history';
             }
 
             // 7. Greeting boost for new conversations with no agent replies yet
             if ($template->intent === 'greeting' && empty($lastMessage)) {
                 $score += 2;
-                $reasons[] = "Good opening message";
+                $reasons[] = 'Good opening message';
             }
 
             return [
@@ -765,10 +767,10 @@ class ReplyTemplateController extends Controller
                 'suggestion_reasons' => array_slice($reasons, 0, 3),
             ];
         })
-        ->filter(fn ($t) => $t['suggestion_score'] > 0)
-        ->sortByDesc('suggestion_score')
-        ->take(5)
-        ->values();
+            ->filter(fn ($t) => $t['suggestion_score'] > 0)
+            ->sortByDesc('suggestion_score')
+            ->take(5)
+            ->values();
 
         // Check for active A/B tests — serve variants alongside scored suggestions
         $abTestVariants = [];
@@ -784,12 +786,12 @@ class ReplyTemplateController extends Controller
 
         foreach ($activeTests as $test) {
             $variant = $test->selectVariant();
-            if (!$variant || !$variant->replyTemplate) {
+            if (! $variant || ! $variant->replyTemplate) {
                 continue;
             }
 
             $template = $variant->replyTemplate;
-            if (!$template->is_active) {
+            if (! $template->is_active) {
                 continue;
             }
             if ($template->approval_status && $template->approval_status !== ReplyTemplate::APPROVAL_APPROVED) {
@@ -799,13 +801,13 @@ class ReplyTemplateController extends Controller
             $availableForPage = $template->facebook_page_id === $pageId
                 || $template->facebook_page_id === null
                 || $template->sharedPages()->where('facebook_page_id', $pageId)->exists();
-            if (!$availableForPage) {
+            if (! $availableForPage) {
                 continue;
             }
 
             if ($userRole && $userRole !== 'superadmin' && $userRole !== 'admin') {
                 $allowed = $template->allowed_roles;
-                if ($allowed !== null && !in_array($userRole, $allowed)) {
+                if ($allowed !== null && ! in_array($userRole, $allowed)) {
                     continue;
                 }
             }
@@ -860,7 +862,7 @@ class ReplyTemplateController extends Controller
 
         return response()->json([
             'success' => true,
-            'is_favorited' => !$isFavorited,
+            'is_favorited' => ! $isFavorited,
         ]);
     }
 
@@ -987,7 +989,7 @@ class ReplyTemplateController extends Controller
         $version = $template->versions()->findOrFail($versionId);
 
         // Snapshot current state before restoring
-        $this->createVersionSnapshot($template, $request->user()?->id, 'Restored to version ' . $version->version_number);
+        $this->createVersionSnapshot($template, $request->user()?->id, 'Restored to version '.$version->version_number);
 
         $template->update([
             'title' => $version->title,
@@ -1089,7 +1091,7 @@ class ReplyTemplateController extends Controller
             'description' => 'nullable|string|max:1000',
             'template_ids' => 'required|array|min:2|max:4',
             'template_ids.*' => 'required|integer|exists:reply_templates,id',
-            'weights' => 'nullable|array|size:' . count($request->input('template_ids', [])),
+            'weights' => 'nullable|array|size:'.count($request->input('template_ids', [])),
             'weights.*' => 'nullable|integer|min:1|max:100',
             'start_at' => 'nullable|date',
             'end_at' => 'nullable|date|after_or_equal:start_at',
@@ -1140,7 +1142,7 @@ class ReplyTemplateController extends Controller
         $test = ReplyTemplateAbTest::findOrFail($id);
         $test->status = $validated['status'];
 
-        if ($validated['status'] === ReplyTemplateAbTest::STATUS_ACTIVE && !$test->start_at) {
+        if ($validated['status'] === ReplyTemplateAbTest::STATUS_ACTIVE && ! $test->start_at) {
             $test->start_at = now();
         }
 
@@ -1229,7 +1231,7 @@ class ReplyTemplateController extends Controller
 
         $variant->increment('uses');
 
-        if (!empty($validated['resolved'])) {
+        if (! empty($validated['resolved'])) {
             $variant->increment('conversations_resolved');
         }
 
@@ -1266,12 +1268,12 @@ class ReplyTemplateController extends Controller
         $servedVariants = [];
         foreach ($activeTests as $test) {
             $variant = $test->selectVariant();
-            if (!$variant || !$variant->replyTemplate) {
+            if (! $variant || ! $variant->replyTemplate) {
                 continue;
             }
 
             $template = $variant->replyTemplate;
-            if (!$template->is_active) {
+            if (! $template->is_active) {
                 continue;
             }
 
@@ -1282,13 +1284,13 @@ class ReplyTemplateController extends Controller
             $availableForPage = $template->facebook_page_id === $pageId
                 || $template->facebook_page_id === null
                 || $template->sharedPages()->where('facebook_page_id', $pageId)->exists();
-            if (!$availableForPage) {
+            if (! $availableForPage) {
                 continue;
             }
 
             if ($userRole && $userRole !== 'superadmin' && $userRole !== 'admin') {
                 $allowed = $template->allowed_roles;
-                if ($allowed !== null && !in_array($userRole, $allowed)) {
+                if ($allowed !== null && ! in_array($userRole, $allowed)) {
                     continue;
                 }
             }
@@ -1331,7 +1333,7 @@ class ReplyTemplateController extends Controller
         $test = ReplyTemplateAbTest::with('variants')->findOrFail($id);
 
         $winningVariantId = $validated['winning_variant_id'] ?? null;
-        if (!$winningVariantId) {
+        if (! $winningVariantId) {
             $best = $test->variants->sortByDesc(fn ($v) => $v->resolutionRate())->first();
             $winningVariantId = $best?->id;
         }

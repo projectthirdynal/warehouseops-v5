@@ -17,10 +17,10 @@ class CourierServiceManager
         $normalized = strtoupper(str_replace('&', '', $code)); // J&T → JT
 
         return match ($normalized) {
-            'FLASH'       => app(FlashExpressService::class),
-            'JNT', 'JT'  => app(JntExpressService::class),
-            'MOCK'        => app(MockCourierService::class),
-            default       => throw new \InvalidArgumentException("Unknown courier: {$code}"),
+            'FLASH' => app(FlashExpressService::class),
+            'JNT', 'JT' => app(JntExpressService::class),
+            'MOCK' => app(MockCourierService::class),
+            default => throw new \InvalidArgumentException("Unknown courier: {$code}"),
         };
     }
 

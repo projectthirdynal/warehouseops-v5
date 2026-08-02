@@ -15,7 +15,7 @@ class FinanceSetting extends Model
     ];
 
     protected $casts = [
-        'value'     => 'array',
+        'value' => 'array',
         'locked_at' => 'datetime',
     ];
 
@@ -27,6 +27,7 @@ class FinanceSetting extends Model
     public static function getValue(string $key): ?array
     {
         $row = self::where('key', $key)->first();
+
         return $row?->value;
     }
 
@@ -34,9 +35,9 @@ class FinanceSetting extends Model
     {
         $row = self::where('key', $key)->first();
         if ($row && $row->locked_at === null) {
-            $row->locked_at                 = now();
-            $row->locked_by                 = $userId;
-            $row->locked_trigger_reference  = $reference;
+            $row->locked_at = now();
+            $row->locked_by = $userId;
+            $row->locked_trigger_reference = $reference;
             $row->save();
         }
     }

@@ -46,7 +46,7 @@ class RemarkMentionedNotification extends Notification implements ShouldQueue
     private function truncate(string $text, int $limit): string
     {
         return mb_strlen($text) > $limit
-            ? mb_substr($text, 0, $limit) . '...'
+            ? mb_substr($text, 0, $limit).'...'
             : $text;
     }
 }

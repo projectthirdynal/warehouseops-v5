@@ -6,6 +6,7 @@ namespace App\Domain\Waybill\Models;
 
 use App\Domain\Lead\Models\Lead;
 use App\Domain\Waybill\Enums\WaybillStatus;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -64,7 +65,7 @@ class Waybill extends Model
 
     public function uploader(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'uploaded_by');
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 
     public function trackingHistory(): HasMany

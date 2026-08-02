@@ -2,16 +2,17 @@
 
 namespace Tests\Feature\Resources;
 
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Http\Resources\AgentLeadResource;
-use App\Domain\Lead\Models\Lead;
-use App\Models\User;
 use App\Domain\Customer\Models\Customer;
+use App\Domain\Lead\Enums\PoolStatus;
+use App\Domain\Lead\Models\Lead;
+use App\Http\Resources\AgentLeadResource;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
  * @group broken
+ *
  * @see Customer model does not exist yet
  */
 class AgentLeadResourceTest extends TestCase

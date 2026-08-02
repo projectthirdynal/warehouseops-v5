@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Storage;
 class ConversationArchiveService
 {
     public const DEFAULT_ARCHIVE_DAYS = 90;
+
     public const DEFAULT_COMPRESS_DAYS = 180;
+
     public const BATCH_SIZE = 50;
 
     public function archive(Conversation $conversation): array
@@ -128,7 +130,7 @@ class ConversationArchiveService
                 'messages_compressed' => $messages->count(),
                 'bytes_saved' => max(0, $dbBytes - $fileSize),
                 'archive_file' => $filename,
-                'message' => "Conversation #{$conversation->id} compressed ({$messages->count()} messages, " . number_format(max(0, $dbBytes - $fileSize)) . ' bytes saved).',
+                'message' => "Conversation #{$conversation->id} compressed ({$messages->count()} messages, ".number_format(max(0, $dbBytes - $fileSize)).' bytes saved).',
             ];
         });
     }
@@ -183,7 +185,6 @@ class ConversationArchiveService
 
         $data = json_decode($disk->get($filename), true);
         $messages = $data['messages'] ?? [];
-
         $restored = DB::transaction(function () use ($conversation, $messages) {
             $count = 0;
             foreach ($messages as $msgData) {

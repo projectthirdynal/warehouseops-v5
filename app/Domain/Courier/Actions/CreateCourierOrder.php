@@ -29,25 +29,25 @@ class CreateCourierOrder
 
         if ($result->success && $result->trackingNumber) {
             $waybill->update([
-                'waybill_number'  => $result->trackingNumber,
+                'waybill_number' => $result->trackingNumber,
                 'courier_provider' => $courierCode,
-                'status'          => WaybillStatus::DISPATCHED->value,
-                'dispatched_at'   => now(),
+                'status' => WaybillStatus::DISPATCHED->value,
+                'dispatched_at' => now(),
             ]);
 
             // Create tracking history entry
             $waybill->trackingHistory()->create([
-                'status'          => WaybillStatus::DISPATCHED->value,
+                'status' => WaybillStatus::DISPATCHED->value,
                 'previous_status' => WaybillStatus::PENDING->value,
-                'reason'          => "Order created via {$service->getCode()} API",
-                'raw_data'        => $result->rawResponse,
-                'tracked_at'      => now(),
+                'reason' => "Order created via {$service->getCode()} API",
+                'raw_data' => $result->rawResponse,
+                'tracked_at' => now(),
             ]);
 
-            Log::info("Courier order created", [
-                'courier'  => $courierCode,
+            Log::info('Courier order created', [
+                'courier' => $courierCode,
                 'tracking' => $result->trackingNumber,
-                'waybill'  => $waybill->id,
+                'waybill' => $waybill->id,
             ]);
         }
 

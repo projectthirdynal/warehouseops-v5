@@ -1,58 +1,60 @@
 <?php
 
+use App\Domain\Courier\Http\Controllers\CourierProviderController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ApprovalsController;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CapexAssetController;
+use App\Http\Controllers\ClaimController;
+use App\Http\Controllers\CostOfGoodsController;
+use App\Http\Controllers\CourierAnalyticsController;
 use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\SalesDashboardController;
-use App\Http\Controllers\DuplicateDetectionController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\WaybillController;
-use App\Http\Controllers\WaybillImportController;
-use App\Http\Controllers\LeadController;
-use App\Http\Controllers\AgentController;
-use App\Http\Controllers\ScannerController;
-use App\Http\Controllers\TicketController;
-use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\SmsController;
-use App\Http\Controllers\LeadPoolController;
-use App\Http\Controllers\LeadImportController;
-use App\Http\Controllers\DistributionController;
+use App\Http\Controllers\DeadStockController;
 use App\Http\Controllers\DistributionAnalyticsController;
-use App\Http\Controllers\TelesalesLeadImportController;
-use App\Domain\Courier\Http\Controllers\CourierProviderController;
-use App\Http\Controllers\AgentLeadController;
-use App\Http\Controllers\ClaimController;
-use App\Http\Controllers\ReturnReceiptController;
-use App\Http\Controllers\ReturnWorkflowController;
-use App\Http\Controllers\CourierAnalyticsController;
-use App\Http\Controllers\MockCourierController;
-use App\Http\Controllers\WaybillExportController;
-use App\Http\Controllers\UnknownWaybillController;
-use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\DistributionController;
+use App\Http\Controllers\DuplicateDetectionController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\InventoryDashboardController;
+use App\Http\Controllers\LeadController;
+use App\Http\Controllers\LeadImportController;
+use App\Http\Controllers\LeadPoolController;
+use App\Http\Controllers\MetaComplianceController;
+use App\Http\Controllers\MockCourierController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\PurchaseOrderController;
-use App\Http\Controllers\ReceivingReportController;
-use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\InventoryDashboardController;
-use App\Http\Controllers\SupplyController;
-use App\Http\Controllers\SalesTrackingController;
+use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\QuickBooksController;
-use App\Http\Controllers\CostOfGoodsController;
-use App\Http\Controllers\MetaComplianceController;
-use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ReceivingReportController;
+use App\Http\Controllers\RecyclingController;
 use App\Http\Controllers\ReplyTemplateController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReturnReceiptController;
+use App\Http\Controllers\ReturnWorkflowController;
+use App\Http\Controllers\SalesDashboardController;
+use App\Http\Controllers\SalesTrackingController;
+use App\Http\Controllers\ScannerController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShopController;
+use App\Http\Controllers\SmsController;
 use App\Http\Controllers\StockAdjustmentController;
-use App\Http\Controllers\CapexAssetController;
-use App\Http\Controllers\DeadStockController;
-use App\Http\Controllers\EmailVerificationController;
-use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplyController;
+use App\Http\Controllers\TelesalesLeadImportController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\UnknownWaybillController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WaybillController;
+use App\Http\Controllers\WaybillExportController;
+use App\Http\Controllers\WaybillImportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -192,40 +194,40 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accounting,finance'])->group(function () {
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/supplies',                  [SupplyController::class, 'index'])->name('supplies.index');
-        Route::post('/supplies',                 [SupplyController::class, 'store'])->name('supplies.store');
-        Route::get('/supplies/search',           [SupplyController::class, 'search'])->name('supplies.search');
-        Route::get('/supplies/export',           [SupplyController::class, 'export'])->name('supplies.export');
-        Route::get('/supplies/trash',            [SupplyController::class, 'trash'])->name('supplies.trash');
-        Route::put('/supplies/{supply}',         [SupplyController::class, 'update'])->name('supplies.update');
-        Route::delete('/supplies/{supply}',      [SupplyController::class, 'destroy'])->name('supplies.destroy');
-        Route::post('/supplies/{supply}/stock',  [SupplyController::class, 'adjustStock'])->name('supplies.stock.adjust');
-        Route::patch('/supplies/{supply}/status',[SupplyController::class, 'updateStatus'])->name('supplies.status.update');
+        Route::get('/supplies', [SupplyController::class, 'index'])->name('supplies.index');
+        Route::post('/supplies', [SupplyController::class, 'store'])->name('supplies.store');
+        Route::get('/supplies/search', [SupplyController::class, 'search'])->name('supplies.search');
+        Route::get('/supplies/export', [SupplyController::class, 'export'])->name('supplies.export');
+        Route::get('/supplies/trash', [SupplyController::class, 'trash'])->name('supplies.trash');
+        Route::put('/supplies/{supply}', [SupplyController::class, 'update'])->name('supplies.update');
+        Route::delete('/supplies/{supply}', [SupplyController::class, 'destroy'])->name('supplies.destroy');
+        Route::post('/supplies/{supply}/stock', [SupplyController::class, 'adjustStock'])->name('supplies.stock.adjust');
+        Route::patch('/supplies/{supply}/status', [SupplyController::class, 'updateStatus'])->name('supplies.status.update');
         Route::get('/supplies/{supply}/summary', [SupplyController::class, 'summary'])->name('supplies.summary');
-        Route::post('/supplies/{id}/restore',    [SupplyController::class, 'restore'])->name('supplies.restore');
+        Route::post('/supplies/{id}/restore', [SupplyController::class, 'restore'])->name('supplies.restore');
 
         Route::prefix('assets')->name('assets.')->group(function () {
-            Route::get('/',                             [CapexAssetController::class, 'index'])->name('index');
-            Route::get('/create',                       [CapexAssetController::class, 'create'])->name('create');
-            Route::post('/',                            [CapexAssetController::class, 'store'])->name('store');
-            Route::get('/{asset}',                      [CapexAssetController::class, 'show'])->name('show');
-            Route::get('/{asset}/edit',                 [CapexAssetController::class, 'edit'])->name('edit');
-            Route::put('/{asset}',                      [CapexAssetController::class, 'update'])->name('update');
-            Route::post('/{asset}/assign',              [CapexAssetController::class, 'assign'])->name('assign');
-            Route::post('/depreciation/{schedule}/post',[CapexAssetController::class, 'postDepreciation'])->name('depreciation.post');
-            Route::post('/{asset}/dispose',             [CapexAssetController::class, 'dispose'])->name('dispose');
+            Route::get('/', [CapexAssetController::class, 'index'])->name('index');
+            Route::get('/create', [CapexAssetController::class, 'create'])->name('create');
+            Route::post('/', [CapexAssetController::class, 'store'])->name('store');
+            Route::get('/{asset}', [CapexAssetController::class, 'show'])->name('show');
+            Route::get('/{asset}/edit', [CapexAssetController::class, 'edit'])->name('edit');
+            Route::put('/{asset}', [CapexAssetController::class, 'update'])->name('update');
+            Route::post('/{asset}/assign', [CapexAssetController::class, 'assign'])->name('assign');
+            Route::post('/depreciation/{schedule}/post', [CapexAssetController::class, 'postDepreciation'])->name('depreciation.post');
+            Route::post('/{asset}/dispose', [CapexAssetController::class, 'dispose'])->name('dispose');
         });
 
         Route::prefix('adjustments')->name('adjustments.')->group(function () {
-            Route::get('/',              [StockAdjustmentController::class, 'index'])->name('index');
-            Route::get('/report',        [StockAdjustmentController::class, 'report'])->name('report');
+            Route::get('/', [StockAdjustmentController::class, 'index'])->name('index');
+            Route::get('/report', [StockAdjustmentController::class, 'report'])->name('report');
             Route::get('/report/download', [StockAdjustmentController::class, 'downloadReport'])->name('report.download');
-            Route::post('/',             [StockAdjustmentController::class, 'store'])->name('store');
+            Route::post('/', [StockAdjustmentController::class, 'store'])->name('store');
             Route::post('/{id}/approve', [StockAdjustmentController::class, 'approve'])->name('approve');
-            Route::post('/{id}/reject',  [StockAdjustmentController::class, 'reject'])->name('reject');
+            Route::post('/{id}/reject', [StockAdjustmentController::class, 'reject'])->name('reject');
         });
 
-        Route::get('/dead-stock',  [DeadStockController::class, 'index'])->name('dead-stock.index');
+        Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
         Route::post('/dead-stock', [DeadStockController::class, 'store'])->name('dead-stock.store');
     });
 });
@@ -246,13 +248,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse'])->group
 
     // Warehouses + locations
     Route::prefix('warehouses')->name('warehouses.')->group(function () {
-        Route::get('/',                       [WarehouseController::class, 'index'])->name('index');
-        Route::post('/',                      [WarehouseController::class, 'store'])->name('store');
-        Route::put('/{warehouse}',            [WarehouseController::class, 'update'])->name('update');
-        Route::post('/{warehouse}/toggle',    [WarehouseController::class, 'toggleActive'])->name('toggle');
+        Route::get('/', [WarehouseController::class, 'index'])->name('index');
+        Route::post('/', [WarehouseController::class, 'store'])->name('store');
+        Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
+        Route::post('/{warehouse}/toggle', [WarehouseController::class, 'toggleActive'])->name('toggle');
         Route::post('/{warehouse}/locations', [WarehouseController::class, 'storeLocation'])->name('locations.store');
-        Route::put('/locations/{location}',   [WarehouseController::class, 'updateLocation'])->name('locations.update');
-        Route::delete('/locations/{location}',[WarehouseController::class, 'destroyLocation'])->name('locations.destroy');
+        Route::put('/locations/{location}', [WarehouseController::class, 'updateLocation'])->name('locations.update');
+        Route::delete('/locations/{location}', [WarehouseController::class, 'destroyLocation'])->name('locations.destroy');
     });
 
     // Procurement: suppliers, PR, PO, GRN
@@ -260,30 +262,30 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse'])->group
         Route::resource('suppliers', SupplierController::class)->except(['create', 'edit', 'show']);
 
         Route::prefix('requests')->name('requests.')->group(function () {
-            Route::get('/',                   [PurchaseRequestController::class, 'index'])->name('index');
-            Route::get('/create',             [PurchaseRequestController::class, 'create'])->name('create');
-            Route::post('/',                  [PurchaseRequestController::class, 'store'])->name('store');
-            Route::get('/{request}',          [PurchaseRequestController::class, 'show'])->name('show');
-            Route::post('/{request}/submit',  [PurchaseRequestController::class, 'submit'])->name('submit');
+            Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
+            Route::get('/create', [PurchaseRequestController::class, 'create'])->name('create');
+            Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
+            Route::get('/{request}', [PurchaseRequestController::class, 'show'])->name('show');
+            Route::post('/{request}/submit', [PurchaseRequestController::class, 'submit'])->name('submit');
             Route::post('/{request}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
-            Route::post('/{request}/reject',  [PurchaseRequestController::class, 'reject'])->name('reject');
+            Route::post('/{request}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
         });
 
         Route::prefix('orders')->name('orders.')->group(function () {
-            Route::get('/',                [PurchaseOrderController::class, 'index'])->name('index');
-            Route::get('/create',          [PurchaseOrderController::class, 'create'])->name('create');
-            Route::post('/',               [PurchaseOrderController::class, 'store'])->name('store');
-            Route::get('/{order}',         [PurchaseOrderController::class, 'show'])->name('show');
-            Route::post('/{order}/send',   [PurchaseOrderController::class, 'send'])->name('send');
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/create', [PurchaseOrderController::class, 'create'])->name('create');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{order}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::post('/{order}/send', [PurchaseOrderController::class, 'send'])->name('send');
             Route::post('/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
         });
 
         Route::prefix('receiving')->name('receiving.')->group(function () {
-            Route::get('/',                    [ReceivingReportController::class, 'index'])->name('index');
-            Route::get('/create',              [ReceivingReportController::class, 'create'])->name('create');
-            Route::post('/',                   [ReceivingReportController::class, 'store'])->name('store');
-            Route::get('/{receiving}',         [ReceivingReportController::class, 'show'])->name('show');
-            Route::post('/{receiving}/confirm',[ReceivingReportController::class, 'confirm'])->name('confirm');
+            Route::get('/', [ReceivingReportController::class, 'index'])->name('index');
+            Route::get('/create', [ReceivingReportController::class, 'create'])->name('create');
+            Route::post('/', [ReceivingReportController::class, 'store'])->name('store');
+            Route::get('/{receiving}', [ReceivingReportController::class, 'show'])->name('show');
+            Route::post('/{receiving}/confirm', [ReceivingReportController::class, 'confirm'])->name('confirm');
         });
     });
 });
@@ -303,43 +305,43 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
 
         // QuickBooks (accounting + admins only — finance officers view only)
         Route::prefix('quickbooks')->name('quickbooks.')->group(function () {
-            Route::get('/',                    [QuickBooksController::class, 'dashboard'])->name('dashboard');
-            Route::get('/connect',             [QuickBooksController::class, 'connect'])->name('connect');
-            Route::get('/callback',            [QuickBooksController::class, 'callback'])->name('callback');
-            Route::post('/disconnect',         [QuickBooksController::class, 'disconnect'])->name('disconnect');
+            Route::get('/', [QuickBooksController::class, 'dashboard'])->name('dashboard');
+            Route::get('/connect', [QuickBooksController::class, 'connect'])->name('connect');
+            Route::get('/callback', [QuickBooksController::class, 'callback'])->name('callback');
+            Route::post('/disconnect', [QuickBooksController::class, 'disconnect'])->name('disconnect');
             Route::post('/sync/{queue}/retry', [QuickBooksController::class, 'retry'])->name('sync.retry');
-            Route::get('/accounts',            [QuickBooksController::class, 'accounts'])->name('accounts');
-            Route::get('/mappings',            [QuickBooksController::class, 'mappings'])->name('mappings.index');
-            Route::post('/mappings',           [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
+            Route::get('/accounts', [QuickBooksController::class, 'accounts'])->name('accounts');
+            Route::get('/mappings', [QuickBooksController::class, 'mappings'])->name('mappings.index');
+            Route::post('/mappings', [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
         });
 
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
-            Route::get('/',                          [InvoiceController::class, 'index'])->name('index');
-            Route::get('/create',                    [InvoiceController::class, 'create'])->name('create');
-            Route::post('/',                         [InvoiceController::class, 'store'])->name('store');
-            Route::get('/{invoice}',                 [InvoiceController::class, 'show'])->name('show');
-            Route::patch('/{invoice}',               [InvoiceController::class, 'update'])->name('update');
-            Route::post('/{invoice}/validate',       [InvoiceController::class, 'validateInvoice'])->name('validate');
-            Route::post('/{invoice}/send',          [InvoiceController::class, 'send'])->name('send');
-            Route::post('/{invoice}/cancel',        [InvoiceController::class, 'cancel'])->name('cancel');
+            Route::get('/', [InvoiceController::class, 'index'])->name('index');
+            Route::get('/create', [InvoiceController::class, 'create'])->name('create');
+            Route::post('/', [InvoiceController::class, 'store'])->name('store');
+            Route::get('/{invoice}', [InvoiceController::class, 'show'])->name('show');
+            Route::patch('/{invoice}', [InvoiceController::class, 'update'])->name('update');
+            Route::post('/{invoice}/validate', [InvoiceController::class, 'validateInvoice'])->name('validate');
+            Route::post('/{invoice}/send', [InvoiceController::class, 'send'])->name('send');
+            Route::post('/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('cancel');
 
             // Lines
-            Route::post('/{invoice}/lines',          [InvoiceController::class, 'storeLine'])->name('lines.store');
+            Route::post('/{invoice}/lines', [InvoiceController::class, 'storeLine'])->name('lines.store');
             Route::delete('/{invoice}/lines/{line}', [InvoiceController::class, 'destroyLine'])->name('lines.destroy');
 
             // Payments
-            Route::post('/{invoice}/payments',       [InvoiceController::class, 'storePayment'])->name('payments.store');
+            Route::post('/{invoice}/payments', [InvoiceController::class, 'storePayment'])->name('payments.store');
         });
 
         // Supplier Invoices
         Route::prefix('supplier-invoices')->name('supplier-invoices.')->group(function () {
-            Route::get('/',                                  [SupplierInvoiceController::class, 'index'])->name('index');
-            Route::get('/create',                            [SupplierInvoiceController::class, 'create'])->name('create');
-            Route::post('/',                                 [SupplierInvoiceController::class, 'store'])->name('store');
-            Route::get('/{invoice}',                         [SupplierInvoiceController::class, 'show'])->name('show');
-            Route::post('/{invoice}/validate',              [SupplierInvoiceController::class, 'validateInvoice'])->name('validate');
-            Route::post('/{invoice}/cancel',                [SupplierInvoiceController::class, 'cancel'])->name('cancel');
+            Route::get('/', [SupplierInvoiceController::class, 'index'])->name('index');
+            Route::get('/create', [SupplierInvoiceController::class, 'create'])->name('create');
+            Route::post('/', [SupplierInvoiceController::class, 'store'])->name('store');
+            Route::get('/{invoice}', [SupplierInvoiceController::class, 'show'])->name('show');
+            Route::post('/{invoice}/validate', [SupplierInvoiceController::class, 'validateInvoice'])->name('validate');
+            Route::post('/{invoice}/cancel', [SupplierInvoiceController::class, 'cancel'])->name('cancel');
         });
 
         Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
@@ -862,6 +864,16 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Recycling Pool
     Route::prefix('recycling')->name('recycling.')->group(function () {
         Route::get('/pool', [LeadController::class, 'recyclingPool'])->name('pool');
+        Route::get('/', [RecyclingController::class, 'index'])->name('index');
+        Route::get('/stats', [RecyclingController::class, 'stats'])->name('stats');
+        Route::post('/trigger', [RecyclingController::class, 'trigger'])->name('trigger');
+        Route::post('/{lead}/revive', [RecyclingController::class, 'revive'])->name('revive')->whereNumber('lead');
+
+        // Recycling Rules CRUD
+        Route::get('/rules', [RecyclingController::class, 'rules'])->name('rules.index');
+        Route::post('/rules', [RecyclingController::class, 'storeRule'])->name('rules.store');
+        Route::patch('/rules/{rule}', [RecyclingController::class, 'updateRule'])->name('rules.update')->whereNumber('rule');
+        Route::delete('/rules/{rule}', [RecyclingController::class, 'destroyRule'])->name('rules.destroy')->whereNumber('rule');
     });
 
     // Monitoring
@@ -925,12 +937,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
+        Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
     });
 
     // Telesales Import
     Route::prefix('telesales')->name('telesales.')->group(function () {
         Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
         Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
+        Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
     });
 
     // Distribution Engine
@@ -949,21 +963,25 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/analytics', [DistributionAnalyticsController::class, 'index'])->name('analytics');
         Route::get('/analytics/alerts', [DistributionAnalyticsController::class, 'alerts'])->name('analytics.alerts');
         Route::get('/analytics/rebalancing', [DistributionAnalyticsController::class, 'rebalancing'])->name('analytics.rebalancing');
+        Route::get('/analytics/fairness', [DistributionAnalyticsController::class, 'fairness'])->name('analytics.fairness');
+        Route::get('/analytics/imbalance-alerts', [DistributionAnalyticsController::class, 'imbalanceAlerts'])->name('analytics.imbalance');
+        Route::get('/analytics/fairness-trend', [DistributionAnalyticsController::class, 'fairnessTrend'])->name('analytics.fairness-trend');
+        Route::post('/analytics/rebalance', [DistributionAnalyticsController::class, 'applyRebalancing'])->name('analytics.rebalance');
     });
 });
 
 // ── CRM ─────────────────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'])->prefix('crm')->name('crm.')->group(function () {
     Route::prefix('contacts')->name('contacts.')->group(function () {
-        Route::get('/',                                    [ThirdPartyController::class, 'index'])->name('index');
-        Route::get('/create',                              [ThirdPartyController::class, 'create'])->name('create');
-        Route::post('/',                                   [ThirdPartyController::class, 'store'])->name('store');
-        Route::get('/{thirdParty}',                        [ThirdPartyController::class, 'show'])->name('show');
-        Route::get('/{thirdParty}/edit',                   [ThirdPartyController::class, 'edit'])->name('edit');
-        Route::patch('/{thirdParty}',                      [ThirdPartyController::class, 'update'])->name('update');
-        Route::delete('/{thirdParty}',                     [ThirdPartyController::class, 'destroy'])->name('destroy');
-        Route::post('/{thirdParty}/contacts',              [ThirdPartyController::class, 'storeContact'])->name('contacts.store');
-        Route::post('/{thirdParty}/addresses',             [ThirdPartyController::class, 'storeAddress'])->name('addresses.store');
+        Route::get('/', [ThirdPartyController::class, 'index'])->name('index');
+        Route::get('/create', [ThirdPartyController::class, 'create'])->name('create');
+        Route::post('/', [ThirdPartyController::class, 'store'])->name('store');
+        Route::get('/{thirdParty}', [ThirdPartyController::class, 'show'])->name('show');
+        Route::get('/{thirdParty}/edit', [ThirdPartyController::class, 'edit'])->name('edit');
+        Route::patch('/{thirdParty}', [ThirdPartyController::class, 'update'])->name('update');
+        Route::delete('/{thirdParty}', [ThirdPartyController::class, 'destroy'])->name('destroy');
+        Route::post('/{thirdParty}/contacts', [ThirdPartyController::class, 'storeContact'])->name('contacts.store');
+        Route::post('/{thirdParty}/addresses', [ThirdPartyController::class, 'storeAddress'])->name('addresses.store');
     });
 });
 
@@ -982,11 +1000,11 @@ Route::middleware('auth')->prefix('api/notifications')->name('api.notifications.
 
 // Admin Dashboard
 Route::middleware(['auth', 'role:superadmin,admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\AdminController::class, 'index'])->name('dashboard');
-    Route::post('/roles/permissions', [\App\Http\Controllers\AdminController::class, 'updateRolePermissions'])->name('roles.permissions');
-    Route::post('/users', [\App\Http\Controllers\AdminController::class, 'storeUser'])->name('users.store');
-    Route::post('/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleUser'])->name('users.toggle');
-    Route::patch('/users/{user}/role', [\App\Http\Controllers\AdminController::class, 'updateUserRole'])->name('users.role');
-    Route::patch('/users/{user}/modules', [\App\Http\Controllers\AdminController::class, 'updateUserModules'])->name('users.modules');
-    Route::delete('/users/{user}', [\App\Http\Controllers\AdminController::class, 'deleteUser'])->name('users.delete');
+    Route::get('/', [AdminController::class, 'index'])->name('dashboard');
+    Route::post('/roles/permissions', [AdminController::class, 'updateRolePermissions'])->name('roles.permissions');
+    Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
+    Route::post('/users/{user}/toggle', [AdminController::class, 'toggleUser'])->name('users.toggle');
+    Route::patch('/users/{user}/role', [AdminController::class, 'updateUserRole'])->name('users.role');
+    Route::patch('/users/{user}/modules', [AdminController::class, 'updateUserModules'])->name('users.modules');
+    Route::delete('/users/{user}', [AdminController::class, 'deleteUser'])->name('users.delete');
 });

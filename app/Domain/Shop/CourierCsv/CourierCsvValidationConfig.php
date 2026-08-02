@@ -56,7 +56,7 @@ final class CourierCsvValidationConfig
     public function get(string $courierCode): array
     {
         $stored = json_decode(
-            SiteSetting::get("courier_csv_validation_rules.".strtoupper($courierCode), '{}') ?? '{}',
+            SiteSetting::get('courier_csv_validation_rules.'.strtoupper($courierCode), '{}') ?? '{}',
             true,
         ) ?: [];
 
@@ -66,14 +66,14 @@ final class CourierCsvValidationConfig
     /**
      * Store validation configuration for a courier.
      *
-     * @param array<string, array<string, mixed>> $rules
+     * @param  array<string, array<string, mixed>>  $rules
      */
     public function set(string $courierCode, array $rules): void
     {
         $current = $this->get($courierCode);
 
         SiteSetting::set(
-            "courier_csv_validation_rules.".strtoupper($courierCode),
+            'courier_csv_validation_rules.'.strtoupper($courierCode),
             json_encode($this->merge($current, $rules)),
         );
     }

@@ -5,8 +5,10 @@ namespace Tests\Unit\Services;
 use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
 use App\Services\LeadRecyclingService;
@@ -14,10 +16,6 @@ use Database\Seeders\RecyclingRulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-/**
- * @group broken
- * @see Lead model requires Customer model; also constructor signature mismatch
- */
 class LeadRecyclingServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -27,9 +25,15 @@ class LeadRecyclingServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Clean up pre-existing leads (PostgreSQL doesn't reset on rollback)
+        Lead::query()->delete();
+
         $auditService = new LeadAuditService;
-        $poolService = new LeadPoolService($auditService);
-        $this->service = new LeadRecyclingService($poolService, $auditService);
+        $capacityManager = new CapacityManager;
+        $poolService = new LeadPoolService($auditService, $capacityManager);
+        $orderService = $this->createMock(OrderFulfillmentService::class);
+        $this->service = new LeadRecyclingService($poolService, $auditService, $orderService, $capacityManager);
 
         // Seed default rules
         $this->seed(RecyclingRulesSeeder::class);
@@ -57,6 +61,52 @@ class LeadRecyclingServiceTest extends TestCase
         $this->assertEquals(PoolStatus::COOLDOWN, $lead->pool_status);
         $this->assertEquals('CLOSED', $cycle->status);
         $this->assertEquals('NO_ANSWER', $cycle->outcome);
+    }
+
+    public function test_process_expired_callbacks_closes_stale_callbacks(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent']);
+        $lead = Lead::factory()->create([
+            'pool_status' => PoolStatus::ASSIGNED,
+            'assigned_to' => $agent->id,
+            'total_cycles' => 1,
+        ]);
+        LeadCycle::factory()->create([
+            'lead_id' => $lead->id,
+            'assigned_agent_id' => $agent->id,
+            'status' => 'ACTIVE',
+            'callback_at' => now()->subHours(25),
+            'call_count' => 1,
+        ]);
+
+        $processed = $this->service->processExpiredCallbacks();
+
+        $lead->refresh();
+        $this->assertEquals(1, $processed);
+        $this->assertEquals(PoolStatus::COOLDOWN, $lead->pool_status);
+    }
+
+    public function test_process_expired_callbacks_exhausts_at_max_cycles(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent']);
+        $lead = Lead::factory()->create([
+            'pool_status' => PoolStatus::ASSIGNED,
+            'assigned_to' => $agent->id,
+            'total_cycles' => 5,
+        ]);
+        LeadCycle::factory()->create([
+            'lead_id' => $lead->id,
+            'assigned_agent_id' => $agent->id,
+            'status' => 'ACTIVE',
+            'callback_at' => now()->subHours(25),
+            'call_count' => 1,
+        ]);
+
+        $processed = $this->service->processExpiredCallbacks();
+
+        $lead->refresh();
+        $this->assertEquals(1, $processed);
+        $this->assertEquals(PoolStatus::EXHAUSTED, $lead->pool_status);
     }
 
     public function test_process_outcome_exhausts_lead_at_max_cycles(): void

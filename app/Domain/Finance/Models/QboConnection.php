@@ -18,11 +18,11 @@ class QboConnection extends Model
     ];
 
     protected $casts = [
-        'access_token'  => 'encrypted',
+        'access_token' => 'encrypted',
         'refresh_token' => 'encrypted',
-        'expires_at'    => 'datetime',
-        'connected_at'  => 'datetime',
-        'is_active'     => 'boolean',
+        'expires_at' => 'datetime',
+        'connected_at' => 'datetime',
+        'is_active' => 'boolean',
     ];
 
     public function connector(): BelongsTo

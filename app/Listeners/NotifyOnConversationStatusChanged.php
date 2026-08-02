@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Listeners;
 
-use App\Domain\Shop\Models\Conversation;
 use App\Events\ConversationStatusChanged;
 use App\Models\User;
 use App\Notifications\ConversationStatusChangedNotification;

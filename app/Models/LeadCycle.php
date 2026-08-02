@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class LeadCycle extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'lead_id',
         'cycle_number',

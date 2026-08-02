@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -502,10 +502,10 @@ return new class extends Migration
         ]);
 
         DB::table('warehouses')->insert([
-            'name'       => 'Main Warehouse',
-            'code'       => 'MAIN',
-            'address'    => null,
-            'is_active'  => true,
+            'name' => 'Main Warehouse',
+            'code' => 'MAIN',
+            'address' => null,
+            'is_active' => true,
             'is_default' => true,
             'created_at' => now(),
             'updated_at' => now(),

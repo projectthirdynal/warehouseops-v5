@@ -19,7 +19,8 @@ class QboSyncJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 3;
+    public int $tries = 3;
+
     public int $timeout = 60;
 
     public function __construct(public readonly int $queueRowId) {}
@@ -32,11 +33,14 @@ class QboSyncJob implements ShouldQueue
     public function handle(): void
     {
         $row = QboSyncQueue::find($this->queueRowId);
-        if (! $row || $row->status === 'SYNCED') return;
+        if (! $row || $row->status === 'SYNCED') {
+            return;
+        }
 
         // If no active connection, skip silently — user hasn't connected QBO yet.
         if (! QboConnection::active()) {
             Log::info('QboSyncJob skipped: no active connection', ['row' => $row->id]);
+
             return;
         }
 
@@ -44,27 +48,28 @@ class QboSyncJob implements ShouldQueue
         $row->save();
 
         try {
-            $client = new QboClient();
+            $client = new QboClient;
 
             // Skip if already synced (defensive — idempotency_key on QBO side also prevents duplicates)
             if ($row->qbo_id) {
-                $row->status   = 'SYNCED';
+                $row->status = 'SYNCED';
                 $row->synced_at = now();
                 $row->save();
+
                 return;
             }
 
-            $entity   = $this->resolveEntity($row->entity_type);
+            $entity = $this->resolveEntity($row->entity_type);
             $response = $client->create($entity, (array) $row->payload, $row->idempotency_key);
 
-            $row->qbo_id   = $this->extractQboId($response, $entity);
-            $row->status    = 'SYNCED';
+            $row->qbo_id = $this->extractQboId($response, $entity);
+            $row->status = 'SYNCED';
             $row->synced_at = now();
             $row->save();
 
         } catch (Throwable $e) {
             $row->error_message = substr($e->getMessage(), 0, 65535);
-            $row->status        = $row->attempts >= $this->tries ? 'FAILED' : 'PENDING';
+            $row->status = $row->attempts >= $this->tries ? 'FAILED' : 'PENDING';
             $row->save();
 
             if ($row->attempts < $this->tries) {
@@ -78,16 +83,16 @@ class QboSyncJob implements ShouldQueue
     private function resolveEntity(string $entityType): string
     {
         return match ($entityType) {
-            'bill'              => 'bill',
-            'journal_entry'     => 'journalentry',
-            'deposit'           => 'deposit',
-            'expense'           => 'purchase',
-            'vendor'            => 'vendor',
-            'item'              => 'item',
-            'purchase_order'    => 'purchaseorder',
-            'fixed_asset'       => 'fixedassetschedule',
-            'inventory_adjust'  => 'inventoryadjustment',
-            default             => $entityType,
+            'bill' => 'bill',
+            'journal_entry' => 'journalentry',
+            'deposit' => 'deposit',
+            'expense' => 'purchase',
+            'vendor' => 'vendor',
+            'item' => 'item',
+            'purchase_order' => 'purchaseorder',
+            'fixed_asset' => 'fixedassetschedule',
+            'inventory_adjust' => 'inventoryadjustment',
+            default => $entityType,
         };
     }
 
@@ -95,12 +100,13 @@ class QboSyncJob implements ShouldQueue
     {
         $key = ucfirst($entity);
         $key = match ($key) {
-            'Journalentry'        => 'JournalEntry',
-            'Purchaseorder'       => 'PurchaseOrder',
+            'Journalentry' => 'JournalEntry',
+            'Purchaseorder' => 'PurchaseOrder',
             'Inventoryadjustment' => 'InventoryAdjustment',
-            'Fixedassetschedule'  => 'FixedAssetSchedule',
-            default               => $key,
+            'Fixedassetschedule' => 'FixedAssetSchedule',
+            default => $key,
         };
+
         return $response[$key]['Id'] ?? null;
     }
 }

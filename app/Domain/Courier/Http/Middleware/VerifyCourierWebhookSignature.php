@@ -22,15 +22,15 @@ class VerifyCourierWebhookSignature
             abort(404, 'Unknown courier');
         }
 
-        $rawBody   = $request->getContent();
+        $rawBody = $request->getContent();
         $signature = $request->header('X-Signature')
                   ?? $request->header('X-Sign')
                   ?? $request->input('sign', '');
 
-        if (!$service->verifyWebhookSignature($rawBody, $signature)) {
+        if (! $service->verifyWebhookSignature($rawBody, $signature)) {
             Log::warning('Courier webhook signature verification failed', [
                 'courier' => $courier,
-                'ip'      => $request->ip(),
+                'ip' => $request->ip(),
             ]);
             abort(401, 'Invalid signature');
         }

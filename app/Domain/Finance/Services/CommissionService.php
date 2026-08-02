@@ -17,12 +17,12 @@ class CommissionService
      */
     public function createForOrder(Order $order): ?AgentCommission
     {
-        if (!$order->assigned_agent_id) {
+        if (! $order->assigned_agent_id) {
             return null;
         }
 
         $rule = CommissionRule::forProduct($order->product_id);
-        if (!$rule) {
+        if (! $rule) {
             return null;
         }
 
@@ -38,16 +38,16 @@ class CommissionService
             : $rule->rate_value;
 
         return AgentCommission::create([
-            'agent_id'          => $order->assigned_agent_id,
-            'order_id'          => $order->id,
-            'product_id'        => $order->product_id,
-            'lead_id'           => $order->lead_id,
-            'waybill_id'        => $order->waybill_id,
-            'sale_amount'       => $saleAmount,
-            'commission_rate'   => $rateDisplay,
+            'agent_id' => $order->assigned_agent_id,
+            'order_id' => $order->id,
+            'product_id' => $order->product_id,
+            'lead_id' => $order->lead_id,
+            'waybill_id' => $order->waybill_id,
+            'sale_amount' => $saleAmount,
+            'commission_rate' => $rateDisplay,
             'commission_amount' => $commissionAmount,
-            'status'            => 'PENDING',
-            'earned_at'         => now(),
+            'status' => 'PENDING',
+            'earned_at' => now(),
         ]);
     }
 
@@ -59,7 +59,7 @@ class CommissionService
         AgentCommission::where('order_id', $order->id)
             ->whereIn('status', ['PENDING', 'APPROVED'])
             ->update([
-                'status'       => 'CANCELLED',
+                'status' => 'CANCELLED',
                 'cancelled_at' => now(),
             ]);
     }
@@ -72,7 +72,7 @@ class CommissionService
         return AgentCommission::whereIn('id', $commissionIds)
             ->where('status', 'PENDING')
             ->update([
-                'status'      => 'APPROVED',
+                'status' => 'APPROVED',
                 'approved_at' => now(),
             ]);
     }
@@ -89,16 +89,16 @@ class CommissionService
 
             foreach ($commissions as $commission) {
                 $commission->update([
-                    'status'  => 'PAID',
+                    'status' => 'PAID',
                     'paid_at' => now(),
                 ]);
 
                 FinancialTransaction::create([
-                    'type'             => 'COMMISSION',
-                    'amount'           => -$commission->commission_amount,
-                    'reference_type'   => AgentCommission::class,
-                    'reference_id'     => $commission->id,
-                    'description'      => "Commission paid to agent #{$commission->agent_id} for order #{$commission->order_id}",
+                    'type' => 'COMMISSION',
+                    'amount' => -$commission->commission_amount,
+                    'reference_type' => AgentCommission::class,
+                    'reference_id' => $commission->id,
+                    'description' => "Commission paid to agent #{$commission->agent_id} for order #{$commission->order_id}",
                     'transaction_date' => today(),
                 ]);
             }
@@ -115,12 +115,12 @@ class CommissionService
         $commissions = AgentCommission::where('agent_id', $agentId);
 
         return [
-            'total_earned'   => (float) $commissions->clone()->sum('commission_amount'),
-            'pending'        => (float) $commissions->clone()->where('status', 'PENDING')->sum('commission_amount'),
-            'approved'       => (float) $commissions->clone()->where('status', 'APPROVED')->sum('commission_amount'),
-            'paid'           => (float) $commissions->clone()->where('status', 'PAID')->sum('commission_amount'),
-            'this_month'     => (float) $commissions->clone()->whereMonth('earned_at', now()->month)->whereYear('earned_at', now()->year)->sum('commission_amount'),
-            'total_orders'   => $commissions->clone()->count(),
+            'total_earned' => (float) $commissions->clone()->sum('commission_amount'),
+            'pending' => (float) $commissions->clone()->where('status', 'PENDING')->sum('commission_amount'),
+            'approved' => (float) $commissions->clone()->where('status', 'APPROVED')->sum('commission_amount'),
+            'paid' => (float) $commissions->clone()->where('status', 'PAID')->sum('commission_amount'),
+            'this_month' => (float) $commissions->clone()->whereMonth('earned_at', now()->month)->whereYear('earned_at', now()->year)->sum('commission_amount'),
+            'total_orders' => $commissions->clone()->count(),
         ];
     }
 }

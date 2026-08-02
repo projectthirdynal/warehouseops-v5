@@ -14,7 +14,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ClaimsExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class ClaimsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     public function __construct(
         private readonly array $filters = [],
@@ -27,7 +27,7 @@ class ClaimsExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             ->when($this->filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($this->filters['type'] ?? null, fn ($q, $v) => $q->where('type', $v))
             ->when($this->filters['from'] ?? null, fn ($q, $v) => $q->where('filed_at', '>=', $v))
-            ->when($this->filters['to'] ?? null, fn ($q, $v) => $q->where('filed_at', '<=', $v . ' 23:59:59'))
+            ->when($this->filters['to'] ?? null, fn ($q, $v) => $q->where('filed_at', '<=', $v.' 23:59:59'))
             ->latest('filed_at');
 
         return $q->get();
@@ -55,7 +55,7 @@ class ClaimsExport implements FromCollection, WithHeadings, WithMapping, ShouldA
 
     public function map($claim): array
     {
-        $filedAt   = $claim->filed_at;
+        $filedAt = $claim->filed_at;
         $resolvedAt = $claim->resolved_at;
         $daysToResolve = ($filedAt && $resolvedAt)
             ? $filedAt->diffInDays($resolvedAt)
@@ -85,7 +85,7 @@ class ClaimsExport implements FromCollection, WithHeadings, WithMapping, ShouldA
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
-                    'fillType'   => Fill::FILL_SOLID,
+                    'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '1a1a1a'],
                 ],
             ],

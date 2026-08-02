@@ -27,8 +27,8 @@ return new class extends Migration
         ];
 
         foreach ($defaults as $pri) {
-            \DB::table('ticket_priorities')->insert(array_merge($pri, [
-                'is_active'  => true,
+            DB::table('ticket_priorities')->insert(array_merge($pri, [
+                'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]));

@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,7 +42,10 @@ export default function ManualAssignmentModal({ agents, onClose }: Props) {
     const url = mode === 'assign' ? '/distribution/assign' : '/distribution/reassign';
 
     router.post(url, payload, {
-      onSuccess: () => { toast.success(mode === 'assign' ? 'Lead assigned' : 'Lead reassigned'); onClose(); },
+      onSuccess: () => {
+        toast.success(mode === 'assign' ? 'Lead assigned' : 'Lead reassigned');
+        onClose();
+      },
       onError: () => toast.error('Assignment failed'),
     });
   };
@@ -84,7 +91,9 @@ export default function ManualAssignmentModal({ agents, onClose }: Props) {
           </SelectTrigger>
           <SelectContent>
             {agents.map((agent) => (
-              <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
+              <SelectItem key={agent.id} value={String(agent.id)}>
+                {agent.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -102,7 +111,9 @@ export default function ManualAssignmentModal({ agents, onClose }: Props) {
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
         <Button type="submit">{mode === 'assign' ? 'Assign' : 'Reassign'}</Button>
       </div>
     </form>

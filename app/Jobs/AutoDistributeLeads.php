@@ -49,6 +49,7 @@ class AutoDistributeLeads implements ShouldQueue
             $lead = Lead::find($queueItem->lead_id);
             if (! $lead || $lead->pool_status !== PoolStatus::AVAILABLE) {
                 $queueItem->update(['status' => 'cancelled']);
+
                 continue;
             }
 
@@ -59,12 +60,14 @@ class AutoDistributeLeads implements ShouldQueue
                 if ($queueItem->attempt_count >= 3) {
                     $queueItem->update(['status' => 'failed']);
                 }
+
                 continue;
             }
 
             $agent = User::find($result['agent_id']);
             if (! $agent) {
                 $queueItem->incrementAttempt();
+
                 continue;
             }
 
@@ -74,10 +77,13 @@ class AutoDistributeLeads implements ShouldQueue
         }
 
         // 2. Then process fresh available leads
+        // Prioritize distribution: higher quality_score leads get processed first (C1: Lead Scoring)
         $remaining = $this->batchSize - $distributed;
         if ($remaining > 0) {
             $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
                 ->whereDoesntHave('distributionQueues', fn ($q) => $q->whereIn('status', ['pending', 'assigned']))
+                ->orderByDesc('quality_score')
+                ->orderBy('created_at')
                 ->limit($remaining)
                 ->get();
 
@@ -91,6 +97,7 @@ class AutoDistributeLeads implements ShouldQueue
                         'status' => 'pending',
                     ]);
                     $queued++;
+
                     continue;
                 }
 
@@ -102,6 +109,7 @@ class AutoDistributeLeads implements ShouldQueue
                         'status' => 'pending',
                     ]);
                     $queued++;
+
                     continue;
                 }
 

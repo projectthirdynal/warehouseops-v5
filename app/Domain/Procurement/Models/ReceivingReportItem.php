@@ -17,7 +17,7 @@ class ReceivingReportItem extends Model
     protected $casts = [
         'quantity_received' => 'integer',
         'quantity_rejected' => 'integer',
-        'expiry_date'       => 'date',
+        'expiry_date' => 'date',
     ];
 
     public function receivingReport(): BelongsTo

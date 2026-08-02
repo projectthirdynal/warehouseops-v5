@@ -25,6 +25,7 @@ final class CourierCsvPhoneValidator
      * International format: 63 + 10 digits = 12 digits or +63 + 10 digits = 13 chars.
      */
     private const MIN_LENGTH = 10;
+
     private const MAX_LENGTH = 13;
 
     /**
@@ -68,7 +69,7 @@ final class CourierCsvPhoneValidator
 
         if ($normalized === null) {
             $length = strlen($digits);
-            $expected = "{$minLength}-{$maxLength} digits"; 
+            $expected = "{$minLength}-{$maxLength} digits";
 
             return [
                 'valid' => false,
@@ -106,7 +107,7 @@ final class CourierCsvPhoneValidator
 
         return match (true) {
             str_starts_with($digits, '09') && strlen($digits) === 11 => $digits,
-            str_starts_with($digits, '63') && strlen($digits) === 12 => '0' . substr($digits, 2),
+            str_starts_with($digits, '63') && strlen($digits) === 12 => '0'.substr($digits, 2),
             str_starts_with($digits, '0') && strlen($digits) === 11 => $digits,
             default => null,
         };

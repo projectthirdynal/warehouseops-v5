@@ -13,9 +13,8 @@ interface AllocationStrategy
     /**
      * Score and rank eligible agents for a lead.
      *
-     * @param Lead $lead
-     * @param Collection<int, AgentProfile> $agents
-     * @param array<string, mixed> $formula Weights and config
+     * @param  Collection<int, AgentProfile>  $agents
+     * @param  array<string, mixed>  $formula  Weights and config
      * @return Collection<int, array{agent_id: int, score: float}>
      */
     public function score(Lead $lead, Collection $agents, array $formula): Collection;

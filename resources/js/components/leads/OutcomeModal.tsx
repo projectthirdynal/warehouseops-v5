@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,8 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
+          'X-CSRF-TOKEN':
+            document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || '',
         },
         body: JSON.stringify(data),
       });
@@ -88,6 +90,7 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Record Call Outcome</DialogTitle>
+          <DialogDescription>Select the result of this call and add any notes.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -96,7 +99,10 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
             onValueChange={(value) => setSelectedOutcome(value as LeadOutcome)}
           >
             {outcomes.map((outcome) => (
-              <div key={outcome.value} className="flex items-start space-x-3 p-2 rounded hover:bg-muted">
+              <div
+                key={outcome.value}
+                className="flex items-start space-x-3 p-2 rounded hover:bg-muted"
+              >
                 <RadioGroupItem value={outcome.value} id={outcome.value} />
                 <Label htmlFor={outcome.value} className="cursor-pointer flex-1">
                   <div className="font-medium">{outcome.label}</div>
@@ -143,10 +149,7 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!selectedOutcome || isSubmitting}
-          >
+          <Button onClick={handleSubmit} disabled={!selectedOutcome || isSubmitting}>
             {isSubmitting ? 'Saving...' : 'Save Outcome'}
           </Button>
         </DialogFooter>

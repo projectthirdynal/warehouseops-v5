@@ -30,9 +30,9 @@ class TicketAssignedNotification extends Notification implements ShouldQueue
     {
         $from = $this->fromAssigneeName ?? 'Unassigned';
 
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject("Ticket {$this->ticket->ticket_number} assigned to {$this->toAssigneeName}")
-            ->greeting("Ticket Assignment")
+            ->greeting('Ticket Assignment')
             ->line("{$this->assignedByName} has assigned ticket {$this->ticket->ticket_number} to {$this->toAssigneeName}.")
             ->line("**Ticket:** {$this->ticket->subject}")
             ->line("**Previous assignee:** {$from}")

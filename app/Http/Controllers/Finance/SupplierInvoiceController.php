@@ -33,7 +33,7 @@ class SupplierInvoiceController extends Controller
 
         return Inertia::render('Finance/SupplierInvoices/Index', [
             'invoices' => $invoices,
-            'filters'  => $request->only(['status', 'search', 'date_from', 'date_to']),
+            'filters' => $request->only(['status', 'search', 'date_from', 'date_to']),
             'statuses' => ['DRAFT', 'VALIDATED', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED'],
         ]);
     }
@@ -64,11 +64,11 @@ class SupplierInvoiceController extends Controller
     {
         $validated = $request->validate([
             'third_party_id' => 'nullable|exists:third_parties,id',
-            'date_invoice'   => 'required|date',
-            'date_due'       => 'nullable|date',
-            'total_amount'   => 'required|numeric|min:0',
-            'tax_rate'       => 'nullable|numeric|min:0|max:100',
-            'notes'          => 'nullable|string',
+            'date_invoice' => 'required|date',
+            'date_due' => 'nullable|date',
+            'total_amount' => 'required|numeric|min:0',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'notes' => 'nullable|string',
         ]);
 
         $thirdParty = $validated['third_party_id']
@@ -82,23 +82,23 @@ class SupplierInvoiceController extends Controller
         );
 
         $invoice = SupplierInvoice::create([
-            'ref'           => SupplierInvoice::generateRef(),
-            'status'        => 'DRAFT',
-            'third_party_id'=> $thirdParty?->id,
+            'ref' => SupplierInvoice::generateRef(),
+            'status' => 'DRAFT',
+            'third_party_id' => $thirdParty?->id,
             'supplier_name' => $thirdParty?->name ?? 'Unknown Supplier',
-            'supplier_email'=> $thirdParty?->email,
-            'supplier_phone'=> $thirdParty?->phone,
-            'supplier_address'=> $thirdParty?->full_address,
-            'date_invoice'  => $validated['date_invoice'],
-            'date_due'      => $validated['date_due'],
-            'total_amount'  => $validated['total_amount'],
-            'subtotal'      => $derived['subtotal'],
-            'tax_rate'      => $taxRate,
-            'tax_amount'    => $derived['tax_amount'],
-            'amount_due'    => $validated['total_amount'],
-            'notes'         => $validated['notes'] ?? null,
-            'created_by'    => $request->user()->id,
-            'updated_by'    => $request->user()->id,
+            'supplier_email' => $thirdParty?->email,
+            'supplier_phone' => $thirdParty?->phone,
+            'supplier_address' => $thirdParty?->full_address,
+            'date_invoice' => $validated['date_invoice'],
+            'date_due' => $validated['date_due'],
+            'total_amount' => $validated['total_amount'],
+            'subtotal' => $derived['subtotal'],
+            'tax_rate' => $taxRate,
+            'tax_amount' => $derived['tax_amount'],
+            'amount_due' => $validated['total_amount'],
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => $request->user()->id,
+            'updated_by' => $request->user()->id,
         ]);
 
         return redirect()->route('finance.supplier-invoices.show', $invoice->id)
@@ -115,6 +115,7 @@ class SupplierInvoiceController extends Controller
             'status' => 'VALIDATED',
             'updated_by' => $request->user()->id,
         ]);
+
         return back()->with('success', 'Validated.');
     }
 
@@ -125,10 +126,10 @@ class SupplierInvoiceController extends Controller
         }
 
         $invoice->update([
-            'status'        => 'CANCELLED',
+            'status' => 'CANCELLED',
             'cancel_reason' => $request->input('reason'),
-            'cancelled_at'  => now(),
-            'updated_by'    => $request->user()->id,
+            'cancelled_at' => now(),
+            'updated_by' => $request->user()->id,
         ]);
 
         return redirect()->route('finance.supplier-invoices.index')

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Models;
 
 use App\Models\Customer;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -18,9 +19,13 @@ class Conversation extends Model
     use SoftDeletes;
 
     public const STATUS_NEW = 'new';
+
     public const STATUS_ASSIGNED = 'assigned';
+
     public const STATUS_AWAITING_CUSTOMER = 'awaiting_customer';
+
     public const STATUS_RESOLVED = 'resolved';
+
     public const STATUS_ARCHIVED = 'archived';
 
     public const STATUSES = [
@@ -63,7 +68,7 @@ class Conversation extends Model
 
     public static function slaThresholds(): array
     {
-        $overrides = \App\Models\SiteSetting::get('conversation_sla_thresholds');
+        $overrides = SiteSetting::get('conversation_sla_thresholds');
         if ($overrides) {
             $decoded = json_decode($overrides, true);
             if (is_array($decoded)) {
@@ -130,7 +135,7 @@ class Conversation extends Model
 
         $allowed = self::TRANSITIONS[$this->status] ?? [];
 
-        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+        if ($role !== null && ! in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
             $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
         }
 
@@ -141,7 +146,7 @@ class Conversation extends Model
     {
         $allowed = self::TRANSITIONS[$this->status] ?? [];
 
-        if ($role !== null && !in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
+        if ($role !== null && ! in_array($role, ['supervisor', 'admin', 'superadmin'], true)) {
             $allowed = array_values(array_intersect($allowed, self::AGENT_ALLOWED_TARGETS));
         }
 

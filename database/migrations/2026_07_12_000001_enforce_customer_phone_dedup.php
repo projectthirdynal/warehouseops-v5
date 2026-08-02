@@ -51,7 +51,6 @@ return new class extends Migration
                     DB::table('conversations')->where('customer_id', $r->id)->update(['customer_id' => $keep->id]);
                 }
 
-
                 // Soft-delete the duplicate
                 DB::table('customers')->where('id', $r->id)->delete();
             }

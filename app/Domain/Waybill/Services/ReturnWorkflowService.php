@@ -8,8 +8,8 @@ use App\Domain\Order\Models\Order;
 use App\Domain\Product\Services\InventoryService;
 use App\Domain\Waybill\Models\ReturnReceipt;
 use App\Domain\Waybill\Models\Waybill;
-use App\Notifications\ReturnProcessedNotification;
 use App\Models\User;
+use App\Notifications\ReturnProcessedNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -26,9 +26,9 @@ class ReturnWorkflowService
             ->with(['returnReceipt', 'lead'])
             ->first();
 
-        if (!$waybill) {
+        if (! $waybill) {
             return [
-                'status'  => 'not_found',
+                'status' => 'not_found',
                 'message' => 'Waybill not found in system.',
                 'waybill_number' => $waybillNumber,
             ];
@@ -38,7 +38,7 @@ class ReturnWorkflowService
 
         if ($statusValue !== 'RETURNED') {
             return [
-                'status'  => 'wrong_status',
+                'status' => 'wrong_status',
                 'message' => "Cannot receive — status is {$statusValue}, expected RETURNED.",
                 'waybill' => $this->formatWaybill($waybill),
             ];
@@ -46,7 +46,7 @@ class ReturnWorkflowService
 
         if ($waybill->returnReceipt) {
             return [
-                'status'  => 'already_processed',
+                'status' => 'already_processed',
                 'message' => 'Return already received.',
                 'waybill' => $this->formatWaybill($waybill),
                 'receipt' => $this->formatReceipt($waybill->returnReceipt),
@@ -58,33 +58,33 @@ class ReturnWorkflowService
                 'waybill_id' => $waybill->id,
                 'scanned_by' => $userId,
                 'scanned_at' => now(),
-                'condition'  => $condition,
-                'notes'      => $notes,
+                'condition' => $condition,
+                'notes' => $notes,
             ]);
 
             $inventoryResult = $this->updateInventory($waybill, $receipt);
             $financeResult = $this->notifyFinance($waybill, $receipt);
 
             $receipt->update([
-                'inventory_updated'  => $inventoryResult['success'],
+                'inventory_updated' => $inventoryResult['success'],
                 'inventory_movement_id' => $inventoryResult['movement_id'] ?? null,
-                'finance_notified'   => $financeResult,
-                'processed_at'       => now(),
+                'finance_notified' => $financeResult,
+                'processed_at' => now(),
             ]);
 
             Log::info('Return processed', [
-                'waybill_id'   => $waybill->id,
-                'receipt_id'   => $receipt->id,
-                'condition'    => $condition,
-                'inventory'    => $inventoryResult,
+                'waybill_id' => $waybill->id,
+                'receipt_id' => $receipt->id,
+                'condition' => $condition,
+                'inventory' => $inventoryResult,
                 'finance_notified' => $financeResult,
             ]);
 
             return [
-                'status'    => 'success',
-                'message'   => 'Return received, inventory updated, finance notified.',
-                'waybill'   => $this->formatWaybill($waybill),
-                'receipt'   => $this->formatReceipt($receipt->fresh()),
+                'status' => 'success',
+                'message' => 'Return received, inventory updated, finance notified.',
+                'waybill' => $this->formatWaybill($waybill),
+                'receipt' => $this->formatReceipt($receipt->fresh()),
                 'inventory' => $inventoryResult,
                 'finance_notified' => $financeResult,
             ];
@@ -101,8 +101,8 @@ class ReturnWorkflowService
         return [
             'results' => $results,
             'summary' => [
-                'total'     => count($results),
-                'success'   => count(array_filter($results, fn ($r) => $r['status'] === 'success')),
+                'total' => count($results),
+                'success' => count(array_filter($results, fn ($r) => $r['status'] === 'success')),
                 'not_found' => count(array_filter($results, fn ($r) => $r['status'] === 'not_found')),
                 'wrong_status' => count(array_filter($results, fn ($r) => $r['status'] === 'wrong_status')),
                 'already_processed' => count(array_filter($results, fn ($r) => $r['status'] === 'already_processed')),
@@ -144,13 +144,13 @@ class ReturnWorkflowService
 
         return [
             'summary' => [
-                'total_received'    => $total,
-                'today_count'       => $todayCount,
+                'total_received' => $total,
+                'today_count' => $todayCount,
                 'pending_inventory' => $pendingInventory,
-                'pending_finance'   => $pendingFinance,
-                'damaged_count'     => $damagedCount,
-                'cod_at_risk'       => (float) $codAtRisk,
-                'pending_returns'   => $pendingReturns->count(),
+                'pending_finance' => $pendingFinance,
+                'damaged_count' => $damagedCount,
+                'cod_at_risk' => (float) $codAtRisk,
+                'pending_returns' => $pendingReturns->count(),
             ],
             'receipts' => $receipts->map(fn ($r) => $this->formatReceipt($r)),
             'pending' => $pendingReturns->map(fn ($w) => $this->formatWaybill($w)),
@@ -162,10 +162,10 @@ class ReturnWorkflowService
     {
         $order = Order::where('lead_id', $waybill->lead_id)->first();
 
-        if (!$order || !$order->product_id) {
+        if (! $order || ! $order->product_id) {
             return [
-                'success'    => false,
-                'message'    => 'No linked product found for inventory update.',
+                'success' => false,
+                'message' => 'No linked product found for inventory update.',
                 'product_id' => null,
             ];
         }
@@ -186,22 +186,22 @@ class ReturnWorkflowService
             );
 
             return [
-                'success'      => true,
-                'message'      => "Stock returned: +{$quantity} units.",
-                'product_id'   => $order->product_id,
-                'quantity'     => $quantity,
-                'movement_id'  => $movement->id,
+                'success' => true,
+                'message' => "Stock returned: +{$quantity} units.",
+                'product_id' => $order->product_id,
+                'quantity' => $quantity,
+                'movement_id' => $movement->id,
             ];
         } catch (\Exception $e) {
             Log::error('Inventory update failed for return', [
                 'receipt_id' => $receipt->id,
                 'waybill_id' => $waybill->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return [
-                'success'    => false,
-                'message'    => 'Inventory update failed: ' . $e->getMessage(),
+                'success' => false,
+                'message' => 'Inventory update failed: '.$e->getMessage(),
                 'product_id' => $order->product_id,
             ];
         }
@@ -216,16 +216,19 @@ class ReturnWorkflowService
 
             if ($financeUsers->isEmpty()) {
                 Log::warning('No finance users found to notify for return', ['receipt_id' => $receipt->id]);
+
                 return false;
             }
 
             Notification::send($financeUsers, new ReturnProcessedNotification($receipt));
+
             return true;
         } catch (\Exception $e) {
             Log::error('Finance notification failed for return', [
                 'receipt_id' => $receipt->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -233,32 +236,32 @@ class ReturnWorkflowService
     private function formatWaybill(Waybill $w): array
     {
         return [
-            'id'             => $w->id,
+            'id' => $w->id,
             'waybill_number' => $w->waybill_number,
-            'status'         => is_string($w->status) ? $w->status : $w->status?->value,
-            'courier'        => $w->courier_provider,
-            'receiver_name'  => $w->receiver_name,
-            'city'           => $w->city,
-            'cod_amount'     => (float) ($w->cod_amount ?? $w->amount ?? 0),
-            'item_name'      => $w->item_name,
-            'item_qty'       => (int) ($w->item_qty ?? 0),
-            'returned_at'    => $w->returned_at?->toIso8601String(),
+            'status' => is_string($w->status) ? $w->status : $w->status?->value,
+            'courier' => $w->courier_provider,
+            'receiver_name' => $w->receiver_name,
+            'city' => $w->city,
+            'cod_amount' => (float) ($w->cod_amount ?? $w->amount ?? 0),
+            'item_name' => $w->item_name,
+            'item_qty' => (int) ($w->item_qty ?? 0),
+            'returned_at' => $w->returned_at?->toIso8601String(),
         ];
     }
 
     private function formatReceipt(ReturnReceipt $r): array
     {
         return [
-            'id'                 => $r->id,
-            'waybill_id'         => $r->waybill_id,
-            'condition'          => $r->condition,
-            'notes'              => $r->notes,
-            'scanned_at'         => $r->scanned_at?->toIso8601String(),
-            'processed_at'       => $r->processed_at?->toIso8601String(),
-            'inventory_updated'  => $r->inventory_updated,
-            'finance_notified'   => $r->finance_notified,
-            'scanned_by'         => $r->scannedBy?->name,
-            'waybill'            => $r->waybill ? $this->formatWaybill($r->waybill) : null,
+            'id' => $r->id,
+            'waybill_id' => $r->waybill_id,
+            'condition' => $r->condition,
+            'notes' => $r->notes,
+            'scanned_at' => $r->scanned_at?->toIso8601String(),
+            'processed_at' => $r->processed_at?->toIso8601String(),
+            'inventory_updated' => $r->inventory_updated,
+            'finance_notified' => $r->finance_notified,
+            'scanned_by' => $r->scannedBy?->name,
+            'waybill' => $r->waybill ? $this->formatWaybill($r->waybill) : null,
         ];
     }
 }

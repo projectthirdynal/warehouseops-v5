@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Domain\Courier\Services\StatusMapper;
 use App\Models\Upload;
 use App\Models\WaybillTrackingHistory;
 use Illuminate\Support\Facades\DB;
@@ -14,19 +15,30 @@ use Rap2hpoutre\FastExcel\FastExcel;
 class JntWaybillFastImport
 {
     protected Upload $upload;
+
     protected int $userId;
+
     protected array $errors = [];
+
     protected int $successCount = 0;
+
     protected int $errorCount = 0;
+
     protected int $insertedCount = 0;
+
     protected int $updatedCount = 0;
+
     protected int $skippedCount = 0;
+
     protected int $batchSize;
+
     protected int $batchCount = 0; // batches flushed so far
-    protected ?\App\Domain\Courier\Services\StatusMapper $statusMapper = null;
-    
+
+    protected ?StatusMapper $statusMapper = null;
+
     // Limit error collection to prevent memory exhaustion on large files with many errors
     protected const MAX_ERRORS_COLLECTED = 1000;
+
     protected const MAX_ERRORS_RETURNED = 100;
 
     protected const COLUMN_MAP = [
@@ -81,7 +93,7 @@ class JntWaybillFastImport
     {
         $this->upload = $upload;
         $this->userId = $userId;
-        
+
         // PostgreSQL has a 65535 bind parameter limit per query.
         // Calculate safe batch size: 65000 / column_count, leaving 535 params as safety margin
         $columnCount = count(self::ALL_COLUMNS);
@@ -95,95 +107,96 @@ class JntWaybillFastImport
         $now = now()->toDateTimeString();
 
         // Resolve StatusMapper once instead of per-row container lookups
-        $this->statusMapper = app(\App\Domain\Courier\Services\StatusMapper::class);
+        $this->statusMapper = app(StatusMapper::class);
 
         // Trade durability for speed during bulk import: WAL fsync deferred per commit.
         // SET (not SET LOCAL) applies session-wide; SET LOCAL would revert immediately in autocommit.
         DB::statement('SET synchronous_commit = OFF');
 
         try {
-        (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
-            $rowNumber++;
+            (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, $now) {
+                $rowNumber++;
 
-            try {
-                $data = $this->mapRow($row, $now);
-                if ($data) {
-                    $batch[] = $data;
-                    $this->successCount++;
-                }
-            } catch (\Throwable $e) {
-                // Limit error collection to prevent memory exhaustion
-                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
-                    $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
-                }
-                $this->errorCount++;
-            }
-
-            if (count($batch) >= $this->batchSize) {
-                $this->batchCount++;
-
-                // Check cancellation every 10 batches (one SELECT per 30k rows)
-                if ($this->batchCount % 10 === 0) {
-                    if ($this->upload->fresh()->status === 'cancelled') {
-                        $batch = [];
-                        return;
-                    }
-                }
-
-                $flushed = count($batch);
-                $currentBatch = $batch;
-                $batch = [];
                 try {
-                    $counts = $this->bulkUpsert($currentBatch);
+                    $data = $this->mapRow($row, $now);
+                    if ($data) {
+                        $batch[] = $data;
+                        $this->successCount++;
+                    }
+                } catch (\Throwable $e) {
+                    // Limit error collection to prevent memory exhaustion
+                    if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                        $this->errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+                    }
+                    $this->errorCount++;
+                }
+
+                if (count($batch) >= $this->batchSize) {
+                    $this->batchCount++;
+
+                    // Check cancellation every 10 batches (one SELECT per 30k rows)
+                    if ($this->batchCount % 10 === 0) {
+                        if ($this->upload->fresh()->status === 'cancelled') {
+                            $batch = [];
+
+                            return;
+                        }
+                    }
+
+                    $flushed = count($batch);
+                    $currentBatch = $batch;
+                    $batch = [];
+                    try {
+                        $counts = $this->bulkUpsert($currentBatch);
+                    } catch (\Throwable $e) {
+                        if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                            $this->errors[] = ['row' => $rowNumber, 'error' => $this->sanitizeDbError($e->getMessage())];
+                        }
+                        $this->errorCount += $flushed;
+                        $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
+                    }
+
+                    // Single combined write — increments collapsed to 1 UPDATE
+                    DB::table('uploads')->where('id', $this->upload->id)->update([
+                        'success_rows' => DB::raw("success_rows + {$flushed}"),
+                        'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                        'inserted_rows' => DB::raw("inserted_rows + {$counts['inserted']}"),
+                        'updated_rows' => DB::raw("updated_rows + {$counts['updated']}"),
+                        'skipped_rows' => DB::raw("skipped_rows + {$counts['skipped']}"),
+                        'total_rows' => DB::raw("CASE WHEN total_rows > {$rowNumber} THEN total_rows ELSE {$rowNumber} END"),
+                    ]);
+                }
+            });
+
+            if (! empty($batch)) {
+                $flushed = count($batch);
+                try {
+                    $counts = $this->bulkUpsert($batch);
                 } catch (\Throwable $e) {
                     if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
-                        $this->errors[] = ['row' => $rowNumber, 'error' => $this->sanitizeDbError($e->getMessage())];
+                        $this->errors[] = ['row' => 'final_batch', 'error' => $this->sanitizeDbError($e->getMessage())];
                     }
                     $this->errorCount += $flushed;
                     $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
                 }
-
-                // Single combined write — increments collapsed to 1 UPDATE
+                $totalRows = $this->successCount + $this->errorCount;
                 DB::table('uploads')->where('id', $this->upload->id)->update([
-                    'success_rows'   => DB::raw("success_rows + {$flushed}"),
+                    'success_rows' => DB::raw("success_rows + {$flushed}"),
                     'processed_rows' => DB::raw("processed_rows + {$flushed}"),
-                    'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
-                    'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
-                    'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                    'total_rows'     => DB::raw("CASE WHEN total_rows > {$rowNumber} THEN total_rows ELSE {$rowNumber} END"),
+                    'inserted_rows' => DB::raw("inserted_rows + {$counts['inserted']}"),
+                    'updated_rows' => DB::raw("updated_rows + {$counts['updated']}"),
+                    'skipped_rows' => DB::raw("skipped_rows + {$counts['skipped']}"),
+                    'total_rows' => DB::raw("CASE WHEN total_rows > {$totalRows} THEN total_rows ELSE {$totalRows} END"),
                 ]);
             }
-        });
 
-        if (!empty($batch)) {
-            $flushed = count($batch);
-            try {
-                $counts = $this->bulkUpsert($batch);
-            } catch (\Throwable $e) {
-                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
-                    $this->errors[] = ['row' => 'final_batch', 'error' => $this->sanitizeDbError($e->getMessage())];
-                }
-                $this->errorCount += $flushed;
-                $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
-            }
-            $totalRows = $this->successCount + $this->errorCount;
+            // Final totals
+            $finalTotal = $this->successCount + $this->errorCount;
             DB::table('uploads')->where('id', $this->upload->id)->update([
-                'success_rows'   => DB::raw("success_rows + {$flushed}"),
-                'processed_rows' => DB::raw("processed_rows + {$flushed}"),
-                'inserted_rows'  => DB::raw("inserted_rows + {$counts['inserted']}"),
-                'updated_rows'   => DB::raw("updated_rows + {$counts['updated']}"),
-                'skipped_rows'   => DB::raw("skipped_rows + {$counts['skipped']}"),
-                'total_rows'     => DB::raw("CASE WHEN total_rows > {$totalRows} THEN total_rows ELSE {$totalRows} END"),
+                'error_rows' => $this->errorCount,
+                'processed_rows' => DB::raw("CASE WHEN processed_rows > {$finalTotal} THEN processed_rows ELSE {$finalTotal} END"),
+                'total_rows' => DB::raw("CASE WHEN total_rows > {$finalTotal} THEN total_rows ELSE {$finalTotal} END"),
             ]);
-        }
-
-        // Final totals
-        $finalTotal = $this->successCount + $this->errorCount;
-        DB::table('uploads')->where('id', $this->upload->id)->update([
-            'error_rows'     => $this->errorCount,
-            'processed_rows' => DB::raw("CASE WHEN processed_rows > {$finalTotal} THEN processed_rows ELSE {$finalTotal} END"),
-            'total_rows'     => DB::raw("CASE WHEN total_rows > {$finalTotal} THEN total_rows ELSE {$finalTotal} END"),
-        ]);
         } finally {
             DB::statement('SET synchronous_commit = ON');
         }
@@ -246,6 +259,7 @@ class JntWaybillFastImport
                 return $row[$header];
             }
         }
+
         return null;
     }
 
@@ -276,7 +290,9 @@ class JntWaybillFastImport
 
     protected function parseDateTime(mixed $value): ?string
     {
-        if (empty($value)) return null;
+        if (empty($value)) {
+            return null;
+        }
 
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d H:i:s');
@@ -284,12 +300,16 @@ class JntWaybillFastImport
 
         // Native strtotime is ~50x faster than Carbon::parse for known formats
         $ts = strtotime((string) $value);
+
         return $ts !== false ? date('Y-m-d H:i:s', $ts) : null;
     }
 
     protected function parseNumeric(mixed $value): float
     {
-        if (empty($value)) return 0;
+        if (empty($value)) {
+            return 0;
+        }
+
         return (float) preg_replace('/[^0-9.\-]/', '', (string) $value);
     }
 
@@ -297,8 +317,9 @@ class JntWaybillFastImport
     {
         $phone = preg_replace('/[^0-9+]/', '', (string) $value);
         if (strlen($phone) === 10 && str_starts_with($phone, '9')) {
-            $phone = '0' . $phone;
+            $phone = '0'.$phone;
         }
+
         return $phone;
     }
 
@@ -306,11 +327,11 @@ class JntWaybillFastImport
     {
         $columns = self::ALL_COLUMNS;
         $colList = implode(', ', $columns);
-        $rowPlaceholder = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+        $rowPlaceholder = '('.implode(', ', array_fill(0, count($columns), '?')).')';
         $valuesList = implode(', ', array_fill(0, count($data), $rowPlaceholder));
 
         $updateSet = implode(', ', array_map(
-            fn($col) => "{$col} = EXCLUDED.{$col}",
+            fn ($col) => "{$col} = EXCLUDED.{$col}",
             self::STATUS_FIELDS
         ));
 
@@ -367,10 +388,10 @@ class JntWaybillFastImport
             RETURNING waybill_number, xmax
         ", $bindings);
 
-        $returnedNumbers = array_map(fn($r) => $r->waybill_number, $rows);
-        $batchInserted = count(array_filter($returnedNumbers, fn($n) => !isset($existing[$n])));
-        $batchUpdated  = count(array_filter($returnedNumbers, fn($n) => isset($existing[$n])));
-        $batchSkipped  = count($data) - count($returnedNumbers);
+        $returnedNumbers = array_map(fn ($r) => $r->waybill_number, $rows);
+        $batchInserted = count(array_filter($returnedNumbers, fn ($n) => ! isset($existing[$n])));
+        $batchUpdated = count(array_filter($returnedNumbers, fn ($n) => isset($existing[$n])));
+        $batchSkipped = count($data) - count($returnedNumbers);
 
         // Create tracking history entries for status changes
         $nowTs = now()->toDateTimeString();
@@ -385,7 +406,7 @@ class JntWaybillFastImport
                     'waybill_number' => $wbNumber,
                     'status' => $newStatus,
                     'previous_status' => $oldStatus,
-                    'reason' => 'Bulk import: ' . $this->upload->original_filename,
+                    'reason' => 'Bulk import: '.$this->upload->original_filename,
                     'tracked_at' => $nowTs,
                     'created_at' => $nowTs,
                     'updated_at' => $nowTs,
@@ -393,7 +414,7 @@ class JntWaybillFastImport
             }
         }
 
-        if (!empty($historyEntries)) {
+        if (! empty($historyEntries)) {
             $waybillIds = DB::table('waybills')
                 ->whereIn('waybill_number', array_column($historyEntries, 'waybill_number'))
                 ->pluck('id', 'waybill_number')
@@ -415,14 +436,14 @@ class JntWaybillFastImport
                 }
             }
 
-            if (!empty($insertData)) {
+            if (! empty($insertData)) {
                 WaybillTrackingHistory::insert($insertData);
             }
         }
 
         $this->insertedCount += $batchInserted;
-        $this->updatedCount  += $batchUpdated;
-        $this->skippedCount  += $batchSkipped;
+        $this->updatedCount += $batchUpdated;
+        $this->skippedCount += $batchSkipped;
 
         return ['inserted' => $batchInserted, 'updated' => $batchUpdated, 'skipped' => $batchSkipped];
     }
@@ -461,6 +482,7 @@ class JntWaybillFastImport
     {
         // Strip SQL statement from DB exception messages to prevent raw SQL leaking into error logs
         $truncated = preg_replace('/\s+SQL:.*$/s', '', $message);
+
         return mb_substr($truncated ?: $message, 0, 500);
     }
 }

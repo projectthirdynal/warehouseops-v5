@@ -27,17 +27,18 @@ class PrDecidedNotification extends Notification implements ShouldQueue
     public function toDatabase(object $notifiable): array
     {
         $approved = $this->decision === 'approved';
+
         return [
-            'type'    => 'pr_decided',
-            'title'   => $approved ? 'Purchase Request Approved' : 'Purchase Request Rejected',
+            'type' => 'pr_decided',
+            'title' => $approved ? 'Purchase Request Approved' : 'Purchase Request Rejected',
             'message' => $approved
                 ? "Your PR #{$this->pr->pr_number} has been approved by {$this->pr->approver?->name}."
                 : "Your PR #{$this->pr->pr_number} was rejected. Reason: {$this->pr->rejected_reason}",
-            'url'     => "/procurement/requests/{$this->pr->id}",
-            'meta'    => [
-                'pr_id'     => $this->pr->id,
+            'url' => "/procurement/requests/{$this->pr->id}",
+            'meta' => [
+                'pr_id' => $this->pr->id,
                 'pr_number' => $this->pr->pr_number,
-                'decision'  => $this->decision,
+                'decision' => $this->decision,
             ],
         ];
     }
@@ -53,13 +54,13 @@ class PrDecidedNotification extends Notification implements ShouldQueue
 
         if ($approved) {
             $mail->line("Your Purchase Request **{$this->pr->pr_number}** has been **approved**.")
-                 ->line("Approved by: {$this->pr->approver?->name}")
-                 ->action('View Purchase Request', url("/procurement/requests/{$this->pr->id}"));
+                ->line("Approved by: {$this->pr->approver?->name}")
+                ->action('View Purchase Request', url("/procurement/requests/{$this->pr->id}"));
         } else {
             $mail->line("Your Purchase Request **{$this->pr->pr_number}** has been **rejected**.")
-                 ->line("**Reason:** {$this->pr->rejected_reason}")
-                 ->action('View Purchase Request', url("/procurement/requests/{$this->pr->id}"))
-                 ->line('You may revise and resubmit if needed.');
+                ->line("**Reason:** {$this->pr->rejected_reason}")
+                ->action('View Purchase Request', url("/procurement/requests/{$this->pr->id}"))
+                ->line('You may revise and resubmit if needed.');
         }
 
         return $mail;

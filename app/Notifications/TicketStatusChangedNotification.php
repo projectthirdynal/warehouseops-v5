@@ -31,9 +31,9 @@ class TicketStatusChangedNotification extends Notification implements ShouldQueu
         $from = ucfirst(str_replace('_', ' ', $this->fromStatus));
         $to = ucfirst(str_replace('_', ' ', $this->toStatus));
 
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject("Ticket {$this->ticket->ticket_number} status changed to {$to}")
-            ->greeting("Ticket Status Updated")
+            ->greeting('Ticket Status Updated')
             ->line("{$this->changedByName} changed the status of ticket {$this->ticket->ticket_number}.")
             ->line("**Ticket:** {$this->ticket->subject}")
             ->line("**Status:** {$from} → {$to}")

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Permission;
+use App\Models\RolePermission;
 use Illuminate\Database\Seeder;
 
 class PermissionSeeder extends Seeder
@@ -25,11 +26,11 @@ class PermissionSeeder extends Seeder
             ['key' => 'inventory.view',  'label' => 'View Inventory',   'section' => 'Inventory', 'description' => 'Access inventory dashboard and data'],
             ['key' => 'inventory.edit',  'label' => 'Edit Inventory',   'section' => 'Inventory', 'description' => 'Modify stock levels and products'],
             ['key' => 'inventory.scan',  'label' => 'Scan Barcodes',    'section' => 'Inventory', 'description' => 'Use barcode scanner functionality'],
-            ['key' => 'inventory.adjust','label' => 'Stock Adjustments','section' => 'Inventory', 'description' => 'Submit and approve stock adjustments'],
+            ['key' => 'inventory.adjust', 'label' => 'Stock Adjustments', 'section' => 'Inventory', 'description' => 'Submit and approve stock adjustments'],
 
             // Procurement
-            ['key' => 'procurement.view','label' => 'View Procurement', 'section' => 'Procurement', 'description' => 'View suppliers and purchase orders'],
-            ['key' => 'procurement.edit','label' => 'Edit Procurement', 'section' => 'Procurement', 'description' => 'Create and modify purchase orders'],
+            ['key' => 'procurement.view', 'label' => 'View Procurement', 'section' => 'Procurement', 'description' => 'View suppliers and purchase orders'],
+            ['key' => 'procurement.edit', 'label' => 'Edit Procurement', 'section' => 'Procurement', 'description' => 'Create and modify purchase orders'],
 
             // Finance
             ['key' => 'finance.view',    'label' => 'View Finance',     'section' => 'Finance', 'description' => 'Access financial reports and data'],
@@ -98,7 +99,7 @@ class PermissionSeeder extends Seeder
 
         foreach ($roleMap as $role => $permissionIds) {
             foreach ($permissionIds as $pid) {
-                \App\Models\RolePermission::firstOrCreate(
+                RolePermission::firstOrCreate(
                     ['role' => $role, 'permission_id' => $pid]
                 );
             }

@@ -1,6 +1,6 @@
 export interface DateRange {
   from: string; // YYYY-MM-DD
-  to: string;   // YYYY-MM-DD
+  to: string; // YYYY-MM-DD
 }
 
 function today(): string {
@@ -16,7 +16,7 @@ function offsetDate(days: number): string {
 export function usePersistedDateRange(
   storageKey: string,
   urlFrom?: string,
-  urlTo?: string,
+  urlTo?: string
 ): DateRange {
   if (urlFrom || urlTo) {
     return { from: urlFrom ?? '', to: urlTo ?? '' };
@@ -24,6 +24,8 @@ export function usePersistedDateRange(
   try {
     const stored = localStorage.getItem(storageKey);
     if (stored) return JSON.parse(stored) as DateRange;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { from: offsetDate(-29), to: today() };
 }

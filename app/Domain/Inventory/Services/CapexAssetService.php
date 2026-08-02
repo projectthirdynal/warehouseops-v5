@@ -15,8 +15,8 @@ class CapexAssetService
     {
         return DB::transaction(function () use ($data, $createdBy): CapexAsset {
             $asset = CapexAsset::create(array_merge($data, [
-                'created_by'        => $createdBy,
-                'status'            => CapexAsset::STATUS_ACTIVE,
+                'created_by' => $createdBy,
+                'status' => CapexAsset::STATUS_ACTIVE,
                 'current_book_value' => $data['acquisition_cost'],
             ]));
 
@@ -47,17 +47,17 @@ class CapexAssetService
 
             $assignment = CapexAssetAssignment::create([
                 'capex_asset_id' => $asset->id,
-                'assigned_to'    => $assignedTo,
-                'assigned_by'    => $assignedBy,
-                'department'     => $data['department'] ?? null,
-                'location'       => $data['location'] ?? null,
-                'notes'          => $data['notes'] ?? null,
-                'assigned_at'    => now(),
+                'assigned_to' => $assignedTo,
+                'assigned_by' => $assignedBy,
+                'department' => $data['department'] ?? null,
+                'location' => $data['location'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'assigned_at' => now(),
             ]);
 
             $asset->update([
                 'assigned_to' => $assignedTo,
-                'department'  => $data['department'] ?? $asset->department,
+                'department' => $data['department'] ?? $asset->department,
             ]);
 
             return $assignment;
@@ -87,11 +87,11 @@ class CapexAssetService
             $asset->currentAssignment()->update(['returned_at' => now()]);
 
             $asset->update([
-                'status'          => CapexAsset::STATUS_DISPOSED,
-                'disposed_at'     => now(),
+                'status' => CapexAsset::STATUS_DISPOSED,
+                'disposed_at' => now(),
                 'disposal_reason' => $data['disposal_reason'] ?? null,
-                'disposal_value'  => $data['disposal_value'] ?? null,
-                'assigned_to'     => null,
+                'disposal_value' => $data['disposal_value'] ?? null,
+                'assigned_to' => null,
             ]);
 
             return $asset;
@@ -101,11 +101,11 @@ class CapexAssetService
     private function generateDepreciationSchedule(CapexAsset $asset): void
     {
         $depreciableAmount = (float) $asset->acquisition_cost - (float) $asset->salvage_value;
-        $annualAmount      = $asset->depreciation_years > 0
+        $annualAmount = $asset->depreciation_years > 0
             ? $depreciableAmount / $asset->depreciation_years
             : 0;
 
-        $bookValue    = (float) $asset->acquisition_cost;
+        $bookValue = (float) $asset->acquisition_cost;
         $purchaseYear = (int) $asset->purchase_date->format('Y');
 
         $rows = [];
@@ -117,18 +117,18 @@ class CapexAssetService
             $closingValue = $bookValue - $depreciation;
 
             $rows[] = [
-                'capex_asset_id'       => $asset->id,
-                'year'                 => $year,
-                'fiscal_year'          => $purchaseYear + $year - 1,
-                'opening_book_value'   => round($bookValue, 4),
-                'depreciation_amount'  => round($depreciation, 4),
-                'closing_book_value'   => round($closingValue, 4),
-                'depreciation_date'    => $asset->purchase_date->copy()->addYears($year - 1)->endOfYear()->toDateString(),
-                'is_posted'            => false,
-                'posted_at'            => null,
-                'posted_by'            => null,
-                'created_at'           => now(),
-                'updated_at'           => now(),
+                'capex_asset_id' => $asset->id,
+                'year' => $year,
+                'fiscal_year' => $purchaseYear + $year - 1,
+                'opening_book_value' => round($bookValue, 4),
+                'depreciation_amount' => round($depreciation, 4),
+                'closing_book_value' => round($closingValue, 4),
+                'depreciation_date' => $asset->purchase_date->copy()->addYears($year - 1)->endOfYear()->toDateString(),
+                'is_posted' => false,
+                'posted_at' => null,
+                'posted_by' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
             ];
 
             $bookValue = $closingValue;

@@ -15,9 +15,9 @@ class SupplyStock extends Model
     ];
 
     protected $casts = [
-        'current_stock'   => 'integer',
-        'reserved_stock'  => 'integer',
-        'reorder_point'   => 'integer',
+        'current_stock' => 'integer',
+        'reserved_stock' => 'integer',
+        'reorder_point' => 'integer',
         'last_restock_at' => 'datetime',
         'last_movement_at' => 'datetime',
     ];

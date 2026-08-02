@@ -30,7 +30,7 @@ class DeadStockController extends Controller
             ->when($request->item_type && $request->item_type !== 'all', fn ($q) => $q->where('item_type', $request->item_type))
             ->when($request->warehouse_id, fn ($q) => $q->where('warehouse_id', $request->warehouse_id))
             ->when($request->from, fn ($q) => $q->whereDate('created_at', '>=', $request->from))
-            ->when($request->to,   fn ($q) => $q->whereDate('created_at', '<=', $request->to))
+            ->when($request->to, fn ($q) => $q->whereDate('created_at', '<=', $request->to))
             ->latest()
             ->paginate(25)
             ->withQueryString();
@@ -44,16 +44,16 @@ class DeadStockController extends Controller
             ->orderBy('name')
             ->get(['id', 'sku', 'name', 'section', 'stock_category', 'cost_price'])
             ->map(fn ($s) => [
-                'id'         => $s->id,
-                'sku'        => $s->sku,
-                'name'       => $s->name,
-                'section'    => $s->section,
-                'category'   => $s->stock_category,
+                'id' => $s->id,
+                'sku' => $s->sku,
+                'name' => $s->name,
+                'section' => $s->section,
+                'category' => $s->stock_category,
                 'cost_price' => (float) $s->cost_price,
-                'stocks'     => $s->stocks->map(fn ($st) => [
-                    'warehouse_id'   => $st->warehouse_id,
+                'stocks' => $s->stocks->map(fn ($st) => [
+                    'warehouse_id' => $st->warehouse_id,
                     'warehouse_name' => $st->warehouse?->name,
-                    'available'      => $st->current_stock - $st->reserved_stock,
+                    'available' => $st->current_stock - $st->reserved_stock,
                 ]),
             ]);
 
@@ -64,15 +64,15 @@ class DeadStockController extends Controller
             ->orderBy('name')
             ->get(['id', 'sku', 'name', 'category', 'cost_price'])
             ->map(fn ($p) => [
-                'id'         => $p->id,
-                'sku'        => $p->sku,
-                'name'       => $p->name,
-                'category'   => $p->category,
+                'id' => $p->id,
+                'sku' => $p->sku,
+                'name' => $p->name,
+                'category' => $p->category,
                 'cost_price' => (float) $p->cost_price,
-                'stocks'     => $p->stocks->map(fn ($st) => [
-                    'warehouse_id'   => $st->warehouse_id,
+                'stocks' => $p->stocks->map(fn ($st) => [
+                    'warehouse_id' => $st->warehouse_id,
                     'warehouse_name' => $st->warehouse?->name,
-                    'available'      => $st->current_stock - $st->reserved_stock,
+                    'available' => $st->current_stock - $st->reserved_stock,
                 ]),
             ]);
 
@@ -86,46 +86,46 @@ class DeadStockController extends Controller
             ->orderBy('name')
             ->get(['id', 'sku', 'name', 'section', 'stock_category', 'cost_price', 'stock_status_override', 'uom_id'])
             ->map(fn ($s) => [
-                'id'                   => $s->id,
-                'sku'                  => $s->sku,
-                'name'                 => $s->name,
-                'section'              => $s->section,
-                'category'             => $s->stock_category,
-                'cost_price'           => (float) $s->cost_price,
-                'uom'                  => $s->uom?->abbreviation,
-                'stock_status_override'=> $s->stock_status_override,
-                'total_stock'          => (int) $s->stocks->sum('current_stock'),
-                'total_value'          => (float) $s->cost_price * $s->stocks->sum('current_stock'),
-                'warehouses'           => $s->stocks->map(fn ($st) => [
-                    'name'      => $st->warehouse?->name ?? 'Default',
+                'id' => $s->id,
+                'sku' => $s->sku,
+                'name' => $s->name,
+                'section' => $s->section,
+                'category' => $s->stock_category,
+                'cost_price' => (float) $s->cost_price,
+                'uom' => $s->uom?->abbreviation,
+                'stock_status_override' => $s->stock_status_override,
+                'total_stock' => (int) $s->stocks->sum('current_stock'),
+                'total_value' => (float) $s->cost_price * $s->stocks->sum('current_stock'),
+                'warehouses' => $s->stocks->map(fn ($st) => [
+                    'name' => $st->warehouse?->name ?? 'Default',
                     'available' => $st->current_stock - $st->reserved_stock,
                 ])->values(),
             ]);
 
         return Inertia::render('Inventory/DeadStock/Index', [
-            'entries'          => $entries,
+            'entries' => $entries,
             'total_dead_value' => (float) $totalDeadValue,
-            'dead_supplies'    => $deadSupplies,
-            'supplies'         => $supplies,
-            'products'         => $products,
-            'warehouses'       => $warehouses,
-            'filters'          => $request->only(['item_type', 'warehouse_id', 'from', 'to']),
+            'dead_supplies' => $deadSupplies,
+            'supplies' => $supplies,
+            'products' => $products,
+            'warehouses' => $warehouses,
+            'filters' => $request->only(['item_type', 'warehouse_id', 'from', 'to']),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'item_type'    => ['required', 'in:supply,product'],
-            'supply_id'    => ['required_if:item_type,supply', 'nullable', 'integer', 'exists:supplies,id'],
-            'product_id'   => ['required_if:item_type,product', 'nullable', 'integer', 'exists:products,id'],
+            'item_type' => ['required', 'in:supply,product'],
+            'supply_id' => ['required_if:item_type,supply', 'nullable', 'integer', 'exists:supplies,id'],
+            'product_id' => ['required_if:item_type,product', 'nullable', 'integer', 'exists:products,id'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
-            'quantity'     => ['required', 'integer', 'min:1'],
-            'unit_cost'    => ['required', 'numeric', 'min:0'],
-            'reason'       => ['nullable', 'string', 'max:500'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'unit_cost' => ['required', 'numeric', 'min:0'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $qty      = (int) $data['quantity'];
+        $qty = (int) $data['quantity'];
         $unitCost = (float) $data['unit_cost'];
 
         DB::transaction(function () use ($data, $qty, $unitCost, $request): void {
@@ -141,19 +141,19 @@ class DeadStockController extends Controller
                     throw new \RuntimeException("Insufficient available supply stock. Available: {$available}, requested: {$qty}");
                 }
 
-                $stock->current_stock    = max(0, $stock->current_stock - $qty);
+                $stock->current_stock = max(0, $stock->current_stock - $qty);
                 $stock->last_movement_at = now();
                 $stock->save();
 
                 DB::table('supply_movements')->insert([
-                    'supply_id'    => $data['supply_id'],
+                    'supply_id' => $data['supply_id'],
                     'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
-                    'type'         => 'WRITE_OFF',
-                    'quantity'     => -$qty,
-                    'notes'        => 'Dead stock write-off: ' . ($data['reason'] ?? 'No reason'),
+                    'type' => 'WRITE_OFF',
+                    'quantity' => -$qty,
+                    'notes' => 'Dead stock write-off: '.($data['reason'] ?? 'No reason'),
                     'performed_by' => $request->user()?->id,
-                    'created_at'   => now(),
-                    'updated_at'   => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             } else {
                 $stock = ProductStock::lockForUpdate()
@@ -167,33 +167,33 @@ class DeadStockController extends Controller
                     throw new \RuntimeException("Insufficient available product stock. Available: {$available}, requested: {$qty}");
                 }
 
-                $stock->current_stock    = max(0, $stock->current_stock - $qty);
+                $stock->current_stock = max(0, $stock->current_stock - $qty);
                 $stock->last_movement_at = now();
                 $stock->save();
 
                 DB::table('inventory_movements')->insert([
-                    'product_id'   => $data['product_id'],
-                    'variant_id'   => null,
+                    'product_id' => $data['product_id'],
+                    'variant_id' => null,
                     'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
-                    'type'         => 'WRITE_OFF',
-                    'quantity'     => -$qty,
-                    'notes'        => 'Dead stock write-off: ' . ($data['reason'] ?? 'No reason'),
+                    'type' => 'WRITE_OFF',
+                    'quantity' => -$qty,
+                    'notes' => 'Dead stock write-off: '.($data['reason'] ?? 'No reason'),
                     'performed_by' => $request->user()?->id,
-                    'created_at'   => now(),
-                    'updated_at'   => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
             DeadStock::create([
-                'item_type'    => $data['item_type'],
-                'supply_id'    => $data['supply_id'] ?? null,
-                'product_id'   => $data['product_id'] ?? null,
+                'item_type' => $data['item_type'],
+                'supply_id' => $data['supply_id'] ?? null,
+                'product_id' => $data['product_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'] ?? null,
-                'quantity'     => $qty,
-                'unit_cost'    => $unitCost,
-                'total_value'  => $qty * $unitCost,
-                'reason'       => $data['reason'] ?? null,
-                'recorded_by'  => $request->user()?->id,
+                'quantity' => $qty,
+                'unit_cost' => $unitCost,
+                'total_value' => $qty * $unitCost,
+                'reason' => $data['reason'] ?? null,
+                'recorded_by' => $request->user()?->id,
             ]);
         });
 

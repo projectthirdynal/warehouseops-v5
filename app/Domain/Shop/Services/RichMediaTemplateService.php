@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Services;
 
-use App\Domain\Product\Models\Product;
 use App\Models\ReplyTemplate;
 use Illuminate\Support\Collection;
 
 class RichMediaTemplateService
 {
     public const MAX_BUTTONS = 3;
+
     public const MAX_CARDS = 10;
 
     /**
@@ -54,23 +54,24 @@ class RichMediaTemplateService
     {
         $errors = [];
 
-        if (!isset($config['buttons']) || !is_array($config['buttons'])) {
+        if (! isset($config['buttons']) || ! is_array($config['buttons'])) {
             $errors[] = 'Buttons array is required.';
+
             return $errors;
         }
 
         if (count($config['buttons']) > self::MAX_BUTTONS) {
-            $errors[] = 'Maximum ' . self::MAX_BUTTONS . ' buttons allowed.';
+            $errors[] = 'Maximum '.self::MAX_BUTTONS.' buttons allowed.';
         }
 
         foreach ($config['buttons'] as $i => $button) {
-            if (!isset($button['title']) || empty($button['title'])) {
+            if (! isset($button['title']) || empty($button['title'])) {
                 $errors[] = "Button {$i}: title is required.";
             }
-            if (!isset($button['type']) || !in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
+            if (! isset($button['type']) || ! in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
                 $errors[] = "Button {$i}: type must be postback, web_url, or phone_number.";
             }
-            if (!isset($button['value']) || empty($button['value'])) {
+            if (! isset($button['value']) || empty($button['value'])) {
                 $errors[] = "Button {$i}: value is required.";
             }
         }
@@ -85,29 +86,29 @@ class RichMediaTemplateService
     {
         $errors = [];
 
-        if (!isset($config['title']) || empty($config['title'])) {
+        if (! isset($config['title']) || empty($config['title'])) {
             $errors[] = 'Card title is required.';
         }
-        if (!isset($config['subtitle']) || empty($config['subtitle'])) {
+        if (! isset($config['subtitle']) || empty($config['subtitle'])) {
             $errors[] = 'Card subtitle is required.';
         }
 
-        if (isset($config['image_url']) && !filter_var($config['image_url'], FILTER_VALIDATE_URL) && !str_starts_with($config['image_url'], '/storage/')) {
+        if (isset($config['image_url']) && ! filter_var($config['image_url'], FILTER_VALIDATE_URL) && ! str_starts_with($config['image_url'], '/storage/')) {
             $errors[] = 'Card image URL must be a valid URL or storage path.';
         }
 
         if (isset($config['buttons']) && is_array($config['buttons'])) {
             if (count($config['buttons']) > self::MAX_BUTTONS) {
-                $errors[] = 'Maximum ' . self::MAX_BUTTONS . ' buttons per card.';
+                $errors[] = 'Maximum '.self::MAX_BUTTONS.' buttons per card.';
             }
             foreach ($config['buttons'] as $i => $button) {
-                if (!isset($button['title']) || empty($button['title'])) {
+                if (! isset($button['title']) || empty($button['title'])) {
                     $errors[] = "Card button {$i}: title is required.";
                 }
-                if (!isset($button['type']) || !in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
+                if (! isset($button['type']) || ! in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
                     $errors[] = "Card button {$i}: type must be postback, web_url, or phone_number.";
                 }
-                if (!isset($button['value']) || empty($button['value'])) {
+                if (! isset($button['value']) || empty($button['value'])) {
                     $errors[] = "Card button {$i}: value is required.";
                 }
             }
@@ -123,13 +124,14 @@ class RichMediaTemplateService
     {
         $errors = [];
 
-        if (!isset($config['cards']) || !is_array($config['cards']) || count($config['cards']) === 0) {
+        if (! isset($config['cards']) || ! is_array($config['cards']) || count($config['cards']) === 0) {
             $errors[] = 'Carousel requires at least one card.';
+
             return $errors;
         }
 
         if (count($config['cards']) > self::MAX_CARDS) {
-            $errors[] = 'Maximum ' . self::MAX_CARDS . ' cards per carousel.';
+            $errors[] = 'Maximum '.self::MAX_CARDS.' cards per carousel.';
         }
 
         foreach ($config['cards'] as $i => $card) {
@@ -193,7 +195,7 @@ class RichMediaTemplateService
             ];
         }
 
-        if (!empty($buttons)) {
+        if (! empty($buttons)) {
             $card['buttons'] = $buttons;
         }
 
@@ -301,9 +303,9 @@ class RichMediaTemplateService
                 $price = round($price * (1 - $discountPercent / 100), 2);
             }
 
-            $subtitle = "₱" . number_format($price, 2);
+            $subtitle = '₱'.number_format($price, 2);
             if ($discountPercent && $discountPercent > 0) {
-                $subtitle .= " (was ₱" . number_format($originalPrice, 2) . ")";
+                $subtitle .= ' (was ₱'.number_format($originalPrice, 2).')';
             }
 
             if ($product->brand) {
@@ -327,7 +329,7 @@ class RichMediaTemplateService
             ];
 
             if ($product->image_path) {
-                $card['image_url'] = '/storage/' . $product->image_path;
+                $card['image_url'] = '/storage/'.$product->image_path;
             }
 
             $cards[] = $card;

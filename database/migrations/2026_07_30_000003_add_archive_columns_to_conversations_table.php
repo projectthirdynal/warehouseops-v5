@@ -27,7 +27,7 @@ return new class extends Migration
             Schema::table('conversations', function (Blueprint $table) {
                 $table->index(['status', 'archived_at'], 'conversations_status_archived_at_index');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index already exists — ignore
         }
     }

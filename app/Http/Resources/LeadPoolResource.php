@@ -27,11 +27,11 @@ class LeadPoolResource extends JsonResource
             'is_exhausted' => $this->is_exhausted,
             'cooldown_until' => $this->cooldown_until?->toISOString(),
             'assigned_to' => $this->assigned_to,
-            'assigned_agent' => $this->whenLoaded('assignedAgent', fn() => $this->assignedAgent ? [
+            'assigned_agent' => $this->whenLoaded('assignedAgent', fn () => $this->assignedAgent ? [
                 'id' => $this->assignedAgent->id,
                 'name' => $this->assignedAgent->name,
             ] : null),
-            'customer' => $this->whenLoaded('customer', fn() => $this->customer ? [
+            'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'total_orders' => $this->customer->total_orders ?? 0,
                 'success_rate' => $this->customer->success_rate ?? 0,

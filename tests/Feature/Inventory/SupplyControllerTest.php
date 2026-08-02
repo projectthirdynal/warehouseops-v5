@@ -4,12 +4,10 @@ use App\Domain\Inventory\Models\Supply;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\get;
-use function Pest\Laravel\post;
-use function Pest\Laravel\put;
-use function Pest\Laravel\delete;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -75,7 +73,7 @@ test('search returns empty for query shorter than 2 chars', function () {
 });
 
 test('search ignores soft-deleted supplies', function () {
-    $user    = makeWarehouseUser();
+    $user = makeWarehouseUser();
     $deleted = makeSupply(['name' => 'Deleted Supply', 'is_active' => true]);
     $deleted->deleteWithReason('test');
 
@@ -94,12 +92,12 @@ test('admin can create a supply', function () {
 
     actingAs($user)
         ->post(route('inventory.supplies.store'), [
-            'sku'           => 'NEW-001',
-            'name'          => 'New Material',
-            'cost_price'    => 25.50,
-            'section'       => 'STOCK',
+            'sku' => 'NEW-001',
+            'name' => 'New Material',
+            'cost_price' => 25.50,
+            'section' => 'STOCK',
             'reorder_point' => 5,
-            'is_active'     => true,
+            'is_active' => true,
         ])
         ->assertRedirect();
 
@@ -107,27 +105,27 @@ test('admin can create a supply', function () {
 });
 
 test('store creates initial stock movement when initial_stock provided', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
 
     actingAs($user)
         ->post(route('inventory.supplies.store'), [
-            'sku'           => 'INIT-001',
-            'name'          => 'With Initial Stock',
-            'cost_price'    => 10,
+            'sku' => 'INIT-001',
+            'name' => 'With Initial Stock',
+            'cost_price' => 10,
             'reorder_point' => 5,
-            'is_active'     => true,
+            'is_active' => true,
             'initial_stock' => 50,
-            'warehouse_id'  => $warehouse->id,
+            'warehouse_id' => $warehouse->id,
         ]);
 
     $supply = Supply::where('sku', 'INIT-001')->firstOrFail();
-    $stock  = SupplyStock::where('supply_id', $supply->id)->first();
+    $stock = SupplyStock::where('supply_id', $supply->id)->first();
 
     expect($stock)->not->toBeNull()
         ->and((int) $stock->current_stock)->toBe(50);
 
-    expect(\Illuminate\Support\Facades\DB::table('supply_movements')
+    expect(DB::table('supply_movements')
         ->where('supply_id', $supply->id)
         ->where('type', 'STOCK_IN')
         ->exists()
@@ -140,8 +138,8 @@ test('sku must be unique on store', function () {
 
     actingAs($user)
         ->post(route('inventory.supplies.store'), [
-            'sku'        => 'DUPE-001',
-            'name'       => 'Duplicate SKU',
+            'sku' => 'DUPE-001',
+            'name' => 'Duplicate SKU',
             'cost_price' => 5,
         ])
         ->assertSessionHasErrors('sku');
@@ -150,15 +148,15 @@ test('sku must be unique on store', function () {
 // ─── Update ─────────────────────────────────────────────────────────────────
 
 test('admin can update a supply', function () {
-    $user   = makeAdminUser();
+    $user = makeAdminUser();
     $supply = makeSupply(['name' => 'Old Name']);
 
     actingAs($user)
         ->put(route('inventory.supplies.update', $supply), [
-            'sku'        => $supply->sku,
-            'name'       => 'Updated Name',
+            'sku' => $supply->sku,
+            'name' => 'Updated Name',
             'cost_price' => $supply->cost_price,
-            'is_active'  => true,
+            'is_active' => true,
         ])
         ->assertRedirect();
 
@@ -168,7 +166,7 @@ test('admin can update a supply', function () {
 // ─── Destroy ────────────────────────────────────────────────────────────────
 
 test('admin can soft-delete a supply with reason', function () {
-    $user   = makeAdminUser();
+    $user = makeAdminUser();
     $supply = makeSupply();
 
     actingAs($user)
@@ -181,7 +179,7 @@ test('admin can soft-delete a supply with reason', function () {
 });
 
 test('delete requires a reason', function () {
-    $user   = makeAdminUser();
+    $user = makeAdminUser();
     $supply = makeSupply();
 
     actingAs($user)
@@ -192,22 +190,22 @@ test('delete requires a reason', function () {
 // ─── adjustStock ────────────────────────────────────────────────────────────
 
 test('stock_in increases current_stock', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
-    $supply    = makeSupply();
+    $supply = makeSupply();
 
     SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 10,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     actingAs($user)
         ->post(route('inventory.supplies.stock.adjust', $supply), [
-            'type'         => 'stock_in',
-            'quantity'     => 20,
+            'type' => 'stock_in',
+            'quantity' => 20,
             'warehouse_id' => $warehouse->id,
         ])
         ->assertRedirect();
@@ -216,22 +214,22 @@ test('stock_in increases current_stock', function () {
 });
 
 test('stock_out decreases current_stock', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
-    $supply    = makeSupply();
+    $supply = makeSupply();
 
     SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 30,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     actingAs($user)
         ->post(route('inventory.supplies.stock.adjust', $supply), [
-            'type'         => 'stock_out',
-            'quantity'     => 10,
+            'type' => 'stock_out',
+            'quantity' => 10,
             'warehouse_id' => $warehouse->id,
         ])
         ->assertRedirect();
@@ -240,58 +238,58 @@ test('stock_out decreases current_stock', function () {
 });
 
 test('stock_out fails when quantity exceeds available', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
-    $supply    = makeSupply();
+    $supply = makeSupply();
 
     SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 5,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 2,
     ]);
 
     actingAs($user)
         ->post(route('inventory.supplies.stock.adjust', $supply), [
-            'type'         => 'stock_out',
-            'quantity'     => 10,
+            'type' => 'stock_out',
+            'quantity' => 10,
             'warehouse_id' => $warehouse->id,
         ])
         ->assertStatus(422);
 });
 
 test('stock_in with quantity 0 returns validation error', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
-    $supply    = makeSupply();
+    $supply = makeSupply();
 
     actingAs($user)
         ->post(route('inventory.supplies.stock.adjust', $supply), [
-            'type'         => 'stock_in',
-            'quantity'     => 0,
+            'type' => 'stock_in',
+            'quantity' => 0,
             'warehouse_id' => $warehouse->id,
         ])
         ->assertSessionHasErrors('quantity');
 });
 
 test('adjustment sets stock to exact quantity', function () {
-    $user      = makeAdminUser();
+    $user = makeAdminUser();
     $warehouse = makeWarehouse(['is_default' => true]);
-    $supply    = makeSupply();
+    $supply = makeSupply();
 
     SupplyStock::create([
-        'supply_id'     => $supply->id,
-        'warehouse_id'  => $warehouse->id,
+        'supply_id' => $supply->id,
+        'warehouse_id' => $warehouse->id,
         'current_stock' => 100,
-        'reserved_stock'=> 0,
+        'reserved_stock' => 0,
         'reorder_point' => 5,
     ]);
 
     actingAs($user)
         ->post(route('inventory.supplies.stock.adjust', $supply), [
-            'type'         => 'adjustment',
-            'quantity'     => 45,
+            'type' => 'adjustment',
+            'quantity' => 45,
             'warehouse_id' => $warehouse->id,
         ])
         ->assertRedirect();

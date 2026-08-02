@@ -1,0 +1,1346 @@
+parameters:
+	ignoreErrors:
+		-
+			message: "#^Relation 'claims' is not found in App\\\\Models\\\\Waybill model\\.$#"
+			count: 1
+			path: app/Console/Commands/AutoCreateClaims.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$active_count\\.$#"
+			count: 2
+			path: app/Console/Commands/CheckIdleAgents.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Console/Commands/CheckIdleAgents.php
+
+		-
+			message: "#^Comparison operation \"\\<\\=\" between 60\\|240\\|1440 and 0 is always false\\.$#"
+			count: 1
+			path: app/Console/Commands/EscalateSlaBreachedConversations.php
+
+		-
+			message: "#^Undefined variable\\: \\$status$#"
+			count: 1
+			path: app/Console/Commands/EscalateSlaBreachedConversations.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$cnt\\.$#"
+			count: 24
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$date\\.$#"
+			count: 4
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$delivered\\.$#"
+			count: 5
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$month\\.$#"
+			count: 3
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$order_month\\.$#"
+			count: 1
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$orders\\.$#"
+			count: 2
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$returned\\.$#"
+			count: 6
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$rev\\.$#"
+			count: 21
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$revenue\\.$#"
+			count: 3
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$week\\.$#"
+			count: 1
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\ShopOrderItem\\:\\:\\$total_qty\\.$#"
+			count: 3
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\ShopOrderItem\\:\\:\\$total_revenue\\.$#"
+			count: 2
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between 0 and 0 is always false\\.$#"
+			count: 1
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between int\\<7, max\\> and 0 is always true\\.$#"
+			count: 4
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 4
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Analytics\\\\Services\\\\SalesDashboardService\\:\\:orderCounts\\(\\) should return array\\{daily\\: array\\{date\\: string, count\\: int, label\\: string\\}, weekly\\: array\\{week_start\\: string, count\\: int, label\\: string\\}, monthly\\: array\\{month_start\\: string, count\\: int, label\\: string\\}, today\\: int, yesterday\\: int, this_week\\: int, last_week\\: int, this_month\\: int, \\.\\.\\.\\} but returns array\\{daily\\: array\\<int, array\\{date\\: string, count\\: int, label\\: string\\}\\>, weekly\\: array\\<int, array\\{week_start\\: string, count\\: int, label\\: string\\}\\>, monthly\\: array\\<int, array\\{month_start\\: string, count\\: int, label\\: string\\}\\>, today\\: int, yesterday\\: int, this_week\\: int, last_week\\: int, this_month\\: int, \\.\\.\\.\\}\\.$#"
+			count: 1
+			path: app/Domain/Analytics/Services/SalesDashboardService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Courier\\\\Models\\\\CourierProvider\\:\\:\\$active_waybills\\.$#"
+			count: 1
+			path: app/Domain/Courier/Http/Controllers/CourierProviderController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Courier\\\\Models\\\\CourierProvider\\:\\:\\$last_api_call_at\\.$#"
+			count: 1
+			path: app/Domain/Courier/Http/Controllers/CourierProviderController.php
+
+		-
+			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Courier/Services/CourierStatusSyncService.php
+
+		-
+			message: "#^Instanceof between string and App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus will always evaluate to false\\.$#"
+			count: 1
+			path: app/Domain/Courier/Services/CourierStatusSyncService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\:\\:CANCELLED\\|App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\:\\:DELIVERED\\|App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\:\\:DISPATCHED\\|App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\:\\:ON_HOLD\\|App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\:\\:RETURNED\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Courier/Services/CourierStatusSyncService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:ARRIVED_HUB\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:CANCELLED\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:DELIVERED\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:DELIVERY_FAILED\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:DISPATCHED\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:IN_TRANSIT\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:OUT_FOR_DELIVERY\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:PENDING\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:PICKED_UP\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:RETURNED\\|App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\:\\:RETURNING\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Courier/Services/CourierStatusSyncService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Builder\\<App\\\\Domain\\\\Finance\\\\Models\\\\QboSyncQueue\\>\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Domain/Finance/Services/QboSyncService.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Finance\\\\Services\\\\QboSyncService\\:\\:enqueueBillFromGrn\\(\\) should return App\\\\Domain\\\\Finance\\\\Models\\\\QboSyncQueue\\|null but returns Illuminate\\\\Database\\\\Eloquent\\\\Builder\\<App\\\\Domain\\\\Finance\\\\Models\\\\QboSyncQueue\\>\\.$#"
+			count: 1
+			path: app/Domain/Finance/Services/QboSyncService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type Carbon\\\\Carbon\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Finance/Services/QboSyncService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Finance\\\\Models\\\\FinancialTransaction\\:\\:\\$total\\.$#"
+			count: 1
+			path: app/Domain/Finance/Services/RevenueService.php
+
+		-
+			message: "#^Class App\\\\Domain\\\\Lead\\\\Models\\\\LeadLog not found\\.$#"
+			count: 1
+			path: app/Domain/Lead/Models/Lead.php
+
+		-
+			message: "#^Class App\\\\Domain\\\\Lead\\\\Models\\\\QaReview not found\\.$#"
+			count: 1
+			path: app/Domain/Lead/Models/Lead.php
+
+		-
+			message: "#^Parameter \\#1 \\$related of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:hasMany\\(\\) expects class\\-string\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>, string given\\.$#"
+			count: 2
+			path: app/Domain/Lead/Models/Lead.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: app/Domain/Lead/Strategies/HybridStrategy.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: app/Domain/Lead/Strategies/TerritoryStrategy.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$facebookPage\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$order_count\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$page_count\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$unique_phones\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CustomerIdentity\\:\\:\\$ids\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CustomerIdentity\\:\\:\\$page_count\\.$#"
+			count: 4
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Customer\\:\\:\\$ids\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DuplicateReviewItem\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between \\(array\\|float\\|int\\) and 0 results in an error\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between int\\<1, max\\> and 0 is always true\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Offset 'BLACKLISTED'\\|'HIGH'\\|'LOW'\\|'MEDIUM' on array\\{LOW\\: 0, MEDIUM\\: 1, HIGH\\: 2, BLACKLISTED\\: 3\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Relation 'facebookPage' is not found in App\\\\Domain\\\\Order\\\\Models\\\\Order model\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Relation 'orders' is not found in App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage model\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Right side of && is always true\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/DuplicateDetectionService.php
+
+		-
+			message: "#^Cannot access property \\$id on null\\.$#"
+			count: 2
+			path: app/Domain/Order/Services/OrderFulfillmentService.php
+
+		-
+			message: "#^Parameter \\#1 \\$lead of method App\\\\Services\\\\LeadPoolService\\:\\:markAsAvailable\\(\\) expects App\\\\Domain\\\\Lead\\\\Models\\\\Lead, App\\\\Models\\\\Lead given\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/OrderFulfillmentService.php
+
+		-
+			message: "#^Parameter \\#2 \\$amount of method App\\\\Models\\\\Customer\\:\\:increment\\(\\) expects float\\|int, string given\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/OrderFulfillmentService.php
+
+		-
+			message: "#^Property App\\\\Domain\\\\Order\\\\Services\\\\OrderFulfillmentService\\:\\:\\$auditService is never read, only written\\.$#"
+			count: 1
+			path: app/Domain/Order/Services/OrderFulfillmentService.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between App\\\\Domain\\\\Procurement\\\\Enums\\\\PrStatus\\:\\:DRAFT and App\\\\Domain\\\\Procurement\\\\Enums\\\\PrStatus\\:\\:SUBMITTED will always evaluate to false\\.$#"
+			count: 1
+			path: app/Domain/Procurement/Services/ProcurementService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomerAddress\\:\\:\\$city\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvCorrectionSuggester.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomerAddress\\:\\:\\$state\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvCorrectionSuggester.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomerAddress\\:\\:\\$street\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvCorrectionSuggester.php
+
+		-
+			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvCorrectionSuggester.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between 0 and 0 is always false\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'address_errors' on array\\{order_id\\: int, order_number\\: string, receiver_name\\: string, valid\\: false, missing_columns\\: array\\<int, string\\>, missing_fields\\: array\\<int, array\\{column\\: string, field\\: string, value\\: mixed\\}\\>\\} on left side of \\?\\? does not exist\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'invalid_count' on array\\{valid\\: bool, total\\: int, valid_count\\: int, invalid_count\\: int, schema\\: string, courier_code\\: string, required_columns\\: array\\<int, string\\>, column_count\\: int, \\.\\.\\.\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'orders' on array\\{valid\\: bool, total\\: int, valid_count\\: int, invalid_count\\: int, schema\\: string, courier_code\\: string, required_columns\\: array\\<int, string\\>, column_count\\: int, \\.\\.\\.\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'suggestions' on array\\{order_id\\: int, order_number\\: string, receiver_name\\: string, valid\\: false, missing_columns\\: array\\<int, string\\>, missing_fields\\: array\\<int, array\\{column\\: string, field\\: string, value\\: mixed\\}\\>\\} on left side of \\?\\? does not exist\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'total' on array\\{valid\\: bool, total\\: int, valid_count\\: int, invalid_count\\: int, schema\\: string, courier_code\\: string, required_columns\\: array\\<int, string\\>, column_count\\: int, \\.\\.\\.\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'valid_count' on array\\{valid\\: bool, total\\: int, valid_count\\: int, invalid_count\\: int, schema\\: string, courier_code\\: string, required_columns\\: array\\<int, string\\>, column_count\\: int, \\.\\.\\.\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Offset 'weight_errors' on array\\{order_id\\: int, order_number\\: string, receiver_name\\: string, valid\\: false, missing_columns\\: array\\<int, string\\>, missing_fields\\: array\\<int, array\\{column\\: string, field\\: string, value\\: mixed\\}\\>\\} on left side of \\?\\? does not exist\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvTestMode.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CourierCsvValidationErrorLog\\:\\:\\$count\\.$#"
+			count: 3
+			path: app/Domain/Shop/CourierCsv/CourierCsvValidationAnalytics.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CourierCsvValidationErrorLog\\:\\:\\$day\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvValidationAnalytics.php
+
+		-
+			message: "#^PHPDoc tag @param references unknown parameter\\: \\$orderIds$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvValidationAnalytics.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Shop\\\\CourierCsv\\\\CourierCsvValidator\\:\\:isInvalidValue\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Domain/Shop/CourierCsv/CourierCsvValidator.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Shop\\\\Models\\\\Milestone\\:\\:rewardBadge\\(\\) has invalid return type App\\\\Domain\\\\Shop\\\\Models\\\\BelongsTo\\.$#"
+			count: 1
+			path: app/Domain/Shop/Models/Milestone.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Shop\\\\Models\\\\Milestone\\:\\:rewardBadge\\(\\) should return App\\\\Domain\\\\Shop\\\\Models\\\\BelongsTo but returns Illuminate\\\\Database\\\\Eloquent\\\\Relations\\\\BelongsTo\\<App\\\\Domain\\\\Shop\\\\Models\\\\Badge, \\$this\\(App\\\\Domain\\\\Shop\\\\Models\\\\Milestone\\)\\>\\.$#"
+			count: 1
+			path: app/Domain/Shop/Models/Milestone.php
+
+		-
+			message: "#^Match arm is unreachable because previous comparison is always true\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/AddressMappingService.php
+
+		-
+			message: "#^Offset 'field' on array\\{field\\: string, q\\: string, province\\?\\: string\\|null, city_municipality\\?\\: string\\|null\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/AddressMappingService.php
+
+		-
+			message: "#^Offset 'q' on array\\{field\\: string, q\\: string, province\\?\\: string\\|null, city_municipality\\?\\: string\\|null\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/AddressMappingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$active_count\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/AutoAssignmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$last_assignment_at\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/AutoAssignmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$shift_end\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/AutoAssignmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$shift_start\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/AutoAssignmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CartTemplate\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/CartTemplateSharingService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type Carbon\\\\Carbon\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/ConversationArchiveService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$avg_fr\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$avg_res\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$avg_seconds\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$max_seconds\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$min_seconds\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/ConversationSlaService.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Shop\\\\Services\\\\CourierExportService\\:\\:requiredFields\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/CourierExportService.php
+
+		-
+			message: "#^Offset 'BLACKLISTED'\\|'HIGH'\\|'LOW'\\|'MEDIUM' on array\\{LOW\\: 0, MEDIUM\\: 1, HIGH\\: 2, BLACKLISTED\\: 3\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/CustomerMergeService.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between int\\<3, max\\> and 0 is always true\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/CustomerRiskService.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/CustomerRiskService.php
+
+		-
+			message: "#^Part \\$order\\-\\>status \\(App\\\\Domain\\\\Order\\\\Enums\\\\OrderStatus\\) of encapsed string cannot be cast to string\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/CustomerTimelineService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$badge_count\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/GamificationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$completed_milestones\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/GamificationService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type Carbon\\\\Carbon\\. Use \\-\\> instead\\.$#"
+			count: 2
+			path: app/Domain/Shop/Services/GamificationService.php
+
+		-
+			message: "#^Undefined variable\\: \\$payload$#"
+			count: 1
+			path: app/Domain/Shop/Services/MetaConversationIngestor.php
+
+		-
+			message: "#^Offset 0 on array\\{array\\<int, string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/PhoneDetectionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\ShopOrderItem\\:\\:\\$frequency\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/ProductRecommendationService.php
+
+		-
+			message: "#^Method App\\\\Domain\\\\Shop\\\\Services\\\\ShopReportsEnhancementService\\:\\:funnel\\(\\) should return array\\{stages\\: array\\<int, array\\{stage\\: string, label\\: string, count\\: int, percentage\\: float\\}\\>, drop_off\\: array\\<int, array\\{from\\: string, to\\: string, lost\\: int, rate\\: float\\}\\>\\} but returns array\\{stages\\: array\\{array\\{stage\\: 'conversations', label\\: 'Conversations', count\\: int\\}, array\\{stage\\: 'assigned', label\\: 'Assigned', count\\: int\\}, array\\{stage\\: 'resolved', label\\: 'Resolved', count\\: int\\}, array\\{stage\\: 'orders', label\\: 'Orders Created', count\\: int\\}, array\\{stage\\: 'confirmed', label\\: 'Confirmed', count\\: int\\}, array\\{stage\\: 'delivered', label\\: 'Delivered', count\\: int\\}\\}, drop_off\\: non\\-empty\\-array\\<int\\<0, max\\>, array\\{from\\: literal\\-string&non\\-falsy\\-string, to\\: literal\\-string&non\\-falsy\\-string, lost\\: int\\<0, max\\>, rate\\: float\\}\\>\\}\\.$#"
+			count: 1
+			path: app/Domain/Shop/Services/ShopReportsEnhancementService.php
+
+		-
+			message: "#^Class App\\\\Domain\\\\Waybill\\\\Models\\\\BatchScanItem not found\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Models/Waybill.php
+
+		-
+			message: "#^Class App\\\\Domain\\\\Waybill\\\\Models\\\\WaybillTrackingHistory not found\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Models/Waybill.php
+
+		-
+			message: "#^Parameter \\#1 \\$related of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:hasMany\\(\\) expects class\\-string\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>, string given\\.$#"
+			count: 2
+			path: app/Domain/Waybill/Models/Waybill.php
+
+		-
+			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/DeliveryProofService.php
+
+		-
+			message: "#^Method Illuminate\\\\Http\\\\Client\\\\Response\\:\\:header\\(\\) invoked with 2 parameters, 1 required\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/DeliveryProofService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type Carbon\\\\Carbon\\. Use \\-\\> instead\\.$#"
+			count: 2
+			path: app/Domain/Waybill/Services/GeolocationMapService.php
+
+		-
+			message: "#^Call to function is_string\\(\\) with App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus will always evaluate to false\\.$#"
+			count: 2
+			path: app/Domain/Waybill/Services/ReturnWorkflowService.php
+
+		-
+			message: "#^Relation 'roles' is not found in App\\\\Models\\\\User model\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/ReturnWorkflowService.php
+
+		-
+			message: "#^Using nullsafe method call on non\\-nullable type Carbon\\\\Carbon\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/ReturnWorkflowService.php
+
+		-
+			message: "#^Using nullsafe property access on non\\-nullable type App\\\\Domain\\\\Waybill\\\\Enums\\\\WaybillStatus\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/ReturnWorkflowService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$avg_days_overdue\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$breach_count\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$claims\\.$#"
+			count: 2
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$cod_at_risk\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$critical_count\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$returned_at\\.$#"
+			count: 2
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$waybill_number\\.$#"
+			count: 1
+			path: app/Domain/Waybill/Services/SlaDashboardService.php
+
+		-
+			message: "#^Property App\\\\Exports\\\\ClaimsExport\\:\\:\\$generatedBy is never read, only written\\.$#"
+			count: 1
+			path: app/Exports/ClaimsExport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$stats\\.$#"
+			count: 1
+			path: app/Http/Controllers/AgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$cnt\\.$#"
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$dow\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$hour\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$order_count\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$rev\\.$#"
+			count: 3
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Order\\\\Models\\\\Order\\:\\:\\$revenue\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Waybill\\:\\:\\$dow\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Waybill\\:\\:\\$hour\\.$#"
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between float and 0 will always evaluate to false\\.$#"
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: "#^Offset 0 on array\\{array\\<int, string\\>, array\\<int, non\\-empty\\-string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: app/Http/Controllers/DesktopApiController.php
+
+		-
+			message: "#^Parameter \\#1 \\$filters of method App\\\\Domain\\\\Order\\\\Services\\\\DuplicateDetectionService\\:\\:getAutoMergeSuggestions\\(\\) expects array\\{status\\?\\: string, min_confidence\\?\\: float, per_page\\?\\: int\\}, array\\{status\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\), min_confidence\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\)\\} given\\.$#"
+			count: 1
+			path: app/Http/Controllers/DuplicateDetectionController.php
+
+		-
+			message: "#^Parameter \\#1 \\$filters of method App\\\\Domain\\\\Order\\\\Services\\\\DuplicateDetectionService\\:\\:getFamilies\\(\\) expects array\\{status\\?\\: string, method\\?\\: string, min_members\\?\\: int, per_page\\?\\: int\\}, array\\{status\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\), method\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\), min_members\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\)\\} given\\.$#"
+			count: 1
+			path: app/Http/Controllers/DuplicateDetectionController.php
+
+		-
+			message: "#^Parameter \\#1 \\$filters of method App\\\\Domain\\\\Order\\\\Services\\\\DuplicateDetectionService\\:\\:getNotifications\\(\\) expects array\\{user_id\\?\\: int, type\\?\\: string, severity\\?\\: string, unread_only\\?\\: bool, per_page\\?\\: int\\}, array\\{type\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\), severity\\?\\: \\(non\\-empty\\-array\\|non\\-falsy\\-string\\), unread_only\\?\\: '1', user_id\\: int\\|null\\} given\\.$#"
+			count: 1
+			path: app/Http/Controllers/DuplicateDetectionController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Lead\\\\Models\\\\Lead\\:\\:\\$days_in_pool\\.$#"
+			count: 1
+			path: app/Http/Controllers/LeadController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$unreadNotifications\\.$#"
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: "#^Match expression does not handle remaining value\\: mixed$#"
+			count: 1
+			path: app/Http/Controllers/OrderController.php
+
+		-
+			message: "#^Match expression does not handle remaining value\\: mixed$#"
+			count: 1
+			path: app/Http/Controllers/ProductController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplate\\:\\:\\$template_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplate\\:\\:\\$total_usage\\.$#"
+			count: 2
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplate\\:\\:\\$total_uses\\.$#"
+			count: 1
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplate\\:\\:\\$unique_conversations\\.$#"
+			count: 1
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplate\\:\\:\\$unique_users\\.$#"
+			count: 1
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplateUsage\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplateUsage\\:\\:\\$date\\.$#"
+			count: 1
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplyTemplateUsage\\:\\:\\$usage_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Offset 0 on array\\{array\\<int, string\\>, array\\<int, non\\-empty\\-string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 2
+			path: app/Http/Controllers/ReplyTemplateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Lead\\:\\:\\$agent_name\\.$#"
+			count: 1
+			path: app/Http/Controllers/SalesTrackingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Lead\\:\\:\\$count\\.$#"
+			count: 2
+			path: app/Http/Controllers/SalesTrackingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Lead\\:\\:\\$date\\.$#"
+			count: 1
+			path: app/Http/Controllers/SalesTrackingController.php
+
+		-
+			message: "#^Comparison operation \"\\>\" between int\\<1, max\\> and 0 is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/SalesTrackingController.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/SalesTrackingController.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/ScannerController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\Conversation\\:\\:\\$sla\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CourierExportBatch\\:\\:\\$exported_rows\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CourierExportBatch\\:\\:\\$failed_rows\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CourierExportBatch\\:\\:\\$total_rows\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$avg_resolution_seconds\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$avg_response_seconds\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$resolved_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$responded_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$total_conversations\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\FacebookPage\\:\\:\\$unread_count\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$active_conversations\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$assigned_count\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$avg_response_seconds_30d\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$resolved_30d\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$roles\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$total_assigned_30d\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$allowed_roles\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$clonedFrom\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$cloned_from\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$courier_code\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$discount_amount\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$is_shared\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$items\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$last_used_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$remarks\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$shipping_fee\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$tax_rate\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$user\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$user_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Call to an undefined method \\(array\\<int, Illuminate\\\\Http\\\\UploadedFile\\>\\|Illuminate\\\\Http\\\\UploadedFile\\)\\:\\:getContents\\(\\)\\.$#"
+			count: 3
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Call to an undefined static method Illuminate\\\\Support\\\\Facades\\\\Cache\\:\\:getRedis\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Else branch is unreachable because ternary operator condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\ShopController\\:\\:possibleDuplicateOrders\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Offset 0 on array\\{array\\<int, string\\>, array\\<int, non\\-empty\\-string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 3
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Parameter \\#1 \\$boolean of function abort_unless expects bool, App\\\\Domain\\\\Product\\\\Models\\\\Product given\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Parameter \\#1 \\$boolean of function abort_unless expects bool, App\\\\Domain\\\\Product\\\\Models\\\\ProductVariant\\|null given\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Parameter \\#1 \\$boolean of function abort_unless expects bool, App\\\\Domain\\\\Product\\\\Models\\\\Product\\|null given\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Parameter \\#1 \\$boolean of function abort_unless expects bool, array\\<string, App\\\\Domain\\\\Product\\\\Models\\\\Product\\|App\\\\Domain\\\\Product\\\\Models\\\\ProductVariant\\|float\\|int\\|string\\|null\\>\\|null given\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Controllers\\\\ShopController\\:\\:\\$sentimentAnalyzer is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Relation 'customerIdentity' is not found in App\\\\Domain\\\\Shop\\\\Models\\\\Conversation model\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Undefined variable\\: \\$conversation$#"
+			count: 1
+			path: app/Http/Controllers/ShopController.php
+
+		-
+			message: "#^Offset 0 on array\\{array\\<int, string\\>, array\\<int, non\\-empty\\-string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: app/Http/Controllers/SmsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$avg_hours\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$date\\.$#"
+			count: 2
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$max_hours\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$min_hours\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$resolved\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$ticket_count\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Ticket\\:\\:\\$total\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Offset 'closed'\\|'in_progress'\\|'open'\\|'resolved'\\|'waiting' on array\\{open\\: array\\{'in_progress', 'waiting', 'resolved', 'closed'\\}, in_progress\\: array\\{'waiting', 'resolved', 'closed', 'open'\\}, waiting\\: array\\{'in_progress', 'resolved', 'closed', 'open'\\}, resolved\\: array\\{'closed', 'in_progress', 'open'\\}, closed\\: array\\{'in_progress', 'open'\\}\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: app/Http/Controllers/TicketController.php
+
+		-
+			message: "#^Parameter \\#1 \\$waybill of method App\\\\Domain\\\\Waybill\\\\Services\\\\DeliveryProofService\\:\\:storeUpload\\(\\) expects App\\\\Domain\\\\Waybill\\\\Models\\\\Waybill, App\\\\Models\\\\Waybill given\\.$#"
+			count: 1
+			path: app/Http/Controllers/WaybillController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$amount\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$assigned_at\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$barangay\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$call_attempts\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$city\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$customer\\.$#"
+			count: 2
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$cycles\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$last_called_at\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$pool_status\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$product_brand\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$product_name\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$sales_status\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$state\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\AgentLeadResource\\:\\:\\$total_cycles\\.$#"
+			count: 1
+			path: app/Http/Resources/AgentLeadResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$amount\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$assignedAgent\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$assigned_to\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$barangay\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$city\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$cooldown_until\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$customer\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$is_exhausted\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$phone\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$pool_status\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$product_brand\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$product_name\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$sales_status\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$source\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$state\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\LeadPoolResource\\:\\:\\$total_cycles\\.$#"
+			count: 1
+			path: app/Http/Resources/LeadPoolResource.php
+
+		-
+			message: "#^Call to protected method bulkUpsert\\(\\) of class App\\\\Imports\\\\JntWaybillFastImport\\.$#"
+			count: 1
+			path: app/Jobs/RetryFailedRowsJob.php
+
+		-
+			message: "#^Undefined variable\\: \\$failedRows$#"
+			count: 1
+			path: app/Jobs/RetryFailedRowsJob.php
+
+		-
+			message: "#^Using nullsafe property access on non\\-nullable type App\\\\Domain\\\\Lead\\\\Enums\\\\PoolStatus\\. Use \\-\\> instead\\.$#"
+			count: 1
+			path: app/Listeners/AutoDistributeOnLeadCreated.php
+
+		-
+			message: "#^Class App\\\\Models\\\\Order not found\\.$#"
+			count: 1
+			path: app/Models/SupplierInvoice.php
+
+		-
+			message: "#^Parameter \\#1 \\$related of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:belongsTo\\(\\) expects class\\-string\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>, string given\\.$#"
+			count: 1
+			path: app/Models/SupplierInvoice.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThirdParty\\:\\:\\$barangay\\.$#"
+			count: 1
+			path: app/Models/ThirdParty.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThirdParty\\:\\:\\$state\\.$#"
+			count: 1
+			path: app/Models/ThirdParty.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThirdParty\\:\\:\\$street\\.$#"
+			count: 1
+			path: app/Models/ThirdParty.php
+
+		-
+			message: "#^Parameter \\#2 \\$syntax of method Carbon\\\\Carbon\\:\\:diffForHumans\\(\\) expects array\\|int\\|null, true given\\.$#"
+			count: 2
+			path: app/Models/Ticket.php
+
+		-
+			message: "#^Class App\\\\Models\\\\Order not found\\.$#"
+			count: 1
+			path: app/Models/Waybill.php
+
+		-
+			message: "#^Parameter \\#1 \\$related of method Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:belongsTo\\(\\) expects class\\-string\\<Illuminate\\\\Database\\\\Eloquent\\\\Model\\>, string given\\.$#"
+			count: 1
+			path: app/Models/Waybill.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DistributionQueue\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Services/DistributionAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DistributionQueue\\:\\:\\$hour\\.$#"
+			count: 1
+			path: app/Services/DistributionAnalyticsService.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: app/Services/DistributionEngine.php
+
+		-
+			message: "#^Method App\\\\Services\\\\DistributionEngine\\:\\:scoreAgents\\(\\) should return Illuminate\\\\Support\\\\Collection\\<int, array\\{agent_id\\: int, score\\: float\\}\\> but returns Illuminate\\\\Support\\\\Collection\\<int, array\\{agent_id\\: int, score\\: float, profile\\: App\\\\Models\\\\AgentProfile, workload\\: App\\\\Models\\\\AgentWorkload\\}\\>\\.$#"
+			count: 1
+			path: app/Services/DistributionEngine.php
+
+		-
+			message: "#^Property App\\\\Services\\\\DistributionEngine\\:\\:\\$auditService is never read, only written\\.$#"
+			count: 1
+			path: app/Services/DistributionEngine.php
+
+		-
+			message: "#^Property App\\\\Services\\\\DistributionEngine\\:\\:\\$poolService is never read, only written\\.$#"
+			count: 1
+			path: app/Services/DistributionEngine.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\LeadCycle\\:\\:\\$cycle_count\\.$#"
+			count: 1
+			path: app/Services/FraudDetectionService.php
+
+		-
+			message: "#^Property App\\\\Services\\\\LeadDistributionService\\:\\:\\$poolService is never read, only written\\.$#"
+			count: 1
+			path: app/Services/LeadDistributionService.php
+
+		-
+			message: "#^Instantiated class PhpOffice\\\\PhpSpreadsheet\\\\IOFactory is abstract\\.$#"
+			count: 1
+			path: app/Services/LeadImportService.php
+
+		-
+			message: "#^Using nullsafe property access on non\\-nullable type App\\\\Domain\\\\Lead\\\\Enums\\\\PoolStatus\\. Use \\-\\> instead\\.$#"
+			count: 4
+			path: app/Services/LeadPoolService.php
+
+		-
+			message: "#^Parameter \\#1 \\$lead of method App\\\\Domain\\\\Order\\\\Services\\\\OrderFulfillmentService\\:\\:createFromLead\\(\\) expects App\\\\Models\\\\Lead, App\\\\Domain\\\\Lead\\\\Models\\\\Lead given\\.$#"
+			count: 1
+			path: app/Services/LeadRecyclingService.php
+
+		-
+			message: "#^Method App\\\\Services\\\\TelesalesLeadImportService\\:\\:mapOrderStatusToLeadStatus\\(\\) never returns null so it can be removed from the return type\\.$#"
+			count: 1
+			path: app/Services/TelesalesLeadImportService.php

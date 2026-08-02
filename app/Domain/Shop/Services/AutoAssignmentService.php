@@ -16,8 +16,11 @@ use Illuminate\Support\Collection;
 class AutoAssignmentService
 {
     public const STRATEGY_ROUND_ROBIN = 'round_robin';
+
     public const STRATEGY_SKILL_BASED = 'skill_based';
+
     public const STRATEGY_WORKLOAD = 'workload';
+
     public const STRATEGY_HYBRID = 'hybrid';
 
     public const STRATEGIES = [
@@ -37,6 +40,7 @@ class AutoAssignmentService
 
         if ($rule !== null) {
             $this->applyAssignment($conversation, $rule->user_id, 'page_rule');
+
             return $rule->user_id;
         }
 
@@ -55,7 +59,7 @@ class AutoAssignmentService
         };
 
         if ($agentId !== null) {
-            $this->applyAssignment($conversation, $agentId, 'auto_' . $strategy);
+            $this->applyAssignment($conversation, $agentId, 'auto_'.$strategy);
         }
 
         return $agentId;
@@ -99,6 +103,7 @@ class AutoAssignmentService
     public function getStrategy(): string
     {
         $strategy = SiteSetting::get('auto_assign_strategy', self::STRATEGY_HYBRID);
+
         return array_key_exists($strategy, self::STRATEGIES) ? $strategy : self::STRATEGY_HYBRID;
     }
 
@@ -243,10 +248,10 @@ class AutoAssignmentService
             )
             ->selectRaw(
                 'users.id, users.name, agent_profiles.last_assignment_at, '
-                . 'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
-                . 'agent_profiles.max_active_conversations, agent_profiles.overflow_enabled, '
-                . 'agent_profiles.shift_start, agent_profiles.shift_end, '
-                . 'COUNT(conversations.id) as active_count'
+                .'agent_profiles.product_skills, agent_profiles.regions, agent_profiles.category_skills, '
+                .'agent_profiles.max_active_conversations, agent_profiles.overflow_enabled, '
+                .'agent_profiles.shift_start, agent_profiles.shift_end, '
+                .'COUNT(conversations.id) as active_count'
             )
             ->get();
 
@@ -270,6 +275,7 @@ class AutoAssignmentService
                 if ($endTime < $startTime) {
                     return $nowTime >= $startTime || $nowTime < $endTime;
                 }
+
                 return $nowTime >= $startTime && $nowTime < $endTime;
             });
             $agents = $inShift->isNotEmpty() ? $inShift : $agents;
@@ -281,6 +287,7 @@ class AutoAssignmentService
                 if ($atLimit && ! (bool) ($agent->overflow_enabled ?? true)) {
                     return false;
                 }
+
                 return true;
             });
             $agents = $available->isNotEmpty() ? $available : $agents;

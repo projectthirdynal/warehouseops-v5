@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Services;
 
-use App\Domain\Shop\Models\Badge;
-use App\Domain\Shop\Models\AgentBadge;
-use App\Domain\Shop\Models\AgentStreak;
-use App\Domain\Shop\Models\Milestone;
-use App\Domain\Shop\Models\AgentMilestone;
-use App\Domain\Shop\Models\Conversation;
 use App\Domain\Order\Models\Order;
-use App\Models\User;
+use App\Domain\Shop\Models\AgentBadge;
+use App\Domain\Shop\Models\AgentMilestone;
+use App\Domain\Shop\Models\AgentStreak;
+use App\Domain\Shop\Models\Badge;
+use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Models\Milestone;
 use App\Models\SiteSetting;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class GamificationService
 {

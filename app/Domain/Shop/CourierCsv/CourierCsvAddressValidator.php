@@ -101,7 +101,7 @@ final class CourierCsvAddressValidator
     }
 
     /**
-     * @param array<int, string> $errors
+     * @param  array<int, string>  $errors
      */
     private function validateAddressField(
         string $value,
@@ -131,7 +131,7 @@ final class CourierCsvAddressValidator
     }
 
     /**
-     * @param array<int, string> $errors
+     * @param  array<int, string>  $errors
      */
     private function validatePlaceName(
         string $value,

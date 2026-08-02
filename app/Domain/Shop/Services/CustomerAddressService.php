@@ -13,7 +13,7 @@ class CustomerAddressService
     /**
      * Record or update an address in the customer's history.
      *
-     * @param array<string, mixed> $addressData
+     * @param  array<string, mixed>  $addressData
      */
     public function record(Customer $customer, array $addressData, bool $setDefault = false, ?string $source = null): CustomerAddress
     {
@@ -62,5 +62,4 @@ class CustomerAddressService
 
         return $address->fresh();
     }
-
 }

@@ -7,6 +7,7 @@ namespace App\Domain\Waybill\Services;
 use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 class SlaDashboardService
@@ -19,21 +20,21 @@ class SlaDashboardService
         $courierFilter = $filters['courier'] ?? null;
 
         return [
-            'summary'         => $this->buildSummary($slaCutoff, $courierFilter),
-            'by_courier'      => $this->buildByCourier($slaCutoff, $courierFilter),
-            'aging_buckets'   => $this->buildAgingBuckets($slaCutoff, $courierFilter),
-            'trend'           => $this->buildTrend($slaDays, $courierFilter),
+            'summary' => $this->buildSummary($slaCutoff, $courierFilter),
+            'by_courier' => $this->buildByCourier($slaCutoff, $courierFilter),
+            'aging_buckets' => $this->buildAgingBuckets($slaCutoff, $courierFilter),
+            'trend' => $this->buildTrend($slaDays, $courierFilter),
             'recent_breaches' => $this->buildRecentBreaches($slaCutoff, $courierFilter, 20),
-            'settings'        => $this->getSettings(),
-            'filters'         => [
-                'from'    => $filters['from'] ?? $manilaNow->copy()->subDays(30)->toDateString(),
-                'to'      => $filters['to'] ?? $manilaNow->copy()->toDateString(),
+            'settings' => $this->getSettings(),
+            'filters' => [
+                'from' => $filters['from'] ?? $manilaNow->copy()->subDays(30)->toDateString(),
+                'to' => $filters['to'] ?? $manilaNow->copy()->toDateString(),
                 'courier' => $courierFilter,
             ],
         ];
     }
 
-    private function baseBreachesQuery(Carbon $slaCutoff, ?string $courier): \Illuminate\Database\Eloquent\Builder
+    private function baseBreachesQuery(Carbon $slaCutoff, ?string $courier): Builder
     {
         return Waybill::where('status', WaybillStatus::RETURNED->value)
             ->where('returned_at', '<', $slaCutoff)
@@ -68,15 +69,15 @@ class SlaDashboardService
         $claimsFiled = (clone $q)->whereHas('claims')->count();
 
         return [
-            'total_breaches'   => $totalBreaches,
-            'cod_at_risk'      => round($totalCodAtRisk, 2),
+            'total_breaches' => $totalBreaches,
+            'cod_at_risk' => round($totalCodAtRisk, 2),
             'avg_days_overdue' => round($avgDaysOverdue, 1),
-            'compliance_rate'  => $complianceRate,
-            'resolved_in_sla'  => $resolvedInSla,
-            'total_returned'   => $totalReturned,
-            'critical_count'   => $criticalCount,
-            'claims_filed'     => $claimsFiled,
-            'claims_pending'   => $totalBreaches - $claimsFiled,
+            'compliance_rate' => $complianceRate,
+            'resolved_in_sla' => $resolvedInSla,
+            'total_returned' => $totalReturned,
+            'critical_count' => $criticalCount,
+            'claims_filed' => $claimsFiled,
+            'claims_pending' => $totalBreaches - $claimsFiled,
         ];
     }
 
@@ -95,11 +96,11 @@ class SlaDashboardService
             ->get();
 
         return $rows->map(fn ($r) => [
-            'courier'          => $r->courier_provider ?? 'Unknown',
-            'breach_count'     => (int) $r->breach_count,
-            'cod_at_risk'      => round((float) $r->cod_at_risk, 2),
+            'courier' => $r->courier_provider ?? 'Unknown',
+            'breach_count' => (int) $r->breach_count,
+            'cod_at_risk' => round((float) $r->cod_at_risk, 2),
             'avg_days_overdue' => round((float) $r->avg_days_overdue, 1),
-            'critical_count'   => (int) $r->critical_count,
+            'critical_count' => (int) $r->critical_count,
         ])->toArray();
     }
 
@@ -120,8 +121,8 @@ class SlaDashboardService
                 ->where('returned_at', '<', now()->subDays($b['min'] - 1)->utc());
 
             $result[] = [
-                'label'     => $b['label'],
-                'count'     => (clone $q)->count(),
+                'label' => $b['label'],
+                'count' => (clone $q)->count(),
                 'cod_value' => round((float) (clone $q)->sum('cod_amount'), 2),
             ];
         }
@@ -151,9 +152,9 @@ class SlaDashboardService
                 ->count();
 
             $trend[] = [
-                'date'          => $date->toDateString(),
-                'new_breaches'  => $newBreaches,
-                'resolved'      => $resolved,
+                'date' => $date->toDateString(),
+                'new_breaches' => $newBreaches,
+                'resolved' => $resolved,
             ];
         }
 
@@ -168,16 +169,16 @@ class SlaDashboardService
             ->limit($limit)
             ->get()
             ->map(fn ($w) => [
-                'id'              => $w->id,
-                'waybill_number'  => $w->waybill_number,
-                'courier'         => $w->courier_provider ?? 'Unknown',
-                'receiver_name'   => $w->receiver_name ?? '—',
-                'city'            => $w->city ?? '—',
-                'cod_amount'      => (float) ($w->cod_amount ?? $w->amount ?? 0),
-                'returned_at'     => $w->returned_at?->toIso8601String(),
-                'days_overdue'    => $w->returned_at ? (int) $w->returned_at->diffInDays(now()) : 0,
-                'has_claim'       => $w->claims->isNotEmpty(),
-                'claim_count'     => $w->claims->count(),
+                'id' => $w->id,
+                'waybill_number' => $w->waybill_number,
+                'courier' => $w->courier_provider ?? 'Unknown',
+                'receiver_name' => $w->receiver_name ?? '—',
+                'city' => $w->city ?? '—',
+                'cod_amount' => (float) ($w->cod_amount ?? $w->amount ?? 0),
+                'returned_at' => $w->returned_at?->toIso8601String(),
+                'days_overdue' => $w->returned_at ? (int) $w->returned_at->diffInDays(now()) : 0,
+                'has_claim' => $w->claims->isNotEmpty(),
+                'claim_count' => $w->claims->count(),
             ])
             ->toArray();
     }

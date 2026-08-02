@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Models;
 
+use App\Models\ReplyTemplate;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -80,6 +81,6 @@ class FacebookPage extends Model
 
     public function sharedReplyTemplates(): BelongsToMany
     {
-        return $this->belongsToMany(\App\Models\ReplyTemplate::class, 'reply_template_shares')->withTimestamps();
+        return $this->belongsToMany(ReplyTemplate::class, 'reply_template_shares')->withTimestamps();
     }
 }

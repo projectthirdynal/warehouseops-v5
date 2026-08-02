@@ -5,7 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -484,6 +490,9 @@ export default function DeadStockIndex({
             <DialogTitle className="flex items-center gap-2">
               <Skull className="h-5 w-5 text-destructive" /> Record Dead Stock
             </DialogTitle>
+            <DialogDescription>
+              Log an item as dead stock and specify the reason and quantity.
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={submit} className="space-y-4">

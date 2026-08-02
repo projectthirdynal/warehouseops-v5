@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DistributionAnalyticsService
@@ -111,7 +111,7 @@ class DistributionAnalyticsService
 
         foreach ($items as $item) {
             // DATE_TRUNC returns a plain string; parse to Carbon before formatting
-            $key = \Illuminate\Support\Carbon::parse($item->hour)->format('Y-m-d H:00');
+            $key = Carbon::parse($item->hour)->format('Y-m-d H:00');
             if (isset($buckets[$key]) && in_array($item->status, ['pending', 'assigned', 'failed'])) {
                 $buckets[$key][$item->status] = (int) $item->count;
             }
@@ -254,5 +254,222 @@ class DistributionAnalyticsService
         }
 
         return $report;
+    }
+
+    /**
+     * Fairness metrics: Gini coefficient, distribution share vs expected.
+     *
+     * @return array{gini: float, total_assigned: int, agent_count: int, shares: array<int, array{agent_id: int, name: string, assigned: int, actual_share: float, expected_share: float, weight: float, deviation: float}>, status: string}
+     */
+    public function fairnessMetrics(\DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        $agents = User::where('role', 'agent')
+            ->where('is_active', true)
+            ->with('agentProfile')
+            ->get();
+
+        $agentIds = $agents->pluck('id')->all();
+
+        $assignedCounts = LeadCycle::whereIn('assigned_agent_id', $agentIds)
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw('assigned_agent_id, COUNT(*) as cnt')
+            ->groupBy('assigned_agent_id')
+            ->pluck('cnt', 'assigned_agent_id');
+
+        $totalAssigned = $assignedCounts->sum();
+        $totalWeight = $agents->sum(fn ($a) => max(0.01, (float) ($a->agentProfile?->distribution_weight ?? 1.0)));
+
+        $shares = [];
+        $assignedValues = [];
+
+        foreach ($agents as $agent) {
+            $weight = max(0.01, (float) ($agent->agentProfile?->distribution_weight ?? 1.0));
+            $assigned = (int) ($assignedCounts[$agent->id] ?? 0);
+            $actualShare = $totalAssigned > 0 ? $assigned / $totalAssigned : 0;
+            $expectedShare = $totalWeight > 0 ? $weight / $totalWeight : 0;
+
+            $shares[] = [
+                'agent_id' => $agent->id,
+                'name' => $agent->name,
+                'assigned' => $assigned,
+                'actual_share' => round($actualShare, 4),
+                'expected_share' => round($expectedShare, 4),
+                'weight' => $weight,
+                'deviation' => round($actualShare - $expectedShare, 4),
+            ];
+            $assignedValues[] = $assigned;
+        }
+
+        $gini = $this->computeGini($assignedValues);
+        $status = 'fair';
+        if ($gini > 0.6) {
+            $status = 'critical';
+        } elseif ($gini > 0.4) {
+            $status = 'imbalanced';
+        } elseif ($gini > 0.25) {
+            $status = 'warning';
+        }
+
+        return [
+            'gini' => $gini,
+            'total_assigned' => $totalAssigned,
+            'agent_count' => $agents->count(),
+            'shares' => $shares,
+            'status' => $status,
+        ];
+    }
+
+    /**
+     * Imbalance alerts: agents with significant over/under-assignment.
+     *
+     * @return array<int, array{agent_id: int, name: string, type: string, assigned: int, actual_share: float, expected_share: float, deviation: float, severity: string}>
+     */
+    public function imbalanceAlerts(\DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        $fairness = $this->fairnessMetrics($from, $to);
+        $alerts = [];
+
+        foreach ($fairness['shares'] as $share) {
+            $absDeviation = abs($share['deviation']);
+            if ($absDeviation < 0.05) {
+                continue;
+            }
+
+            $severity = 'low';
+            if ($absDeviation >= 0.20) {
+                $severity = 'critical';
+            } elseif ($absDeviation >= 0.10) {
+                $severity = 'high';
+            } elseif ($absDeviation >= 0.07) {
+                $severity = 'medium';
+            }
+
+            $alerts[] = [
+                'agent_id' => $share['agent_id'],
+                'name' => $share['name'],
+                'type' => $share['deviation'] > 0 ? 'over_assigned' : 'under_assigned',
+                'assigned' => $share['assigned'],
+                'actual_share' => $share['actual_share'],
+                'expected_share' => $share['expected_share'],
+                'deviation' => $share['deviation'],
+                'severity' => $severity,
+            ];
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Distribution fairness trend over time (daily Gini, N days).
+     *
+     * @return array<int, array{date: string, gini: float, total_assigned: int}>
+     */
+    public function fairnessTrend(int $days = 14): array
+    {
+        $trend = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $date = now()->subDays($i);
+            $from = $date->copy()->startOfDay();
+            $to = $date->copy()->endOfDay();
+
+            $fairness = $this->fairnessMetrics($from, $to);
+            $trend[] = [
+                'date' => $date->format('Y-m-d'),
+                'gini' => $fairness['gini'],
+                'total_assigned' => $fairness['total_assigned'],
+            ];
+        }
+
+        return $trend;
+    }
+
+    /**
+     * Apply rebalancing: adjust distribution_weight for agents with significant skew.
+     *
+     * @return array{adjusted: int, details: array<int, array{agent_id: int, name: string, old_weight: float, new_weight: float, reason: string}>, skipped: int}
+     */
+    public function applyRebalancing(float $threshold = 0.15): array
+    {
+        $from = now()->subDays(7);
+        $to = now();
+        $report = $this->rebalancingReport();
+
+        $adjusted = 0;
+        $skipped = 0;
+        $details = [];
+
+        foreach ($report as $row) {
+            $absSkew = abs($row['skew']);
+            if ($absSkew < $threshold || $row['assigned'] < 3) {
+                $skipped++;
+
+                continue;
+            }
+
+            $profile = AgentProfile::where('user_id', $row['agent_id'])->first();
+            if (! $profile) {
+                $skipped++;
+
+                continue;
+            }
+
+            $oldWeight = (float) $profile->distribution_weight;
+            $adjustmentFactor = 1 - ($row['skew'] * 0.3);
+            $newWeight = max(0.1, min(5.0, round($oldWeight * $adjustmentFactor, 2)));
+
+            if (abs($newWeight - $oldWeight) < 0.01) {
+                $skipped++;
+
+                continue;
+            }
+
+            $profile->update(['distribution_weight' => $newWeight]);
+            $adjusted++;
+
+            $direction = $newWeight > $oldWeight ? 'increased' : 'decreased';
+            $details[] = [
+                'agent_id' => $row['agent_id'],
+                'name' => $row['name'],
+                'old_weight' => $oldWeight,
+                'new_weight' => $newWeight,
+                'reason' => "Skew {$row['skew']} ({$direction} weight by ".round(abs($newWeight - $oldWeight), 2).')',
+            ];
+        }
+
+        return [
+            'adjusted' => $adjusted,
+            'skipped' => $skipped,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * Compute Gini coefficient for a set of values.
+     * 0 = perfectly equal, 1 = maximally unequal.
+     *
+     * @param  array<int, int|float>  $values
+     */
+    private function computeGini(array $values): float
+    {
+        $n = count($values);
+        if ($n === 0) {
+            return 0.0;
+        }
+
+        $sum = array_sum($values);
+        if ($sum == 0) {
+            return 0.0;
+        }
+
+        sort($values);
+        $cumulative = 0;
+        $weightedSum = 0;
+
+        for ($i = 0; $i < $n; $i++) {
+            $weightedSum += ($i + 1) * $values[$i];
+            $cumulative += $values[$i];
+        }
+
+        return round((2 * $weightedSum) / ($n * $sum) - ($n + 1) / $n, 4);
     }
 }

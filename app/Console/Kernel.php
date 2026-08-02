@@ -17,7 +17,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes();
+        $schedule->job(new ProcessCooldownLeads)->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
         $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
         $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
             ->withoutOverlapping()
@@ -43,6 +45,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('shop:archive-stale-conversations')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
         $schedule->command('shop:check-gamification')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
         $schedule->command('sales-dashboard:generate-scheduled-reports')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+        $schedule->command('leads:rescore --limit=500')->hourly()->withoutOverlapping()->onOneServer();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {

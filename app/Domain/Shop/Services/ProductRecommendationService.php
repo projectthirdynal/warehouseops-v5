@@ -32,7 +32,7 @@ class ProductRecommendationService
 
         $algorithm = $this->getSetting('recommendation_algorithm', 'hybrid');
         $limit = max(1, min(20, $limit));
-        $cacheKey = 'product_recs:' . $this->cacheVersion() . ':' . md5(implode(',', $productIds) . ':' . $algorithm . ':' . $limit);
+        $cacheKey = 'product_recs:'.$this->cacheVersion().':'.md5(implode(',', $productIds).':'.$algorithm.':'.$limit);
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($productIds, $algorithm, $limit) {
             return match ($algorithm) {
@@ -46,7 +46,7 @@ class ProductRecommendationService
 
     public function recommendForCustomer(int $customerId, int $limit = 5): array
     {
-        $cacheKey = 'customer_recs:' . $this->cacheVersion() . ':' . $customerId . ':' . $limit;
+        $cacheKey = 'customer_recs:'.$this->cacheVersion().':'.$customerId.':'.$limit;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($customerId, $limit) {
             $productIds = Order::query()
@@ -107,7 +107,7 @@ class ProductRecommendationService
 
         foreach ($allowed as $key) {
             if (array_key_exists($key, $settings)) {
-                SiteSetting::set('recommendation_' . $key, $settings[$key]);
+                SiteSetting::set('recommendation_'.$key, $settings[$key]);
             }
         }
 
@@ -160,6 +160,7 @@ class ProductRecommendationService
 
         $scores = $recommendations->map(function ($item) use ($productIds) {
             $cosineSim = $this->cosineSimilarity($productIds, [$item->product_id]);
+
             return [
                 'product_id' => $item->product_id,
                 'score' => $cosineSim,
@@ -186,10 +187,10 @@ class ProductRecommendationService
             ->whereNotIn('id', $productIds);
 
         $query->where(function ($q) use ($categories, $brands) {
-            if (!empty($categories)) {
+            if (! empty($categories)) {
                 $q->whereIn('category', $categories);
             }
-            if (!empty($brands)) {
+            if (! empty($brands)) {
                 $q->orWhereIn('brand', $brands);
             }
         });
@@ -214,6 +215,7 @@ class ProductRecommendationService
                 $priceSim = 1 - ($priceDiff / $maxPrice);
                 $score += $priceSim * 0.2;
             }
+
             return [
                 'product_id' => $product->id,
                 'score' => round($score / $sourceProducts->count(), 4),
@@ -293,7 +295,7 @@ class ProductRecommendationService
         $results = [];
         foreach ($scored as $item) {
             $pid = $item['product_id'];
-            if (!$products->has($pid)) {
+            if (! $products->has($pid)) {
                 continue;
             }
             $p = $products[$pid];

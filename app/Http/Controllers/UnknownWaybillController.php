@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Waybill\Models\UnknownWaybillScan;
 use App\Models\Waybill;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -21,7 +22,7 @@ class UnknownWaybillController extends Controller
             ->withQueryString();
 
         $stats = [
-            'pending'  => UnknownWaybillScan::where('resolution_status', 'PENDING')->count(),
+            'pending' => UnknownWaybillScan::where('resolution_status', 'PENDING')->count(),
             'resolved' => UnknownWaybillScan::where('resolution_status', 'RESOLVED')->count(),
             'dismissed' => UnknownWaybillScan::where('resolution_status', 'DISMISSED')->count(),
         ];
@@ -34,8 +35,8 @@ class UnknownWaybillController extends Controller
 
         return Inertia::render('Waybills/Unknown', [
             'unknowns' => $unknowns,
-            'stats'    => $stats,
-            'filters'  => $request->only(['status', 'search']),
+            'stats' => $stats,
+            'filters' => $request->only(['status', 'search']),
         ]);
     }
 
@@ -43,15 +44,15 @@ class UnknownWaybillController extends Controller
     {
         $data = $request->validate([
             'waybill_id' => 'required|exists:waybills,id',
-            'notes'      => 'nullable|string|max:1000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         $unknown->update([
-            'resolution_status'      => 'RESOLVED',
+            'resolution_status' => 'RESOLVED',
             'resolved_to_waybill_id' => $data['waybill_id'],
-            'notes'                  => $data['notes'],
-            'resolved_by'            => $request->user()->id,
-            'resolved_at'            => now(),
+            'notes' => $data['notes'],
+            'resolved_by' => $request->user()->id,
+            'resolved_at' => now(),
         ]);
 
         return back()->with('success', 'Unknown waybill matched to existing record.');
@@ -65,15 +66,15 @@ class UnknownWaybillController extends Controller
 
         $unknown->update([
             'resolution_status' => 'DISMISSED',
-            'notes'             => $data['notes'],
-            'resolved_by'       => $request->user()->id,
-            'resolved_at'       => now(),
+            'notes' => $data['notes'],
+            'resolved_by' => $request->user()->id,
+            'resolved_at' => now(),
         ]);
 
         return back()->with('success', 'Unknown waybill dismissed.');
     }
 
-    public function suggest(Request $request): \Illuminate\Http\JsonResponse
+    public function suggest(Request $request): JsonResponse
     {
         $q = trim($request->query('q', ''));
 

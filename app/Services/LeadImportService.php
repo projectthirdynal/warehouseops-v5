@@ -10,11 +10,13 @@ use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class LeadImportService
 {
     public function __construct(
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private LeadScoringService $scoringService
     ) {}
 
     /**
@@ -29,6 +31,190 @@ class LeadImportService
         }
 
         return $this->importCsv($file, $userId);
+    }
+
+    /**
+     * Preview import: parse file, detect duplicates, return validation results without writing.
+     *
+     * @return array{summary: array, rows: array}
+     */
+    public function preview(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $rows = in_array($extension, ['xlsx', 'xls'])
+            ? $this->parseXlsxRows($file)
+            : $this->parseCsvRows($file);
+
+        $previewRows = [];
+        $seenPhones = [];
+        $summary = ['total' => 0, 'new' => 0, 'duplicate_db' => 0, 'duplicate_file' => 0, 'errors' => 0];
+
+        // Pre-fetch all existing phones from the file to check DB in one query
+        $phonesToCheck = [];
+        foreach ($rows as $rowData) {
+            $phone = $this->normalizePhone($rowData['phone_raw'] ?? ($rowData['phone'] ?? null));
+            if ($phone) {
+                $phonesToCheck[] = $phone;
+            }
+        }
+        $existingPhones = Lead::whereIn('phone', array_unique($phonesToCheck))
+            ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
+            ->pluck('phone')
+            ->flip();
+
+        foreach ($rows as $row) {
+            $summary['total']++;
+            $name = trim($row['name'] ?? '');
+            $phoneRaw = $row['phone_raw'] ?? ($row['phone'] ?? null);
+            $phone = $this->normalizePhone($phoneRaw);
+
+            if (empty($name)) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => '',
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => $row['city'] ?? '',
+                    'status' => 'error',
+                    'error' => 'Name is required',
+                ];
+
+                continue;
+            }
+
+            if (! $phone) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => $row['city'] ?? '',
+                    'status' => 'error',
+                    'error' => 'Invalid phone number',
+                ];
+
+                continue;
+            }
+
+            // Check in-file duplicate
+            if (isset($seenPhones[$phone])) {
+                $summary['duplicate_file']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => $row['city'] ?? '',
+                    'status' => 'duplicate_file',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $seenPhones[$phone] = true;
+
+            // Check DB duplicate
+            if ($existingPhones->has($phone)) {
+                $summary['duplicate_db']++;
+                $previewRows[] = [
+                    'row' => $row['_row_num'] ?? $summary['total'],
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => $row['city'] ?? '',
+                    'status' => 'duplicate_db',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $summary['new']++;
+            $previewRows[] = [
+                'row' => $row['_row_num'] ?? $summary['total'],
+                'name' => $name,
+                'phone' => $phone,
+                'city' => $row['city'] ?? '',
+                'status' => 'new',
+                'error' => null,
+            ];
+        }
+
+        return ['summary' => $summary, 'rows' => $previewRows];
+    }
+
+    /**
+     * Parse CSV file into normalized row data array.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseCsvRows(UploadedFile $file): array
+    {
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        $header = array_shift($rows);
+        $header = array_map(fn ($h) => strtolower(trim($h)), $header);
+        $result = [];
+
+        foreach ($rows as $index => $row) {
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if (count($row) !== count($header)) {
+                $result[] = ['_row_num' => $index + 2, 'name' => '', 'phone_raw' => null, '_error' => 'Column count mismatch'];
+
+                continue;
+            }
+            $data = array_combine($header, $row);
+            $data['_row_num'] = $index + 2;
+            $result[] = $data;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse XLSX file into normalized row data array.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseXlsxRows(UploadedFile $file): array
+    {
+        $result = [];
+
+        try {
+            $reader = new IOFactory;
+            $spreadsheet = $reader::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+
+            for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
+                $row = [];
+                for ($col = 1; $col <= 14; $col++) {
+                    $cell = $sheet->getCellByColumnAndRow($col, $rowNum);
+                    $row[] = $cell->getValue();
+                }
+
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+
+                $result[] = [
+                    '_row_num' => $rowNum,
+                    'name' => $row[0] ?? null,
+                    'phone_raw' => $row[1] ?? null,
+                    'address' => $row[2] ?? null,
+                    'state' => $row[3] ?? null,
+                    'city' => $row[4] ?? null,
+                    'barangay' => $row[5] ?? null,
+                    'amount' => $row[11] ?? null,
+                    'product_name' => $row[12] ?? null,
+                    'lead_status' => $row[13] ?? null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            Log::error('XLSX preview parse failed', ['exception' => $e->getMessage()]);
+        }
+
+        return $result;
     }
 
     /**
@@ -48,8 +234,9 @@ class LeadImportService
             }
 
             if (count($row) !== count($header)) {
-                $stats['errors'][] = "Row " . ($index + 2) . ": Column count mismatch";
+                $stats['errors'][] = 'Row '.($index + 2).': Column count mismatch';
                 $stats['skipped']++;
+
                 continue;
             }
 
@@ -80,7 +267,7 @@ class LeadImportService
         $stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
 
         try {
-            $reader = new \PhpOffice\PhpSpreadsheet\IOFactory();
+            $reader = new IOFactory;
             $spreadsheet = $reader::load($file->getRealPath());
             $sheet = $spreadsheet->getActiveSheet();
             $highestRow = $sheet->getHighestRow();
@@ -123,7 +310,7 @@ class LeadImportService
             }
         } catch (\Throwable $e) {
             Log::error('XLSX import failed', ['exception' => $e->getMessage()]);
-            $stats['errors'][] = 'File parsing error: ' . $e->getMessage();
+            $stats['errors'][] = 'File parsing error: '.$e->getMessage();
         }
 
         return $stats;
@@ -170,8 +357,11 @@ class LeadImportService
             $leadStatus = LeadStatus::tryFrom(strtoupper(trim($data['lead_status'])));
         }
 
-        // Compute quality score on import
-        $qualityScore = $this->computeQualityScore($data);
+        // Compute quality score on import (source + demographics + customer history)
+        $qualityScore = $this->scoringService->scoreFromImportData(
+            array_merge($data, ['source' => $data['source'] ?? 'XLSX_IMPORT', 'phone' => $phone]),
+            $customer
+        );
 
         // Check for existing non-exhausted lead
         $existing = Lead::where('phone', $phone)
@@ -258,16 +448,16 @@ class LeadImportService
         $digits = preg_replace('/\D/', '', (string) $raw);
 
         if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
-            $digits = '0' . $digits;
+            $digits = '0'.$digits;
         }
 
         // Normalise to +63 format (matches TelesalesLeadImportService — BUG-11)
         if (strlen($digits) === 11 && str_starts_with($digits, '09')) {
-            return '+63' . substr($digits, 1);
+            return '+63'.substr($digits, 1);
         }
 
         if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
-            return '+' . $digits;
+            return '+'.$digits;
         }
 
         if (strlen($digits) === 13 && str_starts_with($digits, '+639')) {
@@ -283,35 +473,5 @@ class LeadImportService
     private function normalizeRegion(?string $region): ?string
     {
         return $region ? strtoupper(trim($region)) : null;
-    }
-
-    /**
-     * Compute a quality score (0–100) for a lead based on data completeness.
-     */
-    private function computeQualityScore(array $data): int
-    {
-        $score = 50; // Base score
-
-        // Full address present
-        if (! empty($data['address']) || ! empty($data['city'])) {
-            $score += 15;
-        }
-
-        // Province + city + barangay present
-        if (! empty($data['state']) && ! empty($data['city']) && ! empty($data['barangay'])) {
-            $score += 15;
-        }
-
-        // Product specified
-        if (! empty($data['product_name'])) {
-            $score += 10;
-        }
-
-        // Amount present
-        if (! empty($data['amount']) && is_numeric($data['amount']) && (float) $data['amount'] > 0) {
-            $score += 10;
-        }
-
-        return min(100, $score);
     }
 }

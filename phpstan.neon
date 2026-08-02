@@ -1,11 +1,10 @@
 includes:
     - ./vendor/larastan/larastan/extension.neon
+    - ./phpstan-baseline.neon
 
 parameters:
     paths:
         - app
     level: 5
-    ignoreErrors:
-        - '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::#'
     excludePaths:
         - app/Console/Kernel.php

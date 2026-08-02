@@ -16,16 +16,18 @@ use Inertia\Inertia;
 
 class QuickBooksController extends Controller
 {
-    private const AUTH_URL  = 'https://appcenter.intuit.com/connect/oauth2';
+    private const AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2';
+
     private const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-    private const SCOPE     = 'com.intuit.quickbooks.accounting';
+
+    private const SCOPE = 'com.intuit.quickbooks.accounting';
 
     private function qboCredentials(string $environment): array
     {
         $environment = strtolower($environment) === 'production' ? 'production' : 'sandbox';
 
         return [
-            'client_id'     => (string) config("services.qbo.{$environment}.client_id"),
+            'client_id' => (string) config("services.qbo.{$environment}.client_id"),
             'client_secret' => (string) config("services.qbo.{$environment}.client_secret"),
         ];
     }
@@ -35,8 +37,8 @@ class QuickBooksController extends Controller
         $connection = QboConnection::active();
         $stats = [
             'pending' => QboSyncQueue::pending()->count(),
-            'failed'  => QboSyncQueue::failed()->count(),
-            'synced'  => QboSyncQueue::synced()->count(),
+            'failed' => QboSyncQueue::failed()->count(),
+            'synced' => QboSyncQueue::synced()->count(),
         ];
 
         $recent = QboSyncQueue::latest()->limit(50)->get([
@@ -55,22 +57,22 @@ class QuickBooksController extends Controller
         $productionCredentials = $this->qboCredentials('production');
 
         return Inertia::render('Finance/QuickBooks/Dashboard', [
-            'connection'     => $connection ? [
-                'realm_id'     => $connection->realm_id,
-                'environment'  => $connection->environment,
+            'connection' => $connection ? [
+                'realm_id' => $connection->realm_id,
+                'environment' => $connection->environment,
                 'connected_at' => $connection->connected_at,
-                'expires_at'   => $connection->expires_at,
-                'is_expired'   => $connection->isExpired(),
+                'expires_at' => $connection->expires_at,
+                'is_expired' => $connection->isExpired(),
             ] : null,
-            'stats'          => $stats,
-            'recent'         => $recent,
+            'stats' => $stats,
+            'recent' => $recent,
             'mapping_status' => $mappingStatus,
             'credentials_configured' => (
                 $sandboxCredentials['client_id'] !== '' && $sandboxCredentials['client_secret'] !== ''
             ) || (
                 $productionCredentials['client_id'] !== '' && $productionCredentials['client_secret'] !== ''
             ),
-            'redirect_uri'   => url('/finance/quickbooks/callback'),
+            'redirect_uri' => url('/finance/quickbooks/callback'),
         ]);
     }
 
@@ -85,6 +87,7 @@ class QuickBooksController extends Controller
 
         if (! $clientId) {
             $envKey = $environment === 'production' ? 'QBO_PRODUCTION_CLIENT_ID' : 'QBO_SANDBOX_CLIENT_ID';
+
             return back()->with('error', "{$envKey} not configured. Add the {$environment} QuickBooks credentials to .env.");
         }
 
@@ -92,14 +95,14 @@ class QuickBooksController extends Controller
         session(['qbo_oauth_state' => $state, 'qbo_oauth_env' => $environment]);
 
         $params = http_build_query([
-            'client_id'     => $clientId,
+            'client_id' => $clientId,
             'response_type' => 'code',
-            'scope'         => self::SCOPE,
-            'redirect_uri'  => $redirectUri,
-            'state'         => $state,
+            'scope' => self::SCOPE,
+            'redirect_uri' => $redirectUri,
+            'state' => $state,
         ]);
 
-        return redirect()->away(self::AUTH_URL . '?' . $params);
+        return redirect()->away(self::AUTH_URL.'?'.$params);
     }
 
     public function callback(Request $request)
@@ -107,7 +110,7 @@ class QuickBooksController extends Controller
         if ($request->state !== session('qbo_oauth_state')) {
             return redirect('/finance/quickbooks')->with('error', 'OAuth state mismatch.');
         }
-        $code    = $request->code;
+        $code = $request->code;
         $realmId = $request->realmId;
         if (! $code || ! $realmId) {
             return redirect('/finance/quickbooks')->with('error', 'Missing code or realmId from QuickBooks.');
@@ -119,32 +122,32 @@ class QuickBooksController extends Controller
         $credentials = $this->qboCredentials($environment);
         $clientId = $credentials['client_id'];
         $clientSecret = $credentials['client_secret'];
-        $redirectUri  = url('/finance/quickbooks/callback');
+        $redirectUri = url('/finance/quickbooks/callback');
 
         $resp = Http::asForm()
             ->withBasicAuth($clientId, $clientSecret)
             ->withHeaders(['Accept' => 'application/json'])
             ->post(self::TOKEN_URL, [
-                'grant_type'    => 'authorization_code',
-                'code'          => $code,
-                'redirect_uri'  => $redirectUri,
+                'grant_type' => 'authorization_code',
+                'code' => $code,
+                'redirect_uri' => $redirectUri,
             ]);
 
         if (! $resp->successful()) {
-            return redirect('/finance/quickbooks')->with('error', 'OAuth token exchange failed: ' . $resp->body());
+            return redirect('/finance/quickbooks')->with('error', 'OAuth token exchange failed: '.$resp->body());
         }
 
         $data = $resp->json();
         QboConnection::query()->update(['is_active' => false]);
         QboConnection::create([
-            'realm_id'      => $realmId,
-            'access_token'  => $data['access_token'],
+            'realm_id' => $realmId,
+            'access_token' => $data['access_token'],
             'refresh_token' => $data['refresh_token'],
-            'expires_at'    => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
-            'environment'   => strtoupper($environment),
-            'connected_by'  => $request->user()->id,
-            'connected_at'  => now(),
-            'is_active'     => true,
+            'expires_at' => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
+            'environment' => strtoupper($environment),
+            'connected_by' => $request->user()->id,
+            'connected_at' => now(),
+            'is_active' => true,
         ]);
 
         return redirect('/finance/quickbooks')->with('success', 'QuickBooks connected.');
@@ -153,6 +156,7 @@ class QuickBooksController extends Controller
     public function disconnect()
     {
         QboConnection::query()->update(['is_active' => false]);
+
         return back()->with('success', 'QuickBooks disconnected.');
     }
 
@@ -160,6 +164,7 @@ class QuickBooksController extends Controller
     {
         $queue->update(['status' => 'PENDING', 'error_message' => null]);
         QboSyncJob::dispatch($queue->id);
+
         return back()->with('success', 'Re-queued for sync.');
     }
 
@@ -169,8 +174,9 @@ class QuickBooksController extends Controller
     public function accounts()
     {
         try {
-            $client = new QboClient();
-            $data   = $client->query("SELECT Id, Name, AccountType, AccountSubType FROM Account WHERE Active = true ORDERBY Name MAXRESULTS 1000");
+            $client = new QboClient;
+            $data = $client->query('SELECT Id, Name, AccountType, AccountSubType FROM Account WHERE Active = true ORDERBY Name MAXRESULTS 1000');
+
             return response()->json($data['QueryResponse']['Account'] ?? []);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -181,36 +187,37 @@ class QuickBooksController extends Controller
     {
         $mappings = QboAccountMapping::all()->keyBy('mapping_key');
         $keys = [
-            'inventory_asset'    => 'Inventory Asset',
-            'cogs'               => 'Cost of Goods Sold',
-            'accounts_payable'   => 'Accounts Payable',
-            'bank_account'       => 'Bank Account (deposits)',
-            'undeposited_funds'  => 'Undeposited Funds',
-            'shipping_expense'   => 'Shipping / Courier Expense',
+            'inventory_asset' => 'Inventory Asset',
+            'cogs' => 'Cost of Goods Sold',
+            'accounts_payable' => 'Accounts Payable',
+            'bank_account' => 'Bank Account (deposits)',
+            'undeposited_funds' => 'Undeposited Funds',
+            'shipping_expense' => 'Shipping / Courier Expense',
             'commission_expense' => 'Commission Expense',
-            'revenue'            => 'Sales Revenue',
+            'revenue' => 'Sales Revenue',
         ];
+
         return Inertia::render('Finance/QuickBooks/Mappings', [
-            'keys'        => $keys,
-            'mappings'    => $mappings,
-            'qbo_active'  => QboConnection::active() !== null,
+            'keys' => $keys,
+            'mappings' => $mappings,
+            'qbo_active' => QboConnection::active() !== null,
         ]);
     }
 
     public function saveMapping(Request $request)
     {
         $data = $request->validate([
-            'mapping_key'      => 'required|string|max:60',
-            'qbo_account_id'   => 'required|string|max:60',
+            'mapping_key' => 'required|string|max:60',
+            'qbo_account_id' => 'required|string|max:60',
             'qbo_account_name' => 'nullable|string|max:200',
         ]);
 
         QboAccountMapping::updateOrCreate(
             ['mapping_key' => $data['mapping_key']],
             [
-                'qbo_account_id'   => $data['qbo_account_id'],
+                'qbo_account_id' => $data['qbo_account_id'],
                 'qbo_account_name' => $data['qbo_account_name'] ?? null,
-                'mapped_by'        => $request->user()->id,
+                'mapped_by' => $request->user()->id,
             ],
         );
 

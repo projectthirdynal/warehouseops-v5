@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,9 @@ export function DistributionModal({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Distribute {selectedLeadIds.length} Leads</DialogTitle>
+          <DialogDescription>
+            Choose how to split the selected leads across available agents.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">

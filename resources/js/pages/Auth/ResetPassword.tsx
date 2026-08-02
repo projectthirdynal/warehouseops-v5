@@ -44,7 +44,7 @@ export default function ResetPassword({ token, email }: Props) {
                 id="email"
                 type="email"
                 value={data.email}
-                onChange={e => setData('email', e.target.value)}
+                onChange={(e) => setData('email', e.target.value)}
                 autoComplete="email"
               />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
@@ -55,7 +55,7 @@ export default function ResetPassword({ token, email }: Props) {
                 id="password"
                 type="password"
                 value={data.password}
-                onChange={e => setData('password', e.target.value)}
+                onChange={(e) => setData('password', e.target.value)}
                 autoComplete="new-password"
                 autoFocus
                 placeholder="At least 8 characters"
@@ -68,11 +68,13 @@ export default function ResetPassword({ token, email }: Props) {
                 id="password_confirmation"
                 type="password"
                 value={data.password_confirmation}
-                onChange={e => setData('password_confirmation', e.target.value)}
+                onChange={(e) => setData('password_confirmation', e.target.value)}
                 autoComplete="new-password"
                 placeholder="Re-enter new password"
               />
-              {errors.password_confirmation && <p className="text-xs text-destructive">{errors.password_confirmation}</p>}
+              {errors.password_confirmation && (
+                <p className="text-xs text-destructive">{errors.password_confirmation}</p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={processing}>
               {processing ? 'Resetting…' : 'Reset Password'}

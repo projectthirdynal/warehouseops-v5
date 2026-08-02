@@ -5,12 +5,12 @@ namespace App\Http\Controllers;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Events\LeadAssigned;
-use App\Http\Resources\AgentLeadResource;
 use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\DistributionRule;
 use App\Models\LeadCycle;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\DistributionEngine;
 use App\Services\LeadAuditService;
 use Illuminate\Http\Request;
@@ -24,9 +24,10 @@ class DistributionController extends Controller
         private LeadAuditService $auditService,
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+            if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403, 'Unauthorized');
             }
+
             return $next($request);
         });
     }
@@ -56,6 +57,14 @@ class DistributionController extends Controller
             'strategy' => 'required|string|in:round_robin,weighted,skill_match,territory,hybrid',
             'priority' => 'required|integer|min:0',
             'filters' => 'nullable|array',
+            'filters.conditions' => 'nullable|array',
+            'filters.conditions.min_quality_score' => 'nullable|integer|min:0|max:100',
+            'filters.conditions.max_quality_score' => 'nullable|integer|min:0|max:100',
+            'filters.conditions.lead_regions' => 'nullable|array',
+            'filters.conditions.lead_products' => 'nullable|array',
+            'filters.conditions.lead_sources' => 'nullable|array',
+            'filters.conditions.min_amount' => 'nullable|numeric|min:0',
+            'filters.conditions.max_amount' => 'nullable|numeric|min:0',
             'weight_formula' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
@@ -75,6 +84,14 @@ class DistributionController extends Controller
             'strategy' => 'sometimes|string|in:round_robin,weighted,skill_match,territory,hybrid',
             'priority' => 'sometimes|integer|min:0',
             'filters' => 'nullable|array',
+            'filters.conditions' => 'nullable|array',
+            'filters.conditions.min_quality_score' => 'nullable|integer|min:0|max:100',
+            'filters.conditions.max_quality_score' => 'nullable|integer|min:0|max:100',
+            'filters.conditions.lead_regions' => 'nullable|array',
+            'filters.conditions.lead_products' => 'nullable|array',
+            'filters.conditions.lead_sources' => 'nullable|array',
+            'filters.conditions.min_amount' => 'nullable|numeric|min:0',
+            'filters.conditions.max_amount' => 'nullable|numeric|min:0',
             'weight_formula' => 'nullable|array',
             'is_active' => 'boolean',
         ]);
@@ -130,7 +147,7 @@ class DistributionController extends Controller
             ]);
 
             // Update agent workload
-            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+            app(CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -181,7 +198,7 @@ class DistributionController extends Controller
                 ]);
                 // Free up old agent workload
                 if ($oldAgent) {
-                    app(\App\Services\CapacityManager::class)->recordCycleClose($oldAgent->id);
+                    app(CapacityManager::class)->recordCycleClose($oldAgent->id);
                 }
             }
 
@@ -202,7 +219,7 @@ class DistributionController extends Controller
             ]);
 
             // Update new agent workload
-            app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+            app(CapacityManager::class)->recordAssignment($agent->id);
 
             $this->auditService->log(
                 lead: $lead,
@@ -234,7 +251,10 @@ class DistributionController extends Controller
         $limit = $validated['limit'] ?? 10;
         $distributed = 0;
 
+        // Prioritize distribution: higher quality_score leads get processed first (C1: Lead Scoring)
         $leads = Lead::where('pool_status', PoolStatus::AVAILABLE)
+            ->orderByDesc('quality_score')
+            ->orderBy('created_at')
             ->limit($limit)
             ->get();
 
@@ -247,6 +267,7 @@ class DistributionController extends Controller
                     'rule_id' => $result['rule_id'],
                     'status' => 'pending',
                 ]);
+
                 continue;
             }
 
@@ -278,7 +299,7 @@ class DistributionController extends Controller
                     'total_cycles' => $cycleNumber,
                 ]);
 
-                app(\App\Services\CapacityManager::class)->recordAssignment($agent->id);
+                app(CapacityManager::class)->recordAssignment($agent->id);
 
                 $this->auditService->log(
                     lead: $lead,

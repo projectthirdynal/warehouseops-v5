@@ -9,10 +9,7 @@ use App\Domain\Shop\Models\BroadcastRecipient;
 use App\Domain\Shop\Models\BroadcastVariant;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\Message;
-use App\Models\Customer;
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class BroadcastCampaignService
 {
@@ -106,6 +103,7 @@ class BroadcastCampaignService
             if (! $conversation->facebookPage?->page_access_token || ! $conversation->identity?->provider_user_id) {
                 $recipient->forceFill(['status' => 'skipped', 'error_message' => 'Missing page token or PSID'])->save();
                 $skipped++;
+
                 continue;
             }
 
@@ -120,7 +118,7 @@ class BroadcastCampaignService
                     'conversation_id' => $conversation->id,
                     'facebook_page_id' => $conversation->facebook_page_id,
                     'customer_identity_id' => $conversation->customer_identity_id,
-                    'external_message_id' => $delivery['message_id'] ?? ('local-' . str()->uuid()),
+                    'external_message_id' => $delivery['message_id'] ?? ('local-'.str()->uuid()),
                     'direction' => 'outbound',
                     'message_type' => 'text',
                     'body' => $variant->body,
@@ -177,6 +175,7 @@ class BroadcastCampaignService
         }
 
         $campaign->forceFill(['status' => 'cancelled'])->save();
+
         return true;
     }
 
@@ -219,6 +218,7 @@ class BroadcastCampaignService
     public function getCampaign(BroadcastCampaign $campaign): array
     {
         $campaign->load(['variants', 'recipients.conversation.customer:id,name', 'recipients.conversation.facebookPage:id,page_name', 'facebookPage:id,page_name', 'creator:id,name']);
+
         return $this->formatCampaignDetail($campaign);
     }
 
@@ -293,6 +293,7 @@ class BroadcastCampaignService
         }
 
         $mod = $index % 100;
+
         return $mod < $splitPercentage ? $variants->first() : $variants->last();
     }
 
@@ -343,6 +344,7 @@ class BroadcastCampaignService
             'failed_count' => $v->failed_count,
             'reply_rate' => $v->sent_count > 0 ? round(($v->replied_count / $v->sent_count) * 100, 1) : 0,
         ]);
+
         return $base;
     }
 }

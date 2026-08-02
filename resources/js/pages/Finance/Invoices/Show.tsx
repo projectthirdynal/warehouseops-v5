@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -372,6 +373,9 @@ export default function InvoiceShow({ invoice }: Props) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Cancel Invoice</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel this invoice? This action cannot be undone.
+              </DialogDescription>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               Are you sure? This action cannot be undone.
@@ -406,6 +410,7 @@ export default function InvoiceShow({ invoice }: Props) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Record Payment</DialogTitle>
+              <DialogDescription>Record a payment received against this invoice.</DialogDescription>
             </DialogHeader>
             <form
               onSubmit={(e) => {

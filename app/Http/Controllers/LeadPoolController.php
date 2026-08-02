@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,9 +23,10 @@ class LeadPoolController extends Controller
         private LeadDistributionService $distributionService
     ) {
         $this->middleware(function ($request, $next) {
-            if (!in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
+            if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
                 abort(403, 'Supervisors only');
             }
+
             return $next($request);
         });
     }
@@ -59,10 +61,10 @@ class LeadPoolController extends Controller
             $query->where('source', $filters['source']);
         }
         if (isset($filters['city'])) {
-            $query->whereRaw('LOWER(city) LIKE ?', ['%' . mb_strtolower($filters['city']) . '%']);
+            $query->whereRaw('LOWER(city) LIKE ?', ['%'.mb_strtolower($filters['city']).'%']);
         }
         if (isset($filters['product_name'])) {
-            $query->whereRaw('LOWER(product_name) LIKE ?', ['%' . mb_strtolower($filters['product_name']) . '%']);
+            $query->whereRaw('LOWER(product_name) LIKE ?', ['%'.mb_strtolower($filters['product_name']).'%']);
         }
 
         $leads = $query->orderBy('created_at', 'asc')->paginate(50);
@@ -78,13 +80,13 @@ class LeadPoolController extends Controller
 
         // Stats depend on view mode
         if ($viewMode === 'pool') {
-            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats', 30, fn () =>
-                $this->poolService->getPoolStats()
+            $stats = Cache::remember('lead_pool:stats', 30, fn () => $this->poolService->getPoolStats()
             );
         } elseif ($viewMode === 'imported') {
             // 30-second cache matching the pool:stats invalidation pattern (ISS-015)
-            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats:imported', 30, function () {
+            $stats = Cache::remember('lead_pool:stats:imported', 30, function () {
                 $sources = [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT];
+
                 return [
                     'total' => Lead::whereIn('source', $sources)->count(),
                     'available' => Lead::whereIn('source', $sources)->where('pool_status', PoolStatus::AVAILABLE)->count(),
@@ -94,7 +96,7 @@ class LeadPoolController extends Controller
             });
         } else {
             // 30-second cache matching the pool:stats invalidation pattern (ISS-015)
-            $stats = \Illuminate\Support\Facades\Cache::remember('lead_pool:stats:all', 30, function () {
+            $stats = Cache::remember('lead_pool:stats:all', 30, function () {
                 return [
                     'total' => Lead::count(),
                     'new' => Lead::where('status', LeadStatus::NEW)->count(),
@@ -107,7 +109,7 @@ class LeadPoolController extends Controller
         return Inertia::render('LeadPool/Index', [
             'leads' => LeadPoolResource::collection($leads),
             'stats' => $stats,
-            'agents' => $agents->map(fn($agent) => [
+            'agents' => $agents->map(fn ($agent) => [
                 'id' => $agent->id,
                 'name' => $agent->name,
                 'active_leads' => $activeLeadCounts[$agent->id] ?? 0,
@@ -143,10 +145,10 @@ class LeadPoolController extends Controller
 
         // Optionally narrow lead IDs to a specific product before distributing
         $leadIds = $validated['lead_ids'];
-        if (!empty($validated['product_filter'])) {
+        if (! empty($validated['product_filter'])) {
             $leadIds = Lead::whereIn('id', $leadIds)
                 ->where('pool_status', PoolStatus::AVAILABLE)
-                ->where('product_name', 'ILIKE', '%' . $validated['product_filter'] . '%')
+                ->where('product_name', 'ILIKE', '%'.$validated['product_filter'].'%')
                 ->pluck('id')
                 ->toArray();
 

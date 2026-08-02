@@ -8,8 +8,11 @@ use Rap2hpoutre\FastExcel\FastExcel;
 class WaybillFileValidator
 {
     protected Upload $upload;
+
     protected array $requiredHeaders = [];
+
     protected int $maxSampleRows = 20;
+
     protected int $maxValidationRows = 1000;
 
     public function __construct(Upload $upload)
@@ -20,11 +23,12 @@ class WaybillFileValidator
 
     public function validate(): ValidationResult
     {
-        $result = new ValidationResult();
-        $filePath = storage_path('app/' . $this->upload->file_path);
+        $result = new ValidationResult;
+        $filePath = storage_path('app/'.$this->upload->file_path);
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             $result->addError('File not found on server.');
+
             return $result;
         }
 
@@ -72,11 +76,13 @@ class WaybillFileValidator
             });
         } catch (\RuntimeException $e) {
             if ($e->getMessage() !== '__validation_complete__') {
-                $result->addError('File could not be read: ' . $e->getMessage());
+                $result->addError('File could not be read: '.$e->getMessage());
+
                 return $result;
             }
         } catch (\Throwable $e) {
-            $result->addError('File could not be read: ' . $e->getMessage());
+            $result->addError('File could not be read: '.$e->getMessage());
+
             return $result;
         }
 
@@ -88,8 +94,8 @@ class WaybillFileValidator
 
         if (count($duplicates) > 0) {
             $result->addWarning(
-                count(array_unique($duplicates)) . ' duplicate waybill numbers detected in first ' .
-                min($rowCount, $this->maxValidationRows) . ' rows.'
+                count(array_unique($duplicates)).' duplicate waybill numbers detected in first '.
+                min($rowCount, $this->maxValidationRows).' rows.'
             );
         }
 
@@ -113,7 +119,7 @@ class WaybillFileValidator
                     break;
                 }
             }
-            if (!$found) {
+            if (! $found) {
                 $result->addMissingHeader($required);
             }
         }
@@ -122,6 +128,7 @@ class WaybillFileValidator
     protected function extractWaybillNumber(array $row): ?string
     {
         $waybill = $row['Waybill Number'] ?? $row['Tracking No.'] ?? null;
+
         return $waybill ? trim((string) $waybill) : null;
     }
 }
@@ -129,12 +136,19 @@ class WaybillFileValidator
 class ValidationResult
 {
     protected bool $valid = true;
+
     protected array $errors = [];
+
     protected array $warnings = [];
+
     protected array $missingHeaders = [];
+
     protected int $rowCount = 0;
+
     protected array $columns = [];
+
     protected array $sampleRows = [];
+
     protected int $duplicateCount = 0;
 
     public function addError(string $error): void

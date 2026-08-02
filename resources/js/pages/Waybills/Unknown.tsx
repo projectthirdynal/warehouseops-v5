@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -401,6 +402,9 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Match Unknown Waybill</DialogTitle>
+            <DialogDescription>
+              Link this scanned waybill to an existing order or shipment.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -488,6 +492,9 @@ export default function UnknownWaybills({ unknowns, stats, filters }: Props) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Dismiss Unknown Waybill</DialogTitle>
+            <DialogDescription>
+              Mark this scanned waybill as dismissed without matching it to an order.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">

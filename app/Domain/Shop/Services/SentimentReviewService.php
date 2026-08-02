@@ -210,7 +210,7 @@ class SentimentReviewService
                 $flaggedWords = $sentiment['flagged_words'] ?? [];
                 $reason = 'Negative sentiment detected';
                 if (! empty($flaggedWords)) {
-                    $reason .= ' (keywords: ' . implode(', ', array_slice($flaggedWords, 0, 5)) . ')';
+                    $reason .= ' (keywords: '.implode(', ', array_slice($flaggedWords, 0, 5)).')';
                 }
 
                 $updateData['is_flagged'] = true;

@@ -11,11 +11,14 @@ use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class TelesalesLeadImportService
 {
     public function __construct(
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private LeadScoringService $scoringService
     ) {}
 
     /**
@@ -45,6 +48,165 @@ class TelesalesLeadImportService
         return $this->importCsv($file, $userId);
     }
 
+    /**
+     * Preview import: parse file, detect duplicates, return validation results without writing.
+     *
+     * @return array{summary: array, rows: array}
+     */
+    public function preview(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $rawRows = in_array($extension, ['xlsx', 'xls'])
+            ? $this->parseXlsxRawRows($file)
+            : $this->parseCsvRawRows($file);
+
+        $previewRows = [];
+        $seenPhones = [];
+        $summary = ['total' => 0, 'new' => 0, 'duplicate_db' => 0, 'duplicate_file' => 0, 'errors' => 0];
+
+        // Pre-fetch existing phones from DB in one query
+        $phonesToCheck = [];
+        foreach ($rawRows as $row) {
+            $phone = $this->normalizePhone($row[2] ?? null);
+            if ($phone) {
+                $phonesToCheck[] = $phone;
+            }
+        }
+        $existingPhones = Lead::whereIn('phone', array_unique($phonesToCheck))
+            ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
+            ->pluck('phone')
+            ->flip();
+
+        foreach ($rawRows as $index => $row) {
+            $summary['total']++;
+            $rowNum = $index + 1;
+            $name = trim($row[1] ?? '');
+            $phoneRaw = $row[2] ?? null;
+            $phone = $this->normalizePhone($phoneRaw);
+
+            if (empty($name)) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => '',
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'error',
+                    'error' => 'Name is required',
+                ];
+
+                continue;
+            }
+
+            if (! $phone) {
+                $summary['errors']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phoneRaw ? (string) $phoneRaw : '',
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'error',
+                    'error' => 'Invalid phone number',
+                ];
+
+                continue;
+            }
+
+            if (isset($seenPhones[$phone])) {
+                $summary['duplicate_file']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'duplicate_file',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $seenPhones[$phone] = true;
+
+            if ($existingPhones->has($phone)) {
+                $summary['duplicate_db']++;
+                $previewRows[] = [
+                    'row' => $rowNum,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'city' => trim($row[5] ?? ''),
+                    'status' => 'duplicate_db',
+                    'error' => null,
+                ];
+
+                continue;
+            }
+
+            $summary['new']++;
+            $previewRows[] = [
+                'row' => $rowNum,
+                'name' => $name,
+                'phone' => $phone,
+                'city' => trim($row[5] ?? ''),
+                'status' => 'new',
+                'error' => null,
+            ];
+        }
+
+        return ['summary' => $summary, 'rows' => $previewRows];
+    }
+
+    /**
+     * Parse CSV into raw row arrays (positional, no header mapping).
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function parseCsvRawRows(UploadedFile $file): array
+    {
+        $rows = array_map('str_getcsv', file($file->getRealPath()));
+        if ($this->isHeaderRow($rows[0] ?? [])) {
+            array_shift($rows);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Parse XLSX into raw row arrays (positional).
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function parseXlsxRawRows(UploadedFile $file): array
+    {
+        $rows = [];
+        try {
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+            $highestColIndex = Coordinate::columnIndexFromString(
+                $sheet->getHighestColumn()
+            );
+
+            for ($rowNum = 1; $rowNum <= $highestRow; $rowNum++) {
+                $row = [];
+                for ($col = 1; $col <= $highestColIndex; $col++) {
+                    $row[] = $sheet->getCellByColumnAndRow($col, $rowNum)->getValue();
+                }
+                $rows[] = $row;
+            }
+        } catch (\Exception $e) {
+            Log::error('Telesales XLSX preview parse failed: '.$e->getMessage());
+
+            return [];
+        }
+
+        if ($this->isHeaderRow($rows[0] ?? [])) {
+            array_shift($rows);
+        }
+
+        return $rows;
+    }
+
     private function importCsv(UploadedFile $file, int $userId): array
     {
         $rows = array_map('str_getcsv', file($file->getRealPath()));
@@ -60,11 +222,11 @@ class TelesalesLeadImportService
     {
         $rows = [];
         try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+            $spreadsheet = IOFactory::load($file->getRealPath());
             $sheet = $spreadsheet->getActiveSheet();
             $highestRow = $sheet->getHighestRow();
             // Determine column count dynamically (ISS-014)
-            $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
+            $highestColIndex = Coordinate::columnIndexFromString(
                 $sheet->getHighestColumn()
             );
 
@@ -76,8 +238,9 @@ class TelesalesLeadImportService
                 $rows[] = $row;
             }
         } catch (\Exception $e) {
-            Log::error('Telesales XLSX import failed: ' . $e->getMessage());
-            return ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => ['Failed to read XLSX: ' . $e->getMessage()]];
+            Log::error('Telesales XLSX import failed: '.$e->getMessage());
+
+            return ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => ['Failed to read XLSX: '.$e->getMessage()]];
         }
 
         // Skip header if first row looks like headers
@@ -101,7 +264,7 @@ class TelesalesLeadImportService
             $result = $this->processRow($row, $userId);
 
             if (isset($result['error'])) {
-                $stats['errors'][] = "Row " . ($index + 1) . ": {$result['error']}";
+                $stats['errors'][] = 'Row '.($index + 1).": {$result['error']}";
                 $stats['skipped']++;
             } elseif ($result['action'] === 'created') {
                 $stats['created']++;
@@ -110,7 +273,7 @@ class TelesalesLeadImportService
             }
         }
 
-        Log::info("Telesales import complete", [
+        Log::info('Telesales import complete', [
             'created' => $stats['created'],
             'updated' => $stats['updated'],
             'skipped' => $stats['skipped'],
@@ -123,6 +286,7 @@ class TelesalesLeadImportService
     private function isHeaderRow(array $row): bool
     {
         $first = strtolower(trim($row[0] ?? ''));
+
         return in_array($first, ['id', 'name', 'customer', 'phone', 'order']) ||
             str_contains($first, 'name');
     }
@@ -162,11 +326,17 @@ class TelesalesLeadImportService
 
         $leadStatus = $this->mapOrderStatusToLeadStatus($orderStatus);
 
-        // High quality score for existing customers (delivered orders)
-        $qualityScore = 75;
-        if (strtolower($orderStatus) === 'delivered') {
-            $qualityScore = 85;
-        }
+        // Source + demographics + customer history quality score (LeadScoringService)
+        $qualityScore = $this->scoringService->scoreFromImportData([
+            'source' => LeadSource::TELESALES_IMPORT->value,
+            'address' => $address,
+            'city' => $city,
+            'state' => $province,
+            'barangay' => $barangay,
+            'phone' => $phone,
+            'product_name' => $product,
+            'amount' => $amount,
+        ], $customer);
 
         $existing = Lead::where('customer_id', $customer->id)
             ->whereIn('source', [LeadSource::TELESALES_IMPORT, LeadSource::XLSX_IMPORT])
@@ -231,7 +401,7 @@ class TelesalesLeadImportService
             return null;
         }
 
-        if (is_float($raw) || (is_string($raw) && str_contains(strtolower((string)$raw), 'e'))) {
+        if (is_float($raw) || (is_string($raw) && str_contains(strtolower((string) $raw), 'e'))) {
             $raw = (string) (int) round((float) $raw);
         } else {
             $raw = (string) $raw;
@@ -240,15 +410,15 @@ class TelesalesLeadImportService
         $digits = preg_replace('/\D/', '', $raw);
 
         if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
-            $digits = '0' . $digits;
+            $digits = '0'.$digits;
         }
 
         if (strlen($digits) === 11 && str_starts_with($digits, '09')) {
-            return '+63' . substr($digits, 1);
+            return '+63'.substr($digits, 1);
         }
 
         if (strlen($digits) === 12 && str_starts_with($digits, '639')) {
-            return '+' . $digits;
+            return '+'.$digits;
         }
 
         if (strlen($digits) === 13 && str_starts_with($digits, '+639')) {
@@ -263,14 +433,16 @@ class TelesalesLeadImportService
         if (empty($value)) {
             return null;
         }
+
         return ucwords(strtolower(trim($value)));
     }
 
     private function parseAmount(mixed $value): ?float
     {
-        if (empty($value) || !is_numeric($value)) {
+        if (empty($value) || ! is_numeric($value)) {
             return null;
         }
+
         return (float) $value;
     }
 

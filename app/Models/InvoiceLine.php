@@ -19,14 +19,14 @@ class InvoiceLine extends Model
     ];
 
     protected $casts = [
-        'qty'             => 'decimal:3',
-        'unit_price'      => 'decimal:2',
-        'discount_pct'    => 'decimal:2',
+        'qty' => 'decimal:3',
+        'unit_price' => 'decimal:2',
+        'discount_pct' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'tax_rate'        => 'decimal:2',
-        'tax_amount'      => 'decimal:2',
-        'total_ht'        => 'decimal:2',
-        'total_ttc'       => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'total_ht' => 'decimal:2',
+        'total_ttc' => 'decimal:2',
     ];
 
     public function invoice(): BelongsTo

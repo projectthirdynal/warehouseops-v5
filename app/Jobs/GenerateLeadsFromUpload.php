@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Upload;
 use App\Models\Waybill;
 use App\Services\LeadAuditService;
+use App\Services\LeadScoringService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -25,16 +26,17 @@ class GenerateLeadsFromUpload implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 300;
 
     public function __construct(
         private int $uploadId
     ) {}
 
-    public function handle(LeadAuditService $auditService): void
+    public function handle(LeadAuditService $auditService, LeadScoringService $scoringService): void
     {
         $upload = Upload::find($this->uploadId);
-        if (!$upload) {
+        if (! $upload) {
             return;
         }
 
@@ -53,6 +55,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
 
             if (empty($phone)) {
                 $skipped++;
+
                 continue;
             }
 
@@ -79,6 +82,7 @@ class GenerateLeadsFromUpload implements ShouldQueue
             // Skip blacklisted customers
             if ($customer->is_blacklisted) {
                 $skipped++;
+
                 continue;
             }
 
@@ -87,12 +91,25 @@ class GenerateLeadsFromUpload implements ShouldQueue
                 ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
                 ->first();
 
+            $qualityScore = $scoringService->scoreFromImportData([
+                'source' => 'DELIVERED_WAYBILL',
+                'address' => $waybill->receiver_address,
+                'city' => $waybill->city,
+                'state' => $waybill->state,
+                'barangay' => $waybill->barangay,
+                'phone' => $phone,
+                'product_name' => $waybill->item_name,
+                'amount' => $waybill->cod_amount ?? $waybill->amount,
+            ], $customer);
+
             if ($existingLead) {
                 // Update product info from the newer waybill
                 $existingLead->update([
                     'product_name' => $waybill->item_name ?? $existingLead->product_name,
                     'amount' => $waybill->cod_amount ?? $waybill->amount ?? $existingLead->amount,
                     'source' => 'DELIVERED_WAYBILL',
+                    'quality_score' => $qualityScore,
+                    'last_scored_at' => now(),
                     // Refresh to AVAILABLE if it was in cooldown and is now a returning buyer
                     'pool_status' => $existingLead->pool_status === PoolStatus::COOLDOWN
                         ? PoolStatus::AVAILABLE
@@ -112,6 +129,8 @@ class GenerateLeadsFromUpload implements ShouldQueue
                     'amount' => $waybill->cod_amount ?? $waybill->amount,
                     'source' => 'DELIVERED_WAYBILL',
                     'pool_status' => PoolStatus::AVAILABLE,
+                    'quality_score' => $qualityScore,
+                    'last_scored_at' => now(),
                     'uploaded_by' => $upload->uploaded_by,
                 ]);
 

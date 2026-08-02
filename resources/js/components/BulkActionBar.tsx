@@ -2,9 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Trash2, Download, Archive,
-} from 'lucide-react';
+import { Trash2, Download, Archive } from 'lucide-react';
 
 export type BulkAction = {
   id: string;
@@ -82,9 +80,7 @@ export function BulkActionBar({
               onCheckedChange={(checked) => onSelectAll(Boolean(checked))}
               aria-label="Select all"
             />
-            <span className="text-sm font-medium">
-              {selectedIds.length} selected
-            </span>
+            <span className="text-sm font-medium">{selectedIds.length} selected</span>
           </div>
 
           <div className="h-6 w-px bg-border" />

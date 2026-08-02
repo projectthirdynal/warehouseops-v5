@@ -19,9 +19,9 @@ class CommissionRule extends Model
     ];
 
     protected $casts = [
-        'rate_value'       => 'decimal:2',
-        'min_sale_amount'  => 'decimal:2',
-        'is_active'        => 'boolean',
+        'rate_value' => 'decimal:2',
+        'min_sale_amount' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
     public function product(): BelongsTo
@@ -55,8 +55,8 @@ class CommissionRule extends Model
 
         return match ($this->rate_type) {
             'PERCENTAGE' => round($saleAmount * ($this->rate_value / 100), 2),
-            'FIXED'      => (float) $this->rate_value,
-            default      => 0,
+            'FIXED' => (float) $this->rate_value,
+            default => 0,
         };
     }
 }
