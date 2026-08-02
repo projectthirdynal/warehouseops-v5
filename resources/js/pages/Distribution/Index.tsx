@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -198,6 +199,9 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
               <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>{editingRule ? 'Edit' : 'New'} Distribution Rule</DialogTitle>
+                  <DialogDescription>
+                    Define conditions and priority for how leads are automatically distributed.
+                  </DialogDescription>
                 </DialogHeader>
                 <DistributionRuleForm
                   rule={editingRule}
@@ -334,6 +338,9 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Manual Lead Assignment</DialogTitle>
+            <DialogDescription>
+              Manually assign selected leads to a specific agent.
+            </DialogDescription>
           </DialogHeader>
           <ManualAssignmentModal agents={agents} onClose={() => setAssignOpen(false)} />
         </DialogContent>

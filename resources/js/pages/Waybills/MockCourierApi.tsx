@@ -33,6 +33,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 
@@ -274,6 +275,9 @@ export default function MockCourierApi({ orders: initialOrders, totalOrders }: P
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create Mock Courier Order</DialogTitle>
+                  <DialogDescription>
+                    Simulate a new courier order for testing the tracking workflow.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div>
@@ -538,6 +542,9 @@ export default function MockCourierApi({ orders: initialOrders, totalOrders }: P
             <>
               <DialogHeader>
                 <DialogTitle className="font-mono">{selectedOrder.tracking_number}</DialogTitle>
+                <DialogDescription>
+                  View and update the status of this mock courier order.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 {/* Status + Set Status */}

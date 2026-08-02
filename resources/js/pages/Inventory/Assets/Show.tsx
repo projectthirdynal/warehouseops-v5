@@ -6,7 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -365,6 +371,9 @@ function AssignDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Assign Asset</DialogTitle>
+          <DialogDescription>
+            Assign this asset to a user and record its department/location.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
@@ -448,6 +457,9 @@ function DisposeDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Dispose Asset</DialogTitle>
+          <DialogDescription>
+            Record the disposal reason and value for this asset. This cannot be undone.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm">

@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { HOTKEY_REGISTRY } from '@/hooks/use-hotkeys';
 
@@ -15,6 +15,9 @@ export function HotkeyCheatSheet({ open, onOpenChange }: HotkeyCheatSheetProps) 
       <DialogContent className="max-w-lg p-0 overflow-hidden">
         <div className="flex items-center gap-3 border-b px-5 py-4">
           <DialogTitle className="text-base font-semibold">Keyboard Shortcuts</DialogTitle>
+          <DialogDescription className="sr-only">
+            A list of available keyboard shortcuts for this app.
+          </DialogDescription>
           <kbd className="ml-auto inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             ?
           </kbd>

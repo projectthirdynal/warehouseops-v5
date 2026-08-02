@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,7 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Record Call Outcome</DialogTitle>
+          <DialogDescription>Select the result of this call and add any notes.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 
@@ -206,6 +207,9 @@ export default function SupplierInvoiceShow({ invoice }: Props) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Cancel Supplier Invoice</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel this supplier invoice? This action cannot be undone.
+              </DialogDescription>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">This action cannot be undone.</p>
             <div className="space-y-2">

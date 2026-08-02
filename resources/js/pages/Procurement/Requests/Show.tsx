@@ -5,7 +5,13 @@ import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -260,6 +266,9 @@ export default function PrShow({ pr }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Purchase Request</DialogTitle>
+            <DialogDescription>
+              Explain why this purchase request is being rejected.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <Textarea

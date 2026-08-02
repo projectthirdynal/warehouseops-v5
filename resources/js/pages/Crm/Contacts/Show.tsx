@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -515,6 +516,9 @@ export default function CrmContactsShow({ thirdParty, recentOrders }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Contact Person</DialogTitle>
+            <DialogDescription>
+              Add a contact person associated with this customer.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitContact} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -584,6 +588,9 @@ export default function CrmContactsShow({ thirdParty, recentOrders }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Address</DialogTitle>
+            <DialogDescription>
+              Add a delivery or billing address for this customer.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitAddress} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">

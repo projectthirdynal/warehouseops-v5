@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ArrowLeft, CheckCircle, XCircle, Banknote } from 'lucide-react';
@@ -237,6 +238,7 @@ export default function ClaimShow({ claim }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Approve Claim</DialogTitle>
+            <DialogDescription>Confirm the approved amount for this claim.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submitApprove} className="space-y-4">
             <div className="space-y-1">
@@ -289,6 +291,7 @@ export default function ClaimShow({ claim }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Claim</DialogTitle>
+            <DialogDescription>Provide a reason for rejecting this claim.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submitReject} className="space-y-4">
             <div className="space-y-1">
