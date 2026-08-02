@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 class ValidateFacebookTokens extends Command
 {
     protected $signature = 'meta:validate-tokens';
+
     protected $description = 'Validate Facebook account tokens and mark expired/revoked connections';
 
     public function handle(FacebookConnectorService $connector): int
@@ -22,6 +23,7 @@ class ValidateFacebookTokens extends Command
 
         if ($accounts->isEmpty()) {
             $this->info('No Facebook accounts to validate.');
+
             return self::SUCCESS;
         }
 

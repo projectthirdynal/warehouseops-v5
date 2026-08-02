@@ -36,7 +36,7 @@ class MetaWebhookController extends Controller
         $rawPayload = $request->getContent();
         $signatureValid = $this->signatureIsValid($rawPayload, (string) $request->header('X-Hub-Signature-256'));
 
-        if (!$signatureValid) {
+        if (! $signatureValid) {
             Log::warning('Rejected invalid Meta webhook signature', [
                 'request_id' => $requestId,
                 'ip' => $request->ip(),
@@ -97,6 +97,7 @@ class MetaWebhookController extends Controller
                 'event_key' => $eventKey,
                 'request_id' => $requestId,
             ]);
+
             return;
         }
 

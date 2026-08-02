@@ -5920,10 +5920,10 @@ class ShopController extends Controller
         ]);
 
         if (
-            !$storedState
-            || !$stateExpiresAt
+            ! $storedState
+            || ! $stateExpiresAt
             || now()->greaterThan($stateExpiresAt)
-            || !hash_equals($storedState, hash('sha256', (string) $request->query('state')))
+            || ! hash_equals($storedState, hash('sha256', (string) $request->query('state')))
         ) {
             return redirect()->route('shop.index')->with('error', 'OAuth state mismatch or expired. Please try again.');
         }

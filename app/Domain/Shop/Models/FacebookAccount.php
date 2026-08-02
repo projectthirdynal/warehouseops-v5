@@ -16,11 +16,17 @@ class FacebookAccount extends Model
     use HasFactory, SoftDeletes;
 
     public const CONNECTION_ACTIVE = 'active';
+
     public const CONNECTION_EXPIRING = 'expiring';
+
     public const CONNECTION_EXPIRED = 'expired';
+
     public const CONNECTION_REVOKED = 'revoked';
+
     public const CONNECTION_PERMISSION_MISSING = 'permission_missing';
+
     public const CONNECTION_RECONNECT_REQUIRED = 'reconnect_required';
+
     public const CONNECTION_DISCONNECTED = 'disconnected';
 
     protected $fillable = [

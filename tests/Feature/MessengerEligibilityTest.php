@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Models\FacebookAccount;
-use App\Domain\Shop\Models\FacebookPage;
-use App\Domain\Shop\Services\MessengerEligibilityService;
 use App\Domain\Shop\Models\Conversation;
+use App\Domain\Shop\Services\MessengerEligibilityService;
 use Carbon\Carbon;
 
 it('allows response within 24 hour window', function () {

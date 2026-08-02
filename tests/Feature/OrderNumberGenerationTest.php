@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Domain\Order\Models\Order;
 use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Order\Models\Order;
 use Illuminate\Support\Facades\DB;
 
 it('generates order number with correct format', function () {
     $number = Order::generateOrderNumber();
 
-    expect($number)->toStartWith('ORD-' . now()->format('Ymd') . '-');
+    expect($number)->toStartWith('ORD-'.now()->format('Ymd').'-');
 });
 
 it('generates different number when collision exists', function () {

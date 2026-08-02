@@ -22,7 +22,9 @@ class ProcessMetaWebhookEvent implements ShouldQueue
     use SerializesModels;
 
     public int $tries = 5;
+
     public int $maxExceptions = 5;
+
     public int $backoff = 10;
 
     public function __construct(
@@ -33,10 +35,11 @@ class ProcessMetaWebhookEvent implements ShouldQueue
     {
         $event = FacebookWebhookEvent::find($this->webhookEventId);
 
-        if (!$event) {
+        if (! $event) {
             Log::warning('ProcessMetaWebhookEvent: event not found', [
                 'event_id' => $this->webhookEventId,
             ]);
+
             return;
         }
 
@@ -45,14 +48,16 @@ class ProcessMetaWebhookEvent implements ShouldQueue
                 'event_id' => $this->webhookEventId,
                 'event_key' => $event->event_key,
             ]);
+
             return;
         }
 
-        if (!$event->signature_valid) {
+        if (! $event->signature_valid) {
             $event->markRejected('Invalid signature');
             Log::warning('ProcessMetaWebhookEvent: rejected invalid signature', [
                 'event_id' => $this->webhookEventId,
             ]);
+
             return;
         }
 

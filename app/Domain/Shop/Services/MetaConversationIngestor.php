@@ -49,6 +49,7 @@ class MetaConversationIngestor
         $reactionAction = data_get($payload, 'reaction.action');
         if (is_string($reactionAction)) {
             $this->handleReaction($webhookEvent, $senderPsid, $reactionAction, data_get($payload, 'reaction.emoji'));
+
             return;
         }
 
@@ -56,6 +57,7 @@ class MetaConversationIngestor
         $deliveryWatermark = data_get($payload, 'delivery.watermark');
         if (is_numeric($deliveryWatermark)) {
             $this->handleDelivery($webhookEvent, $senderPsid, (int) $deliveryWatermark);
+
             return;
         }
 
@@ -63,6 +65,7 @@ class MetaConversationIngestor
         $readWatermark = data_get($payload, 'read.watermark');
         if (is_numeric($readWatermark)) {
             $this->handleRead($webhookEvent, $senderPsid, (int) $readWatermark);
+
             return;
         }
 

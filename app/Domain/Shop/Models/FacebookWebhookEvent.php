@@ -11,12 +11,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class FacebookWebhookEvent extends Model
 {
     use HasFactory;
+
     public const STATUS_RECEIVED = 'received';
+
     public const STATUS_QUEUED = 'queued';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_PROCESSED = 'processed';
+
     public const STATUS_FAILED = 'failed';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_DEAD_LETTER = 'dead_letter';
 
     protected $fillable = [

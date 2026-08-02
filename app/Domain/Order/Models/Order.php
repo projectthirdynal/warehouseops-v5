@@ -186,11 +186,11 @@ class Order extends Model
             $count = static::whereDate('created_at', today())->count() + 1 + $attempt;
             $number = sprintf('%s%04d', $prefix, $count);
 
-            if (!static::where('order_number', $number)->exists()) {
+            if (! static::where('order_number', $number)->exists()) {
                 return $number;
             }
         }
 
-        return $prefix . strtoupper(bin2hex(random_bytes(4)));
+        return $prefix.strtoupper(bin2hex(random_bytes(4)));
     }
 }

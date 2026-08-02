@@ -8,6 +8,7 @@ use App\Domain\Shop\Models\FacebookAccount;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FacebookConnectorService
@@ -63,7 +64,7 @@ class FacebookConnectorService
 
     public function connectFromCallback(User $user, string $code): int
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
         $tokenResponse = Http::get("{$baseUrl}/oauth/access_token", [
             'client_id' => config('services.meta.app_id'),
             'client_secret' => config('services.meta.app_secret'),
@@ -200,7 +201,7 @@ class FacebookConnectorService
                 ->delete("{$baseUrl}/{$page->page_id}/subscribed_apps")
                 ->throw();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Meta-side page unsubscribe failed', [
+            Log::warning('Meta-side page unsubscribe failed', [
                 'page_id' => $page->page_id,
                 'error' => $e->getMessage(),
             ]);
@@ -217,14 +218,14 @@ class FacebookConnectorService
 
     public function revokePermissions(FacebookAccount $account): void
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         try {
             Http::withToken($account->access_token)
                 ->delete("{$baseUrl}/{$account->facebook_user_id}/permissions")
                 ->throw();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Meta-side permission revocation failed', [
+            Log::warning('Meta-side permission revocation failed', [
                 'facebook_user_id' => $account->facebook_user_id,
                 'error' => $e->getMessage(),
             ]);
@@ -249,12 +250,12 @@ class FacebookConnectorService
 
     public function validateToken(FacebookAccount $account): bool
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         try {
             $response = Http::get("{$baseUrl}/debug_token", [
                 'input_token' => $account->access_token,
-                'access_token' => config('services.meta.app_id') . '|' . config('services.meta.app_secret'),
+                'access_token' => config('services.meta.app_id').'|'.config('services.meta.app_secret'),
             ])->throw()->json('data');
 
             $isValid = (bool) ($response['is_valid'] ?? false);
@@ -282,7 +283,7 @@ class FacebookConnectorService
 
     public function sendMessage(FacebookPage $page, string $recipientPsid, string $body, ?int $agentId = null): array
     {
-        $baseUrl = 'https://graph.facebook.com/' . config('services.meta.graph_version');
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
         $response = Http::post("{$baseUrl}/me/messages", [
             'access_token' => $page->page_access_token,

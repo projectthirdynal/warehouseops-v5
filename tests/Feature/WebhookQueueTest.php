@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use App\Domain\Shop\Jobs\ProcessMetaWebhookEvent;
-use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Models\FacebookPage;
+use App\Domain\Shop\Models\FacebookWebhookEvent;
 use App\Domain\Shop\Services\MetaConversationIngestor;
 use Illuminate\Support\Facades\Queue;
 
@@ -79,13 +79,13 @@ it('marks event as failed and increments retry count on exception', function () 
     ]);
 
     $ingestor = mock(MetaConversationIngestor::class);
-    $ingestor->shouldReceive('process')->andThrow(new \RuntimeException('Processing error'));
+    $ingestor->shouldReceive('process')->andThrow(new RuntimeException('Processing error'));
 
     $job = new ProcessMetaWebhookEvent($event->id);
 
     try {
         $job->handle($ingestor);
-    } catch (\RuntimeException $e) {
+    } catch (RuntimeException $e) {
         // Expected
     }
 

@@ -5,9 +5,9 @@ declare(strict_types=1);
 use App\Domain\Shop\Http\Controllers\MetaWebhookController;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Http\Request;
 
 beforeEach(function () {
     Config::set('services.meta.app_secret', 'test-secret');
@@ -67,7 +67,7 @@ it('accepts webhook with valid signature and queues events', function () {
         ]],
     ]);
 
-    $signature = 'sha256=' . hash_hmac('sha256', $payload, 'test-secret');
+    $signature = 'sha256='.hash_hmac('sha256', $payload, 'test-secret');
 
     $request = Request::create('/api/webhooks/meta', 'POST', [], [], [], [
         'HTTP_X_HUB_SIGNATURE_256' => $signature,
@@ -99,7 +99,7 @@ it('skips duplicate webhook events by event key', function () {
         'entry' => [['id' => '123456789', 'messaging' => [$eventData]]],
     ]);
 
-    $signature = 'sha256=' . hash_hmac('sha256', $payload, 'test-secret');
+    $signature = 'sha256='.hash_hmac('sha256', $payload, 'test-secret');
 
     $request = Request::create('/api/webhooks/meta', 'POST', [], [], [], [
         'HTTP_X_HUB_SIGNATURE_256' => $signature,

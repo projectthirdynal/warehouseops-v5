@@ -48,6 +48,7 @@ class WebhookEventKeyGenerator
         $watermark = data_get($payload, 'delivery.watermark') ?? data_get($payload, 'read.watermark');
         if (is_numeric($watermark)) {
             $senderId = data_get($payload, 'sender.id') ?? data_get($payload, 'recipient.id') ?? '';
+
             return "delivery:{$senderId}:{$watermark}";
         }
 
@@ -99,7 +100,7 @@ class WebhookEventKeyGenerator
      */
     protected static function sortKeysRecursive(mixed $data): mixed
     {
-        if (!is_array($data)) {
+        if (! is_array($data)) {
             return $data;
         }
 

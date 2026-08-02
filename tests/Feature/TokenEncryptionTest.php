@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Domain\Shop\Models\FacebookAccount;
 use App\Domain\Shop\Models\FacebookPage;
-use App\Models\User;
 
 it('hides access_token from array serialization', function () {
     $account = FacebookAccount::factory()->create([

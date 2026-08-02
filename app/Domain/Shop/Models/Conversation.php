@@ -30,7 +30,9 @@ class Conversation extends Model
     public const STATUS_ARCHIVED = 'archived';
 
     public const STATUS_ORDER_CREATED = 'order_created';
+
     public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
+
     public const STATUS_AWAITING_CONFIRMATION = 'awaiting_confirmation';
 
     public const STATUSES = [

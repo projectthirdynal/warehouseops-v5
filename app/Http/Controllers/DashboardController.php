@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Analytics\Services\RevenueMetricService;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
@@ -15,7 +16,6 @@ use App\Models\Ticket;
 use App\Models\Upload;
 use App\Models\User;
 use App\Models\Waybill;
-use App\Domain\Analytics\Services\RevenueMetricService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -86,21 +86,21 @@ class DashboardController extends Controller
         $summary = $this->revenueMetrics->revenueSummary();
 
         return [
-            'today'      => $summary['today_collected'],
-            'week'       => $summary['this_week_collected'],
-            'month'      => $summary['this_month_collected'],
+            'today' => $summary['today_collected'],
+            'week' => $summary['this_week_collected'],
+            'month' => $summary['this_month_collected'],
             'today_gross' => $summary['today_gross'],
-            'week_gross'  => $summary['this_week_gross'],
+            'week_gross' => $summary['this_week_gross'],
             'month_gross' => $summary['this_month_gross'],
-            'today_net'   => $summary['today_net'],
-            'week_net'    => $summary['this_week_net'],
-            'month_net'   => $summary['this_month_net'],
+            'today_net' => $summary['today_net'],
+            'week_net' => $summary['this_week_net'],
+            'month_net' => $summary['this_month_net'],
             'today_trend' => $summary['today_trend'],
-            'week_trend'  => $summary['week_trend'],
+            'week_trend' => $summary['week_trend'],
             'month_trend' => $summary['month_trend'],
-            'yesterday'   => $this->revenueMetrics->collectedRevenue(today()->subDay(), today()->subDay()),
-            'last_week'   => $this->revenueMetrics->collectedRevenue(now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()),
-            'last_month'  => $this->revenueMetrics->collectedRevenue(now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()),
+            'yesterday' => $this->revenueMetrics->collectedRevenue(today()->subDay(), today()->subDay()),
+            'last_week' => $this->revenueMetrics->collectedRevenue(now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()),
+            'last_month' => $this->revenueMetrics->collectedRevenue(now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()),
         ];
     }
 
@@ -151,7 +151,7 @@ class DashboardController extends Controller
         return [
             'periods' => [
                 'today' => ['value' => $revenueSummary['today'], 'trend' => $revenueSummary['today_trend']],
-                'week'  => ['value' => $revenueSummary['week'], 'trend' => $revenueSummary['week_trend']],
+                'week' => ['value' => $revenueSummary['week'], 'trend' => $revenueSummary['week_trend']],
                 'month' => ['value' => $revenueSummary['month'], 'trend' => $revenueSummary['month_trend']],
             ],
             'conversion_trend' => $conversionTrend,
@@ -601,9 +601,9 @@ class DashboardController extends Controller
 
         // Invoice statistics
         $invoicesOverdue = Invoice::where('status', 'OVERDUE')->count();
-        $invoicesUnpaid   = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
-        $totalRevenue     = $this->revenueMetrics->collectedRevenue(Carbon::parse('2000-01-01'), today());
-        $revenueToday     = $this->revenueMetrics->collectedRevenue(today(), today());
+        $invoicesUnpaid = Invoice::whereIn('status', ['SENT', 'PARTIAL'])->count();
+        $totalRevenue = $this->revenueMetrics->collectedRevenue(Carbon::parse('2000-01-01'), today());
+        $revenueToday = $this->revenueMetrics->collectedRevenue(today(), today());
 
         // Inventory statistics
         $lowStockCount = ProductStock::whereRaw('current_stock - reserved_stock <= reorder_point')->count();

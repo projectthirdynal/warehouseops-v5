@@ -2,11 +2,12 @@
 
 namespace Database\Factories\Domain\Shop\Models;
 
+use App\Domain\Shop\Models\FacebookWebhookEvent;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class FacebookWebhookEventFactory extends Factory
 {
-    protected $model = \App\Domain\Shop\Models\FacebookWebhookEvent::class;
+    protected $model = FacebookWebhookEvent::class;
 
     public function definition(): array
     {

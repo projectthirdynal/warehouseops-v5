@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Shop\Services;
 
 use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\FacebookPage;
 use Carbon\Carbon;
 
 class MessengerEligibilityService

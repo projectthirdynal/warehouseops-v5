@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Domain\Shop\Services\CustomerIdentityService;
-use App\Domain\Shop\Services\PhoneDetectionService;
 use App\Models\Customer;
 
 it('finds customer by normalized phone', function () {

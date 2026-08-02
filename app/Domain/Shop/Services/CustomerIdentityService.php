@@ -45,7 +45,7 @@ class CustomerIdentityService
             'last_order_date' => now(),
         ];
 
-        if (!empty($attributes['name']) && empty($customer->name)) {
+        if (! empty($attributes['name']) && empty($customer->name)) {
             $updateData['name'] = $attributes['name'];
         }
 
