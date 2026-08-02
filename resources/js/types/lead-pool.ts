@@ -86,7 +86,12 @@ export interface OutcomeFormData {
 }
 
 // Agent ticket system types (for self-service portal)
-export type TicketType = 'WRONG_NUMBER' | 'DUPLICATE_LEAD' | 'SYSTEM_ISSUE' | 'REASSIGNMENT_REQUEST' | 'OTHER';
+export type TicketType =
+  | 'WRONG_NUMBER'
+  | 'DUPLICATE_LEAD'
+  | 'SYSTEM_ISSUE'
+  | 'REASSIGNMENT_REQUEST'
+  | 'OTHER';
 export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 

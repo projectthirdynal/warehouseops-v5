@@ -716,6 +716,7 @@ function StatusOverrideDialog({ supply, onClose }: { supply: Supply | null; onCl
       });
       form.clearErrors();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -840,6 +841,7 @@ function DeleteDialog({ supply, onClose }: { supply: Supply | null; onClose: () 
   useEffect(() => {
     form.setData({ delete_reason: '' });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -1014,6 +1016,7 @@ function MaterialDialog({
       warehouse_id: warehouses[0]?.id ? String(warehouses[0].id) : '',
     });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when editing target or dialog open state changes
   }, [editing, open]);
 
   function submit(e: React.FormEvent) {
@@ -1305,6 +1308,7 @@ function StockDialog({
       notes: '',
     });
     form.clearErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset form only when target supply changes
   }, [supply?.id]);
 
   function submit(e: React.FormEvent) {
@@ -1432,6 +1436,7 @@ function CategorySelect({
   // If editing an existing value not in the list, show custom input
   useEffect(() => {
     if (value && !allOptions.includes(value)) setCustom(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time check on mount
   }, []);
 
   if (custom) {

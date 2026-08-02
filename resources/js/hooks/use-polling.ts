@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 
 interface UsePollingOptions {
-  interval?: number;   /* ms, default 5000 */
-  enabled?: boolean;     /* default true */
+  interval?: number; /* ms, default 5000 */
+  enabled?: boolean; /* default true */
   onError?: (err: unknown) => void;
-  maxRetries?: number;   /* default 3 */
-  backoff?: boolean;     /* double interval on error, default true */
+  maxRetries?: number; /* default 3 */
+  backoff?: boolean; /* double interval on error, default true */
 }
 
 export function usePolling(
@@ -13,13 +13,7 @@ export function usePolling(
   deps: React.DependencyList,
   options: UsePollingOptions = {}
 ) {
-  const {
-    interval = 5000,
-    enabled = true,
-    onError,
-    maxRetries = 3,
-    backoff = true,
-  } = options;
+  const { interval = 5000, enabled = true, onError, maxRetries = 3, backoff = true } = options;
 
   const currentInterval = useRef(interval);
   const retryCount = useRef(0);
@@ -53,6 +47,6 @@ export function usePolling(
       isMounted.current = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps]);
 }

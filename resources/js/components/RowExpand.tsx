@@ -33,13 +33,15 @@ export function RowExpand({ children, className, defaultOpen = false }: RowExpan
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1, transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const } }}
+            animate={{
+              height: 'auto',
+              opacity: 1,
+              transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const },
+            }}
             exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
             className="overflow-hidden"
           >
-            <div className="mt-2 rounded-md border bg-muted/30 p-3">
-              {children}
-            </div>
+            <div className="mt-2 rounded-md border bg-muted/30 p-3">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>

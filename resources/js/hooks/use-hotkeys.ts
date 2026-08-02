@@ -29,10 +29,7 @@ export const HOTKEY_REGISTRY: HotkeyEntry[] = [
 ];
 
 /* Hook: register navigation hotkeys globally */
-export function useGlobalHotkeys(
-  onOpenCheatSheet: () => void,
-  onOpenPalette: () => void
-) {
+export function useGlobalHotkeys(onOpenCheatSheet: () => void, onOpenPalette: () => void) {
   useHotkeys('mod+k', () => onOpenPalette(), { preventDefault: true });
   useHotkeys('g+d', () => router.visit('/'), { preventDefault: true });
   useHotkeys('g+w', () => router.visit('/waybills'), { preventDefault: true });

@@ -21,8 +21,8 @@ function buildWindow(current: number, last: number): (number | null)[] {
   }
   const pages: (number | null)[] = [1];
   const start = Math.max(2, current - 1);
-  const end   = Math.min(last - 1, current + 1);
-  if (start > 2)    pages.push(null);
+  const end = Math.min(last - 1, current + 1);
+  if (start > 2) pages.push(null);
   for (let p = start; p <= end; p++) pages.push(p);
   if (end < last - 1) pages.push(null);
   pages.push(last);
@@ -50,8 +50,8 @@ export default function Paginator<T>({
     router.get(target, merged, { preserveState: true, replace: true });
   }
 
-  const from  = total === 0 ? 0 : (current_page - 1) * per_page + 1;
-  const to    = Math.min(current_page * per_page, total);
+  const from = total === 0 ? 0 : (current_page - 1) * per_page + 1;
+  const to = Math.min(current_page * per_page, total);
   const pages = buildWindow(current_page, last_page);
 
   return (
@@ -60,12 +60,15 @@ export default function Paginator<T>({
         <p className="text-xs text-muted-foreground">
           {total === 0 ? 'No results' : `Showing ${from}–${to} of ${total.toLocaleString()}`}
         </p>
-      ) : <span />}
+      ) : (
+        <span />
+      )}
 
       {last_page > 1 && (
         <div className="flex items-center gap-1">
           <Button
-            size="sm" variant="outline"
+            size="sm"
+            variant="outline"
             disabled={current_page <= 1}
             onClick={() => go(current_page - 1)}
           >
@@ -74,7 +77,12 @@ export default function Paginator<T>({
 
           {pages.map((p, idx) =>
             p === null ? (
-              <span key={`ellipsis-${idx}`} className="px-1 text-sm text-muted-foreground select-none">…</span>
+              <span
+                key={`ellipsis-${idx}`}
+                className="px-1 text-sm text-muted-foreground select-none"
+              >
+                …
+              </span>
             ) : (
               <Button
                 key={p}
@@ -89,7 +97,8 @@ export default function Paginator<T>({
           )}
 
           <Button
-            size="sm" variant="outline"
+            size="sm"
+            variant="outline"
             disabled={current_page >= last_page}
             onClick={() => go(current_page + 1)}
           >

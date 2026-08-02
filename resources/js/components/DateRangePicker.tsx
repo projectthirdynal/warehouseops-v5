@@ -51,19 +51,20 @@ function daysBetween(from: string, to: string): number {
 function formatShort(dateStr: string): string {
   if (!dateStr) return '';
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', {
-    month: 'short', day: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
 }
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
 const PRESETS: Array<{ label: string; getRange: () => DateRange }> = [
-  { label: 'Today',       getRange: () => ({ from: today(), to: today() }) },
-  { label: 'Yesterday',   getRange: () => ({ from: offsetDate(-1), to: offsetDate(-1) }) },
+  { label: 'Today', getRange: () => ({ from: today(), to: today() }) },
+  { label: 'Yesterday', getRange: () => ({ from: offsetDate(-1), to: offsetDate(-1) }) },
   { label: 'Last 7 days', getRange: () => ({ from: offsetDate(-6), to: today() }) },
-  { label: 'Last 30 days',getRange: () => ({ from: offsetDate(-29), to: today() }) },
-  { label: 'This month',  getRange: () => ({ from: firstOfMonth(), to: lastOfMonth() }) },
-  { label: 'Last month',  getRange: () => ({ from: firstOfMonth(-1), to: lastOfMonth(-1) }) },
+  { label: 'Last 30 days', getRange: () => ({ from: offsetDate(-29), to: today() }) },
+  { label: 'This month', getRange: () => ({ from: firstOfMonth(), to: lastOfMonth() }) },
+  { label: 'Last month', getRange: () => ({ from: firstOfMonth(-1), to: lastOfMonth(-1) }) },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -80,7 +81,11 @@ export function DateRangePicker({ value, onChange, storageKey, className }: Prop
 
   const emit = (range: DateRange) => {
     if (storageKey) {
-      try { localStorage.setItem(storageKey, JSON.stringify(range)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(range));
+      } catch {
+        /* ignore */
+      }
     }
     onChange(range);
   };
@@ -95,17 +100,18 @@ export function DateRangePicker({ value, onChange, storageKey, className }: Prop
   const applyCustom = () => {
     if (!customFrom || !customTo) return;
     const from = customFrom <= customTo ? customFrom : customTo;
-    const to   = customFrom <= customTo ? customTo   : customFrom;
+    const to = customFrom <= customTo ? customTo : customFrom;
     emit({ from, to });
   };
 
   const days = value.from && value.to ? daysBetween(value.from, value.to) : null;
 
-  const label = value.from && value.to
-    ? value.from === value.to
-      ? formatShort(value.from)
-      : `${formatShort(value.from)} – ${formatShort(value.to)}`
-    : 'Date range';
+  const label =
+    value.from && value.to
+      ? value.from === value.to
+        ? formatShort(value.from)
+        : `${formatShort(value.from)} – ${formatShort(value.to)}`
+      : 'Date range';
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -115,9 +121,7 @@ export function DateRangePicker({ value, onChange, storageKey, className }: Prop
           <Button variant="outline" className="gap-1.5">
             <CalendarDays className="h-4 w-4" />
             <span className="hidden sm:inline">{label}</span>
-            {days !== null && (
-              <span className="text-xs text-muted-foreground">({days}d)</span>
-            )}
+            {days !== null && <span className="text-xs text-muted-foreground">({days}d)</span>}
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
@@ -162,4 +166,3 @@ export function DateRangePicker({ value, onChange, storageKey, className }: Prop
     </div>
   );
 }
-

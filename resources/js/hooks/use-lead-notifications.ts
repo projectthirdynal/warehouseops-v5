@@ -33,7 +33,7 @@ export function useLeadNotifications(agentId: number | null) {
 
   // Polling fallback: check for new assignments every 30 seconds
   useEffect(() => {
-    if (! agentId) return;
+    if (!agentId) return;
 
     const check = async () => {
       try {

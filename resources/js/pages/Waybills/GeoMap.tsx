@@ -188,6 +188,7 @@ export default function GeoMap({ markers, summary, stats, filters }: Props) {
     loadLeaflet().then(() => {
       setTimeout(initMap, 100);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time map init on mount
   }, []);
 
   useEffect(() => {

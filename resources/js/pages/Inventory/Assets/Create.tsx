@@ -92,6 +92,7 @@ export default function AssetCreate({ asset, categories, warehouses, uoms, users
       uom_id: asset.uom_id ? String(asset.uom_id) : '',
       quantity: asset.quantity,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time init from asset prop
   }, []);
 
   function submit(e: React.FormEvent) {

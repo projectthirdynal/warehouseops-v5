@@ -6,10 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -34,8 +43,13 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const filteredUsers = useMemo(() => {
-    return users.filter(u => {
-      if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
+    return users.filter((u) => {
+      if (
+        search &&
+        !u.name.toLowerCase().includes(search.toLowerCase()) &&
+        !u.email.toLowerCase().includes(search.toLowerCase())
+      )
+        return false;
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       if (statusFilter === 'active' && !u.is_active) return false;
       if (statusFilter === 'inactive' && u.is_active) return false;
@@ -48,7 +62,11 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
   };
 
   const handleRoleChange = (userId: number, newRole: string) => {
-    router.patch(`/admin/users/${userId}/role`, { role: newRole }, { preserveScroll: true, preserveState: true });
+    router.patch(
+      `/admin/users/${userId}/role`,
+      { role: newRole },
+      { preserveScroll: true, preserveState: true }
+    );
   };
 
   return (
@@ -60,7 +78,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
           <Input
             placeholder="Search by name or email..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -72,10 +90,17 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
-              {roles.map(r => <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>)}
+              {roles.map((r) => (
+                <SelectItem key={r} value={r} className="capitalize">
+                  {r}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | 'active' | 'inactive')}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as 'all' | 'active' | 'inactive')}
+          >
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -111,7 +136,7 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map(user => (
+                  filteredUsers.map((user) => (
                     <TableRow key={user.id} className={cn(!user.is_active && 'opacity-60')}>
                       <TableCell>
                         <Switch
@@ -138,25 +163,27 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                           onValueChange={(val) => handleRoleChange(user.id, val)}
                           disabled={user.role === 'superadmin' && !isSuperadmin}
                         >
-                          <SelectTrigger className={cn('h-7 w-36 text-xs border-0', ROLE_COLORS[user.role])}>
+                          <SelectTrigger
+                            className={cn('h-7 w-36 text-xs border-0', ROLE_COLORS[user.role])}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {roles.map(r => (
-                              <SelectItem key={r} value={r} className="capitalize text-xs">{r.replace('_', ' ')}</SelectItem>
+                            {roles.map((r) => (
+                              <SelectItem key={r} value={r} className="capitalize text-xs">
+                                {r.replace('_', ' ')}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
+                        {user.last_login_at
+                          ? new Date(user.last_login_at).toLocaleDateString()
+                          : 'Never'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onViewUser(user)}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => onViewUser(user)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button
@@ -166,7 +193,10 @@ export default function UserTable({ users, roles, onViewUser }: Props) {
                           disabled={user.role === 'superadmin' && !isSuperadmin}
                           onClick={() => {
                             if (confirm(`Delete user "${user.name}"? This cannot be undone.`)) {
-                              router.delete(`/admin/users/${user.id}`, { preserveScroll: true, preserveState: true });
+                              router.delete(`/admin/users/${user.id}`, {
+                                preserveScroll: true,
+                                preserveState: true,
+                              });
                             }
                           }}
                         >

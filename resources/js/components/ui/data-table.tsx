@@ -60,7 +60,9 @@ export function DataTable<TData, TValue>({
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) return JSON.parse(stored) as VisibilityState;
-      } catch (_) { /* ignore parse/storage errors */ }
+      } catch (_) {
+        /* ignore parse/storage errors */
+      }
     }
     return {};
   })();
@@ -78,7 +80,11 @@ export function DataTable<TData, TValue>({
       setColumnVisibility((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         if (storageKey) {
-          try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch (_) { /* ignore storage errors */ }
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(next));
+          } catch (_) {
+            /* ignore storage errors */
+          }
         }
         return next;
       });
@@ -87,15 +93,14 @@ export function DataTable<TData, TValue>({
     state: { sorting, rowSelection, columnVisibility, columnFilters },
   });
 
-  const hasToolbarContent = toolbar || columns.some((c) => (c as { enableHiding?: boolean }).enableHiding !== false);
+  const hasToolbarContent =
+    toolbar || columns.some((c) => (c as { enableHiding?: boolean }).enableHiding !== false);
 
   return (
     <div className={cn('space-y-2', className)}>
       {hasToolbarContent && (
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1">
-            {toolbar && toolbar(table)}
-          </div>
+          <div className="flex items-center gap-2 flex-1">{toolbar && toolbar(table)}</div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="ml-auto h-8 gap-1.5">
@@ -148,8 +153,12 @@ export function DataTable<TData, TValue>({
                           {header.column.getCanSort() && (
                             <span className="inline-flex">
                               {isSorted === 'asc' && <ArrowUp className="h-3 w-3 text-primary" />}
-                              {isSorted === 'desc' && <ArrowDown className="h-3 w-3 text-primary" />}
-                              {!isSorted && <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}
+                              {isSorted === 'desc' && (
+                                <ArrowDown className="h-3 w-3 text-primary" />
+                              )}
+                              {!isSorted && (
+                                <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
+                              )}
                             </span>
                           )}
                         </div>
@@ -176,7 +185,10 @@ export function DataTable<TData, TValue>({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center text-sm text-muted-foreground"
+                  >
                     {emptyMessage}
                   </TableCell>
                 </TableRow>

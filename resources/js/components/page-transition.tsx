@@ -17,12 +17,7 @@ const pageVariants = {
 
 export function PageTransition({ children }: PropsWithChildren) {
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-    >
+    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit">
       {children}
     </motion.div>
   );

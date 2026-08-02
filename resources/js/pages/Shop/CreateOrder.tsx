@@ -925,6 +925,7 @@ export default function CreateShopOrder({
 
   useEffect(() => {
     fetchTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-time fetch on mount
   }, []);
 
   const saveTemplate = () => {
@@ -1168,6 +1169,7 @@ export default function CreateShopOrder({
         .catch(() => undefined);
     }, 800);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- csrfToken is stable, re-run only on items change
   }, [data.items]);
 
   const addRecommendation = (rec: RecommendedProduct) => {

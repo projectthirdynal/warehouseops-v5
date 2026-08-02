@@ -12,10 +12,7 @@ const clientBuild = 'shop-queue-2026-06-03-v4';
 createInertiaApp({
   title: (title) => `${title} - ${appName}`,
   resolve: (name) =>
-    resolvePageComponent(
-      `./pages/${name}.tsx`,
-      import.meta.glob('./pages/**/*.tsx')
-    ),
+    resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
   setup({ el, App, props }) {
     el.dataset.clientBuild = clientBuild;
     const root = createRoot(el);
