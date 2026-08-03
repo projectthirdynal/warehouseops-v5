@@ -45,6 +45,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('shop:archive-stale-conversations')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
         $schedule->command('shop:check-gamification')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
         $schedule->command('sales-dashboard:generate-scheduled-reports')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+        $schedule->command('quality:train')->dailyAt('04:15')->withoutOverlapping()->onOneServer();
         $schedule->command('leads:rescore --limit=500')->hourly()->withoutOverlapping()->onOneServer();
         $schedule->command('leads:check-pool-capacity')->everyThirtyMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('predictive:retrain')->dailyAt('04:30')->withoutOverlapping()->onOneServer();
