@@ -226,7 +226,7 @@ class LeadLifecycleService
                     'type' => 'waybill',
                     'action' => 'WAYBILL_DELIVERED',
                     'label' => "Waybill {$waybill->waybill_number} Delivered",
-                    'description' => "Delivered successfully",
+                    'description' => 'Delivered successfully',
                     'timestamp' => $waybill->delivered_at,
                     'metadata' => [
                         'waybill_number' => $waybill->waybill_number,
