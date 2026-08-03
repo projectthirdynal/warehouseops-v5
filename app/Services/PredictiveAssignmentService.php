@@ -33,7 +33,6 @@ class PredictiveAssignmentService
 {
     private const MODEL_VERSION = 'v1';
 
-    // Feature weights — tuned for balanced prediction
     private const W_CONVERSION = 0.35;
     private const W_SOURCE = 0.15;
     private const W_REGION = 0.10;

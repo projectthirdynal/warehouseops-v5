@@ -9,6 +9,7 @@ use App\Models\AgentWorkload;
 use App\Models\DistributionQueue;
 use App\Models\DistributionRule;
 use App\Models\LeadCycle;
+use App\Models\PredictiveModelData;
 use App\Models\User;
 use App\Services\CapacityManager;
 use App\Services\DistributionEngine;
@@ -416,7 +417,7 @@ class DistributionController extends Controller
      */
     public function modelStatus()
     {
-        $modelData = \App\Models\PredictiveModelData::with('agent')
+        $modelData = PredictiveModelData::with('agent')
             ->where('model_version', 'v1')
             ->orderByDesc('overall_score')
             ->get();
