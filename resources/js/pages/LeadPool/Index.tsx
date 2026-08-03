@@ -73,10 +73,18 @@ interface SourceOption {
 
 type ViewMode = 'pool' | 'imported' | 'all';
 
+interface CapacityAlert {
+  level: 'low' | 'high';
+  count: number;
+  threshold: number;
+  source: string | null;
+}
+
 interface Props {
   leads: PaginatedResponse<PoolLead>;
   stats: any;
   agents: Agent[];
+  capacityAlerts?: CapacityAlert[];
   filters: {
     pool_status?: string;
     source?: string;
@@ -133,6 +141,7 @@ export default function LeadPoolIndex({
   leads,
   stats,
   agents,
+  capacityAlerts = [],
   filters,
   viewMode,
   sourceOptions: _sourceOptions,
@@ -209,6 +218,32 @@ export default function LeadPoolIndex({
             </Button>
           )}
         </div>
+
+        {/* Capacity Alerts */}
+        {isPoolView && capacityAlerts.length > 0 && (
+          <div className="space-y-2">
+            {capacityAlerts.map((alert, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                  alert.level === 'low'
+                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                    : 'border-warning/30 bg-warning/10 text-warning'
+                }`}
+              >
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  {alert.level === 'low' ? 'Low availability' : 'Overstocked'}
+                  {alert.source ? ` for source "${alert.source}"` : ' in the overall pool'}:{' '}
+                  <strong>{alert.count}</strong> leads (threshold {alert.threshold})
+                  {alert.level === 'low'
+                    ? ' — consider importing more leads.'
+                    : ' — consider distributing to agents.'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* View Tabs */}
         <div className="flex gap-2 border-b pb-2">

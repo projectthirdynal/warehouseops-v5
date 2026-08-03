@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -42,6 +44,48 @@ class LeadPoolService
             'cooldown' => Lead::inCooldown()->count(),
             'exhausted' => Lead::exhausted()->count(),
         ];
+    }
+
+    /**
+     * Check for pool capacity issues — low availability (not enough leads to
+     * distribute) or overstocked (too many unassigned leads piling up).
+     * Checks both the overall pool and per-source breakdowns.
+     *
+     * @return array<int, array{level: string, count: int, threshold: int, source: ?string}>
+     */
+    public function checkCapacityAlerts(): array
+    {
+        $lowThreshold = (int) SiteSetting::get('pool_low_threshold', 20);
+        $highThreshold = (int) SiteSetting::get('pool_high_threshold', 500);
+        $lowThresholdPerSource = (int) SiteSetting::get('pool_low_threshold_per_source', 5);
+        $highThresholdPerSource = (int) SiteSetting::get('pool_high_threshold_per_source', 150);
+
+        $alerts = [];
+
+        $overallAvailable = Lead::available()->count();
+        if ($overallAvailable < $lowThreshold) {
+            $alerts[] = ['level' => 'low', 'count' => $overallAvailable, 'threshold' => $lowThreshold, 'source' => null];
+        } elseif ($overallAvailable > $highThreshold) {
+            $alerts[] = ['level' => 'high', 'count' => $overallAvailable, 'threshold' => $highThreshold, 'source' => null];
+        }
+
+        $bySource = Lead::available()
+            ->selectRaw('source, COUNT(*) as total')
+            ->groupBy('source')
+            ->pluck('total', 'source');
+
+        foreach ($bySource as $source => $total) {
+            $sourceValue = $source instanceof LeadSource ? $source->value : (string) $source;
+            $total = (int) $total;
+
+            if ($total < $lowThresholdPerSource) {
+                $alerts[] = ['level' => 'low', 'count' => $total, 'threshold' => $lowThresholdPerSource, 'source' => $sourceValue];
+            } elseif ($total > $highThresholdPerSource) {
+                $alerts[] = ['level' => 'high', 'count' => $total, 'threshold' => $highThresholdPerSource, 'source' => $sourceValue];
+            }
+        }
+
+        return $alerts;
     }
 
     public function markAsAssigned(Lead $lead, User $agent): void

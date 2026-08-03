@@ -109,6 +109,7 @@ class LeadPoolController extends Controller
         return Inertia::render('LeadPool/Index', [
             'leads' => LeadPoolResource::collection($leads),
             'stats' => $stats,
+            'capacityAlerts' => $viewMode === 'pool' ? $this->poolService->checkCapacityAlerts() : [],
             'agents' => $agents->map(fn ($agent) => [
                 'id' => $agent->id,
                 'name' => $agent->name,
@@ -172,6 +173,13 @@ class LeadPoolController extends Controller
         }
 
         return redirect()->back()->with('success', "Distributed {$result['total_distributed']} leads to {$result['agent_count']} agents");
+    }
+
+    public function capacityAlerts()
+    {
+        return response()->json([
+            'alerts' => $this->poolService->checkCapacityAlerts(),
+        ]);
     }
 
     public function agentPerformance(): Response

@@ -936,6 +936,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/', [LeadPoolController::class, 'index'])->name('index');
         Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
+        Route::get('/capacity-alerts', [LeadPoolController::class, 'capacityAlerts'])->name('capacity-alerts');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
