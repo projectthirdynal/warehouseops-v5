@@ -97,6 +97,7 @@ Route::middleware('auth')->group(function () {
 // Agent Self-Service Portal (all authenticated users can access their own portal)
 Route::middleware(['auth'])->group(function () {
     Route::prefix('agent')->name('agent.')->group(function () {
+        Route::get('/dashboard', [AgentLeadController::class, 'dashboard'])->name('dashboard');
         Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::get('/tracking', [AgentLeadController::class, 'tracking'])->name('tracking');

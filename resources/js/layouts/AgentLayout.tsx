@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Bell,
   User,
+  LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ interface NavItem {
 }
 
 const agentNav: NavItem[] = [
+  { name: 'Dashboard', href: '/agent/dashboard', icon: LayoutDashboard },
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Track Waybill', href: '/agent/tracking', icon: Search },
   { name: 'Tickets', href: '/tickets', icon: Headphones },

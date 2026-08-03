@@ -8,6 +8,7 @@ use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\LeadCycle;
 use App\Models\Waybill;
+use App\Services\AgentPortalService;
 use App\Services\CallTrackingService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
@@ -24,8 +25,31 @@ class AgentLeadController extends Controller
         private CallTrackingService $callService,
         private LeadRecyclingService $recyclingService,
         private LeadDistributionService $distributionService,
-        private LeadPoolService $poolService
+        private LeadPoolService $poolService,
+        private AgentPortalService $portalService
     ) {}
+
+    public function dashboard(): Response
+    {
+        $agent = auth()->user();
+        $agent->load('agentProfile');
+
+        $data = $this->portalService->getDashboardData($agent);
+
+        return Inertia::render('AgentLeads/Dashboard', [
+            'earnings' => $data['earnings'],
+            'recent_commissions' => $data['recent_commissions'],
+            'lead_history' => $data['lead_history'],
+            'leaderboard' => $data['leaderboard'],
+            'workload' => $data['workload'],
+            'agent' => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'performance_score' => (float) ($agent->agentProfile?->performance_score ?? 0),
+                'is_available' => (bool) ($agent->agentProfile?->is_available ?? false),
+            ],
+        ]);
+    }
 
     public function portal(Request $request): Response
     {
