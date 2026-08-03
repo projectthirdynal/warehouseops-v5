@@ -34,11 +34,17 @@ class PredictiveAssignmentService
     private const MODEL_VERSION = 'v1';
 
     private const W_CONVERSION = 0.35;
+
     private const W_SOURCE = 0.15;
+
     private const W_REGION = 0.10;
+
     private const W_PRODUCT = 0.10;
+
     private const W_TIME = 0.10;
+
     private const W_RECENCY = 0.10;
+
     private const W_HANDLE_TIME = 0.10;
 
     /**
