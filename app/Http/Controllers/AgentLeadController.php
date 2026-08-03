@@ -562,4 +562,87 @@ class AgentLeadController extends Controller
             ] : null,
         ]);
     }
+
+    public function heartbeat(): JsonResponse
+    {
+        $agent = auth()->user();
+        $profile = $agent->agentProfile()->firstOrCreate(
+            ['user_id' => $agent->id],
+            ['is_available' => true]
+        );
+
+        $wasAutoUnavailable = ! $profile->is_available;
+
+        $profile->forceFill([
+            'last_seen_at' => now(),
+            'is_available' => true,
+        ])->save();
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        return response()->json([
+            'is_available' => true,
+            'last_seen_at' => $profile->last_seen_at->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+            'restored' => $wasAutoUnavailable,
+        ]);
+    }
+
+    public function toggleAvailability(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'is_available' => ['required', 'boolean'],
+        ]);
+
+        $agent = auth()->user();
+        $profile = $agent->agentProfile()->firstOrCreate(
+            ['user_id' => $agent->id],
+            ['is_available' => true]
+        );
+
+        $profile->forceFill([
+            'is_available' => $validated['is_available'],
+            'last_seen_at' => now(),
+        ])->save();
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        return response()->json([
+            'is_available' => $profile->is_available,
+            'last_seen_at' => $profile->last_seen_at->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+        ]);
+    }
+
+    public function availabilityStatus(): JsonResponse
+    {
+        $agent = auth()->user();
+        $profile = $agent->agentProfile;
+
+        if (! $profile) {
+            return response()->json([
+                'is_available' => false,
+                'last_seen_at' => null,
+                'idle_threshold_minutes' => 15,
+                'idle_minutes' => null,
+                'remaining_minutes' => null,
+            ]);
+        }
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+        $idleMinutes = $profile->last_seen_at
+            ? (int) $profile->last_seen_at->diffInMinutes(now())
+            : null;
+        $remainingMinutes = $idleMinutes !== null
+            ? max(0, $threshold - $idleMinutes)
+            : null;
+
+        return response()->json([
+            'is_available' => $profile->is_available,
+            'last_seen_at' => $profile->last_seen_at?->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+            'idle_minutes' => $idleMinutes,
+            'remaining_minutes' => $remainingMinutes,
+        ]);
+    }
 }

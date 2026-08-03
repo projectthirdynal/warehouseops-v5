@@ -105,6 +105,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Agent API (AJAX calls from portal)
     Route::prefix('api/agent')->name('api.agent.')->group(function () {
+        Route::post('/heartbeat', [AgentLeadController::class, 'heartbeat'])->name('heartbeat');
+        Route::post('/availability', [AgentLeadController::class, 'toggleAvailability'])->name('availability.toggle');
+        Route::get('/availability', [AgentLeadController::class, 'availabilityStatus'])->name('availability.status');
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
