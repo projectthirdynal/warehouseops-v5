@@ -181,6 +181,13 @@ export interface AgentProfile {
   priority_weight: number;
   is_available: boolean;
   performance_score: number;
+  shift_start: string | null;
+  shift_end: string | null;
+  auto_assign_enabled: boolean;
+  idle_threshold_minutes: number;
+  last_seen_at: string | null;
+  last_assignment_at: string | null;
+  distribution_weight: number;
 }
 
 export interface LeadCycle {

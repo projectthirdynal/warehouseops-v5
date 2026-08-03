@@ -45,6 +45,9 @@ interface AvailabilityState {
   idle_threshold_minutes: number;
   idle_minutes: number | null;
   remaining_minutes: number | null;
+  shift_start: string | null;
+  shift_end: string | null;
+  in_shift: boolean;
 }
 
 export default function AgentLayout({ children }: PropsWithChildren) {
@@ -87,12 +90,15 @@ export default function AgentLayout({ children }: PropsWithChildren) {
           idle_threshold_minutes: data.idle_threshold_minutes,
           idle_minutes: 0,
           remaining_minutes: data.idle_threshold_minutes,
+          shift_start: availability?.shift_start ?? null,
+          shift_end: availability?.shift_end ?? null,
+          in_shift: availability?.in_shift ?? true,
         });
       }
     } catch {
       // silently fail
     }
-  }, []);
+  }, [availability]);
 
   const handleToggle = useCallback(async () => {
     if (!availability) return;
@@ -223,11 +229,18 @@ export default function AgentLayout({ children }: PropsWithChildren) {
                   <>
                     <CircleSlash className="h-3.5 w-3.5 text-muted-foreground group-hover:text-success transition-colors" />
                     <span className="text-xs text-muted-foreground group-hover:text-success transition-colors">
-                      Away
+                      {availability?.shift_start && availability?.in_shift === false
+                        ? 'Off Shift'
+                        : 'Away'}
                     </span>
                   </>
                 )}
               </button>
+              {availability?.shift_start && availability?.shift_end && (
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Shift: {availability.shift_start}–{availability.shift_end}
+                </p>
+              )}
             </div>
           </div>
         </div>

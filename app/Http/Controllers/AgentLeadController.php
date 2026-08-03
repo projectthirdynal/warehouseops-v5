@@ -626,6 +626,9 @@ class AgentLeadController extends Controller
                 'idle_threshold_minutes' => 15,
                 'idle_minutes' => null,
                 'remaining_minutes' => null,
+                'shift_start' => null,
+                'shift_end' => null,
+                'in_shift' => true,
             ]);
         }
 
@@ -637,12 +640,34 @@ class AgentLeadController extends Controller
             ? max(0, $threshold - $idleMinutes)
             : null;
 
+        $inShift = $this->isInShift($profile->shift_start, $profile->shift_end);
+
         return response()->json([
             'is_available' => $profile->is_available,
             'last_seen_at' => $profile->last_seen_at?->toIso8601String(),
             'idle_threshold_minutes' => $threshold,
             'idle_minutes' => $idleMinutes,
             'remaining_minutes' => $remainingMinutes,
+            'shift_start' => $profile->shift_start,
+            'shift_end' => $profile->shift_end,
+            'in_shift' => $inShift,
         ]);
+    }
+
+    private function isInShift(?string $shiftStart, ?string $shiftEnd): bool
+    {
+        if (! $shiftStart || ! $shiftEnd) {
+            return true;
+        }
+
+        $nowTime = now()->format('H:i');
+        $startTime = now()->parse($shiftStart)->format('H:i');
+        $endTime = now()->parse($shiftEnd)->format('H:i');
+
+        if ($endTime < $startTime) {
+            return $nowTime >= $startTime || $nowTime < $endTime;
+        }
+
+        return $nowTime >= $startTime && $nowTime < $endTime;
     }
 }

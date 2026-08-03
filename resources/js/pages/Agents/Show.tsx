@@ -1,4 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import {
   ArrowLeft,
   Mail,
@@ -11,6 +12,9 @@ import {
   Users,
   CheckCircle,
   Calendar,
+  Save,
+  Sunrise,
+  Sunset,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -69,8 +73,43 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+function isCurrentlyInShift(profile?: AgentProfile): boolean {
+  if (!profile?.shift_start || !profile?.shift_end) return true;
+  const now = new Date();
+  const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const start = profile.shift_start;
+  const end = profile.shift_end;
+  if (end < start) {
+    return nowTime >= start || nowTime < end;
+  }
+  return nowTime >= start && nowTime < end;
+}
+
 export default function AgentShow({ agent, stats, recentLeads }: Props) {
   const profile = agent.agentProfile;
+  const [editingShift, setEditingShift] = useState(false);
+  const [shiftStart, setShiftStart] = useState(profile?.shift_start ?? '');
+  const [shiftEnd, setShiftEnd] = useState(profile?.shift_end ?? '');
+  const [savingShift, setSavingShift] = useState(false);
+
+  const inShift = isCurrentlyInShift(profile);
+
+  const handleSaveShift = () => {
+    setSavingShift(true);
+    router.patch(
+      `/agents/${agent.id}/profile`,
+      {
+        shift_start: shiftStart || null,
+        shift_end: shiftEnd || null,
+      },
+      {
+        onFinish: () => {
+          setSavingShift(false);
+          setEditingShift(false);
+        },
+      }
+    );
+  };
 
   return (
     <AppLayout>
@@ -210,6 +249,97 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
           </Card>
         </div>
 
+        {/* Shift Schedule Card */}
+        {profile && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Shift Schedule
+                {profile.shift_start && profile.shift_end ? (
+                  <Badge
+                    variant={inShift ? 'default' : 'secondary'}
+                    className={inShift ? 'text-success' : ''}
+                  >
+                    {inShift ? 'In Shift' : 'Off Shift'}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">No shift set</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!editingShift ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Sunrise className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-xs text-muted-foreground">Start</div>
+                        <div className="text-sm font-medium">{profile.shift_start ?? '—'}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Sunset className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-xs text-muted-foreground">End</div>
+                        <div className="text-sm font-medium">{profile.shift_end ?? '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leads are only assigned during shift hours. The system auto-toggles availability
+                    at shift boundaries. Leave blank for 24/7 availability.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setEditingShift(true)}>
+                    Edit Shift Schedule
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Shift Start</label>
+                      <input
+                        type="time"
+                        value={shiftStart}
+                        onChange={(e) => setShiftStart(e.target.value)}
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Shift End</label>
+                      <input
+                        type="time"
+                        value={shiftEnd}
+                        onChange={(e) => setShiftEnd(e.target.value)}
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveShift} disabled={savingShift}>
+                      <Save className="mr-1.5 h-3.5 w-3.5" />
+                      {savingShift ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingShift(false);
+                        setShiftStart(profile?.shift_start ?? '');
+                        setShiftEnd(profile?.shift_end ?? '');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Agent Profile Details */}
         {profile && (
           <div className="grid gap-4 md:grid-cols-2">
@@ -229,6 +359,12 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
                   <span className="text-muted-foreground">Available</span>
                   <Badge variant={profile.is_available ? 'default' : 'secondary'}>
                     {profile.is_available ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Auto-Assign</span>
+                  <Badge variant={profile.auto_assign_enabled ? 'default' : 'secondary'}>
+                    {profile.auto_assign_enabled ? 'Enabled' : 'Disabled'}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">

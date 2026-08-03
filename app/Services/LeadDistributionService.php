@@ -14,7 +14,8 @@ class LeadDistributionService
 {
     public function __construct(
         private LeadPoolService $poolService,
-        private LeadAuditService $auditService
+        private LeadAuditService $auditService,
+        private AgentAvailability $agentAvailability
     ) {}
 
     /**
@@ -140,7 +141,8 @@ class LeadDistributionService
             ->where('is_active', true)
             ->whereHas('agentProfile', fn ($q) => $q->where('is_available', true))
             ->with('agentProfile')
-            ->get();
+            ->get()
+            ->filter(fn (User $agent) => $this->agentAvailability->isWithinShift($agent->id));
     }
 
     /**

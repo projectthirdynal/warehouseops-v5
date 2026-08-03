@@ -394,9 +394,20 @@ export default function AgentsIndex({ agents, stats }: Props) {
                       </AvatarFallback>
                     </Avatar>
                     <h3 className="mt-3 font-semibold">{agent.name}</h3>
-                    <Badge variant={agent.is_active ? 'default' : 'secondary'} className="mt-1">
-                      {agent.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant={agent.is_active ? 'default' : 'secondary'}>
+                        {agent.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                      {agent.agentProfile?.shift_start && agent.agentProfile?.shift_end ? (
+                        <Badge variant="outline" className="text-xs">
+                          {agent.agentProfile.shift_start}–{agent.agentProfile.shift_end}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          24/7
+                        </Badge>
+                      )}
+                    </div>
 
                     <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
