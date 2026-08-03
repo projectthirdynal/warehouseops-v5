@@ -182,67 +182,44 @@ class DistributionController extends Controller
         $lead = Lead::findOrFail($validated['lead_id']);
         $agent = User::findOrFail($validated['agent_id']);
 
-        // Guard: only ASSIGNED leads can be reassigned (ISS-010)
-        if ($lead->pool_status !== PoolStatus::ASSIGNED) {
-            return redirect()->back()->with('error', 'Lead must be currently assigned before it can be reassigned.');
+        try {
+            $this->distributionService->reassign($lead, $agent, $validated['reason'], auth()->user());
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
 
-        $oldAgent = $lead->assignedAgent;
-
-        $result = DB::transaction(function () use ($lead, $agent, $oldAgent, $validated) {
-            // Close existing cycle
-            $existingCycle = $lead->activeCycle;
-            if ($existingCycle) {
-                $existingCycle->update([
-                    'status' => 'CLOSED',
-                    'outcome' => 'REASSIGNED',
-                    'closed_at' => now(),
-                ]);
-                // Free up old agent workload
-                if ($oldAgent) {
-                    app(CapacityManager::class)->recordCycleClose($oldAgent->id);
-                }
-            }
-
-            $cycleNumber = $lead->total_cycles + 1;
-            $cycle = LeadCycle::create([
-                'lead_id' => $lead->id,
-                'cycle_number' => $cycleNumber,
-                'assigned_agent_id' => $agent->id,
-                'status' => 'ACTIVE',
-                'opened_at' => now(),
-            ]);
-
-            $lead->update([
-                'pool_status' => PoolStatus::ASSIGNED,
-                'assigned_to' => $agent->id,
-                'assigned_at' => now(),
-                'total_cycles' => $cycleNumber,
-            ]);
-
-            // Update new agent workload
-            app(CapacityManager::class)->recordAssignment($agent->id);
-
-            $this->auditService->log(
-                lead: $lead,
-                action: 'REASSIGNED',
-                user: auth()->user(),
-                cycle: $cycle,
-                metadata: [
-                    'from_agent_id' => $oldAgent?->id,
-                    'from_agent_name' => $oldAgent?->name,
-                    'to_agent_id' => $agent->id,
-                    'to_agent_name' => $agent->name,
-                    'reason' => $validated['reason'],
-                ]
-            );
-
-            LeadAssigned::dispatch($lead, $agent, $cycle, $validated['reason']);
-
-            return ['lead' => $lead, 'cycle' => $cycle];
-        });
-
         return redirect()->back()->with('success', "Lead reassigned to {$agent->name}.");
+    }
+
+    /**
+     * Bulk reassign — Phase 4 L1: Batch Operations.
+     * Reassigns multiple ASSIGNED leads to a single agent in one action.
+     */
+    public function bulkReassign(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'agent_id' => ['required', 'exists:users,id'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $agent = User::findOrFail($validated['agent_id']);
+
+        $result = $this->distributionService->bulkReassign(
+            $validated['lead_ids'],
+            $agent,
+            $validated['reason'],
+            auth()->user()
+        );
+
+        if ($result['reassigned'] === 0) {
+            return redirect()->back()->with('error', 'No leads could be reassigned. '.implode(' ', $result['errors']));
+        }
+
+        return redirect()->back()
+            ->with('success', "Reassigned {$result['reassigned']} lead(s) to {$agent->name}.".($result['failed'] > 0 ? " {$result['failed']} failed." : ''))
+            ->with('bulkActionErrors', $result['errors']);
     }
 
     public function autoDistribute(Request $request)

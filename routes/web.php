@@ -935,6 +935,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::prefix('lead-pool')->name('lead-pool.')->group(function () {
         Route::get('/', [LeadPoolController::class, 'index'])->name('index');
         Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
+        Route::post('/bulk-recycle', [LeadPoolController::class, 'bulkRecycle'])->name('bulk-recycle');
+        Route::post('/bulk-archive', [LeadPoolController::class, 'bulkArchive'])->name('bulk-archive');
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/capacity-alerts', [LeadPoolController::class, 'capacityAlerts'])->name('capacity-alerts');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
@@ -958,6 +960,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::delete('/rules/{rule}', [DistributionController::class, 'destroyRule'])->name('rules.destroy');
         Route::post('/assign', [DistributionController::class, 'assign'])->name('assign');
         Route::post('/reassign', [DistributionController::class, 'reassign'])->name('reassign');
+        Route::post('/bulk-reassign', [DistributionController::class, 'bulkReassign'])->name('bulk-reassign');
         Route::post('/auto-distribute', [DistributionController::class, 'autoDistribute'])->name('auto-distribute');
         Route::get('/queue', [DistributionController::class, 'queue'])->name('queue');
         Route::get('/agents/{agent}/workload', [DistributionController::class, 'agentWorkload'])->name('agents.workload');

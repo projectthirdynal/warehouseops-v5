@@ -182,6 +182,60 @@ class LeadPoolController extends Controller
         ]);
     }
 
+    /**
+     * Bulk recycle — Phase 4 L1: Batch Operations.
+     * Returns multiple leads to the pool (AVAILABLE), closing active cycles.
+     */
+    public function bulkRecycle(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = $this->poolService->bulkRecycle(
+            $validated['lead_ids'],
+            auth()->user(),
+            $validated['reason'] ?? null
+        );
+
+        if ($result['recycled'] === 0) {
+            return redirect()->back()->with('error', 'No leads could be recycled. '.implode(' ', $result['errors']));
+        }
+
+        return redirect()->back()
+            ->with('success', "Recycled {$result['recycled']} lead(s) back to the pool.".($result['failed'] > 0 ? " {$result['failed']} failed." : ''))
+            ->with('bulkActionErrors', $result['errors']);
+    }
+
+    /**
+     * Bulk archive — Phase 4 L1: Batch Operations.
+     * Marks multiple leads as EXHAUSTED, removing them from active circulation.
+     */
+    public function bulkArchive(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = $this->poolService->bulkArchive(
+            $validated['lead_ids'],
+            auth()->user(),
+            $validated['reason'] ?? null
+        );
+
+        if ($result['archived'] === 0) {
+            return redirect()->back()->with('error', 'No leads could be archived. '.implode(' ', $result['errors']));
+        }
+
+        return redirect()->back()
+            ->with('success', "Archived {$result['archived']} lead(s).".($result['failed'] > 0 ? " {$result['failed']} failed." : ''))
+            ->with('bulkActionErrors', $result['errors']);
+    }
+
     public function agentPerformance(): Response
     {
         $agents = User::where('role', 'agent')

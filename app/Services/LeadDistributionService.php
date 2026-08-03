@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Events\LeadAssigned;
 use App\Models\LeadCycle;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -140,5 +141,108 @@ class LeadDistributionService
             ->whereHas('agentProfile', fn ($q) => $q->where('is_available', true))
             ->with('agentProfile')
             ->get();
+    }
+
+    /**
+     * Reassign a single ASSIGNED lead to a different agent, closing the
+     * current cycle and opening a new one.
+     *
+     * @return array{lead: Lead, cycle: LeadCycle}
+     *
+     * @throws \RuntimeException if the lead is not currently ASSIGNED
+     */
+    public function reassign(Lead $lead, User $agent, string $reason, User $actor): array
+    {
+        if ($lead->pool_status !== PoolStatus::ASSIGNED) {
+            throw new \RuntimeException('Lead must be currently assigned before it can be reassigned.');
+        }
+
+        $oldAgent = $lead->assignedAgent;
+
+        return DB::transaction(function () use ($lead, $agent, $oldAgent, $reason, $actor) {
+            $existingCycle = $lead->activeCycle;
+            if ($existingCycle) {
+                $existingCycle->update([
+                    'status' => 'CLOSED',
+                    'outcome' => 'REASSIGNED',
+                    'closed_at' => now(),
+                ]);
+                if ($oldAgent) {
+                    app(CapacityManager::class)->recordCycleClose($oldAgent->id);
+                }
+            }
+
+            $cycleNumber = $lead->total_cycles + 1;
+            $cycle = LeadCycle::create([
+                'lead_id' => $lead->id,
+                'cycle_number' => $cycleNumber,
+                'assigned_agent_id' => $agent->id,
+                'status' => 'ACTIVE',
+                'opened_at' => now(),
+            ]);
+
+            $lead->update([
+                'pool_status' => PoolStatus::ASSIGNED,
+                'assigned_to' => $agent->id,
+                'assigned_at' => now(),
+                'total_cycles' => $cycleNumber,
+            ]);
+
+            app(CapacityManager::class)->recordAssignment($agent->id);
+
+            $this->auditService->log(
+                lead: $lead,
+                action: 'REASSIGNED',
+                user: $actor,
+                cycle: $cycle,
+                metadata: [
+                    'from_agent_id' => $oldAgent?->id,
+                    'from_agent_name' => $oldAgent?->name,
+                    'to_agent_id' => $agent->id,
+                    'to_agent_name' => $agent->name,
+                    'reason' => $reason,
+                ]
+            );
+
+            LeadAssigned::dispatch($lead, $agent, $cycle, $reason);
+
+            return ['lead' => $lead, 'cycle' => $cycle];
+        });
+    }
+
+    /**
+     * Reassign multiple leads to a single agent, reporting per-lead success/failure.
+     *
+     * @param  array<int>  $leadIds
+     * @return array{reassigned: int, failed: int, errors: array<int, string>}
+     */
+    public function bulkReassign(array $leadIds, User $agent, string $reason, User $actor): array
+    {
+        $leads = Lead::whereIn('id', $leadIds)->get()->keyBy('id');
+        $reassigned = 0;
+        $errors = [];
+
+        foreach ($leadIds as $leadId) {
+            $lead = $leads->get($leadId);
+
+            if (! $lead) {
+                $errors[] = "Lead #{$leadId}: not found";
+
+                continue;
+            }
+
+            try {
+                $this->reassign($lead, $agent, $reason, $actor);
+                $reassigned++;
+            } catch (\RuntimeException $e) {
+                $errors[] = "Lead #{$leadId} ({$lead->name}): {$e->getMessage()}";
+            }
+        }
+
+        return [
+            'reassigned' => $reassigned,
+            'failed' => count($errors),
+            'errors' => $errors,
+        ];
     }
 }

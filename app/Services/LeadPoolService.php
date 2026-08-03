@@ -186,4 +186,124 @@ class LeadPoolService
             newValue: PoolStatus::EXHAUSTED->value
         );
     }
+
+    /**
+     * Manually return a lead to the pool (AVAILABLE), closing any active
+     * cycle and freeing agent capacity. Phase 4 L1: Batch Operations.
+     */
+    public function recycleLead(Lead $lead, User $actor, ?string $reason = null): void
+    {
+        $activeCycle = $lead->activeCycle;
+        if ($activeCycle) {
+            $activeCycle->update([
+                'status' => 'CLOSED',
+                'outcome' => 'MANUAL_RECYCLE',
+                'closed_at' => now(),
+            ]);
+        }
+
+        $this->markAsAvailable($lead);
+
+        $this->auditService->log(
+            lead: $lead,
+            action: 'MANUALLY_RECYCLED',
+            user: $actor,
+            metadata: ['reason' => $reason]
+        );
+    }
+
+    /**
+     * Manually archive a lead (mark EXHAUSTED), closing any active cycle
+     * and freeing agent capacity. Phase 4 L1: Batch Operations.
+     */
+    public function archiveLead(Lead $lead, User $actor, ?string $reason = null): void
+    {
+        if ($lead->pool_status === PoolStatus::ASSIGNED) {
+            $activeCycle = $lead->activeCycle;
+            if ($activeCycle) {
+                $activeCycle->update([
+                    'status' => 'CLOSED',
+                    'outcome' => 'MANUAL_ARCHIVE',
+                    'closed_at' => now(),
+                ]);
+            }
+            if ($lead->assigned_to) {
+                $this->capacityManager->recordCycleClose($lead->assigned_to);
+            }
+            $lead->update(['assigned_to' => null]);
+        }
+
+        $this->markAsExhausted($lead);
+
+        $this->auditService->log(
+            lead: $lead,
+            action: 'MANUALLY_ARCHIVED',
+            user: $actor,
+            metadata: ['reason' => $reason]
+        );
+    }
+
+    /**
+     * @param  array<int>  $leadIds
+     * @return array{recycled: int, failed: int, errors: array<int, string>}
+     */
+    public function bulkRecycle(array $leadIds, User $actor, ?string $reason = null): array
+    {
+        $leads = Lead::whereIn('id', $leadIds)->get()->keyBy('id');
+        $recycled = 0;
+        $errors = [];
+
+        foreach ($leadIds as $leadId) {
+            $lead = $leads->get($leadId);
+
+            if (! $lead) {
+                $errors[] = "Lead #{$leadId}: not found";
+
+                continue;
+            }
+
+            if ($lead->pool_status === PoolStatus::AVAILABLE) {
+                $errors[] = "Lead #{$leadId} ({$lead->name}): already available";
+
+                continue;
+            }
+
+            $this->recycleLead($lead, $actor, $reason);
+            $recycled++;
+        }
+
+        return ['recycled' => $recycled, 'failed' => count($errors), 'errors' => $errors];
+    }
+
+    /**
+     * @param  array<int>  $leadIds
+     * @return array{archived: int, failed: int, errors: array<int, string>}
+     */
+    public function bulkArchive(array $leadIds, User $actor, ?string $reason = null): array
+    {
+        $leads = Lead::whereIn('id', $leadIds)->get()->keyBy('id');
+        $archived = 0;
+        $errors = [];
+
+        foreach ($leadIds as $leadId) {
+            $lead = $leads->get($leadId);
+
+            if (! $lead) {
+                $errors[] = "Lead #{$leadId}: not found";
+
+                continue;
+            }
+
+            if ($lead->pool_status === PoolStatus::EXHAUSTED) {
+                $errors[] = "Lead #{$leadId} ({$lead->name}): already archived";
+
+                continue;
+            }
+
+            $this->archiveLead($lead, $actor, $reason);
+            $archived++;
+        }
+
+        return ['archived' => $archived, 'failed' => count($errors), 'errors' => $errors];
+    }
 }
