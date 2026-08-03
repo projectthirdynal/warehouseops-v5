@@ -15,6 +15,15 @@ import {
   Save,
   Sunrise,
   Sunset,
+  Package,
+  Tag,
+  MapPin,
+  Ban,
+  Filter,
+  Plus,
+  X,
+  Layers,
+  Edit3,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -71,6 +80,249 @@ function getInitials(name: string) {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+}
+
+interface SkillFieldConfig {
+  key: keyof Pick<
+    AgentProfile,
+    'product_skills' | 'category_skills' | 'regions' | 'excluded_regions' | 'preferred_lead_sources'
+  >;
+  label: string;
+  icon: typeof Package;
+  color: string;
+  placeholder: string;
+  description: string;
+}
+
+const SKILL_FIELDS: SkillFieldConfig[] = [
+  {
+    key: 'product_skills',
+    label: 'Product Skills',
+    icon: Package,
+    color: 'text-purple-600',
+    placeholder: 'e.g. STEM Coffee, Mullein Inhaler',
+    description: 'Agent receives leads matching these products',
+  },
+  {
+    key: 'category_skills',
+    label: 'Category Skills',
+    icon: Layers,
+    color: 'text-blue-600',
+    placeholder: 'e.g. Electronics, Fashion, Food',
+    description: 'Soft match — agent accepts leads in these categories',
+  },
+  {
+    key: 'regions',
+    label: 'Assigned Regions',
+    icon: MapPin,
+    color: 'text-green-600',
+    placeholder: 'e.g. Metro Manila, Cebu, Davao',
+    description: 'Agent handles leads from these regions',
+  },
+  {
+    key: 'excluded_regions',
+    label: 'Excluded Regions',
+    icon: Ban,
+    color: 'text-red-600',
+    placeholder: 'e.g. BARMM, CARAGA',
+    description: 'Agent will NOT receive leads from these regions',
+  },
+  {
+    key: 'preferred_lead_sources',
+    label: 'Preferred Lead Sources',
+    icon: Filter,
+    color: 'text-amber-600',
+    placeholder: 'e.g. facebook, referral, walk_in',
+    description: 'Agent is prioritized for leads from these sources',
+  },
+];
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+  color,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  color: string;
+}) {
+  const [input, setInput] = useState('');
+
+  const addTag = () => {
+    const trimmed = input.trim();
+    if (trimmed && !values.includes(trimmed)) {
+      onChange([...values, trimmed]);
+    }
+    setInput('');
+  };
+
+  const removeTag = (tag: string) => onChange(values.filter((v) => v !== tag));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addTag();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex h-8 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <button
+          type="button"
+          onClick={addTag}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+          {values.map((tag) => (
+            <span
+              key={tag}
+              className={`flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium ${color}`}
+            >
+              {tag}
+              <button
+                onClick={() => removeTag(tag)}
+                className="ml-0.5 text-muted-foreground hover:text-destructive"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillMatrix({ profile, agentId }: { profile: AgentProfile; agentId: number }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    product_skills: profile.product_skills ?? [],
+    category_skills: profile.category_skills ?? [],
+    regions: profile.regions ?? [],
+    excluded_regions: profile.excluded_regions ?? [],
+    preferred_lead_sources: profile.preferred_lead_sources ?? [],
+  });
+
+  const startEditing = () => {
+    setDraft({
+      product_skills: profile.product_skills ?? [],
+      category_skills: profile.category_skills ?? [],
+      regions: profile.regions ?? [],
+      excluded_regions: profile.excluded_regions ?? [],
+      preferred_lead_sources: profile.preferred_lead_sources ?? [],
+    });
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    router.patch(
+      `/agents/${agentId}/profile`,
+      {
+        product_skills: draft.product_skills,
+        category_skills: draft.category_skills,
+        regions: draft.regions,
+        excluded_regions: draft.excluded_regions,
+        preferred_lead_sources: draft.preferred_lead_sources,
+      },
+      {
+        onFinish: () => {
+          setSaving(false);
+          setEditing(false);
+        },
+      }
+    );
+  };
+
+  const updateField = (key: keyof typeof draft, values: string[]) => {
+    setDraft((prev) => ({ ...prev, [key]: values }));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Tag className="h-5 w-5" />
+          Skill Matrix
+          <Badge variant="outline" className="ml-1 text-xs">
+            {[...SKILL_FIELDS].reduce((acc, f) => acc + (profile[f.key]?.length ?? 0), 0)} skills
+          </Badge>
+          {!editing && (
+            <Button variant="outline" size="sm" className="ml-auto" onClick={startEditing}>
+              <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+              Edit Skills
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {SKILL_FIELDS.map((field) => {
+          const Icon = field.icon;
+          const currentValues = editing ? draft[field.key] : (profile[field.key] ?? []);
+          return (
+            <div key={field.key}>
+              <div className="flex items-center gap-2 mb-1">
+                <Icon className={`h-4 w-4 ${field.color}`} />
+                <span className="text-sm font-medium">{field.label}</span>
+                {currentValues.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {currentValues.length}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">{field.description}</p>
+              {editing ? (
+                <TagInput
+                  values={currentValues}
+                  onChange={(v) => updateField(field.key, v)}
+                  placeholder={field.placeholder}
+                  color={field.color}
+                />
+              ) : currentValues.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {currentValues.map((tag) => (
+                    <span
+                      key={tag}
+                      className={`rounded-full bg-primary/5 px-2.5 py-0.5 text-xs font-medium ${field.color}`}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">None set</p>
+              )}
+            </div>
+          );
+        })}
+        {editing && (
+          <div className="flex gap-2 pt-2 border-t">
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {saving ? 'Saving...' : 'Save Skills'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function isCurrentlyInShift(profile?: AgentProfile): boolean {
@@ -340,6 +592,9 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
           </Card>
         )}
 
+        {/* Skill Matrix */}
+        {profile && <SkillMatrix profile={profile} agentId={agent.id} />}
+
         {/* Agent Profile Details */}
         {profile && (
           <div className="grid gap-4 md:grid-cols-2">
@@ -378,38 +633,25 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Skills & Regions
+                  Lead Assignment Limits
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm font-medium mb-2">Product Skills</div>
-                  {profile.product_skills?.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile.product_skills.map((skill, i) => (
-                        <Badge key={i} variant="outline">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No product skills set</p>
-                  )}
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Max Daily Leads</span>
+                  <span className="font-medium">{profile.max_daily_leads ?? '—'}</span>
                 </div>
-
-                <div>
-                  <div className="text-sm font-medium mb-2">Regions</div>
-                  {profile.regions?.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile.regions.map((region, i) => (
-                        <Badge key={i} variant="outline">
-                          {region}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No regions assigned</p>
-                  )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Concurrent Lead Cap</span>
+                  <span className="font-medium">{profile.concurrent_lead_cap ?? '—'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Distribution Weight</span>
+                  <span className="font-medium">{profile.distribution_weight ?? '1.00'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Idle Threshold</span>
+                  <span className="font-medium">{profile.idle_threshold_minutes ?? 15} min</span>
                 </div>
               </CardContent>
             </Card>

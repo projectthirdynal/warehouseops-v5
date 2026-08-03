@@ -176,8 +176,13 @@ export interface AgentProfile {
   user?: User;
   max_active_cycles: number;
   active_cycles_count: number;
+  max_daily_leads: number;
+  concurrent_lead_cap: number | null;
   product_skills: string[];
+  category_skills: string[];
   regions: string[];
+  excluded_regions: string[];
+  preferred_lead_sources: string[];
   priority_weight: number;
   is_available: boolean;
   performance_score: number;

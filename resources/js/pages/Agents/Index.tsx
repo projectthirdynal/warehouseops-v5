@@ -470,13 +470,28 @@ export default function AgentsIndex({ agents, stats }: Props) {
                       agent.agentProfile.product_skills.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1 justify-center">
                           {agent.agentProfile.product_skills.slice(0, 3).map((skill, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
+                            <Badge key={i} variant="outline" className="text-xs text-purple-600">
                               {skill}
                             </Badge>
                           ))}
                           {agent.agentProfile.product_skills.length > 3 && (
                             <Badge variant="outline" className="text-xs">
                               +{agent.agentProfile.product_skills.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    {agent.agentProfile?.category_skills &&
+                      agent.agentProfile.category_skills.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1 justify-center">
+                          {agent.agentProfile.category_skills.slice(0, 2).map((skill, i) => (
+                            <Badge key={i} variant="outline" className="text-xs text-blue-600">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {agent.agentProfile.category_skills.length > 2 && (
+                            <Badge variant="outline" className="text-xs text-blue-600">
+                              +{agent.agentProfile.category_skills.length - 2}
                             </Badge>
                           )}
                         </div>
