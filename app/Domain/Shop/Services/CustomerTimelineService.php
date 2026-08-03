@@ -27,11 +27,11 @@ class CustomerTimelineService
                 'type' => 'order',
                 'occurred_at' => $order->created_at->toIso8601String(),
                 'title' => "Order {$order->order_number}",
-                'description' => "Status: {$order->status}, Amount: ₱".number_format((float) $order->total_amount, 2),
+                'description' => "Status: {$order->status->value}, Amount: ₱".number_format((float) $order->total_amount, 2),
                 'metadata' => [
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
-                    'status' => $order->status,
+                    'status' => $order->status->value,
                     'amount' => $order->total_amount,
                 ],
             ])
