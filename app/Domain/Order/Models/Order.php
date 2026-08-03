@@ -180,8 +180,17 @@ class Order extends Model
     public static function generateOrderNumber(): string
     {
         $date = now()->format('Ymd');
-        $count = static::whereDate('created_at', today())->count() + 1;
+        $prefix = "ORD-{$date}-";
 
-        return sprintf('ORD-%s-%04d', $date, $count);
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $count = static::whereDate('created_at', today())->count() + 1 + $attempt;
+            $number = sprintf('%s%04d', $prefix, $count);
+
+            if (! static::where('order_number', $number)->exists()) {
+                return $number;
+            }
+        }
+
+        return $prefix.strtoupper(bin2hex(random_bytes(4)));
     }
 }

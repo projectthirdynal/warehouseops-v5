@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace App\Domain\Shop\Http\Controllers;
 
+use App\Domain\Shop\Jobs\ProcessMetaWebhookEvent;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Domain\Shop\Models\FacebookWebhookEvent;
-use App\Domain\Shop\Services\MetaConversationIngestor;
+use App\Domain\Shop\Services\WebhookEventKeyGenerator;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class MetaWebhookController extends Controller
 {
-    public function __construct(private readonly MetaConversationIngestor $ingestor) {}
-
     public function verify(Request $request): Response|JsonResponse
     {
         $mode = $request->query('hub_mode') ?? $request->query('hub.mode');
@@ -31,50 +32,103 @@ class MetaWebhookController extends Controller
 
     public function receive(Request $request): JsonResponse
     {
-        $payload = $request->json()->all();
+        $requestId = (string) Str::uuid();
         $rawPayload = $request->getContent();
         $signatureValid = $this->signatureIsValid($rawPayload, (string) $request->header('X-Hub-Signature-256'));
+
+        if (! $signatureValid) {
+            Log::warning('Rejected invalid Meta webhook signature', [
+                'request_id' => $requestId,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'error' => 'Invalid webhook signature',
+            ], 403);
+        }
+
+        $payload = $request->json()->all();
+        $object = $payload['object'] ?? null;
+
+        $storedCount = 0;
 
         foreach ($payload['entry'] ?? [] as $entry) {
             $page = FacebookPage::query()->where('page_id', $entry['id'] ?? null)->first();
 
             foreach (($entry['messaging'] ?? []) as $event) {
-                $this->storeEvent($page, $payload['object'] ?? null, 'messaging', $event, $signatureValid);
+                $this->storeAndDispatch($page, $object, 'messaging', $event, true, $requestId);
+                $storedCount++;
             }
 
             foreach (($entry['changes'] ?? []) as $change) {
-                $this->storeEvent($page, $payload['object'] ?? null, $change['field'] ?? 'change', $change, $signatureValid);
+                $this->storeAndDispatch($page, $object, $change['field'] ?? 'change', $change, true, $requestId);
+                $storedCount++;
             }
         }
 
-        return response()->json(['status' => 'received']);
+        return response()->json([
+            'status' => 'received',
+            'events' => $storedCount,
+            'request_id' => $requestId,
+        ]);
     }
 
-    private function storeEvent(?FacebookPage $page, ?string $object, string $type, array $event, bool $signatureValid): void
-    {
-        $eventId = $event['message']['mid']
-            ?? $event['postback']['mid']
-            ?? $event['value']['comment_id']
-            ?? hash('sha256', json_encode($event, JSON_UNESCAPED_SLASHES) ?: serialize($event));
-
-        $webhookEvent = FacebookWebhookEvent::query()->firstOrCreate(
-            ['event_id' => $eventId],
-            [
-                'facebook_page_id' => $page?->id,
-                'object' => $object,
-                'event_type' => $type,
-                'sender_psid' => data_get($event, 'sender.id') ?? data_get($event, 'value.from.id'),
-                'recipient_id' => data_get($event, 'recipient.id'),
-                'payload' => $event,
-                'signature_valid' => $signatureValid,
-            ]
+    private function storeAndDispatch(
+        ?FacebookPage $page,
+        ?string $object,
+        string $type,
+        array $event,
+        bool $signatureValid,
+        string $requestId,
+    ): void {
+        $eventKey = WebhookEventKeyGenerator::generate(
+            $page?->id,
+            $type,
+            $event,
         );
 
-        if ($type === 'messaging') {
-            $this->ingestor->process($webhookEvent);
-        } elseif ($type === 'feed') {
-            $this->ingestor->processComment($webhookEvent);
+        $existing = FacebookWebhookEvent::query()
+            ->where('event_key', $eventKey)
+            ->where('status', '!=', FacebookWebhookEvent::STATUS_REJECTED)
+            ->first();
+
+        if ($existing) {
+            Log::info('Meta webhook duplicate event skipped', [
+                'event_key' => $eventKey,
+                'request_id' => $requestId,
+            ]);
+
+            return;
         }
+
+        $webhookEvent = FacebookWebhookEvent::create([
+            'facebook_page_id' => $page?->id,
+            'event_id' => data_get($event, 'message.mid')
+                ?? data_get($event, 'postback.mid')
+                ?? data_get($event, 'value.comment_id')
+                ?? $eventKey,
+            'event_key' => $eventKey,
+            'object' => $object,
+            'event_type' => $type,
+            'sender_psid' => data_get($event, 'sender.id') ?? data_get($event, 'value.from.id'),
+            'recipient_id' => data_get($event, 'recipient.id'),
+            'payload' => $event,
+            'signature_valid' => $signatureValid,
+            'status' => FacebookWebhookEvent::STATUS_QUEUED,
+        ]);
+
+        if ($page) {
+            $page->forceFill(['last_webhook_at' => now()])->save();
+        }
+
+        ProcessMetaWebhookEvent::dispatch($webhookEvent->id);
+
+        Log::info('Meta webhook event queued', [
+            'event_id' => $webhookEvent->id,
+            'event_key' => $eventKey,
+            'type' => $type,
+            'request_id' => $requestId,
+        ]);
     }
 
     private function signatureIsValid(string $payload, string $signatureHeader): bool

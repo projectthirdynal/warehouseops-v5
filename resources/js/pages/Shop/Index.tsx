@@ -22,7 +22,6 @@ import {
   Megaphone,
   RefreshCw,
   Shield,
-  ShieldCheck,
   ShoppingCart,
   Smile,
   Store,
@@ -68,13 +67,6 @@ interface ShopStats {
   for_encoding: number;
 }
 
-interface ShopModule {
-  name: string;
-  status: string;
-  description: string;
-  items: string[];
-}
-
 interface Props {
   stats: ShopStats;
   work_queues: {
@@ -83,7 +75,6 @@ interface Props {
     ready_orders: number;
     courier_export: number;
   };
-  modules: ShopModule[];
   workflow: string[];
   next_actions: string[];
   facebook_pages: FacebookPage[];
@@ -142,27 +133,6 @@ function formatDuration(seconds: number): string {
   const d = Math.floor(h / 24);
   const remH = h % 24;
   return remH > 0 ? `${d}d ${remH}h` : `${d}d`;
-}
-
-function statusVariant(status: string) {
-  if (status === 'Live') return 'bg-success/10 text-success border-success/20';
-  if (status === 'Ready') return 'bg-info/10 text-info border-info/20';
-  if (status === 'Next') return 'bg-muted text-muted-foreground border-border';
-  if (status === 'Foundation') return 'bg-success/10 text-success border-success/20';
-  if (status === 'Schema Ready') return 'bg-info/10 text-info border-info/20';
-  if (status === 'MVP Entry') return 'bg-info/10 text-info border-info/20';
-  if (status === 'Webhook Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'Mapping Ready') return 'bg-warning/10 text-warning border-warning/20';
-  if (status === 'OAuth Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'MVP List') return 'bg-success/10 text-success border-success/20';
-  if (status === 'CSV Ready') return 'bg-warning/10 text-warning border-warning/20';
-  if (status === 'Subscribe Ready') return 'bg-violet-100 text-violet-800 border-violet-200';
-  if (status === 'Detail Ready') return 'bg-success/10 text-success border-success/20';
-  if (status === 'Correction Ready') return 'bg-warning/10 text-warning border-warning/20';
-  if (status === 'Reporting Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-  if (status === 'CRM Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-  if (status === 'Automation Ready') return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-  return 'bg-muted text-muted-foreground border-border';
 }
 
 interface AutoAssignSettings {
@@ -417,7 +387,6 @@ interface CartTemplateStats {
 export default function ShopIndex({
   stats,
   work_queues,
-  modules,
   workflow,
   next_actions,
   facebook_pages,
@@ -911,46 +880,6 @@ export default function ShopIndex({
 
         <div className="grid gap-6 xl:grid-cols-3">
           <div className="space-y-6 xl:col-span-2">
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Build Modules</h2>
-                  <p className="text-sm text-muted-foreground">
-                    POS core first, Facebook connector next
-                  </p>
-                </div>
-                <Badge variant="outline">MVP</Badge>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {modules.map((module) => (
-                  <Card key={module.name}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <CardTitle className="text-base">{module.name}</CardTitle>
-                          <CardDescription>{module.description}</CardDescription>
-                        </div>
-                        <Badge variant="outline" className={statusVariant(module.status)}>
-                          {module.status}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-2">
-                        {module.items.map((item) => (
-                          <div key={item} className="flex items-center gap-2 text-sm">
-                            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                            <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
             <section className="space-y-3">
               <h2 className="text-lg font-semibold">Order Flow</h2>
               <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-4">

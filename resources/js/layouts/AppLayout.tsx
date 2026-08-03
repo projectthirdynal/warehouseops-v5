@@ -39,7 +39,20 @@ import {
   Bell,
   Skull,
   SlidersHorizontal,
-  FileBarChart,
+  Inbox as InboxIcon,
+  Facebook,
+  Zap,
+  Tags,
+  Layers,
+  GitBranch,
+  KeyRound,
+  Webhook,
+  DollarSign,
+  UsersRound,
+  PackageSearch,
+  RotateCcw,
+  Bot,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -104,7 +117,6 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const FINANCE_ROLES = ['superadmin', 'admin', 'finance', 'accounting'];
-const CRM_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'];
 
 /* ─── Breadcrumb map ─── */
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -152,29 +164,159 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/couriers': 'Couriers',
   '/tickets': 'Tickets',
   '/settings': 'Settings',
+  '/shop/inbox': 'Inbox',
+  '/shop/orders': 'Orders',
+  '/shop/customers': 'Customers',
+  '/shop/duplicate-review': 'Identity Matching',
+  '/shop/webhooks': 'Webhook Health',
+  '/shop/meta-readiness': 'Token Health',
+  '/shop/reply-templates': 'Saved Replies',
+  '/shop/broadcast': 'Broadcast Rules',
+  '/sales-dashboard': 'Sales Dashboard',
+  '/waybills/returns': 'Returns',
+  '/waybills/courier-analytics': 'Courier Analytics',
+  '/finance/cod': 'COD Settlements',
+  '/finance/commissions': 'Commissions',
 };
 
-const navigation: NavEntry[] = [
-  /* ── General ── */
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ALL_STAFF },
-  {
-    name: 'Approvals',
-    href: '/approvals',
-    icon: CheckSquare,
-    roles: ['superadmin', 'admin', 'supervisor', 'finance', 'warehouse'],
-  },
-  { name: 'Shop', href: '/shop', icon: Store, roles: ADMIN_ONLY },
+const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
+const SHOP_ROLES = ['superadmin', 'admin', 'supervisor'];
+const CRM_NAV_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'];
+const REPORTS_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting', 'warehouse'];
 
-  /* ── Operations ── */
+const navigation: NavEntry[] = [
+  /* ── Dashboard ── */
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ALL_STAFF },
+
+  /* ── Inbox ── */
   {
-    name: 'Operations',
+    name: 'Inbox',
+    icon: InboxIcon,
+    roles: SHOP_ROLES,
+    children: [
+      { name: 'All Conversations', href: '/shop/inbox', icon: MessageSquare, roles: SHOP_ROLES },
+      {
+        name: 'Assigned to Me',
+        href: '/shop/inbox?filter=assigned',
+        icon: UsersRound,
+        roles: SHOP_ROLES,
+      },
+      { name: 'Unassigned', href: '/shop/inbox?filter=unassigned', icon: Users, roles: SHOP_ROLES },
+      {
+        name: 'Follow-Up',
+        href: '/shop/inbox?filter=follow-up',
+        icon: ClipboardCheck,
+        roles: SHOP_ROLES,
+      },
+      {
+        name: 'Resolved',
+        href: '/shop/inbox?filter=resolved',
+        icon: CheckSquare,
+        roles: SHOP_ROLES,
+      },
+      { name: 'Spam', href: '/shop/inbox?filter=spam', icon: ShieldAlert, roles: SHOP_ROLES },
+    ],
+  },
+
+  /* ── Orders ── */
+  {
+    name: 'Orders',
+    icon: ClipboardCheck,
+    roles: SHOP_ROLES,
+    children: [
+      { name: 'All Orders', href: '/shop/orders', icon: ClipboardCheck, roles: SHOP_ROLES },
+      { name: 'Draft', href: '/shop/orders?status=draft', icon: FileText, roles: SHOP_ROLES },
+      {
+        name: 'Confirmed',
+        href: '/shop/orders?status=confirmed',
+        icon: CheckSquare,
+        roles: SHOP_ROLES,
+      },
+      {
+        name: 'For Packing',
+        href: '/shop/orders?status=for_packing',
+        icon: Package,
+        roles: SHOP_ROLES,
+      },
+      { name: 'Shipped', href: '/shop/orders?status=shipped', icon: Truck, roles: SHOP_ROLES },
+      {
+        name: 'Delivered',
+        href: '/shop/orders?status=delivered',
+        icon: PackageCheck,
+        roles: SHOP_ROLES,
+      },
+      {
+        name: 'Cancelled',
+        href: '/shop/orders?status=cancelled',
+        icon: AlertOctagon,
+        roles: SHOP_ROLES,
+      },
+      {
+        name: 'Returned',
+        href: '/shop/orders?status=returned',
+        icon: RotateCcw,
+        roles: SHOP_ROLES,
+      },
+    ],
+  },
+
+  /* ── Customers ── */
+  {
+    name: 'Customers',
+    icon: Users,
+    roles: CRM_NAV_ROLES,
+    children: [
+      { name: 'Customer Directory', href: '/shop/customers', icon: Users, roles: CRM_NAV_ROLES },
+      {
+        name: 'Identity Matching',
+        href: '/shop/duplicate-review',
+        icon: GitBranch,
+        roles: CRM_NAV_ROLES,
+      },
+      {
+        name: 'Risk Profiles',
+        href: '/shop/customers?tab=risk',
+        icon: ShieldAlert,
+        roles: CRM_NAV_ROLES,
+      },
+      {
+        name: 'Segments',
+        href: '/shop/customers?tab=segments',
+        icon: UsersRound,
+        roles: CRM_NAV_ROLES,
+      },
+    ],
+  },
+
+  /* ── Products ── */
+  {
+    name: 'Products',
+    icon: Package,
+    roles: OPS_ROLES,
+    children: [
+      { name: 'Products', href: '/products', icon: Package, roles: OPS_ROLES },
+      { name: 'Variants', href: '/products?tab=variants', icon: GitBranch, roles: OPS_ROLES },
+      { name: 'Bundles', href: '/products?tab=bundles', icon: Layers, roles: OPS_ROLES },
+      { name: 'Price Lists', href: '/products?tab=price-lists', icon: Tags, roles: OPS_ROLES },
+    ],
+  },
+
+  /* ── Inventory ── */
+  {
+    name: 'Inventory',
     icon: WarehouseIcon,
     roles: INVENTORY_MATERIAL_ROLES,
     children: [
       {
-        name: 'Inventory Dashboard',
+        name: 'Stock Levels',
         href: '/inventory',
         icon: BarChart3,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Reservations',
+        href: '/inventory?tab=reservations',
+        icon: PackageSearch,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {
@@ -183,10 +325,18 @@ const navigation: NavEntry[] = [
         icon: Recycle,
         roles: INVENTORY_MATERIAL_ROLES,
       },
+      { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
+      { name: 'Returns', href: '/waybills/returns', icon: RotateCcw, roles: OPS_ADMIN_ROLES },
       {
         name: 'Supplies',
         href: '/inventory/supplies',
         icon: Package,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Stock Adjustments',
+        href: '/inventory/adjustments',
+        icon: SlidersHorizontal,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {
@@ -201,20 +351,99 @@ const navigation: NavEntry[] = [
         icon: Skull,
         roles: INVENTORY_MATERIAL_ROLES,
       },
+    ],
+  },
+
+  /* ── Facebook ── */
+  {
+    name: 'Facebook',
+    icon: Facebook,
+    roles: ADMIN_ONLY,
+    children: [
       {
-        name: 'Stock Adjustments',
-        href: '/inventory/adjustments',
+        name: 'Connected Accounts',
+        href: '/shop/facebook/connect',
+        icon: Facebook,
+        roles: ADMIN_ONLY,
+      },
+      { name: 'Connected Pages', href: '/shop', icon: Store, roles: ADMIN_ONLY },
+      {
+        name: 'Page Configuration',
+        href: '/shop?tab=page-config',
+        icon: Settings,
+        roles: ADMIN_ONLY,
+      },
+      { name: 'Webhook Health', href: '/shop/webhooks', icon: Webhook, roles: ADMIN_ONLY },
+      { name: 'Token Health', href: '/shop/meta-readiness', icon: KeyRound, roles: ADMIN_ONLY },
+    ],
+  },
+
+  /* ── Automation ── */
+  {
+    name: 'Automation',
+    icon: Zap,
+    roles: ADMIN_ONLY,
+    children: [
+      {
+        name: 'Rules',
+        href: '/shop/auto-assign/settings',
         icon: SlidersHorizontal,
-        roles: INVENTORY_MATERIAL_ROLES,
+        roles: ADMIN_ONLY,
       },
       {
-        name: 'Adjustment Report',
-        href: '/inventory/adjustments/report',
-        icon: FileBarChart,
+        name: 'Saved Replies',
+        href: '/shop/reply-templates',
+        icon: MessageSquare,
+        roles: ADMIN_ONLY,
+      },
+      {
+        name: 'Assignment Rules',
+        href: '/shop/auto-assign/settings?tab=rules',
+        icon: UserCog,
+        roles: ADMIN_ONLY,
+      },
+      { name: 'Broadcast Rules', href: '/shop/broadcast', icon: Bot, roles: ADMIN_ONLY },
+    ],
+  },
+
+  /* ── Reports ── */
+  {
+    name: 'Reports',
+    icon: BarChart3,
+    roles: REPORTS_ROLES,
+    children: [
+      { name: 'Sales', href: '/sales-dashboard', icon: TrendingUp, roles: OPS_ADMIN_ROLES },
+      { name: 'Orders', href: '/reports?type=orders', icon: ClipboardCheck, roles: REPORTS_ROLES },
+      { name: 'Agents', href: '/reports?type=agents', icon: Users, roles: OPS_ADMIN_ROLES },
+      { name: 'Pages', href: '/reports?type=pages', icon: Store, roles: ADMIN_ONLY },
+      {
+        name: 'Inventory',
+        href: '/reports?type=inventory',
+        icon: Package,
         roles: INVENTORY_MATERIAL_ROLES,
       },
-      { name: 'Products', href: '/products', icon: Package, roles: OPS_ROLES },
-      { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
+      { name: 'Courier', href: '/waybills/courier-analytics', icon: Truck, roles: OPS_ADMIN_ROLES },
+    ],
+  },
+
+  /* ── Operational Tools (retained from existing system) ── */
+  {
+    name: 'Logistics',
+    icon: Truck,
+    roles: OPS_ADMIN_ROLES,
+    children: [
+      { name: 'All Waybills', href: '/waybills', icon: Truck, roles: OPS_ADMIN_ROLES },
+      { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine, roles: OPS_ADMIN_ROLES },
+      { name: 'Import', href: '/waybills/import', icon: Upload, roles: OPS_ADMIN_ROLES },
+      { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert, roles: OPS_ADMIN_ROLES },
+      {
+        name: 'Beyond SLA',
+        href: '/waybills/claims/beyond-sla',
+        icon: AlertOctagon,
+        roles: OPS_ADMIN_ROLES,
+      },
+      { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle, roles: OPS_ADMIN_ROLES },
+      { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ADMIN_ROLES },
     ],
   },
 
@@ -246,10 +475,10 @@ const navigation: NavEntry[] = [
     ],
   },
 
-  /* ── Commercial ── */
+  /* ── Finance ── */
   {
-    name: 'Commercial',
-    icon: TrendingUp,
+    name: 'Finance',
+    icon: DollarSign,
     roles: FINANCE_ROLES,
     children: [
       { name: 'Finance Overview', href: '/finance', icon: BarChart3, roles: FINANCE_ROLES },
@@ -267,9 +496,8 @@ const navigation: NavEntry[] = [
         roles: FINANCE_ROLES,
       },
       { name: 'QuickBooks', href: '/finance/quickbooks', icon: Building2, roles: FINANCE_ROLES },
-      { name: 'Sales', href: '/sales', icon: TrendingUp, roles: ADMIN_ONLY },
-      { name: 'Orders', href: '/orders', icon: ClipboardCheck, roles: OPS_ROLES },
-      { name: 'Tickets', href: '/tickets', icon: Headphones, roles: ALL_STAFF },
+      { name: 'COD Settlements', href: '/finance/cod', icon: DollarSign, roles: FINANCE_ROLES },
+      { name: 'Commissions', href: '/finance/commissions', icon: TrendingUp, roles: FINANCE_ROLES },
     ],
   },
 
@@ -277,42 +505,42 @@ const navigation: NavEntry[] = [
   {
     name: 'CRM',
     icon: BookUser,
-    roles: CRM_ROLES,
+    roles: CRM_NAV_ROLES,
     children: [
-      { name: 'All Contacts', href: '/crm/contacts', icon: BookUser, roles: CRM_ROLES },
-      { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users, roles: CRM_ROLES },
-      { name: 'Suppliers', href: '/crm/contacts?type=supplier', icon: Building2, roles: CRM_ROLES },
+      { name: 'All Contacts', href: '/crm/contacts', icon: BookUser, roles: CRM_NAV_ROLES },
+      { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users, roles: CRM_NAV_ROLES },
+      {
+        name: 'Suppliers',
+        href: '/crm/contacts?type=supplier',
+        icon: Building2,
+        roles: CRM_NAV_ROLES,
+      },
       {
         name: 'Prospects',
         href: '/crm/contacts?type=prospect',
         icon: TrendingUp,
-        roles: CRM_ROLES,
+        roles: CRM_NAV_ROLES,
       },
     ],
   },
 
-  /* ── Logistics ── */
+  /* ── Leads & Distribution ── */
   {
-    name: 'Logistics',
-    icon: Truck,
-    roles: ADMIN_ONLY,
+    name: 'Leads',
+    icon: Users,
+    roles: OPS_ADMIN_ROLES,
     children: [
-      { name: 'All Waybills', href: '/waybills', icon: Truck },
-      { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine },
-      { name: 'Import', href: '/waybills/import', icon: Upload },
-      { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert },
-      { name: 'Beyond SLA', href: '/waybills/claims/beyond-sla', icon: AlertOctagon },
-      { name: 'Unknown', href: '/waybills/unknown', icon: HelpCircle },
-      { name: 'Leads & Pool', href: '/lead-pool', icon: Users, roles: ADMIN_ONLY },
-      { name: 'Telesales Import', href: '/telesales/import', icon: Upload, roles: ADMIN_ONLY },
-      { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: ADMIN_ONLY },
+      { name: 'Lead Pool', href: '/lead-pool', icon: Users, roles: OPS_ADMIN_ROLES },
+      { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: OPS_ADMIN_ROLES },
       {
         name: 'Distribution Analytics',
         href: '/distribution/analytics',
         icon: BarChart3,
-        roles: ADMIN_ONLY,
+        roles: OPS_ADMIN_ROLES,
       },
-      { name: 'Couriers', href: '/couriers', icon: Truck, roles: OPS_ROLES },
+      { name: 'QC Review', href: '/qc', icon: ClipboardCheck, roles: OPS_ADMIN_ROLES },
+      { name: 'Recycling', href: '/recycling/pool', icon: Recycle, roles: OPS_ADMIN_ROLES },
+      { name: 'Telesales Import', href: '/telesales/import', icon: Upload, roles: OPS_ADMIN_ROLES },
       { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
     ],
   },
@@ -323,19 +551,40 @@ const navigation: NavEntry[] = [
     icon: Shield,
     roles: ADMIN_ONLY,
     children: [
-      { name: 'Admin', href: '/admin', icon: Shield },
-      { name: 'Agents', href: '/agents/governance', icon: UserCog },
-      { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3 },
-      { name: 'QC Review', href: '/qc', icon: ClipboardCheck, roles: OPS_ROLES },
-      { name: 'Reports', href: '/reports', icon: ClipboardCheck },
-      { name: 'Recycling', href: '/recycling/pool', icon: Recycle },
-      { name: 'SMS', href: '/sms', icon: MessageSquare },
+      { name: 'Admin Panel', href: '/admin', icon: Shield, roles: ADMIN_ONLY },
+      { name: 'Agents', href: '/agents/governance', icon: UserCog, roles: ADMIN_ONLY },
+      { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, roles: ADMIN_ONLY },
+      {
+        name: 'Approvals',
+        href: '/approvals',
+        icon: CheckSquare,
+        roles: ['superadmin', 'admin', 'supervisor', 'finance', 'warehouse'],
+      },
+      { name: 'Tickets', href: '/tickets', icon: Headphones, roles: ALL_STAFF },
+      { name: 'SMS', href: '/sms', icon: MessageSquare, roles: ADMIN_ONLY },
     ],
   },
 ];
 
-const bottomNav: NavItem[] = [
-  { name: 'Settings', href: '/settings', icon: Settings, roles: ALL_STAFF },
+const bottomNav: NavEntry[] = [
+  {
+    name: 'Settings',
+    icon: Settings,
+    roles: ALL_STAFF,
+    children: [
+      { name: 'Business', href: '/settings?tab=business', icon: Building2, roles: ADMIN_ONLY },
+      { name: 'Shop', href: '/settings?tab=shop', icon: Store, roles: ADMIN_ONLY },
+      { name: 'Users & Roles', href: '/admin', icon: UserCog, roles: ADMIN_ONLY },
+      { name: 'Pages', href: '/settings?tab=pages', icon: Store, roles: ADMIN_ONLY },
+      { name: 'Orders', href: '/settings?tab=orders', icon: ClipboardCheck, roles: ADMIN_ONLY },
+      { name: 'Payments', href: '/settings?tab=payments', icon: DollarSign, roles: ADMIN_ONLY },
+      { name: 'Courier', href: '/couriers', icon: Truck, roles: ADMIN_ONLY },
+      { name: 'Notifications', href: '/settings?tab=notifications', icon: Bell, roles: ALL_STAFF },
+      { name: 'Security', href: '/settings?tab=security', icon: Shield, roles: ALL_STAFF },
+      { name: 'Audit Logs', href: '/settings?tab=audit-logs', icon: ScrollText, roles: ADMIN_ONLY },
+      { name: 'Profile', href: '/settings', icon: Settings, roles: ALL_STAFF },
+    ],
+  },
 ];
 
 export default function AppLayout({ children }: PropsWithChildren) {
@@ -621,7 +870,9 @@ export default function AppLayout({ children }: PropsWithChildren) {
 
           {/* Bottom Navigation */}
           <div className="flex flex-col items-center gap-1 pt-2">
-            {bottomNav.map((item) => renderNavItem(item))}
+            {bottomNav
+              .filter((entry) => canSee(entry))
+              .map((entry) => (isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)))}
           </div>
 
           {/* User Avatar */}

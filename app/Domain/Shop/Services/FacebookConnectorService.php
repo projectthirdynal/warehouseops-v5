@@ -8,6 +8,7 @@ use App\Domain\Shop\Models\FacebookAccount;
 use App\Domain\Shop\Models\FacebookPage;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FacebookConnectorService
@@ -18,6 +19,7 @@ class FacebookConnectorService
             'pages_show_list',
             'pages_manage_metadata',
             'pages_messaging',
+            'pages_manage_engagement',
         ];
     }
 
@@ -26,16 +28,27 @@ class FacebookConnectorService
         return [
             'messages',
             'messaging_postbacks',
+            'message_deliveries',
+            'message_reads',
+            'message_reactions',
+            'messaging_referrals',
             'feed',
         ];
     }
 
     public function authorizationUrl(): string
     {
+        $state = bin2hex(random_bytes(32));
+
+        session([
+            'facebook_oauth_state' => hash('sha256', $state),
+            'facebook_oauth_state_expires_at' => now()->addMinutes(10),
+        ]);
+
         $parameters = [
             'client_id' => config('services.meta.app_id'),
             'redirect_uri' => config('services.meta.redirect_uri'),
-            'state' => csrf_token(),
+            'state' => $state,
             'scope' => implode(',', $this->requestedScopes()),
             'response_type' => 'code',
         ];
@@ -52,12 +65,20 @@ class FacebookConnectorService
     public function connectFromCallback(User $user, string $code): int
     {
         $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
-        $token = Http::get("{$baseUrl}/oauth/access_token", [
+        $tokenResponse = Http::get("{$baseUrl}/oauth/access_token", [
             'client_id' => config('services.meta.app_id'),
             'client_secret' => config('services.meta.app_secret'),
             'redirect_uri' => config('services.meta.redirect_uri'),
             'code' => $code,
-        ])->throw()->json('access_token');
+        ])->throw()->json();
+
+        $token = $tokenResponse['access_token'] ?? '';
+        $tokenExpiresAt = isset($tokenResponse['expires_in'])
+            ? now()->addSeconds((int) $tokenResponse['expires_in'])
+            : null;
+        $dataAccessExpiresAt = isset($tokenResponse['data_access_expires_in'])
+            ? now()->addSeconds((int) $tokenResponse['data_access_expires_in'])
+            : null;
 
         $profile = Http::get("{$baseUrl}/me", [
             'fields' => 'id,name,email',
@@ -73,8 +94,14 @@ class FacebookConnectorService
                 'facebook_user_name' => $profile['name'] ?? null,
                 'email' => $profile['email'] ?? null,
                 'access_token' => $token,
+                'token_expires_at' => $tokenExpiresAt,
+                'data_access_expires_at' => $dataAccessExpiresAt,
                 'status' => 'connected',
+                'connection_status' => FacebookAccount::CONNECTION_ACTIVE,
                 'connected_at' => now(),
+                'last_validated_at' => now(),
+                'last_validation_error' => null,
+                'reconnect_required_at' => null,
                 'metadata' => ['connected_via' => 'shop_oauth'],
             ]
         );
@@ -94,6 +121,7 @@ class FacebookConnectorService
                     'category' => $page['category'] ?? null,
                     'page_access_token' => $page['access_token'] ?? null,
                     'connected_status' => 'connected',
+                    'connection_status' => 'active',
                     'webhook_status' => 'pending',
                     'last_sync_at' => now(),
                     'metadata' => [
@@ -164,16 +192,107 @@ class FacebookConnectorService
         ];
     }
 
-    public function sendMessage(FacebookPage $page, string $recipientPsid, string $body): array
+    public function disconnectPage(FacebookPage $page): void
     {
         $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
 
-        return Http::post("{$baseUrl}/me/messages", [
+        try {
+            Http::withToken($page->page_access_token)
+                ->delete("{$baseUrl}/{$page->page_id}/subscribed_apps")
+                ->throw();
+        } catch (\Throwable $e) {
+            Log::warning('Meta-side page unsubscribe failed', [
+                'page_id' => $page->page_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $page->forceFill([
+            'connected_status' => 'disconnected',
+            'connection_status' => FacebookAccount::CONNECTION_DISCONNECTED,
+            'webhook_status' => 'unsubscribed',
+            'page_access_token' => null,
+            'token_expires_at' => null,
+        ])->save();
+    }
+
+    public function revokePermissions(FacebookAccount $account): void
+    {
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
+
+        try {
+            Http::withToken($account->access_token)
+                ->delete("{$baseUrl}/{$account->facebook_user_id}/permissions")
+                ->throw();
+        } catch (\Throwable $e) {
+            Log::warning('Meta-side permission revocation failed', [
+                'facebook_user_id' => $account->facebook_user_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $account->forceFill([
+            'connection_status' => FacebookAccount::CONNECTION_REVOKED,
+            'access_token' => null,
+            'token_expires_at' => null,
+            'data_access_expires_at' => null,
+            'reconnect_required_at' => now(),
+        ])->save();
+
+        $account->pages()->update([
+            'connected_status' => 'disconnected',
+            'connection_status' => FacebookAccount::CONNECTION_DISCONNECTED,
+            'webhook_status' => 'unsubscribed',
+            'page_access_token' => null,
+            'token_expires_at' => null,
+        ]);
+    }
+
+    public function validateToken(FacebookAccount $account): bool
+    {
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
+
+        try {
+            $response = Http::get("{$baseUrl}/debug_token", [
+                'input_token' => $account->access_token,
+                'access_token' => config('services.meta.app_id').'|'.config('services.meta.app_secret'),
+            ])->throw()->json('data');
+
+            $isValid = (bool) ($response['is_valid'] ?? false);
+
+            $account->forceFill([
+                'last_validated_at' => now(),
+                'last_validation_error' => $isValid ? null : 'Token invalid',
+                'connection_status' => $isValid
+                    ? FacebookAccount::CONNECTION_ACTIVE
+                    : FacebookAccount::CONNECTION_EXPIRED,
+            ])->save();
+
+            return $isValid;
+        } catch (\Throwable $e) {
+            $account->forceFill([
+                'last_validated_at' => now(),
+                'last_validation_error' => $e->getMessage(),
+                'connection_status' => FacebookAccount::CONNECTION_RECONNECT_REQUIRED,
+                'reconnect_required_at' => now(),
+            ])->save();
+
+            return false;
+        }
+    }
+
+    public function sendMessage(FacebookPage $page, string $recipientPsid, string $body, ?int $agentId = null): array
+    {
+        $baseUrl = 'https://graph.facebook.com/'.config('services.meta.graph_version');
+
+        $response = Http::post("{$baseUrl}/me/messages", [
             'access_token' => $page->page_access_token,
             'recipient' => ['id' => $recipientPsid],
             'message' => ['text' => $body],
             'messaging_type' => 'RESPONSE',
         ])->throw()->json();
+
+        return $response;
     }
 
     /**

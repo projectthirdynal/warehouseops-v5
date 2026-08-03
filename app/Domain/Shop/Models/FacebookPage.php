@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Models;
 
 use App\Models\ReplyTemplate;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FacebookPage extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'facebook_account_id',
@@ -26,8 +27,12 @@ class FacebookPage extends Model
         'page_access_token',
         'token_expires_at',
         'connected_status',
+        'connection_status',
         'webhook_status',
         'last_sync_at',
+        'last_webhook_at',
+        'last_validated_at',
+        'last_validation_error',
         'metadata',
         'default_courier',
     ];
@@ -36,7 +41,13 @@ class FacebookPage extends Model
         'page_access_token' => 'encrypted',
         'token_expires_at' => 'datetime',
         'last_sync_at' => 'datetime',
+        'last_webhook_at' => 'datetime',
+        'last_validated_at' => 'datetime',
         'metadata' => 'array',
+    ];
+
+    protected $hidden = [
+        'page_access_token',
     ];
 
     public function account(): BelongsTo

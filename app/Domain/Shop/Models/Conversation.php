@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Conversation extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     public const STATUS_NEW = 'new';
 
@@ -28,10 +29,19 @@ class Conversation extends Model
 
     public const STATUS_ARCHIVED = 'archived';
 
+    public const STATUS_ORDER_CREATED = 'order_created';
+
+    public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
+
+    public const STATUS_AWAITING_CONFIRMATION = 'awaiting_confirmation';
+
     public const STATUSES = [
         self::STATUS_NEW,
         self::STATUS_ASSIGNED,
         self::STATUS_AWAITING_CUSTOMER,
+        self::STATUS_ORDER_CREATED,
+        self::STATUS_AWAITING_PAYMENT,
+        self::STATUS_AWAITING_CONFIRMATION,
         self::STATUS_RESOLVED,
         self::STATUS_ARCHIVED,
     ];
@@ -106,6 +116,8 @@ class Conversation extends Model
         'thread_key',
         'last_message_preview',
         'last_message_at',
+        'last_customer_message_at',
+        'response_window_expires_at',
         'typing_at',
         'draft_body',
         'unread_count',
@@ -114,6 +126,8 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'last_customer_message_at' => 'datetime',
+        'response_window_expires_at' => 'datetime',
         'typing_at' => 'datetime',
         'flagged_at' => 'datetime',
         'snoozed_until' => 'datetime',
