@@ -16,6 +16,7 @@ use App\Http\Controllers\DeadStockController;
 use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DuplicateDetectionController;
+use App\Http\Controllers\SourceAnalyticsController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
@@ -972,6 +973,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/predictive/model', [DistributionController::class, 'modelStatus'])->name('predictive.model');
         Route::post('/predictive/predict', [DistributionController::class, 'predict'])->name('predictive.predict');
         Route::post('/predictive/retrain', [DistributionController::class, 'retrain'])->name('predictive.retrain');
+
+        // Source Analytics
+        Route::get('/source-analytics', [SourceAnalyticsController::class, 'index'])->name('source-analytics');
+        Route::get('/source-analytics/api', [SourceAnalyticsController::class, 'api'])->name('source-analytics.api');
     });
 });
 
