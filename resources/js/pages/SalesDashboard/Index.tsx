@@ -1,17 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { useState, useCallback } from 'react';
-import {
-  TrendingUp,
-  Users,
-  Target,
-  Award,
-  Search,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-} from 'lucide-react';
+import { Head } from '@inertiajs/react';
+import { TrendingUp, DollarSign, ShoppingCart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -22,526 +10,252 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import AppLayout from '@/layouts/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import type {
-  SaleStats,
-  DailyPoint,
-  AgentBar,
-  FunnelStage,
-  SaleLead,
-  SalesFilters,
-  PaginatedResponse,
-} from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
-  stats: SaleStats;
-  dailyTrend: DailyPoint[];
-  agentSales: AgentBar[];
-  funnelData: FunnelStage[];
-  salesLeads: PaginatedResponse<SaleLead>;
-  agents: { id: number; name: string }[];
-  filters: SalesFilters;
+  orderCounts: Record<string, any>;
+  revenueTotals: Record<string, any>;
+  statusBreakdown: Record<string, any>;
+  topProducts: Record<string, any>;
+  salesTrends: Record<string, any>;
+  revenueBySource: Record<string, any>;
+  revenueByPaymentMethod: Record<string, any>;
+  agentLeaderboard: Record<string, any>;
+  cohortRetention: Record<string, any>;
+  averageOrderValue: Record<string, any>;
+  returnRefundRate: Record<string, any>;
+  predictiveInsights: Record<string, any> | null;
+  widgetConfig: Record<string, any> | null;
 }
 
-const SALES_STATUS_COLORS: Record<string, string> = {
-  New: 'bg-muted text-muted-foreground',
-  Contacted: 'bg-info/10 text-info',
-  'Agent Confirmed': 'bg-indigo-100 text-indigo-700',
-  'QA Pending': 'bg-warning/10 text-warning',
-  'QA Approved': 'bg-success/10 text-success',
-  'QA Rejected': 'bg-destructive/10 text-destructive',
-  'Ops Approved': 'bg-success/10 text-success',
-  'Waybill Created': 'bg-primary/10 text-primary',
-  Cancelled: 'bg-muted text-muted-foreground',
-};
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const fmtCurrency = (v: number) =>
+  new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(v);
+const fmtNum = (v: number) => new Intl.NumberFormat('en-PH').format(v);
+
+function TrendBadge({ trend }: { trend: number | null }) {
+  if (trend === null) return <span className="text-xs text-muted-foreground">—</span>;
+  const pos = trend >= 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-xs font-medium ${pos ? 'text-success' : 'text-destructive'}`}
+    >
+      {pos ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+      {Math.abs(trend)}%
+    </span>
+  );
+}
 
 function StatCard({
   title,
   value,
   sub,
   icon: Icon,
-  color,
+  trend,
 }: {
   title: string;
   value: string | number;
   sub?: string;
   icon: React.ComponentType<{ className?: string }>;
-  color: string;
+  trend?: number | null;
 }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className={`rounded-lg p-2 ${color}`}>
-          <Icon className="h-4 w-4" />
+        <div className="rounded-lg bg-primary/10 p-2">
+          <Icon className="h-4 w-4 text-primary" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-xl font-bold font-display">{value}</div>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+        <div className="text-2xl font-bold font-display">{value}</div>
+        <div className="flex items-center gap-2 mt-1">
+          {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+          {trend !== undefined && <TrendBadge trend={trend} />}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-export default function SalesIndex({
-  stats,
-  dailyTrend,
-  agentSales,
-  funnelData,
-  salesLeads,
-  agents,
-  filters,
-}: Props) {
-  const [search, setSearch] = useState(filters.search ?? '');
-
-  const applyFilters = useCallback(
-    (overrides: Partial<SalesFilters>) => {
-      router.get(
-        '/sales',
-        { ...filters, ...overrides },
-        {
-          preserveState: true,
-          preserveScroll: true,
-          replace: true,
-        }
-      );
-    },
-    [filters]
-  );
-
-  const handleDateChange = (field: 'from' | 'to', value: string) => {
-    applyFilters({ [field]: value, page: undefined } as Partial<SalesFilters>);
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    applyFilters({ search, page: undefined } as Partial<SalesFilters>);
-  };
-
-  const handleSort = (col: string) => {
-    const newDir = filters.sort === col && filters.dir === 'desc' ? 'asc' : 'desc';
-    applyFilters({ sort: col, dir: newDir });
-  };
-
-  const handleAgentFilter = (agentId: string) => {
-    applyFilters({ agent: agentId, page: undefined } as Partial<SalesFilters>);
-  };
-
-  const SortIcon = ({ col }: { col: string }) => {
-    if (filters.sort !== col) return <ChevronUp className="h-3 w-3 opacity-30" />;
-    return filters.dir === 'asc' ? (
-      <ChevronUp className="h-3 w-3 text-primary" />
-    ) : (
-      <ChevronDown className="h-3 w-3 text-primary" />
-    );
-  };
-
-  const funnelMax = Math.max(...funnelData.map((s) => s.count), 1);
+export default function SalesDashboardIndex(props: Props) {
+  const {
+    orderCounts: oc,
+    revenueTotals: rv,
+    statusBreakdown: sb,
+    topProducts: tp,
+    salesTrends: st,
+    agentLeaderboard: al,
+  } = props;
 
   return (
     <AppLayout>
-      <Head title="Sales Tracking" />
-
-      <div className="space-y-4">
-        {/* Header + Date Range */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight font-display">Sales Tracking</h1>
-            <p className="text-muted-foreground">Revenue pipeline and agent performance</p>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex items-center gap-2">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">From</label>
-                <input
-                  type="date"
-                  value={filters.from}
-                  max={filters.to}
-                  onChange={(e) => handleDateChange('from', e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-              <span className="text-muted-foreground mt-5">–</span>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">To</label>
-                <input
-                  type="date"
-                  value={filters.to}
-                  min={filters.from}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => handleDateChange('to', e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
+      <Head title="Sales Dashboard" />
+      <div className="space-y-6 p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Total Sales"
-            value={stats.total_sales.toLocaleString()}
-            sub="In selected period"
+            title="Orders Today"
+            value={fmtNum(oc?.today ?? 0)}
+            sub={`Total: ${fmtNum(oc?.total ?? 0)}`}
+            icon={ShoppingCart}
+            trend={oc?.today_trend ?? null}
+          />
+          <StatCard
+            title="Revenue Today"
+            value={fmtCurrency(rv?.today_gross ?? 0)}
+            sub={`Net: ${fmtCurrency(rv?.today_net ?? 0)}`}
+            icon={DollarSign}
+            trend={rv?.today_trend ?? null}
+          />
+          <StatCard
+            title="Orders This Week"
+            value={fmtNum(oc?.this_week ?? 0)}
             icon={TrendingUp}
-            color="bg-success/10 text-success"
+            trend={oc?.week_trend ?? null}
           />
           <StatCard
-            title="Conversion Rate"
-            value={`${stats.conversion_rate}%`}
-            sub="Leads → Sales"
-            icon={Target}
-            color="bg-info/10 text-info"
-          />
-          <StatCard
-            title="Avg / Day"
-            value={stats.avg_per_day}
-            sub="Sales per day"
-            icon={TrendingUp}
-            color="bg-primary/10 text-primary"
-          />
-          <StatCard
-            title="Top Agent"
-            value={stats.top_agent}
-            sub="Most sales in period"
-            icon={Award}
-            color="bg-warning/50/10 text-warning"
+            title="Revenue This Month"
+            value={fmtCurrency(rv?.this_month_gross ?? 0)}
+            sub={`Net: ${fmtCurrency(rv?.this_month_net ?? 0)}`}
+            icon={DollarSign}
+            trend={rv?.month_trend ?? null}
           />
         </div>
 
-        {/* Daily Trend Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Daily Sales Trend</CardTitle>
-            <CardDescription>Number of sales closed per day</CardDescription>
+            <CardTitle>Sales Trends — {st?.period ?? 'daily'}</CardTitle>
           </CardHeader>
           <CardContent>
-            {dailyTrend.length === 0 ? (
-              <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
-                No sales in the selected period
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={dailyTrend} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={30}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: 12,
-                    }}
-                    labelStyle={{ fontWeight: 600 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    name="Sales"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: 'hsl(var(--primary))' }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={st?.chart_data ?? []}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <XAxis dataKey="label" fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="orders"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Agent Bar + Funnel */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Sales by Agent */}
           <Card>
             <CardHeader>
-              <CardTitle>Sales by Agent</CardTitle>
-              <CardDescription>Top 10 agents in selected period</CardDescription>
+              <CardTitle>Revenue (Last 30 Days)</CardTitle>
             </CardHeader>
             <CardContent>
-              {agentSales.length === 0 ? (
-                <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">
-                  No agent data available
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart
-                    data={agentSales}
-                    layout="vertical"
-                    margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      horizontal={false}
-                      stroke="hsl(var(--border))"
-                    />
-                    <XAxis
-                      type="number"
-                      allowDecimals={false}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="agent_name"
-                      width={90}
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar
-                      dataKey="count"
-                      name="Sales"
-                      fill="hsl(var(--primary))"
-                      radius={[0, 4, 4, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={rv?.daily ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="label" fontSize={10} />
+                  <YAxis fontSize={10} />
+                  <Tooltip formatter={(v: number) => fmtCurrency(v)} />
+                  <Bar dataKey="net" fill="#10b981" />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Sales Funnel */}
           <Card>
             <CardHeader>
-              <CardTitle>Sales Pipeline</CardTitle>
-              <CardDescription>Distribution across funnel stages</CardDescription>
+              <CardTitle>Order Status Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
-              {funnelData.every((s) => s.count === 0) ? (
-                <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">
-                  No pipeline data in selected period
-                </div>
-              ) : (
-                <div className="space-y-3 pt-1">
-                  {funnelData.map((stage) => (
-                    <div key={stage.stage} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{stage.stage}</span>
-                        <span className="font-medium tabular-nums">
-                          {stage.count.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all duration-500"
-                          style={{ width: `${Math.round((stage.count / funnelMax) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={sb?.statuses ?? []}
+                    dataKey="count"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={(e: any) => e.label}
+                  >
+                    {(sb?.statuses ?? []).map((_: any, i: number) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
 
-        {/* Sales Table */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Sales Records</CardTitle>
-                <CardDescription>{salesLeads.total.toLocaleString()} sales found</CardDescription>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {/* Agent filter */}
-                <div className="flex items-center gap-1.5">
-                  <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <select
-                    value={filters.agent}
-                    onChange={(e) => handleAgentFilter(e.target.value)}
-                    className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">All Agents</option>
-                    {agents.map((a) => (
-                      <option key={a.id} value={String(a.id)}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Search */}
-                <form onSubmit={handleSearch} className="flex gap-1.5">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Name, phone, product…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="h-9 w-48 rounded-md border border-input bg-background pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  </div>
-                  <Button type="submit" size="sm" variant="outline">
-                    Search
-                  </Button>
-                  {(filters.search || filters.agent) && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setSearch('');
-                        applyFilters({
-                          search: '',
-                          agent: '',
-                          page: undefined,
-                        } as Partial<SalesFilters>);
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </form>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {salesLeads.data.length === 0 ? (
-              <div className="text-center py-16 text-sm text-muted-foreground">
-                <Users className="mx-auto h-10 w-10 mb-3 opacity-30" />
-                No sales records match the current filters
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/40">
-                        {[
-                          { key: 'name', label: 'Customer' },
-                          { key: null, label: 'Phone' },
-                          { key: 'product_name', label: 'Product' },
-                          { key: 'amount', label: 'Amount' },
-                          { key: 'sales_status', label: 'Stage' },
-                          { key: null, label: 'Agent' },
-                          { key: 'updated_at', label: 'Date' },
-                        ].map(({ key, label }) => (
-                          <th
-                            key={label}
-                            className={`px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap ${key ? 'cursor-pointer select-none hover:text-foreground' : ''}`}
-                            onClick={() => key && handleSort(key)}
-                          >
-                            <span className="inline-flex items-center gap-1">
-                              {label}
-                              {key && <SortIcon col={key} />}
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {salesLeads.data.map((lead) => (
-                        <tr key={lead.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-3 font-medium">{lead.name}</td>
-                          <td className="px-4 py-3 text-muted-foreground tabular-nums">
-                            {lead.phone}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {lead.product_name ?? <span className="italic opacity-50">—</span>}
-                          </td>
-                          <td className="px-4 py-3 tabular-nums">
-                            {lead.amount ? (
-                              `₱${parseFloat(lead.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              <span className="italic opacity-50">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SALES_STATUS_COLORS[lead.sales_status] ?? 'bg-muted text-muted-foreground'}`}
-                            >
-                              {lead.sales_status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {lead.agent_name ?? (
-                              <span className="italic opacity-50">Unassigned</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
-                            {new Date(lead.updated_at).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {salesLeads.last_page > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t">
-                    <p className="text-sm text-muted-foreground">
-                      {salesLeads.from}–{salesLeads.to} of {salesLeads.total.toLocaleString()}
-                    </p>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={salesLeads.current_page <= 1}
-                        onClick={() =>
-                          applyFilters({
-                            page: salesLeads.current_page - 1,
-                          } as Partial<SalesFilters>)
-                        }
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="flex items-center px-3 text-sm">
-                        {salesLeads.current_page} / {salesLeads.last_page}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={salesLeads.current_page >= salesLeads.last_page}
-                        onClick={() =>
-                          applyFilters({
-                            page: salesLeads.current_page + 1,
-                          } as Partial<SalesFilters>)
-                        }
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Products</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {(tp?.products ?? []).map((p: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{p.product_name}</span>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary">{p.quantity} sold</Badge>
+                      <span className="text-muted-foreground">{fmtCurrency(p.revenue)}</span>
                     </div>
                   </div>
+                ))}
+                {(!tp?.products || tp.products.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No data available.</p>
                 )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent Leaderboard</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {(al?.agents ?? []).map((a: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">#{a.rank}</Badge>
+                      <span className="font-medium">{a.agent_name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary">{a.order_count} orders</Badge>
+                      <span className="text-muted-foreground">{fmtCurrency(a.revenue)}</span>
+                    </div>
+                  </div>
+                ))}
+                {(!al?.agents || al.agents.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No data available.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AppLayout>
   );
