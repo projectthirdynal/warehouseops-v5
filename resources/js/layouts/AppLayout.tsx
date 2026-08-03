@@ -402,7 +402,7 @@ const navigation: NavEntry[] = [
         icon: UserCog,
         roles: ADMIN_ONLY,
       },
-      { name: 'Broadcast Rules', href: '/shop/broadcast', icon: Bot, roles: ADMIN_ONLY },
+      { name: 'Broadcast Rules', href: '/shop?tab=broadcast', icon: Bot, roles: ADMIN_ONLY },
     ],
   },
 
