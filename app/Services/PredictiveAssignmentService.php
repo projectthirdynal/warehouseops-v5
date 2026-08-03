@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\LeadCycle;
@@ -71,7 +72,7 @@ class PredictiveAssignmentService
             ->keyBy('agent_id');
 
         $nowHour = (int) now()->format('H');
-        $leadSource = $lead->source instanceof \App\Domain\Lead\Enums\LeadSource
+        $leadSource = $lead->source instanceof LeadSource
             ? $lead->source->value
             : (string) $lead->source;
         $leadRegion = strtoupper($lead->state ?? '');
@@ -139,7 +140,7 @@ class PredictiveAssignmentService
             );
         }
 
-        Log::info("PredictiveAssignmentService: retrained ".count($agents)." agents, {$totalCycles} cycles, {$totalSales} sales");
+        Log::info('PredictiveAssignmentService: retrained '.count($agents).' agents, '.$totalCycles.' cycles, '.$totalSales.' sales');
 
         return [
             'agents_trained' => count($agents),
@@ -288,7 +289,7 @@ class PredictiveAssignmentService
      */
     private function computeSourceAffinity(Collection $cycles): array
     {
-        $bySource = $cycles->groupBy(fn ($c) => $c->lead?->source instanceof \App\Domain\Lead\Enums\LeadSource
+        $bySource = $cycles->groupBy(fn ($c) => $c->lead?->source instanceof LeadSource
             ? $c->lead->source->value
             : (string) ($c->lead?->source ?? 'UNKNOWN'));
 
