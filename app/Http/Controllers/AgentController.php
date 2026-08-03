@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\User;
 use App\Models\Waybill;
+use App\Services\CallTrackingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -229,8 +230,10 @@ class AgentController extends Controller
         return back()->with('success', "Profile updated for {$user->name}.");
     }
 
-    public function monitoring()
+    public function monitoring(Request $request, CallTrackingService $callTrackingService)
     {
+        $period = $request->query('date_range', 'today');
+
         $metrics = [
             'leads' => [
                 'total' => Lead::count(),
@@ -275,7 +278,8 @@ class AgentController extends Controller
         return Inertia::render('Monitoring/Index', [
             'metrics' => $metrics,
             'hourly_data' => [],
-            'agent_performance' => [],
+            'agent_performance' => $callTrackingService->getTeamPerformance($period),
+            'period' => $period,
         ]);
     }
 }
