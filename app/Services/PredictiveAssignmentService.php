@@ -82,7 +82,7 @@ class PredictiveAssignmentService
             $data = $modelData->get($agent->user_id);
 
             // Fallback to agent's static performance_score if no trained data
-            if (! $data) {
+            if (!$data) {
                 $fallbackScore = ($agent->performance_score ?? 50) / 100;
 
                 return [
@@ -183,7 +183,7 @@ class PredictiveAssignmentService
         // Time-of-day: conversion rate by hour band
         $hourMap = $this->computeTimeOfDayScore($cycles);
         $nonZeroHours = array_filter($hourMap, fn ($v) => $v > 0);
-        $timeOfDay = ! empty($nonZeroHours) ? array_sum($nonZeroHours) / count($nonZeroHours) : 0.0;
+        $timeOfDay = !empty($nonZeroHours) ? array_sum($nonZeroHours) / count($nonZeroHours) : 0.0;
 
         // Recency: average hours since last cycle closed
         $lastClosed = $cycles->whereNotNull('closed_at')->sortByDesc('closed_at')->first();
@@ -300,7 +300,7 @@ class PredictiveAssignmentService
             $map[$source] = $total > 0 ? $sold / $total : 0.0;
         }
 
-        $overall = ! empty($map) ? array_sum($map) / count($map) : 0.0;
+        $overall = !empty($map) ? array_sum($map) / count($map) : 0.0;
 
         return ['overall' => $overall, 'map' => $map];
     }
@@ -319,7 +319,7 @@ class PredictiveAssignmentService
             $map[$region] = $total > 0 ? $sold / $total : 0.0;
         }
 
-        $overall = ! empty($map) ? array_sum($map) / count($map) : 0.0;
+        $overall = !empty($map) ? array_sum($map) / count($map) : 0.0;
 
         return ['overall' => $overall, 'map' => $map];
     }
@@ -338,7 +338,7 @@ class PredictiveAssignmentService
             $map[$product] = $total > 0 ? $sold / $total : 0.0;
         }
 
-        $overall = ! empty($map) ? array_sum($map) / count($map) : 0.0;
+        $overall = !empty($map) ? array_sum($map) / count($map) : 0.0;
 
         return ['overall' => $overall, 'map' => $map];
     }
