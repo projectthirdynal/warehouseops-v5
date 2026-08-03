@@ -42,7 +42,7 @@ class DashboardController extends Controller
             'role' => $role,
             'widgetConfig' => $this->getWidgetConfig($user?->id ?? 0, 'main'),
             'alerts' => $this->buildAlerts(),
-            'revenueSummary' => $this->buildRevenueSummary(),
+            'revenueSummary' => $this->buildRevenueSummaryStructured(),
             'operationHeatmap' => $this->buildOperationHeatmap(),
             'agentLeaderboard' => $this->buildAgentLeaderboard(),
             'weather' => $this->buildWeather(),
@@ -76,9 +76,14 @@ class DashboardController extends Controller
     public function revenueSummary(Request $request): JsonResponse
     {
         return response()->json([
-            'revenue' => $this->buildRevenueSummary(),
+            'revenue' => $this->buildRevenueSummaryStructured(),
             'updated_at' => now()->toIso8601String(),
         ]);
+    }
+
+    private function buildRevenueSummaryStructured(): array
+    {
+        return $this->buildConversionTrend();
     }
 
     private function buildRevenueSummary(): array
