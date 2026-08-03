@@ -386,7 +386,7 @@ const navigation: NavEntry[] = [
     children: [
       {
         name: 'Rules',
-        href: '/shop/auto-assign/settings',
+        href: '/shop?tab=auto-assign',
         icon: SlidersHorizontal,
         roles: ADMIN_ONLY,
       },
@@ -398,7 +398,7 @@ const navigation: NavEntry[] = [
       },
       {
         name: 'Assignment Rules',
-        href: '/shop/auto-assign/settings?tab=rules',
+        href: '/shop?tab=rules',
         icon: UserCog,
         roles: ADMIN_ONLY,
       },
