@@ -12,11 +12,21 @@ import {
   RefreshCw,
   Loader2,
   FileText,
+  ArrowRight,
+  ArrowLeft,
+  ListChecks,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface PreviewRow {
   row: number;
@@ -39,6 +49,36 @@ interface PreviewResult {
   summary: PreviewSummary;
   rows: PreviewRow[];
 }
+
+interface DetectedColumn {
+  index: number;
+  label: string;
+  samples: string[];
+}
+
+interface ColumnsResult {
+  columns: DetectedColumn[];
+  suggested_mapping: Record<string, number>;
+  has_header: boolean;
+}
+
+interface TargetField {
+  key: string;
+  label: string;
+  required: boolean;
+}
+
+const TARGET_FIELDS: TargetField[] = [
+  { key: 'name', label: 'Customer Name', required: true },
+  { key: 'phone', label: 'Phone Number', required: true },
+  { key: 'address', label: 'Address', required: false },
+  { key: 'province', label: 'Province / Region', required: false },
+  { key: 'city', label: 'City / Municipality', required: false },
+  { key: 'barangay', label: 'Barangay', required: false },
+  { key: 'amount', label: 'Order Amount', required: false },
+  { key: 'product_name', label: 'Product Name', required: false },
+  { key: 'order_status', label: 'Order Status', required: false },
+];
 
 const STATUS_CONFIG = {
   new: { label: 'New', variant: 'default' as const, icon: CheckCircle, color: 'text-success' },
@@ -68,18 +108,63 @@ export default function TelesalesImport() {
 
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [columnsResult, setColumnsResult] = useState<ColumnsResult | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [filter, setFilter] = useState<'all' | 'new' | 'duplicates' | 'errors'>('all');
 
-  const handlePreview = (e: React.FormEvent) => {
+  const buildMappingFormData = (formData: FormData) => {
+    Object.entries(mapping).forEach(([field, index]) => {
+      if (index !== 'none' && index !== '') {
+        formData.append(`mapping[${field}]`, index);
+      }
+    });
+  };
+
+  const handleDetectColumns = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!file) return;
+
+    setIsDetecting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/telesales/import/columns', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRF-TOKEN':
+          (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+        Accept: 'application/json',
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Column detection failed');
+        return res.json();
+      })
+      .then((data: ColumnsResult) => {
+        setColumnsResult(data);
+        const initialMapping: Record<string, string> = {};
+        TARGET_FIELDS.forEach((f) => {
+          const idx = data.suggested_mapping[f.key];
+          initialMapping[f.key] = idx !== undefined ? String(idx) : 'none';
+        });
+        setMapping(initialMapping);
+      })
+      .catch(() => setColumnsResult(null))
+      .finally(() => setIsDetecting(false));
+  };
+
+  const handlePreview = () => {
     if (!file) return;
 
     setIsPreviewing(true);
     const formData = new FormData();
     formData.append('file', file);
+    buildMappingFormData(formData);
 
     fetch('/telesales/import/preview', {
       method: 'POST',
@@ -105,6 +190,7 @@ export default function TelesalesImport() {
     setIsImporting(true);
     const formData = new FormData();
     formData.append('file', file);
+    buildMappingFormData(formData);
 
     router.post('/telesales/import', formData, {
       onFinish: () => setIsImporting(false),
@@ -113,9 +199,20 @@ export default function TelesalesImport() {
 
   const handleReset = () => {
     setFile(null);
+    setColumnsResult(null);
+    setMapping({});
     setPreview(null);
     setFilter('all');
   };
+
+  const handleBackToMapping = () => {
+    setPreview(null);
+    setFilter('all');
+  };
+
+  const mappingIsValid = TARGET_FIELDS.filter((f) => f.required).every(
+    (f) => mapping[f.key] && mapping[f.key] !== 'none'
+  );
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -178,8 +275,8 @@ export default function TelesalesImport() {
           </div>
         )}
 
-        {/* Step 1: Upload & Preview */}
-        {!preview && (
+        {/* Step 1: Upload */}
+        {!columnsResult && !preview && (
           <>
             {/* Instructions */}
             <Card>
@@ -233,7 +330,7 @@ export default function TelesalesImport() {
             </Card>
 
             {/* Upload Form */}
-            <form onSubmit={handlePreview}>
+            <form onSubmit={handleDetectColumns}>
               <Card>
                 <CardContent className="pt-6">
                   <div
@@ -295,16 +392,16 @@ export default function TelesalesImport() {
                   </div>
 
                   <div className="flex justify-end mt-4">
-                    <Button type="submit" disabled={isPreviewing || !file}>
-                      {isPreviewing ? (
+                    <Button type="submit" disabled={isDetecting || !file}>
+                      {isDetecting ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Validating...
+                          Reading columns...
                         </>
                       ) : (
                         <>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Validate & Preview
+                          <ListChecks className="h-4 w-4 mr-2" />
+                          Detect Columns
                         </>
                       )}
                     </Button>
@@ -315,7 +412,84 @@ export default function TelesalesImport() {
           </>
         )}
 
-        {/* Step 2: Preview Results */}
+        {/* Step 2: Field Mapping */}
+        {columnsResult && !preview && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <ListChecks className="h-4 w-4" />
+                Map Columns to Fields
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {columnsResult.has_header
+                  ? 'Header row detected — mapping was auto-suggested from column names.'
+                  : 'No header row detected — verify the mapping below before continuing.'}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {TARGET_FIELDS.map((field) => (
+                <div key={field.key} className="flex items-center gap-3">
+                  <div className="w-40 shrink-0 text-sm font-medium">
+                    {field.label}
+                    {field.required && <span className="text-destructive ml-1">*</span>}
+                  </div>
+                  <Select
+                    value={mapping[field.key] ?? 'none'}
+                    onValueChange={(value) =>
+                      setMapping((prev) => ({ ...prev, [field.key]: value }))
+                    }
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Not mapped" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Not mapped —</SelectItem>
+                      {columnsResult.columns.map((col) => (
+                        <SelectItem key={col.index} value={String(col.index)}>
+                          {col.label}
+                          {col.samples[0] ? ` (e.g. "${col.samples[0]}")` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+
+              {!mappingIsValid && (
+                <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Customer Name and Phone Number must be mapped before continuing.
+                </div>
+              )}
+
+              <div className="flex justify-between pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleReset}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Start Over
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handlePreview}
+                  disabled={isPreviewing || !mappingIsValid}
+                >
+                  {isPreviewing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      Validate & Preview
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3: Preview Results */}
         {preview && (
           <div className="space-y-4">
             {/* Summary cards */}
@@ -390,6 +564,10 @@ export default function TelesalesImport() {
                 <Button variant="outline" size="sm" onClick={handleReset}>
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Start Over
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleBackToMapping}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Edit Mapping
                 </Button>
                 <Button
                   onClick={handleConfirmImport}

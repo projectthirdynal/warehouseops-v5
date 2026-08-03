@@ -16,10 +16,121 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class TelesalesLeadImportService
 {
+    /**
+     * Legacy fixed column positions (0-indexed), used as a fallback when no
+     * mapping is supplied by the caller.
+     */
+    private const DEFAULT_MAPPING = [
+        'name' => 1,
+        'phone' => 2,
+        'address' => 3,
+        'province' => 4,
+        'city' => 5,
+        'barangay' => 6,
+        'amount' => 12,
+        'product_name' => 13,
+        'order_status' => 14,
+    ];
+
+    /**
+     * Keywords used to auto-guess a field mapping from header labels.
+     */
+    private const FIELD_KEYWORDS = [
+        'name' => ['customer name', 'full name', 'name', 'customer'],
+        'phone' => ['phone', 'mobile', 'contact', 'cell', 'number'],
+        'address' => ['address'],
+        'province' => ['province', 'region'],
+        'city' => ['city', 'municipality'],
+        'barangay' => ['barangay', 'brgy'],
+        'amount' => ['amount', 'total', 'price'],
+        'product_name' => ['product', 'item'],
+        'order_status' => ['order status', 'status'],
+    ];
+
     public function __construct(
         private LeadAuditService $auditService,
         private LeadScoringService $scoringService
     ) {}
+
+    /**
+     * Detect columns in the uploaded file and suggest a field mapping based
+     * on header labels (falls back to legacy positions when no header row
+     * or no keyword match is found).
+     *
+     * @return array{columns: array<int, array{index: int, label: string, samples: array<int, string>}>, suggested_mapping: array<string, int>, has_header: bool}
+     */
+    public function detectColumns(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $allRows = in_array($extension, ['xlsx', 'xls'])
+            ? $this->parseXlsxRawRows($file, skipHeader: false)
+            : $this->parseCsvRawRows($file, skipHeader: false);
+
+        if (empty($allRows)) {
+            return ['columns' => [], 'suggested_mapping' => self::DEFAULT_MAPPING, 'has_header' => false];
+        }
+
+        $firstRow = $allRows[0];
+        $hasHeader = $this->isHeaderRow($firstRow);
+        $headerLabels = $hasHeader ? $firstRow : [];
+        $sampleRows = array_slice($allRows, $hasHeader ? 1 : 0, 3);
+
+        $columnCount = max(array_map('count', $allRows));
+        $columns = [];
+        for ($i = 0; $i < $columnCount; $i++) {
+            $label = $hasHeader && isset($headerLabels[$i]) && trim((string) $headerLabels[$i]) !== ''
+                ? trim((string) $headerLabels[$i])
+                : 'Column '.($i + 1);
+
+            $samples = array_values(array_unique(array_filter(
+                array_map(fn ($r) => isset($r[$i]) ? trim((string) $r[$i]) : '', $sampleRows)
+            )));
+
+            $columns[] = ['index' => $i, 'label' => $label, 'samples' => $samples];
+        }
+
+        return [
+            'columns' => $columns,
+            'suggested_mapping' => $this->guessMapping($columns, $hasHeader),
+            'has_header' => $hasHeader,
+        ];
+    }
+
+    /**
+     * @param  array<int, array{index: int, label: string, samples: array<int, string>}>  $columns
+     * @return array<string, int>
+     */
+    private function guessMapping(array $columns, bool $hasHeader): array
+    {
+        $mapping = [];
+
+        foreach (self::FIELD_KEYWORDS as $field => $keywords) {
+            foreach ($columns as $col) {
+                $label = strtolower($col['label']);
+                foreach ($keywords as $keyword) {
+                    if (str_contains($label, $keyword)) {
+                        $mapping[$field] = $col['index'];
+
+                        continue 3;
+                    }
+                }
+            }
+        }
+
+        // Without a header row we cannot match by keyword — fall back to the
+        // legacy fixed positions for any field that could not be guessed.
+        // With a header row, leave unmatched fields unmapped so the user
+        // must explicitly confirm them (avoids silently mismapping columns).
+        if (! $hasHeader) {
+            foreach (self::DEFAULT_MAPPING as $field => $index) {
+                if (! isset($mapping[$field]) && isset($columns[$index])) {
+                    $mapping[$field] = $index;
+                }
+            }
+        }
+
+        return $mapping;
+    }
 
     /**
      * Import telesales leads from the old-sales CSV format.
@@ -37,15 +148,16 @@ class TelesalesLeadImportService
      *  13: product_name
      *  14: order_status (Delivered, etc.)
      */
-    public function import(UploadedFile $file, int $userId): array
+    public function import(UploadedFile $file, int $userId, array $mapping = []): array
     {
+        $mapping = array_merge(self::DEFAULT_MAPPING, $mapping);
         $extension = strtolower($file->getClientOriginalExtension());
 
         if (in_array($extension, ['xlsx', 'xls'])) {
-            return $this->importXlsx($file, $userId);
+            return $this->importXlsx($file, $userId, $mapping);
         }
 
-        return $this->importCsv($file, $userId);
+        return $this->importCsv($file, $userId, $mapping);
     }
 
     /**
@@ -53,8 +165,9 @@ class TelesalesLeadImportService
      *
      * @return array{summary: array, rows: array}
      */
-    public function preview(UploadedFile $file): array
+    public function preview(UploadedFile $file, array $mapping = []): array
     {
+        $mapping = array_merge(self::DEFAULT_MAPPING, $mapping);
         $extension = strtolower($file->getClientOriginalExtension());
         $rawRows = in_array($extension, ['xlsx', 'xls'])
             ? $this->parseXlsxRawRows($file)
@@ -64,10 +177,14 @@ class TelesalesLeadImportService
         $seenPhones = [];
         $summary = ['total' => 0, 'new' => 0, 'duplicate_db' => 0, 'duplicate_file' => 0, 'errors' => 0];
 
+        $nameCol = $mapping['name'];
+        $phoneCol = $mapping['phone'];
+        $cityCol = $mapping['city'];
+
         // Pre-fetch existing phones from DB in one query
         $phonesToCheck = [];
         foreach ($rawRows as $row) {
-            $phone = $this->normalizePhone($row[2] ?? null);
+            $phone = $this->normalizePhone($row[$phoneCol] ?? null);
             if ($phone) {
                 $phonesToCheck[] = $phone;
             }
@@ -80,8 +197,8 @@ class TelesalesLeadImportService
         foreach ($rawRows as $index => $row) {
             $summary['total']++;
             $rowNum = $index + 1;
-            $name = trim($row[1] ?? '');
-            $phoneRaw = $row[2] ?? null;
+            $name = trim((string) ($row[$nameCol] ?? ''));
+            $phoneRaw = $row[$phoneCol] ?? null;
             $phone = $this->normalizePhone($phoneRaw);
 
             if (empty($name)) {
@@ -90,7 +207,7 @@ class TelesalesLeadImportService
                     'row' => $rowNum,
                     'name' => '',
                     'phone' => $phoneRaw ? (string) $phoneRaw : '',
-                    'city' => trim($row[5] ?? ''),
+                    'city' => trim((string) ($row[$cityCol] ?? '')),
                     'status' => 'error',
                     'error' => 'Name is required',
                 ];
@@ -104,7 +221,7 @@ class TelesalesLeadImportService
                     'row' => $rowNum,
                     'name' => $name,
                     'phone' => $phoneRaw ? (string) $phoneRaw : '',
-                    'city' => trim($row[5] ?? ''),
+                    'city' => trim((string) ($row[$cityCol] ?? '')),
                     'status' => 'error',
                     'error' => 'Invalid phone number',
                 ];
@@ -118,7 +235,7 @@ class TelesalesLeadImportService
                     'row' => $rowNum,
                     'name' => $name,
                     'phone' => $phone,
-                    'city' => trim($row[5] ?? ''),
+                    'city' => trim((string) ($row[$cityCol] ?? '')),
                     'status' => 'duplicate_file',
                     'error' => null,
                 ];
@@ -134,7 +251,7 @@ class TelesalesLeadImportService
                     'row' => $rowNum,
                     'name' => $name,
                     'phone' => $phone,
-                    'city' => trim($row[5] ?? ''),
+                    'city' => trim((string) ($row[$cityCol] ?? '')),
                     'status' => 'duplicate_db',
                     'error' => null,
                 ];
@@ -147,7 +264,7 @@ class TelesalesLeadImportService
                 'row' => $rowNum,
                 'name' => $name,
                 'phone' => $phone,
-                'city' => trim($row[5] ?? ''),
+                'city' => trim((string) ($row[$cityCol] ?? '')),
                 'status' => 'new',
                 'error' => null,
             ];
@@ -161,10 +278,10 @@ class TelesalesLeadImportService
      *
      * @return array<int, array<int, mixed>>
      */
-    private function parseCsvRawRows(UploadedFile $file): array
+    private function parseCsvRawRows(UploadedFile $file, bool $skipHeader = true): array
     {
         $rows = array_map('str_getcsv', file($file->getRealPath()));
-        if ($this->isHeaderRow($rows[0] ?? [])) {
+        if ($skipHeader && $this->isHeaderRow($rows[0] ?? [])) {
             array_shift($rows);
         }
 
@@ -176,7 +293,7 @@ class TelesalesLeadImportService
      *
      * @return array<int, array<int, mixed>>
      */
-    private function parseXlsxRawRows(UploadedFile $file): array
+    private function parseXlsxRawRows(UploadedFile $file, bool $skipHeader = true): array
     {
         $rows = [];
         try {
@@ -200,14 +317,14 @@ class TelesalesLeadImportService
             return [];
         }
 
-        if ($this->isHeaderRow($rows[0] ?? [])) {
+        if ($skipHeader && $this->isHeaderRow($rows[0] ?? [])) {
             array_shift($rows);
         }
 
         return $rows;
     }
 
-    private function importCsv(UploadedFile $file, int $userId): array
+    private function importCsv(UploadedFile $file, int $userId, array $mapping): array
     {
         $rows = array_map('str_getcsv', file($file->getRealPath()));
         // Skip header if first row looks like headers
@@ -215,10 +332,10 @@ class TelesalesLeadImportService
             array_shift($rows);
         }
 
-        return $this->processRows($rows, $userId);
+        return $this->processRows($rows, $userId, $mapping);
     }
 
-    private function importXlsx(UploadedFile $file, int $userId): array
+    private function importXlsx(UploadedFile $file, int $userId, array $mapping): array
     {
         $rows = [];
         try {
@@ -248,12 +365,11 @@ class TelesalesLeadImportService
             array_shift($rows);
         }
 
-        return $this->processRows($rows, $userId);
+        return $this->processRows($rows, $userId, $mapping);
     }
 
-    private function processRows(array $rows, int $userId): array
+    private function processRows(array $rows, int $userId, array $mapping): array
     {
-
         $stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
 
         foreach ($rows as $index => $row) {
@@ -261,7 +377,7 @@ class TelesalesLeadImportService
                 continue;
             }
 
-            $result = $this->processRow($row, $userId);
+            $result = $this->processRow($row, $userId, $mapping);
 
             if (isset($result['error'])) {
                 $stats['errors'][] = 'Row '.($index + 1).": {$result['error']}";
@@ -291,17 +407,17 @@ class TelesalesLeadImportService
             str_contains($first, 'name');
     }
 
-    private function processRow(array $row, int $userId): array
+    private function processRow(array $row, int $userId, array $mapping): array
     {
-        $name = trim($row[1] ?? '');
-        $phoneRaw = $row[2] ?? '';
-        $address = trim($row[3] ?? '');
-        $province = $this->normalizeRegion($row[4] ?? '');
-        $city = $this->normalizeRegion($row[5] ?? '');
-        $barangay = $this->normalizeRegion($row[6] ?? '');
-        $amount = $this->parseAmount($row[12] ?? null);
-        $product = trim($row[13] ?? '');
-        $orderStatus = trim($row[14] ?? '');
+        $name = trim((string) ($row[$mapping['name']] ?? ''));
+        $phoneRaw = $row[$mapping['phone']] ?? '';
+        $address = trim((string) ($row[$mapping['address']] ?? ''));
+        $province = $this->normalizeRegion($row[$mapping['province']] ?? '');
+        $city = $this->normalizeRegion($row[$mapping['city']] ?? '');
+        $barangay = $this->normalizeRegion($row[$mapping['barangay']] ?? '');
+        $amount = $this->parseAmount($row[$mapping['amount']] ?? null);
+        $product = trim((string) ($row[$mapping['product_name']] ?? ''));
+        $orderStatus = trim((string) ($row[$mapping['order_status']] ?? ''));
 
         if (empty($name) || empty($phoneRaw)) {
             return ['error' => 'Missing name or phone'];

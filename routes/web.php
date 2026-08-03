@@ -947,6 +947,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
         Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
+        Route::post('/import/columns', [TelesalesLeadImportController::class, 'columns'])->name('import.columns');
     });
 
     // Distribution Engine
