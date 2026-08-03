@@ -233,6 +233,11 @@ class DistributionEngine
                 $score = $score * 0.3 + $skillMatch * 0.7;
             } elseif ($strategy === DistributionStrategy::TERRITORY) {
                 $score = $score * 0.3 + $regionMatch * 0.7;
+            } elseif ($strategy === DistributionStrategy::PREDICTIVE) {
+                // Use the predictive service for scoring
+                $predictiveResult = app(PredictiveAssignmentService::class)
+                    ->predict($lead, collect([$agent]));
+                $score = $score * 0.2 + ($predictiveResult['score'] * 0.8);
             }
 
             return [

@@ -29,6 +29,7 @@ const strategies = [
   { value: 'skill_match', label: 'Skill Match' },
   { value: 'territory', label: 'Territory' },
   { value: 'hybrid', label: 'Hybrid' },
+  { value: 'predictive', label: 'Predictive (ML)' },
 ];
 
 export default function DistributionRuleForm({ rule, onSuccess }: Props) {

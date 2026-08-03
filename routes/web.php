@@ -967,6 +967,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/analytics/imbalance-alerts', [DistributionAnalyticsController::class, 'imbalanceAlerts'])->name('analytics.imbalance');
         Route::get('/analytics/fairness-trend', [DistributionAnalyticsController::class, 'fairnessTrend'])->name('analytics.fairness-trend');
         Route::post('/analytics/rebalance', [DistributionAnalyticsController::class, 'applyRebalancing'])->name('analytics.rebalance');
+
+        // Predictive Assignment
+        Route::get('/predictive/model', [DistributionController::class, 'modelStatus'])->name('predictive.model');
+        Route::post('/predictive/predict', [DistributionController::class, 'predict'])->name('predictive.predict');
+        Route::post('/predictive/retrain', [DistributionController::class, 'retrain'])->name('predictive.retrain');
     });
 });
 
