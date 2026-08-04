@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class BalanceWorkload extends Command
 {
     protected $signature = 'shop:balance-workload';
+
     protected $description = 'Detect overloaded agents, redistribute excess leads, and auto-pause if still overloaded';
 
     public function handle(WorkloadBalancingService $service): int

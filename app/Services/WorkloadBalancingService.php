@@ -6,10 +6,8 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
-use App\Models\LeadCycle;
 use App\Models\User;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WorkloadBalancingService
@@ -300,6 +298,7 @@ class WorkloadBalancingService
                     'action' => 'skipped (overflow enabled)',
                     'reason' => $agent['overload_reason'],
                 ];
+
                 continue;
             }
 
