@@ -56,6 +56,7 @@ import {
   Scale,
   Brain,
   Activity,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -339,6 +340,12 @@ const navigation: NavEntry[] = [
         name: 'Movement Audit Trail',
         href: '/inventory/audit-trail',
         icon: Activity,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Multi-Warehouse Transfer',
+        href: '/inventory/transfers',
+        icon: ArrowRightLeft,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },

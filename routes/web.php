@@ -51,6 +51,7 @@ use App\Http\Controllers\SmsController;
 use App\Http\Controllers\SourceAnalyticsController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDashboardController;
+use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplyController;
 use App\Http\Controllers\TelesalesLeadImportController;
@@ -239,6 +240,16 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
         Route::patch('/supplies/{supply}/status', [SupplyController::class, 'updateStatus'])->name('supplies.status.update');
         Route::get('/supplies/{supply}/summary', [SupplyController::class, 'summary'])->name('supplies.summary');
         Route::post('/supplies/{id}/restore', [SupplyController::class, 'restore'])->name('supplies.restore');
+
+        // Phase 1 C3: Multi-Warehouse Transfer — request, approve, reject, cancel
+        Route::prefix('transfers')->name('transfers.')->group(function () {
+            Route::get('/', [StockTransferController::class, 'index'])->name('index');
+            Route::get('/api', [StockTransferController::class, 'api'])->name('api');
+            Route::post('/', [StockTransferController::class, 'store'])->name('store');
+            Route::post('/{transfer}/approve', [StockTransferController::class, 'approve'])->name('approve');
+            Route::post('/{transfer}/reject', [StockTransferController::class, 'reject'])->name('reject');
+            Route::post('/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('cancel');
+        });
 
         Route::prefix('assets')->name('assets.')->group(function () {
             Route::get('/', [CapexAssetController::class, 'index'])->name('index');

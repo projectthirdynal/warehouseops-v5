@@ -30,6 +30,10 @@ class MovementAuditTrail extends Model
 
     public const TYPE_TRANSFER = 'TRANSFER';
 
+    public const TYPE_TRANSFER_OUT = 'TRANSFER_OUT';
+
+    public const TYPE_TRANSFER_IN = 'TRANSFER_IN';
+
     protected $fillable = [
         'type',
         'movement_id',
