@@ -53,6 +53,7 @@ import {
   RotateCcw,
   Bot,
   ScrollText,
+  Scale,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -135,6 +136,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/qc': 'QC Review',
   '/recycling/pool': 'Recycling',
   '/lead-pool': 'Lead Pool',
+  '/lead-pool/workload-balancing': 'Workload Balancing',
   '/telesales/import': 'Telesales Import',
   '/distribution': 'Distribution',
   '/distribution/analytics': 'Distribution Analytics',
@@ -531,6 +533,12 @@ const navigation: NavEntry[] = [
     roles: OPS_ADMIN_ROLES,
     children: [
       { name: 'Lead Pool', href: '/lead-pool', icon: Users, roles: OPS_ADMIN_ROLES },
+      {
+        name: 'Workload Balancing',
+        href: '/lead-pool/workload-balancing',
+        icon: Scale,
+        roles: OPS_ADMIN_ROLES,
+      },
       { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: OPS_ADMIN_ROLES },
       {
         name: 'Distribution Analytics',

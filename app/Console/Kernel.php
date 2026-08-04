@@ -39,6 +39,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('shop:cleanup-old-batches')->dailyAt('03:00')->withoutOverlapping();
         $schedule->command('shop:check-idle-agents')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('shop:enforce-shift-hours')->everyMinute()->withoutOverlapping()->onOneServer();
+        $schedule->command('shop:balance-workload')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:auto-resolve-inactive')->hourly()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:escalate-sla-breached')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:apply-status-rules')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();

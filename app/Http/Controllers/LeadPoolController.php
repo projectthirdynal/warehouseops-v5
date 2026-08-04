@@ -11,6 +11,7 @@ use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
+use App\Services\WorkloadBalancingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -20,7 +21,8 @@ class LeadPoolController extends Controller
 {
     public function __construct(
         private LeadPoolService $poolService,
-        private LeadDistributionService $distributionService
+        private LeadDistributionService $distributionService,
+        private WorkloadBalancingService $workloadService
     ) {
         $this->middleware(function ($request, $next) {
             if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
@@ -278,5 +280,88 @@ class LeadPoolController extends Controller
         return Inertia::render('LeadPool/AgentPerformance', [
             'agents' => $agents,
         ]);
+    }
+
+    /**
+     * Workload Balancing dashboard — supervisor view of agent workload
+     * with rebalancing controls.
+     */
+    public function workloadBalancing(): Response
+    {
+        $snapshot = $this->workloadService->getWorkloadSnapshot();
+
+        return Inertia::render('LeadPool/WorkloadBalancing', [
+            'snapshot' => $snapshot,
+        ]);
+    }
+
+    /**
+     * API: Get current workload snapshot (for polling).
+     */
+    public function workloadStatus()
+    {
+        return response()->json(
+            $this->workloadService->getWorkloadSnapshot()
+        );
+    }
+
+    /**
+     * API: Rebalance a specific overloaded agent — redistribute excess leads.
+     */
+    public function rebalanceAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+            'max_to_redistribute' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $result = $this->workloadService->redistributeFromAgent(
+            $validated['agent_id'],
+            $validated['max_to_redistribute'] ?? 0
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * API: Pause an agent's auto-assignment.
+     */
+    public function pauseAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->workloadService->pauseAgent(
+            $validated['agent_id'],
+            $validated['reason'] ?? 'Manual pause from workload dashboard'
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * API: Resume an agent's auto-assignment.
+     */
+    public function resumeAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+        ]);
+
+        $this->workloadService->resumeAgent($validated['agent_id']);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * API: Run full balancing cycle manually.
+     */
+    public function runBalancingCycle()
+    {
+        $result = $this->workloadService->runBalancingCycle();
+
+        return response()->json($result);
     }
 }

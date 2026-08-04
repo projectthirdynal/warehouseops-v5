@@ -947,6 +947,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/bulk-archive', [LeadPoolController::class, 'bulkArchive'])->name('bulk-archive');
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
         Route::get('/capacity-alerts', [LeadPoolController::class, 'capacityAlerts'])->name('capacity-alerts');
+        Route::get('/workload-balancing', [LeadPoolController::class, 'workloadBalancing'])->name('workload-balancing');
+        Route::get('/api/workload-status', [LeadPoolController::class, 'workloadStatus'])->name('api.workload-status');
+        Route::post('/api/rebalance-agent', [LeadPoolController::class, 'rebalanceAgent'])->name('api.rebalance-agent');
+        Route::post('/api/pause-agent', [LeadPoolController::class, 'pauseAgent'])->name('api.pause-agent');
+        Route::post('/api/resume-agent', [LeadPoolController::class, 'resumeAgent'])->name('api.resume-agent');
+        Route::post('/api/run-balancing-cycle', [LeadPoolController::class, 'runBalancingCycle'])->name('api.run-balancing-cycle');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
