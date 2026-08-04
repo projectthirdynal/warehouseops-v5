@@ -6,6 +6,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ApprovalsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BurnoutPredictionController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\CostOfGoodsController;
@@ -908,6 +909,12 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/{user}/coaching-notes', [AgentController::class, 'storeCoachingNote'])->name('coaching-notes.store')->whereNumber('user');
         Route::patch('/{user}/coaching-notes/{note}/resolve', [AgentController::class, 'resolveCoachingNote'])->name('coaching-notes.resolve')->whereNumber('user', 'note');
         Route::delete('/{user}/coaching-notes/{note}', [AgentController::class, 'deleteCoachingNote'])->name('coaching-notes.destroy')->whereNumber('user', 'note');
+
+        // Burnout Prediction (L2)
+        Route::get('/burnout', [BurnoutPredictionController::class, 'index'])->name('burnout');
+        Route::get('/burnout/api', [BurnoutPredictionController::class, 'apiIndex'])->name('burnout.api');
+        Route::post('/burnout/recalculate', [BurnoutPredictionController::class, 'recalculate'])->name('burnout.recalculate');
+        Route::get('/{user}/burnout', [BurnoutPredictionController::class, 'agent'])->name('burnout.agent')->whereNumber('user');
     });
 
     // SMS

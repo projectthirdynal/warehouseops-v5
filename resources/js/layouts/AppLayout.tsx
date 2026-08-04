@@ -54,6 +54,7 @@ import {
   Bot,
   ScrollText,
   Scale,
+  Brain,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -561,6 +562,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: 'Admin Panel', href: '/admin', icon: Shield, roles: ADMIN_ONLY },
       { name: 'Agents', href: '/agents/governance', icon: UserCog, roles: ADMIN_ONLY },
+      { name: 'Burnout Prediction', href: '/agents/burnout', icon: Brain, roles: ADMIN_ONLY },
       { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, roles: ADMIN_ONLY },
       {
         name: 'Approvals',
