@@ -510,10 +510,10 @@ class SupplyController extends Controller
                 ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
             );
 
-        $beforeQty = (int) $stock->current_stock;
+        $beforeQty = (int) $stock->current_stock - $quantity;
+        $afterQty = (int) $stock->current_stock;
         $beforeReserved = (int) $stock->reserved_stock;
-        $afterQty = $beforeQty + $quantity;
-        $stock->current_stock = max(0, $afterQty);
+
         $stock->last_movement_at = now();
         $stock->save();
 
@@ -531,7 +531,7 @@ class SupplyController extends Controller
         app(MovementAuditTrailService::class)->recordSupplyMovement(
             $movement,
             beforeQuantity: $beforeQty,
-            afterQuantity: (int) $stock->current_stock,
+            afterQuantity: $afterQty,
             beforeReserved: $beforeReserved,
             afterReserved: $beforeReserved,
         );
