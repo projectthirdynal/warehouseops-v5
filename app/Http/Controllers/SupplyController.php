@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\Supply;
+use App\Domain\Inventory\Models\SupplyMovement;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\UnitOfMeasure;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\MovementAuditTrailService;
 use App\Domain\Inventory\Services\StockStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -502,7 +504,20 @@ class SupplyController extends Controller
         ?string $notes,
         ?int $performedBy
     ): void {
-        DB::table('supply_movements')->insert([
+        $stock = SupplyStock::lockForUpdate()
+            ->firstOrCreate(
+                ['supply_id' => $supplyId, 'warehouse_id' => $warehouseId, 'location_id' => null],
+                ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 10]
+            );
+
+        $beforeQty = (int) $stock->current_stock;
+        $beforeReserved = (int) $stock->reserved_stock;
+        $afterQty = $beforeQty + $quantity;
+        $stock->current_stock = max(0, $afterQty);
+        $stock->last_movement_at = now();
+        $stock->save();
+
+        $movement = SupplyMovement::create([
             'supply_id' => $supplyId,
             'type' => $type,
             'quantity' => $quantity,
@@ -511,8 +526,14 @@ class SupplyController extends Controller
             'to_location_id' => null,
             'notes' => $notes,
             'performed_by' => $performedBy,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
+
+        app(MovementAuditTrailService::class)->recordSupplyMovement(
+            $movement,
+            beforeQuantity: $beforeQty,
+            afterQuantity: (int) $stock->current_stock,
+            beforeReserved: $beforeReserved,
+            afterReserved: $beforeReserved,
+        );
     }
 }

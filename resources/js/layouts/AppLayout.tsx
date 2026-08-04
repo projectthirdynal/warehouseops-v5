@@ -335,6 +335,12 @@ const navigation: NavEntry[] = [
         icon: Recycle,
         roles: INVENTORY_MATERIAL_ROLES,
       },
+      {
+        name: 'Movement Audit Trail',
+        href: '/inventory/audit-trail',
+        icon: Activity,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
       { name: 'Returns', href: '/waybills/returns', icon: RotateCcw, roles: OPS_ADMIN_ROLES },
       {

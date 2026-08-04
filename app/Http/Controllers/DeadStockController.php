@@ -6,8 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\DeadStock;
 use App\Domain\Inventory\Models\Supply;
+use App\Domain\Inventory\Models\SupplyMovement;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\MovementAuditTrailService;
+use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use Illuminate\Http\RedirectResponse;
@@ -145,16 +148,24 @@ class DeadStockController extends Controller
                 $stock->last_movement_at = now();
                 $stock->save();
 
-                DB::table('supply_movements')->insert([
+                $movement = SupplyMovement::create([
                     'supply_id' => $data['supply_id'],
                     'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
                     'type' => 'WRITE_OFF',
                     'quantity' => -$qty,
                     'notes' => 'Dead stock write-off: '.($data['reason'] ?? 'No reason'),
                     'performed_by' => $request->user()?->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
+
+                app(MovementAuditTrailService::class)->recordSupplyMovement(
+                    $movement,
+                    beforeQuantity: $beforeQty,
+                    afterQuantity: $beforeQty - $qty,
+                    beforeReserved: (int) $stock->reserved_stock,
+                    afterReserved: (int) $stock->reserved_stock,
+                    reasonNotes: $data['reason'] ?? null,
+                    request: $request,
+                );
             } else {
                 $stock = ProductStock::lockForUpdate()
                     ->where('product_id', $data['product_id'])
@@ -167,11 +178,13 @@ class DeadStockController extends Controller
                     throw new \RuntimeException("Insufficient available product stock. Available: {$available}, requested: {$qty}");
                 }
 
+                $beforeQty = (int) $stock->current_stock;
+
                 $stock->current_stock = max(0, $stock->current_stock - $qty);
                 $stock->last_movement_at = now();
                 $stock->save();
 
-                DB::table('inventory_movements')->insert([
+                $movement = InventoryMovement::create([
                     'product_id' => $data['product_id'],
                     'variant_id' => null,
                     'warehouse_id' => $data['warehouse_id'] ?? $stock->warehouse_id,
@@ -179,9 +192,17 @@ class DeadStockController extends Controller
                     'quantity' => -$qty,
                     'notes' => 'Dead stock write-off: '.($data['reason'] ?? 'No reason'),
                     'performed_by' => $request->user()?->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
+
+                app(MovementAuditTrailService::class)->recordProductMovement(
+                    $movement,
+                    beforeQuantity: $beforeQty,
+                    afterQuantity: $beforeQty - $qty,
+                    beforeReserved: (int) $stock->reserved_stock,
+                    afterReserved: (int) $stock->reserved_stock,
+                    reasonNotes: $data['reason'] ?? null,
+                    request: $request,
+                );
             }
 
             DeadStock::create([

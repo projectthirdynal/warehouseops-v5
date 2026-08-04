@@ -28,6 +28,7 @@ use App\Http\Controllers\LeadImportController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\MockCourierController;
+use App\Http\Controllers\MovementAuditTrailController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
@@ -213,6 +214,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
         Route::get('/dashboard/api', [StockDashboardController::class, 'api'])->name('dashboard.api');
         Route::post('/alerts/sync', [StockDashboardController::class, 'syncAlerts'])->name('alerts.sync');
         Route::patch('/alerts/{alert}/acknowledge', [StockDashboardController::class, 'acknowledgeAlert'])->name('alerts.acknowledge');
+    });
+
+    // Phase 1 C2: Movement Audit Trail — complete history per item with before/after, reason, user
+    Route::prefix('inventory/audit-trail')->name('inventory.audit-trail.')->group(function () {
+        Route::get('/', [MovementAuditTrailController::class, 'index'])->name('index');
+        Route::get('/api', [MovementAuditTrailController::class, 'api'])->name('api');
+        Route::get('/item', [MovementAuditTrailController::class, 'itemTrail'])->name('item');
+        Route::post('/backfill', [MovementAuditTrailController::class, 'backfill'])->name('backfill');
     });
 });
 
