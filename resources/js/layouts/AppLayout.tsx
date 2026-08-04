@@ -55,6 +55,7 @@ import {
   ScrollText,
   Scale,
   Brain,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -314,6 +315,12 @@ const navigation: NavEntry[] = [
         name: 'Stock Levels',
         href: '/inventory',
         icon: BarChart3,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Real-Time Stock Dashboard',
+        href: '/inventory/stock/dashboard',
+        icon: Activity,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {

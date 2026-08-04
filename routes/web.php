@@ -49,6 +49,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\SourceAnalyticsController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplyController;
 use App\Http\Controllers\TelesalesLeadImportController;
@@ -205,6 +206,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
     Route::get('/inventory/non-moving', [InventoryDashboardController::class, 'nonMoving'])->name('inventory.non-moving');
+
+    // Phase 1 C1: Real-Time Stock Dashboard with low-stock alerts and reorder triggers
+    Route::prefix('inventory/stock')->name('inventory.stock.')->group(function () {
+        Route::get('/dashboard', [StockDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/api', [StockDashboardController::class, 'api'])->name('dashboard.api');
+        Route::post('/alerts/sync', [StockDashboardController::class, 'syncAlerts'])->name('alerts.sync');
+        Route::patch('/alerts/{alert}/acknowledge', [StockDashboardController::class, 'acknowledgeAlert'])->name('alerts.acknowledge');
+    });
 });
 
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
