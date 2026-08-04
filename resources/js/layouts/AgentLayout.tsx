@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   CircleDot,
   CircleSlash,
+  Trophy,
 } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ const agentNav: NavItem[] = [
   { name: 'Dashboard', href: '/agent/dashboard', icon: LayoutDashboard },
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Track Waybill', href: '/agent/tracking', icon: Search },
+  { name: 'Achievements', href: '/agent/gamification', icon: Trophy },
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 

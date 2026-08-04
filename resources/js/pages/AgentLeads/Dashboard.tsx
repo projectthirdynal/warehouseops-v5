@@ -9,6 +9,8 @@ import {
   Users,
   Phone,
   Target,
+  Flame,
+  Award,
 } from 'lucide-react';
 import AgentLayout from '@/layouts/AgentLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,6 +83,14 @@ interface AgentInfo {
   is_available: boolean;
 }
 
+interface GamificationSummary {
+  current_streak: number;
+  longest_streak: number;
+  total_badges: number;
+  total_badges_available: number;
+  total_milestones_completed: number;
+  total_milestones: number;
+}
 interface Props {
   earnings: Earnings;
   recent_commissions: Commission[];
@@ -88,6 +98,7 @@ interface Props {
   leaderboard: Leaderboard;
   workload: Workload;
   agent: AgentInfo;
+  gamification: GamificationSummary;
 }
 
 const currency = (n: number) =>
@@ -131,6 +142,7 @@ export default function AgentDashboard({
   lead_history,
   leaderboard,
   workload,
+  gamification,
 }: Props) {
   const up = earnings.month_change >= 0;
   return (
@@ -356,6 +368,64 @@ export default function AgentDashboard({
             </CardContent>
           </Card>
         </div>
+
+        {/* Gamification Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <Trophy className="h-4 w-4 text-warning" /> My Achievements
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex items-center gap-3 rounded-lg border p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                  <Flame className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-display">{gamification.current_streak}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Day streak (best: {gamification.longest_streak})
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/10">
+                  <Trophy className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-display">
+                    {gamification.total_badges}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{gamification.total_badges_available}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Badges earned</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
+                  <Award className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-display">
+                    {gamification.total_milestones_completed}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{gamification.total_milestones}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Milestones completed</p>
+                </div>
+              </div>
+            </div>
+            <a
+              href="/agent/gamification"
+              className="text-xs text-primary hover:underline mt-3 inline-block"
+            >
+              View all achievements →
+            </a>
+          </CardContent>
+        </Card>
 
         {/* Lead Cycle History */}
         <Card>

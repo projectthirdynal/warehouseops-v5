@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Shop\Services\GamificationService;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\LeadCycle;
 use App\Models\Waybill;
@@ -26,7 +27,8 @@ class AgentLeadController extends Controller
         private LeadRecyclingService $recyclingService,
         private LeadDistributionService $distributionService,
         private LeadPoolService $poolService,
-        private AgentPortalService $portalService
+        private AgentPortalService $portalService,
+        private GamificationService $gamificationService
     ) {}
 
     public function dashboard(): Response
@@ -35,6 +37,8 @@ class AgentLeadController extends Controller
         $agent->load('agentProfile');
 
         $data = $this->portalService->getDashboardData($agent);
+
+        $gamificationProfile = $this->gamificationService->getAgentProfile($agent->id);
 
         return Inertia::render('AgentLeads/Dashboard', [
             'earnings' => $data['earnings'],
@@ -47,6 +51,14 @@ class AgentLeadController extends Controller
                 'name' => $agent->name,
                 'performance_score' => (float) ($agent->agentProfile?->performance_score ?? 0),
                 'is_available' => (bool) ($agent->agentProfile?->is_available ?? false),
+            ],
+            'gamification' => [
+                'current_streak' => $gamificationProfile['streak']['current'] ?? 0,
+                'longest_streak' => $gamificationProfile['streak']['longest'] ?? 0,
+                'total_badges' => $gamificationProfile['total_badges'] ?? 0,
+                'total_badges_available' => count($gamificationProfile['available_badges'] ?? []),
+                'total_milestones_completed' => $gamificationProfile['total_milestones_completed'] ?? 0,
+                'total_milestones' => count($gamificationProfile['milestones'] ?? []),
             ],
         ]);
     }
@@ -669,5 +681,24 @@ class AgentLeadController extends Controller
         }
 
         return $nowTime >= $startTime && $nowTime < $endTime;
+    }
+
+    public function gamification(): Response
+    {
+        $agent = auth()->user();
+
+        $profile = $this->gamificationService->getAgentProfile($agent->id);
+        $leaderboard = $this->gamificationService->getLeaderboard(10);
+        $settings = $this->gamificationService->getSettings();
+
+        return Inertia::render('AgentLeads/Gamification', [
+            'profile' => $profile,
+            'leaderboard' => $leaderboard,
+            'settings' => $settings,
+            'agent' => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+            ],
+        ]);
     }
 }
