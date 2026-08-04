@@ -136,6 +136,9 @@ self.addEventListener('notificationclick', (event) => {
 
 // Message handler for cache management
 self.addEventListener('message', (event) => {
+  const trustedOrigin = self.location.origin;
+  if (event.origin && event.origin !== trustedOrigin) return;
+
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
   if (event.data?.type === 'CLEAR_API_CACHE') {
     caches.delete(API_CACHE);
