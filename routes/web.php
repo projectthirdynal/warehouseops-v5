@@ -32,6 +32,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\ReceivingReportController;
 use App\Http\Controllers\RecyclingController;
@@ -102,6 +103,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::get('/tracking', [AgentLeadController::class, 'tracking'])->name('tracking');
         Route::get('/gamification', [AgentLeadController::class, 'gamification'])->name('gamification');
+        Route::get('/pwa-settings', [AgentLeadController::class, 'pwaSettings'])->name('pwa-settings');
     });
 
     // Agent API (AJAX calls from portal)
@@ -114,6 +116,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
         Route::get('/leads/{lead}/customer-history', [AgentLeadController::class, 'customerHistory'])->name('leads.customer-history');
         Route::get('/leads/unread-count', [AgentLeadController::class, 'unreadCount'])->name('leads.unread-count');
+    });
+
+    // Push notification subscriptions (PWA)
+    Route::prefix('api/push')->name('api.push.')->group(function () {
+        Route::post('/subscribe', [PushNotificationController::class, 'subscribe'])->name('subscribe');
+        Route::post('/unsubscribe', [PushNotificationController::class, 'unsubscribe'])->name('unsubscribe');
+        Route::get('/status', [PushNotificationController::class, 'status'])->name('status');
     });
 });
 

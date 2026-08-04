@@ -710,4 +710,9 @@ class AgentLeadController extends Controller
             ],
         ]);
     }
+
+    public function pwaSettings(): Response
+    {
+        return Inertia::render('AgentLeads/PWASettings');
+    }
 }

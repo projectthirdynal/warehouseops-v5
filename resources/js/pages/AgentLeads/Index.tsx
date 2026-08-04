@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Filter,
@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Package,
   Recycle,
+  WifiOff,
+  Database,
 } from 'lucide-react';
 import AgentLayout from '@/layouts/AgentLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { LeadCard } from './LeadCard';
 import type { AgentLead, PoolStats } from '@/types/lead-pool';
+import { cacheLeads, getCachedLeads, clearCachedLeads, type CachedLead } from '@/lib/offline-leads';
 
 interface Props {
   leads: AgentLead[];
@@ -62,11 +65,57 @@ export default function AgentLeadsIndex({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [requestingProduct, setRequestingProduct] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [offlineLeads, setOfflineLeads] = useState<CachedLead[]>([]);
+  const [lastCached, setLastCached] = useState<string | null>(null);
+
+  // Cache leads to IndexedDB whenever they change (for offline access)
+  useEffect(() => {
+    if (leads && leads.length > 0 && isOnline) {
+      cacheLeads(leads as unknown as CachedLead[]);
+    }
+  }, [leads, isOnline]);
+
+  // Track online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setOfflineLeads([]);
+    };
+    const handleOffline = async () => {
+      setIsOnline(false);
+      const { leads: cached, lastCached: cachedAt } = await getCachedLeads();
+      setOfflineLeads(cached);
+      setLastCached(cachedAt);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    // Load cached leads on mount in case we're already offline
+    if (!navigator.onLine) {
+      getCachedLeads().then(({ leads: cached, lastCached: cachedAt }) => {
+        setOfflineLeads(cached);
+        setLastCached(cachedAt);
+      });
+    }
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  const handleClearOfflineCache = useCallback(async () => {
+    await clearCachedLeads();
+    setOfflineLeads([]);
+    setLastCached(null);
+    showToast('Offline cache cleared', 'success');
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -353,12 +402,41 @@ export default function AgentLeadsIndex({
           </CardContent>
         </Card>
 
+        {/* Offline banner with cached leads */}
+        {!isOnline && (
+          <Card className="border-warning/30 bg-warning/5">
+            <CardContent className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-2 text-sm">
+                <WifiOff className="h-4 w-4 text-warning" />
+                <span className="font-medium text-warning">You're offline</span>
+                {offlineLeads.length > 0 && (
+                  <span className="text-muted-foreground">
+                    — showing {offlineLeads.length} cached leads
+                    {lastCached &&
+                      ` (last updated ${new Date(lastCached).toLocaleString('en-PH')})`}
+                  </span>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleClearOfflineCache}>
+                <Database className="mr-1 h-3.5 w-3.5" />
+                Clear cache
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Leads List */}
         <div className="space-y-4">
-          {leads && leads.length > 0 ? (
+          {isOnline && leads && leads.length > 0 ? (
             leads.map((lead) => (
               <div key={lead.id} id={`lead-${lead.id}`}>
                 <LeadCard lead={lead} onUpdate={handleRefresh} />
+              </div>
+            ))
+          ) : !isOnline && offlineLeads.length > 0 ? (
+            offlineLeads.map((lead) => (
+              <div key={lead.id} id={`lead-${lead.id}`}>
+                <LeadCard lead={lead as unknown as AgentLead} onUpdate={handleRefresh} />
               </div>
             ))
           ) : (
@@ -374,7 +452,7 @@ export default function AgentLeadsIndex({
                 <Button
                   className="mt-4"
                   onClick={() => requestLeads()}
-                  disabled={requestingProduct !== null}
+                  disabled={requestingProduct !== null || !isOnline}
                 >
                   <Users className="mr-1.5 h-4 w-4" />
                   Request Leads

@@ -15,6 +15,7 @@ import {
   CircleDot,
   CircleSlash,
   Trophy,
+  Smartphone,
 } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
@@ -39,7 +40,10 @@ const agentNav: NavItem[] = [
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 
-const agentBottomNav: NavItem[] = [{ name: 'Settings', href: '/settings', icon: Settings }];
+const agentBottomNav: NavItem[] = [
+  { name: 'App Settings', href: '/agent/pwa-settings', icon: Smartphone },
+  { name: 'Settings', href: '/settings', icon: Settings },
+];
 
 interface AvailabilityState {
   is_available: boolean;

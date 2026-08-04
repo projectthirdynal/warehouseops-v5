@@ -5,6 +5,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { Toaster } from '@/components/ui/sonner';
 import { AnimatePresenceWrapper, PageTransition } from '@/components/page-transition';
+import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'TECC';
 const clientBuild = 'shop-queue-2026-06-03-v4';
@@ -24,6 +25,7 @@ createInertiaApp({
           </PageTransition>
         </AnimatePresenceWrapper>
         <Toaster />
+        <PWAInstallBanner />
       </>
     );
   },
