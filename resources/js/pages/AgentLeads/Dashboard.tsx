@@ -11,6 +11,8 @@ import {
   Target,
   Flame,
   Award,
+  ClipboardList,
+  CheckSquare,
 } from 'lucide-react';
 import AgentLayout from '@/layouts/AgentLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,6 +93,17 @@ interface GamificationSummary {
   total_milestones_completed: number;
   total_milestones: number;
 }
+interface CoachingNoteItem {
+  id: number;
+  category: string;
+  priority: string;
+  subject: string;
+  body: string;
+  action_items: string[] | null;
+  resolved_at: string | null;
+  created_at: string;
+  author: { id: number; name: string } | null;
+}
 interface Props {
   earnings: Earnings;
   recent_commissions: Commission[];
@@ -99,6 +112,7 @@ interface Props {
   workload: Workload;
   agent: AgentInfo;
   gamification: GamificationSummary;
+  coachingNotes: CoachingNoteItem[];
 }
 
 const currency = (n: number) =>
@@ -143,6 +157,7 @@ export default function AgentDashboard({
   leaderboard,
   workload,
   gamification,
+  coachingNotes,
 }: Props) {
   const up = earnings.month_change >= 0;
   return (
@@ -426,6 +441,62 @@ export default function AgentDashboard({
             </a>
           </CardContent>
         </Card>
+
+        {/* Coaching Notes (read-only) */}
+        {coachingNotes.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <ClipboardList className="h-4 w-4" /> Coaching Notes
+                <Badge variant="outline" className="ml-1 text-xs">
+                  {coachingNotes.length} open
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {coachingNotes.map((note) => (
+                <div key={note.id} className="rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{note.subject}</p>
+                    <Badge variant="outline" className="text-xs">
+                      {note.category}
+                    </Badge>
+                    <span
+                      className={`text-xs font-medium ${
+                        note.priority === 'urgent'
+                          ? 'text-destructive'
+                          : note.priority === 'high'
+                            ? 'text-warning'
+                            : note.priority === 'medium'
+                              ? 'text-info'
+                              : 'text-muted-foreground'
+                      }`}
+                    >
+                      {note.priority}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
+                    {note.body}
+                  </p>
+                  {note.action_items && note.action_items.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {note.action_items.map((item, i) => (
+                        <li key={i} className="flex items-center gap-2 text-xs">
+                          <CheckSquare className="h-3 w-3 text-muted-foreground" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>From {note.author?.name ?? 'Supervisor'}</span>
+                    <span>{formatDate(note.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Lead Cycle History */}
         <Card>

@@ -7,6 +7,7 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Domain\Shop\Services\GamificationService;
 use App\Http\Resources\AgentLeadResource;
+use App\Models\CoachingNote;
 use App\Models\LeadCycle;
 use App\Models\Waybill;
 use App\Services\AgentPortalService;
@@ -40,6 +41,13 @@ class AgentLeadController extends Controller
 
         $gamificationProfile = $this->gamificationService->getAgentProfile($agent->id);
 
+        $coachingNotes = CoachingNote::where('agent_id', $agent->id)
+            ->unresolved()
+            ->with('author:id,name')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
         return Inertia::render('AgentLeads/Dashboard', [
             'earnings' => $data['earnings'],
             'recent_commissions' => $data['recent_commissions'],
@@ -60,6 +68,7 @@ class AgentLeadController extends Controller
                 'total_milestones_completed' => $gamificationProfile['total_milestones_completed'] ?? 0,
                 'total_milestones' => count($gamificationProfile['milestones'] ?? []),
             ],
+            'coachingNotes' => $coachingNotes,
         ]);
     }
 

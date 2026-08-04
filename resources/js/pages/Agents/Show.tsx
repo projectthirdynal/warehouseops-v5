@@ -24,12 +24,16 @@ import {
   X,
   Layers,
   Edit3,
+  ClipboardList,
+  CheckSquare,
+  Trash2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import { formatDate } from '@/lib/utils';
 import type { User, AgentProfile } from '@/types';
 
@@ -48,6 +52,20 @@ interface RecentLead {
   updated_at: string;
 }
 
+interface CoachingNoteItem {
+  id: number;
+  category: string;
+  priority: string;
+  subject: string;
+  body: string;
+  action_items: string[] | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  created_at: string;
+  author: { id: number; name: string } | null;
+  resolver: { id: number; name: string } | null;
+}
+
 interface Props {
   agent: Agent;
   stats: {
@@ -60,6 +78,7 @@ interface Props {
     sales_today: number;
   };
   recentLeads: RecentLead[];
+  coachingNotes: CoachingNoteItem[];
 }
 
 const statusColors: Record<string, string> = {
@@ -337,7 +356,7 @@ function isCurrentlyInShift(profile?: AgentProfile): boolean {
   return nowTime >= start && nowTime < end;
 }
 
-export default function AgentShow({ agent, stats, recentLeads }: Props) {
+export default function AgentShow({ agent, stats, recentLeads, coachingNotes }: Props) {
   const profile = agent.agentProfile;
   const [editingShift, setEditingShift] = useState(false);
   const [shiftStart, setShiftStart] = useState(profile?.shift_start ?? '');
@@ -361,6 +380,73 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
         },
       }
     );
+  };
+
+  const [showCoachingForm, setShowCoachingForm] = useState(false);
+  const [coachingForm, setCoachingForm] = useState({
+    category: 'general',
+    priority: 'medium',
+    subject: '',
+    body: '',
+    action_items: [''] as string[],
+  });
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
+
+  const submitCoachingNote = () => {
+    router.post(
+      `/agents/${agent.id}/coaching-notes`,
+      {
+        ...coachingForm,
+        action_items: coachingForm.action_items.filter((a) => a.trim() !== ''),
+      },
+      {
+        onSuccess: () => {
+          setShowCoachingForm(false);
+          setCoachingForm({
+            category: 'general',
+            priority: 'medium',
+            subject: '',
+            body: '',
+            action_items: [''],
+          });
+        },
+      }
+    );
+  };
+
+  const resolveNote = (noteId: number) => {
+    router.patch(
+      `/agents/${agent.id}/coaching-notes/${noteId}/resolve`,
+      { resolution_note: resolutionNote },
+      {
+        onSuccess: () => {
+          setResolvingId(null);
+          setResolutionNote('');
+        },
+      }
+    );
+  };
+
+  const deleteNote = (noteId: number) => {
+    router.delete(`/agents/${agent.id}/coaching-notes/${noteId}`);
+  };
+
+  const priorityColors: Record<string, string> = {
+    low: 'text-muted-foreground',
+    medium: 'text-info',
+    high: 'text-warning',
+    urgent: 'text-destructive',
+  };
+
+  const categoryLabels: Record<string, string> = {
+    general: 'General',
+    performance: 'Performance',
+    behavior: 'Behavior',
+    attendance: 'Attendance',
+    skill_gap: 'Skill Gap',
+    praise: 'Praise',
+    improvement_plan: 'Improvement Plan',
   };
 
   return (
@@ -657,6 +743,250 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
             </Card>
           </div>
         )}
+
+        {/* Coaching Notes */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Coaching Notes
+              <Badge variant="outline" className="ml-1 text-xs">
+                {coachingNotes.filter((n) => !n.resolved_at).length} open
+              </Badge>
+              {!showCoachingForm && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={() => setShowCoachingForm(true)}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Note
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showCoachingForm && (
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Category</label>
+                    <select
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={coachingForm.category}
+                      onChange={(e) =>
+                        setCoachingForm({ ...coachingForm, category: e.target.value })
+                      }
+                    >
+                      {Object.entries(categoryLabels).map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Priority</label>
+                    <select
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={coachingForm.priority}
+                      onChange={(e) =>
+                        setCoachingForm({ ...coachingForm, priority: e.target.value })
+                      }
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                  <input
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={coachingForm.subject}
+                    onChange={(e) => setCoachingForm({ ...coachingForm, subject: e.target.value })}
+                    placeholder="Brief subject..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Details</label>
+                  <Textarea
+                    className="mt-1"
+                    rows={3}
+                    value={coachingForm.body}
+                    onChange={(e) => setCoachingForm({ ...coachingForm, body: e.target.value })}
+                    placeholder="Detailed feedback or coaching note..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Action Items</label>
+                  <div className="mt-1 space-y-1">
+                    {coachingForm.action_items.map((item, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input
+                          className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                          value={item}
+                          onChange={(e) => {
+                            const items = [...coachingForm.action_items];
+                            items[i] = e.target.value;
+                            setCoachingForm({ ...coachingForm, action_items: items });
+                          }}
+                          placeholder="Action item..."
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setCoachingForm({
+                              ...coachingForm,
+                              action_items: coachingForm.action_items.filter((_, idx) => idx !== i),
+                            })
+                          }
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setCoachingForm({
+                          ...coachingForm,
+                          action_items: [...coachingForm.action_items, ''],
+                        })
+                      }
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add action item
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowCoachingForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={submitCoachingNote}
+                    disabled={!coachingForm.subject.trim() || !coachingForm.body.trim()}
+                  >
+                    <Save className="mr-1 h-4 w-4" />
+                    Save Note
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {coachingNotes.length > 0 ? (
+              <div className="space-y-3">
+                {coachingNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className={`rounded-lg border p-4 ${note.resolved_at ? 'opacity-60' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{note.subject}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {categoryLabels[note.category] ?? note.category}
+                          </Badge>
+                          <span
+                            className={`text-xs font-medium ${priorityColors[note.priority] ?? ''}`}
+                          >
+                            {note.priority}
+                          </span>
+                          {note.resolved_at && (
+                            <Badge variant="default" className="text-xs">
+                              <CheckSquare className="mr-1 h-3 w-3" />
+                              Resolved
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
+                          {note.body}
+                        </p>
+                        {note.action_items && note.action_items.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {note.action_items.map((item, i) => (
+                              <li key={i} className="flex items-center gap-2 text-xs">
+                                <CheckSquare className="h-3 w-3 text-muted-foreground" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {note.resolution_note && (
+                          <div className="mt-2 rounded-md bg-success/5 p-2 text-xs text-muted-foreground">
+                            <span className="font-medium">Resolution:</span> {note.resolution_note}
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>By {note.author?.name ?? 'System'}</span>
+                          <span>{formatDate(note.created_at)}</span>
+                          {note.resolver && <span>Resolved by {note.resolver.name}</span>}
+                        </div>
+                      </div>
+                      {!note.resolved_at && (
+                        <div className="flex flex-col gap-1">
+                          {resolvingId === note.id ? (
+                            <div className="space-y-1">
+                              <Textarea
+                                rows={2}
+                                className="text-xs"
+                                placeholder="Resolution note (optional)..."
+                                value={resolutionNote}
+                                onChange={(e) => setResolutionNote(e.target.value)}
+                              />
+                              <div className="flex gap-1">
+                                <Button size="sm" onClick={() => resolveNote(note.id)}>
+                                  Confirm
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setResolvingId(null);
+                                    setResolutionNote('');
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setResolvingId(note.id)}
+                              >
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Resolve
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => deleteNote(note.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8">
+                <ClipboardList className="h-10 w-10 text-muted-foreground/50" />
+                <p className="mt-3 text-sm text-muted-foreground">No coaching notes yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Recent Leads */}
         <Card>

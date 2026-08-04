@@ -896,6 +896,9 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active')->whereNumber('user');
         Route::patch('/{user}', [AgentController::class, 'update'])->name('update')->whereNumber('user');
         Route::post('/{user}/delete', [AgentController::class, 'destroy'])->name('destroy')->whereNumber('user');
+        Route::post('/{user}/coaching-notes', [AgentController::class, 'storeCoachingNote'])->name('coaching-notes.store')->whereNumber('user');
+        Route::patch('/{user}/coaching-notes/{note}/resolve', [AgentController::class, 'resolveCoachingNote'])->name('coaching-notes.resolve')->whereNumber('user', 'note');
+        Route::delete('/{user}/coaching-notes/{note}', [AgentController::class, 'deleteCoachingNote'])->name('coaching-notes.destroy')->whereNumber('user', 'note');
     });
 
     // SMS

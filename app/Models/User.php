@@ -127,4 +127,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(AgentMilestone::class);
     }
+
+    public function coachingNotes(): HasMany
+    {
+        return $this->hasMany(CoachingNote::class, 'agent_id');
+    }
+
+    public function authoredCoachingNotes(): HasMany
+    {
+        return $this->hasMany(CoachingNote::class, 'author_id');
+    }
 }
