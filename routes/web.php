@@ -6,6 +6,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ApprovalsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BarcodeLabelController;
 use App\Http\Controllers\BurnoutPredictionController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\ClaimController;
@@ -317,6 +318,20 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::patch('/settings', [DepreciationAutomationController::class, 'updateSettings'])->name('settings');
             Route::patch('/settings/api', [DepreciationAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
             Route::get('/export', [DepreciationAutomationController::class, 'exportCsv'])->name('export');
+        });
+
+        // Phase 3 M1: Barcode Labels — generate and print from inventory UI
+        Route::prefix('barcode-labels')->name('barcode-labels.')->group(function () {
+            Route::get('/', [BarcodeLabelController::class, 'index'])->name('index');
+            Route::get('/api', [BarcodeLabelController::class, 'api'])->name('api');
+            Route::get('/items', [BarcodeLabelController::class, 'items'])->name('items');
+            Route::post('/generate', [BarcodeLabelController::class, 'generateLabels'])->name('generate');
+            Route::post('/auto-generate', [BarcodeLabelController::class, 'autoGenerate'])->name('auto-generate');
+            Route::post('/auto-generate/api', [BarcodeLabelController::class, 'apiAutoGenerate'])->name('auto-generate.api');
+            Route::post('/assign', [BarcodeLabelController::class, 'assignBarcode'])->name('assign');
+            Route::post('/assign/api', [BarcodeLabelController::class, 'apiAssignBarcode'])->name('assign.api');
+            Route::patch('/settings', [BarcodeLabelController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [BarcodeLabelController::class, 'apiUpdateSettings'])->name('settings.api');
         });
     });
 });

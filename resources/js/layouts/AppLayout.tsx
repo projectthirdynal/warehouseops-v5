@@ -60,6 +60,7 @@ import {
   AlertTriangle,
   Calculator,
   TrendingDown,
+  Barcode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -373,6 +374,12 @@ const navigation: NavEntry[] = [
         name: 'Depreciation Automation',
         href: '/inventory/depreciation-automation',
         icon: TrendingDown,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Barcode Labels',
+        href: '/inventory/barcode-labels',
+        icon: Barcode,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
