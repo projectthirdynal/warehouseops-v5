@@ -32,6 +32,7 @@ function ccProductWithStock(Warehouse $wh, int $stock = 100): Product
         'reserved_stock' => 0,
         'reorder_point' => 10,
     ]);
+
     return $p;
 }
 
