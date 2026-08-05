@@ -835,8 +835,12 @@ export default function AppLayout({ children }: PropsWithChildren) {
       isHovered && children.length > 0 && flyoutPos
         ? createPortal(
             <div
-              className="fixed z-[9999] w-56 origin-left animate-in fade-in-0 zoom-in-95 slide-in-from-left-1 rounded-xl border bg-popover p-2 shadow-lg duration-150"
-              style={{ top: flyoutPos.top, left: flyoutPos.left }}
+              className="fixed z-[9999] w-56 origin-left animate-in fade-in-0 zoom-in-95 slide-in-from-left-1 overflow-y-auto rounded-xl border bg-popover p-2 shadow-lg duration-150"
+              style={{
+                top: flyoutPos.top,
+                left: flyoutPos.left,
+                maxHeight: `calc(100vh - ${flyoutPos.top}px - 16px)`,
+              }}
               onMouseEnter={() => openGroup(group.name)}
               onMouseLeave={closeGroup}
             >
