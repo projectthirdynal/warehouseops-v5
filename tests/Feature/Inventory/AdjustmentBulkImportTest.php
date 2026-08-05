@@ -11,12 +11,12 @@ use Illuminate\Http\UploadedFile;
 
 use function Pest\Laravel\actingAs;
 
-function makeImportUser(): User
+function makeBulkImportUser(): User
 {
     return User::factory()->create(['role' => 'warehouse', 'is_active' => true]);
 }
 
-function makeWarehouse(): Warehouse
+function makeBulkImportWarehouse(): Warehouse
 {
     return Warehouse::factory()->create(['is_active' => true, 'is_default' => true]);
 }
@@ -24,7 +24,7 @@ function makeWarehouse(): Warehouse
 // ─── Index ──────────────────────────────────────────────────────────────────
 
 test('warehouse user can view bulk import index', function () {
-    $user = makeImportUser();
+    $user = makeBulkImportUser();
 
     actingAs($user)
         ->get(route('inventory.adjustment-bulk-import.index'))
@@ -35,7 +35,7 @@ test('warehouse user can view bulk import index', function () {
 // ─── Template download ──────────────────────────────────────────────────────
 
 test('template download returns csv', function () {
-    $user = makeImportUser();
+    $user = makeBulkImportUser();
 
     actingAs($user)
         ->get(route('inventory.adjustment-bulk-import.template'))
@@ -46,8 +46,8 @@ test('template download returns csv', function () {
 // ─── Preview valid CSV ──────────────────────────────────────────────────────
 
 test('preview returns valid rows for correct csv', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-001']);
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nproduct,PROD-001,{$warehouse->code},150,CYCLE_COUNT\n";
@@ -65,7 +65,7 @@ test('preview returns valid rows for correct csv', function () {
 // ─── Preview with missing headers ───────────────────────────────────────────
 
 test('preview returns error for missing required headers', function () {
-    $user = makeImportUser();
+    $user = makeBulkImportUser();
 
     $csv = "item_type,sku,quantity_after\nproduct,PROD-001,100\n";
 
@@ -80,8 +80,8 @@ test('preview returns error for missing required headers', function () {
 // ─── Preview with invalid item type ─────────────────────────────────────────
 
 test('preview flags invalid item type', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nequipment,SKU-001,{$warehouse->code},100,CYCLE_COUNT\n";
 
@@ -96,8 +96,8 @@ test('preview flags invalid item type', function () {
 // ─── Preview with invalid reason code ───────────────────────────────────────
 
 test('preview flags invalid reason code', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-002']);
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nproduct,PROD-002,{$warehouse->code},100,INVALID_REASON\n";
@@ -113,8 +113,8 @@ test('preview flags invalid reason code', function () {
 // ─── Preview with non-existent SKU ──────────────────────────────────────────
 
 test('preview flags non-existent sku', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nproduct,NOT-EXIST,{$warehouse->code},100,CYCLE_COUNT\n";
 
@@ -129,8 +129,8 @@ test('preview flags non-existent sku', function () {
 // ─── Preview with negative quantity ─────────────────────────────────────────
 
 test('preview flags negative quantity', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-003']);
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nproduct,PROD-003,{$warehouse->code},-5,CYCLE_COUNT\n";
@@ -146,8 +146,8 @@ test('preview flags negative quantity', function () {
 // ─── Confirm import creates pending adjustments ─────────────────────────────
 
 test('confirm creates pending stock adjustments', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-004']);
     $supply = Supply::factory()->create(['is_active' => true, 'sku' => 'SUP-004']);
 
@@ -188,8 +188,8 @@ test('confirm creates pending stock adjustments', function () {
 // ─── Confirm with variant ───────────────────────────────────────────────────
 
 test('confirm creates adjustment with variant', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-005']);
     $variant = ProductVariant::create([
         'product_id' => $product->id,
@@ -264,9 +264,9 @@ test('service generates template with correct headers', function () {
 // ─── Service: import creates adjustments ────────────────────────────────────
 
 test('service import creates stock adjustments', function () {
-    $warehouse = makeWarehouse();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-SVC1']);
-    $user = makeImportUser();
+    $user = makeBulkImportUser();
 
     $service = app(AdjustmentBulkImportService::class);
 
@@ -311,7 +311,7 @@ test('service validateRows handles empty input', function () {
 // ─── Service: validateRows with supply item ─────────────────────────────────
 
 test('service validateRows resolves supply item', function () {
-    $warehouse = makeWarehouse();
+    $warehouse = makeBulkImportWarehouse();
     $supply = Supply::factory()->create(['is_active' => true, 'sku' => 'SUP-VAL1']);
 
     $service = app(AdjustmentBulkImportService::class);
@@ -337,8 +337,8 @@ test('service validateRows resolves supply item', function () {
 // ─── Preview with mixed valid and invalid rows ──────────────────────────────
 
 test('preview handles mixed valid and invalid rows', function () {
-    $user = makeImportUser();
-    $warehouse = makeWarehouse();
+    $user = makeBulkImportUser();
+    $warehouse = makeBulkImportWarehouse();
     $product = Product::factory()->create(['is_active' => true, 'sku' => 'PROD-MIX1']);
 
     $csv = "item_type,sku,warehouse_code,quantity_after,reason_code\nproduct,PROD-MIX1,{$warehouse->code},100,CYCLE_COUNT\nproduct,NOT-EXIST,{$warehouse->code},50,CYCLE_COUNT\nproduct,PROD-MIX1,{$warehouse->code},-10,CYCLE_COUNT\n";
