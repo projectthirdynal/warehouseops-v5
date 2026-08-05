@@ -62,6 +62,7 @@ import {
   TrendingDown,
   Barcode,
   Grid3x3,
+  LineChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -388,6 +389,12 @@ const navigation: NavEntry[] = [
         name: 'Warehouse Map',
         href: '/inventory/warehouse-map',
         icon: Grid3x3,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Demand Forecasting',
+        href: '/inventory/demand-forecast',
+        icon: LineChart,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       { name: 'Returns', href: '/waybills/returns', icon: RotateCcw, roles: OPS_ADMIN_ROLES },

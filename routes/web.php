@@ -17,6 +17,7 @@ use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeadStockAutomationController;
 use App\Http\Controllers\DeadStockController;
+use App\Http\Controllers\DemandForecastController;
 use App\Http\Controllers\DepreciationAutomationController;
 use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
@@ -311,6 +312,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::get('/api/warehouse/{warehouseId}', [WarehouseMapController::class, 'apiWarehouseMap'])->name('warehouse');
             Route::get('/api/location/{locationId}', [WarehouseMapController::class, 'apiLocationDetails'])->name('location');
             Route::put('/api/location/{locationId}/coordinates', [WarehouseMapController::class, 'apiUpdateCoordinates'])->name('coordinates');
+        });
+
+        // Phase 4 L1: Demand Forecasting — historical usage and seasonality
+        Route::prefix('demand-forecast')->name('demand-forecast.')->group(function () {
+            Route::get('/', [DemandForecastController::class, 'index'])->name('index');
+            Route::get('/api', [DemandForecastController::class, 'api'])->name('api');
+            Route::get('/api/product/{productId}', [DemandForecastController::class, 'apiProductDetail'])->name('product');
         });
 
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
