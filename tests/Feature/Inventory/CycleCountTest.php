@@ -61,7 +61,8 @@ test('store creates a session with items', function () {
 });
 
 test('show renders detail page', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);
@@ -73,7 +74,8 @@ test('show renders detail page', function () {
 });
 
 test('record count via route updates item', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh, 100);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);
@@ -89,7 +91,8 @@ test('record count via route updates item', function () {
 });
 
 test('skip item sets status skipped', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);
@@ -103,7 +106,8 @@ test('skip item sets status skipped', function () {
 });
 
 test('finalize creates adjustments for variances', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh, 100);
     SiteSetting::set('cycle_count_auto_create_adjustments', 'true');
 
@@ -127,7 +131,8 @@ test('finalize creates adjustments for variances', function () {
 });
 
 test('finalize without auto-create skips adjustments', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh, 100);
     SiteSetting::set('cycle_count_auto_create_adjustments', 'false');
 
@@ -141,7 +146,8 @@ test('finalize without auto-create skips adjustments', function () {
 });
 
 test('cannot finalize already finalized session', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);
@@ -152,7 +158,8 @@ test('cannot finalize already finalized session', function () {
 });
 
 test('cancel session sets cancelled status', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);
@@ -165,7 +172,8 @@ test('cancel session sets cancelled status', function () {
 });
 
 test('report renders with variance data', function () {
-    $u = ccUser(); $wh = ccWarehouse();
+    $u = ccUser();
+    $wh = ccWarehouse();
     ccProductWithStock($wh, 100);
     $svc = app(CycleCountService::class);
     $s = $svc->createSession($wh->id, 1, $u->id);

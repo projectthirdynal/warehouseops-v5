@@ -8,7 +8,6 @@ use App\Domain\Inventory\Models\StockAdjustment;
 use App\Domain\Inventory\Models\StockAuditItem;
 use App\Domain\Inventory\Models\StockAuditSession;
 use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use App\Models\SiteSetting;
 use Illuminate\Support\Carbon;
