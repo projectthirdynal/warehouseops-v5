@@ -57,6 +57,11 @@ class CapexAsset extends Model
         return $this->hasMany(CapexDepreciationSchedule::class)->orderBy('year');
     }
 
+    public function depreciationJournals(): HasMany
+    {
+        return $this->hasMany(CapexDepreciationJournal::class)->orderBy('posting_date');
+    }
+
     public function assignments(): HasMany
     {
         return $this->hasMany(CapexAssetAssignment::class)->latest('assigned_at');

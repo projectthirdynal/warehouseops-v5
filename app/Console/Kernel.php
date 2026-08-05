@@ -35,6 +35,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('inventory:release-expired-reservations')->hourly()->withoutOverlapping();
         $schedule->command('inventory:check-reorder-points')->dailyAt('06:00')->withoutOverlapping()->onOneServer();
         $schedule->command('inventory:scan-dead-stock')->dailyAt('06:30')->withoutOverlapping()->onOneServer();
+        $schedule->command('inventory:post-depreciation')->monthlyOn(1, '07:00')->withoutOverlapping()->onOneServer();
         $schedule->command('invoices:mark-overdue')->dailyAt('06:00')->withoutOverlapping();
         $schedule->command('shop:process-scheduled-messages')->everyMinute()->withoutOverlapping();
         $schedule->command('shop:archive-stale-batches')->dailyAt('02:45')->withoutOverlapping();

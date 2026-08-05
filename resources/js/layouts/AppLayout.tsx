@@ -59,6 +59,7 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   Calculator,
+  TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -366,6 +367,12 @@ const navigation: NavEntry[] = [
         name: 'Dead Stock Automation',
         href: '/inventory/dead-stock-automation',
         icon: Skull,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Depreciation Automation',
+        href: '/inventory/depreciation-automation',
+        icon: TrendingDown,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },

@@ -15,6 +15,7 @@ use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeadStockAutomationController;
 use App\Http\Controllers\DeadStockController;
+use App\Http\Controllers\DepreciationAutomationController;
 use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DuplicateDetectionController;
@@ -305,6 +306,17 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::patch('/settings', [DeadStockAutomationController::class, 'updateSettings'])->name('settings');
             Route::patch('/settings/api', [DeadStockAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
             Route::get('/export', [DeadStockAutomationController::class, 'exportCsv'])->name('export');
+        });
+
+        // Phase 2 H4: Asset Depreciation Automation — scheduled monthly posting with journal entries
+        Route::prefix('depreciation-automation')->name('depreciation-automation.')->group(function () {
+            Route::get('/', [DepreciationAutomationController::class, 'index'])->name('index');
+            Route::get('/api', [DepreciationAutomationController::class, 'api'])->name('api');
+            Route::post('/post', [DepreciationAutomationController::class, 'triggerPost'])->name('post');
+            Route::post('/post/api', [DepreciationAutomationController::class, 'apiTriggerPost'])->name('post.api');
+            Route::patch('/settings', [DepreciationAutomationController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [DepreciationAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
+            Route::get('/export', [DepreciationAutomationController::class, 'exportCsv'])->name('export');
         });
     });
 });
