@@ -138,6 +138,7 @@ export default function BarcodeLabels({ dashboard }: Props) {
 
   useEffect(() => {
     loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function loadItems() {
