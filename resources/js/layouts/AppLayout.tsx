@@ -397,6 +397,12 @@ const navigation: NavEntry[] = [
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {
+        name: 'Bulk Import',
+        href: '/inventory/adjustment-bulk-import',
+        icon: Upload,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
         name: 'Non-Moving',
         href: '/inventory/non-moving',
         icon: AlertOctagon,

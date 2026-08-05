@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
+use App\Http\Controllers\AdjustmentBulkImportController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentLeadController;
@@ -293,6 +294,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/', [StockAdjustmentController::class, 'store'])->name('store');
             Route::post('/{id}/approve', [StockAdjustmentController::class, 'approve'])->name('approve');
             Route::post('/{id}/reject', [StockAdjustmentController::class, 'reject'])->name('reject');
+        });
+
+        // Phase 3 M2: Adjustment Bulk Import — CSV with validation and preview
+        Route::prefix('adjustment-bulk-import')->name('adjustment-bulk-import.')->group(function () {
+            Route::get('/', [AdjustmentBulkImportController::class, 'index'])->name('index');
+            Route::post('/preview', [AdjustmentBulkImportController::class, 'preview'])->name('preview');
+            Route::post('/confirm', [AdjustmentBulkImportController::class, 'confirm'])->name('confirm');
+            Route::get('/template', [AdjustmentBulkImportController::class, 'template'])->name('template');
         });
 
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
