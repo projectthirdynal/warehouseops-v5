@@ -40,9 +40,6 @@ export default defineConfig({
                     if (id.includes('xlsx')) {
                         return 'vendor-xlsx';
                     }
-                    if (id.includes('@radix-ui')) {
-                        return 'vendor-radix';
-                    }
                     if (id.includes('@inertiajs')) {
                         return 'vendor-inertia';
                     }
