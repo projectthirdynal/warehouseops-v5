@@ -58,6 +58,7 @@ import {
   Activity,
   ArrowRightLeft,
   AlertTriangle,
+  Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -353,6 +354,12 @@ const navigation: NavEntry[] = [
         name: 'Reorder Point Alerts',
         href: '/inventory/reorder-alerts',
         icon: AlertTriangle,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Inventory Valuation',
+        href: '/inventory/valuation',
+        icon: Calculator,
         roles: INVENTORY_MATERIAL_ROLES,
       },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },

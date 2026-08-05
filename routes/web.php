@@ -23,6 +23,7 @@ use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\InventoryDashboardController;
+use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadImportController;
 use App\Http\Controllers\LeadPoolController;
@@ -261,6 +262,13 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/{alert}/acknowledge', [ReorderPointAlertController::class, 'acknowledge'])->name('acknowledge');
             Route::post('/{alert}/acknowledge/api', [ReorderPointAlertController::class, 'apiAcknowledge'])->name('acknowledge.api');
             Route::patch('/settings', [ReorderPointAlertController::class, 'updateSettings'])->name('settings');
+        });
+
+        // Phase 2 H2: Inventory Valuation — FIFO, LIFO, weighted average, exportable
+        Route::prefix('valuation')->name('valuation.')->group(function () {
+            Route::get('/', [InventoryValuationController::class, 'index'])->name('index');
+            Route::get('/api', [InventoryValuationController::class, 'api'])->name('api');
+            Route::get('/export', [InventoryValuationController::class, 'exportCsv'])->name('export');
         });
 
         Route::prefix('assets')->name('assets.')->group(function () {
