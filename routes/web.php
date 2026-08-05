@@ -64,6 +64,7 @@ use App\Http\Controllers\TelesalesLeadImportController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseMapController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\WaybillImportController;
@@ -302,6 +303,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/preview', [AdjustmentBulkImportController::class, 'preview'])->name('preview');
             Route::post('/confirm', [AdjustmentBulkImportController::class, 'confirm'])->name('confirm');
             Route::get('/template', [AdjustmentBulkImportController::class, 'template'])->name('template');
+        });
+
+        // Phase 3 M3: Warehouse Map — visual layout with bin locations and occupancy
+        Route::prefix('warehouse-map')->name('warehouse-map.')->group(function () {
+            Route::get('/', [WarehouseMapController::class, 'index'])->name('index');
+            Route::get('/api/warehouse/{warehouseId}', [WarehouseMapController::class, 'apiWarehouseMap'])->name('warehouse');
+            Route::get('/api/location/{locationId}', [WarehouseMapController::class, 'apiLocationDetails'])->name('location');
+            Route::put('/api/location/{locationId}/coordinates', [WarehouseMapController::class, 'apiUpdateCoordinates'])->name('coordinates');
         });
 
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
