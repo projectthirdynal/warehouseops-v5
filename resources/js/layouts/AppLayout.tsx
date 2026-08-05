@@ -63,6 +63,7 @@ import {
   Barcode,
   Grid3x3,
   LineChart,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -427,6 +428,12 @@ const navigation: NavEntry[] = [
         href: '/inventory/dead-stock',
         icon: Skull,
         roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Cycle Counts',
+        href: '/inventory/cycle-counts',
+        icon: ClipboardList,
+        roles: OPS_ROLES,
       },
     ],
   },

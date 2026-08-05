@@ -14,6 +14,7 @@ use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\CourierAnalyticsController;
 use App\Http\Controllers\Crm\ThirdPartyController;
+use App\Http\Controllers\CycleCountController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeadStockAutomationController;
 use App\Http\Controllers\DeadStockController;
@@ -319,6 +320,22 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::get('/', [DemandForecastController::class, 'index'])->name('index');
             Route::get('/api', [DemandForecastController::class, 'api'])->name('api');
             Route::get('/api/product/{productId}', [DemandForecastController::class, 'apiProductDetail'])->name('product');
+        });
+
+        // Phase 4 L2: Cycle Count Module — scheduled tasks with variance reporting
+        Route::prefix('cycle-counts')->name('cycle-counts.')->group(function () {
+            Route::get('/', [CycleCountController::class, 'index'])->name('index');
+            Route::get('/api', [CycleCountController::class, 'api'])->name('api');
+            Route::post('/', [CycleCountController::class, 'store'])->name('store');
+            Route::get('/report', [CycleCountController::class, 'report'])->name('report');
+            Route::patch('/settings', [CycleCountController::class, 'updateSettings'])->name('settings');
+            Route::get('/{id}', [CycleCountController::class, 'show'])->name('show');
+            Route::get('/{id}/api', [CycleCountController::class, 'apiShow'])->name('show.api');
+            Route::post('/{id}/finalize', [CycleCountController::class, 'finalize'])->name('finalize');
+            Route::post('/{id}/cancel', [CycleCountController::class, 'cancel'])->name('cancel');
+            Route::post('/items/{itemId}/count', [CycleCountController::class, 'recordCount'])->name('items.count');
+            Route::post('/items/{itemId}/count/api', [CycleCountController::class, 'apiRecordCount'])->name('items.count.api');
+            Route::post('/items/{itemId}/skip', [CycleCountController::class, 'skipItem'])->name('items.skip');
         });
 
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
