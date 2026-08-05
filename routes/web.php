@@ -38,6 +38,7 @@ use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\ReceivingReportController;
 use App\Http\Controllers\RecyclingController;
+use App\Http\Controllers\ReorderPointAlertController;
 use App\Http\Controllers\ReplyTemplateController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnReceiptController;
@@ -249,6 +250,17 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/{transfer}/approve', [StockTransferController::class, 'approve'])->name('approve');
             Route::post('/{transfer}/reject', [StockTransferController::class, 'reject'])->name('reject');
             Route::post('/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('cancel');
+        });
+
+        // Phase 2 H1: Reorder Point Alerts — scan, notify, acknowledge, configure
+        Route::prefix('reorder-alerts')->name('reorder-alerts.')->group(function () {
+            Route::get('/', [ReorderPointAlertController::class, 'index'])->name('index');
+            Route::get('/api', [ReorderPointAlertController::class, 'api'])->name('api');
+            Route::post('/scan', [ReorderPointAlertController::class, 'triggerScan'])->name('scan');
+            Route::post('/scan/api', [ReorderPointAlertController::class, 'apiTriggerScan'])->name('scan.api');
+            Route::post('/{alert}/acknowledge', [ReorderPointAlertController::class, 'acknowledge'])->name('acknowledge');
+            Route::post('/{alert}/acknowledge/api', [ReorderPointAlertController::class, 'apiAcknowledge'])->name('acknowledge.api');
+            Route::patch('/settings', [ReorderPointAlertController::class, 'updateSettings'])->name('settings');
         });
 
         Route::prefix('assets')->name('assets.')->group(function () {
