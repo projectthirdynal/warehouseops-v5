@@ -9,6 +9,7 @@ use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
 use App\Models\SiteSetting;
 use App\Models\User;
+
 use function Pest\Laravel\actingAs;
 
 function ccUser(): User
