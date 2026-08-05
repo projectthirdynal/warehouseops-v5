@@ -362,6 +362,12 @@ const navigation: NavEntry[] = [
         icon: Calculator,
         roles: INVENTORY_MATERIAL_ROLES,
       },
+      {
+        name: 'Dead Stock Automation',
+        href: '/inventory/dead-stock-automation',
+        icon: Skull,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
       { name: 'Returns', href: '/waybills/returns', icon: RotateCcw, roles: OPS_ADMIN_ROLES },
       {

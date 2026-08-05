@@ -13,6 +13,7 @@ use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\CourierAnalyticsController;
 use App\Http\Controllers\Crm\ThirdPartyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeadStockAutomationController;
 use App\Http\Controllers\DeadStockController;
 use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
@@ -294,6 +295,17 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
 
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
         Route::post('/dead-stock', [DeadStockController::class, 'store'])->name('dead-stock.store');
+
+        // Phase 2 H3: Dead Stock Automation — scheduled scan, auto-flag, aging buckets, notifications
+        Route::prefix('dead-stock-automation')->name('dead-stock-automation.')->group(function () {
+            Route::get('/', [DeadStockAutomationController::class, 'index'])->name('index');
+            Route::get('/api', [DeadStockAutomationController::class, 'api'])->name('api');
+            Route::post('/scan', [DeadStockAutomationController::class, 'triggerScan'])->name('scan');
+            Route::post('/scan/api', [DeadStockAutomationController::class, 'apiTriggerScan'])->name('scan.api');
+            Route::patch('/settings', [DeadStockAutomationController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [DeadStockAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
+            Route::get('/export', [DeadStockAutomationController::class, 'exportCsv'])->name('export');
+        });
     });
 });
 
