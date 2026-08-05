@@ -267,11 +267,11 @@ class DeadStockScanService
     {
         $reference = $lastMovementAt ?? $createdAt ?? now();
 
-        if ($reference instanceof \Carbon\CarbonInterface) {
+        if ($reference instanceof CarbonInterface) {
             return (int) abs(now()->diffInDays($reference));
         }
 
-        return (int) abs(now()->diffInDays(\Carbon\Carbon::parse($reference)));
+        return (int) abs(now()->diffInDays(Carbon::parse($reference)));
     }
 
     /**
