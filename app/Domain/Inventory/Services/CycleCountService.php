@@ -63,7 +63,7 @@ class CycleCountService
     {
         $settings = $this->getSettings();
 
-        if (! $settings['auto_generate_enabled']) {
+        if (!$settings['auto_generate_enabled']) {
             return ['generated' => 0, 'skipped' => 0];
         }
 
@@ -89,7 +89,7 @@ class CycleCountService
             ->latest('created_at')
             ->first();
 
-        if (! $lastSession) {
+        if (!$lastSession) {
             return true;
         }
 
@@ -318,7 +318,7 @@ class CycleCountService
                 'finalized_at' => now(),
             ]);
 
-            if (! $settings['auto_create_adjustments']) {
+            if (!$settings['auto_create_adjustments']) {
                 return;
             }
 

@@ -26,9 +26,12 @@ function ccProductWithStock(Warehouse $wh, int $stock = 100): Product
 {
     $p = Product::factory()->create(['is_active' => true, 'cost_price' => 50]);
     ProductStock::create([
-        'product_id' => $p->id, 'variant_id' => null,
-        'warehouse_id' => $wh->id, 'current_stock' => $stock,
-        'reserved_stock' => 0, 'reorder_point' => 10,
+        'product_id' => $p->id,
+        'variant_id' => null,
+        'warehouse_id' => $wh->id,
+        'current_stock' => $stock,
+        'reserved_stock' => 0,
+        'reorder_point' => 10,
     ]);
     return $p;
 }
