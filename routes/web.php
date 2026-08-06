@@ -450,6 +450,16 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::post('/cod', [FinanceController::class, 'storeCodSettlement'])->name('cod.store');
         Route::post('/cod/{settlement}/receive', [FinanceController::class, 'receiveCodSettlement'])->name('cod.receive');
 
+        // Commission Automation — scheduled runs with approval workflow
+        Route::get('/commission-automation', [FinanceController::class, 'commissionAutomation'])->name('commission-automation');
+        Route::get('/commission-automation/{run}', [FinanceController::class, 'commissionRunShow'])->name('commission-automation.show');
+        Route::post('/commission-automation', [FinanceController::class, 'createCommissionRun'])->name('commission-automation.create');
+        Route::post('/commission-automation/{run}/approve', [FinanceController::class, 'approveCommissionRun'])->name('commission-automation.approve');
+        Route::post('/commission-automation/{run}/reject', [FinanceController::class, 'rejectCommissionRun'])->name('commission-automation.reject');
+        Route::post('/commission-automation/{run}/pay', [FinanceController::class, 'payCommissionRun'])->name('commission-automation.pay');
+        Route::post('/commission-automation/commission/reject', [FinanceController::class, 'rejectCommission'])->name('commission-automation.commission.reject');
+        Route::patch('/commission-automation/settings', [FinanceController::class, 'updateCommissionSettings'])->name('commission-automation.settings');
+
         // QuickBooks (accounting + admins only — finance officers view only)
         Route::prefix('quickbooks')->name('quickbooks.')->group(function () {
             Route::get('/', [QuickBooksController::class, 'dashboard'])->name('dashboard');

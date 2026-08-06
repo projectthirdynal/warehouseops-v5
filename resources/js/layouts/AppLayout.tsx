@@ -64,6 +64,7 @@ import {
   Grid3x3,
   LineChart,
   ClipboardList,
+  CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -189,6 +190,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/waybills/courier-analytics': 'Courier Analytics',
   '/finance/cod': 'COD Settlements',
   '/finance/commissions': 'Commissions',
+  '/finance/commission-automation': 'Commission Automation',
 };
 
 const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
@@ -582,6 +584,12 @@ const navigation: NavEntry[] = [
       { name: 'QuickBooks', href: '/finance/quickbooks', icon: Building2, roles: FINANCE_ROLES },
       { name: 'COD Settlements', href: '/finance/cod', icon: DollarSign, roles: FINANCE_ROLES },
       { name: 'Commissions', href: '/finance/commissions', icon: TrendingUp, roles: FINANCE_ROLES },
+      {
+        name: 'Commission Automation',
+        href: '/finance/commission-automation',
+        icon: CalendarClock,
+        roles: FINANCE_ROLES,
+      },
     ],
   },
 

@@ -18,6 +18,7 @@ class AgentCommission extends Model
         'product_id',
         'lead_id',
         'waybill_id',
+        'commission_run_id',
         'sale_amount',
         'commission_rate',
         'commission_amount',
@@ -26,6 +27,8 @@ class AgentCommission extends Model
         'approved_at',
         'paid_at',
         'cancelled_at',
+        'rejected_at',
+        'rejection_reason',
         'notes',
     ];
 
@@ -37,6 +40,7 @@ class AgentCommission extends Model
         'approved_at' => 'datetime',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     public function agent(): BelongsTo
@@ -52,6 +56,11 @@ class AgentCommission extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function commissionRun(): BelongsTo
+    {
+        return $this->belongsTo(CommissionRun::class);
     }
 
     // Scopes
