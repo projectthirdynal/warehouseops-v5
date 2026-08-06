@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Finance\Services;
 
 use App\Domain\Finance\Models\Budget;
-use App\Domain\Finance\Models\BudgetLine;
 use App\Domain\Finance\Models\BudgetVarianceAlert;
 use App\Domain\Finance\Models\CogsEntry;
 use App\Domain\Finance\Models\FinancialTransaction;
@@ -187,7 +186,7 @@ class BudgetService
         $created = [];
 
         foreach ($comparison['lines'] as $line) {
-            if (!$line['is_over_threshold']) {
+            if (! $line['is_over_threshold']) {
                 continue;
             }
 
