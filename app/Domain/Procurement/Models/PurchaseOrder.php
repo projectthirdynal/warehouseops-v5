@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Procurement\Models;
 
+use App\Domain\Finance\Models\ThreeWayMatch;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Procurement\Enums\PoStatus;
 use App\Models\User;
@@ -71,6 +72,11 @@ class PurchaseOrder extends Model
     public function receivingReports(): HasMany
     {
         return $this->hasMany(ReceivingReport::class, 'po_id');
+    }
+
+    public function threeWayMatches(): HasMany
+    {
+        return $this->hasMany(ThreeWayMatch::class, 'po_id');
     }
 
     public static function generateNumber(): string

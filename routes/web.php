@@ -26,6 +26,7 @@ use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
+use App\Http\Controllers\Finance\ThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\InventoryDashboardController;
@@ -521,6 +522,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         });
 
         Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
+
+        // Three-Way Match
+        Route::prefix('three-way-match')->name('three-way-match.')->group(function () {
+            Route::get('/', [ThreeWayMatchController::class, 'index'])->name('index');
+            Route::get('/{matchId}', [ThreeWayMatchController::class, 'show'])->name('show');
+            Route::post('/run', [ThreeWayMatchController::class, 'runMatch'])->name('run');
+            Route::get('/api/stats', [ThreeWayMatchController::class, 'apiStats'])->name('api.stats');
+        });
     });
 
     // Reports

@@ -2,9 +2,13 @@
 
 namespace App\Models;
 
+use App\Domain\Finance\Models\ThreeWayMatch;
+use App\Domain\Procurement\Models\PurchaseOrder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +21,7 @@ class SupplierInvoice extends Model
     protected $fillable = [
         'ref', 'status',
         'third_party_id', 'supplier_name', 'supplier_email', 'supplier_phone', 'supplier_address',
-        'order_id', 'invoice_id',
+        'order_id', 'invoice_id', 'po_id',
         'date_invoice', 'date_due', 'date_receipt',
         'payment_terms', 'currency',
         'subtotal', 'discount_amount', 'tax_rate', 'tax_amount', 'shipping_amount',
@@ -46,7 +50,13 @@ class SupplierInvoice extends Model
     {
         $year = now()->year;
         $count = DB::transaction(function () use ($year) {
-            return self::withTrashed()->whereYear('created_at', $year)->lockForUpdate()->count() + 1;
+            $latest = self::withTrashed()
+                ->whereYear('created_at', $year)
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            return ($latest ? (int) substr((string) $latest->ref, -5) : 0) + 1;
         });
 
         return sprintf('SINV-%s-%05d', $year, $count);
@@ -65,6 +75,21 @@ class SupplierInvoice extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'po_id');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(SupplierInvoiceItem::class);
+    }
+
+    public function threeWayMatch(): HasOne
+    {
+        return $this->hasOne(ThreeWayMatch::class);
     }
 
     public function createdBy(): BelongsTo
