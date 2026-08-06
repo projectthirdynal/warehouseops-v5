@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Finance;
 use App\Domain\Finance\Services\MultiCurrencyService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 
 class MultiCurrencyController extends Controller
@@ -94,7 +95,7 @@ class MultiCurrencyController extends Controller
             $validated['from_currency'],
             $validated['to_currency'],
             (float) $validated['rate'],
-            isset($validated['rate_date']) ? \Illuminate\Support\Carbon::parse($validated['rate_date']) : null,
+            isset($validated['rate_date']) ? Carbon::parse($validated['rate_date']) : null,
             $validated['source'] ?? 'manual',
         );
 
@@ -124,7 +125,7 @@ class MultiCurrencyController extends Controller
             'date' => 'nullable|date',
         ]);
 
-        $date = isset($validated['date']) ? \Illuminate\Support\Carbon::parse($validated['date']) : null;
+        $date = isset($validated['date']) ? Carbon::parse($validated['date']) : null;
         $rate = $this->service->getRate($validated['from'], $validated['to'], $date);
         $converted = $this->service->convert((float) $validated['amount'], $validated['from'], $validated['to'], $date);
 
