@@ -22,11 +22,11 @@ return new class extends Migration
             }
         });
 
-        // Add index only if columns exist
-        if (Schema::hasColumn('cart_templates', 'allowed_roles')) {
+        // Add btree index on is_shared only (composite index with json column is not supported by PostgreSQL)
+        if (Schema::hasColumn('cart_templates', 'is_shared')) {
             try {
                 Schema::table('cart_templates', function (Blueprint $table) {
-                    $table->index(['is_shared', 'allowed_roles']);
+                    $table->index('is_shared', 'cart_templates_is_shared_index');
                 });
             } catch (Exception $e) {
                 // Index already exists — ignore
@@ -37,7 +37,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('cart_templates', function (Blueprint $table) {
-            $table->dropIndex(['is_shared', 'allowed_roles']);
+            $table->dropIndex('cart_templates_is_shared_index');
             $table->dropColumn(['allowed_roles', 'cloned_from', 'last_used_at']);
         });
     }

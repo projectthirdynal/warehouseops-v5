@@ -143,7 +143,7 @@ class FinanceDashboardService
             $netRevenue = $revenue - $refunds;
             $grossProfit = $netRevenue - $cogs;
             $netProfit = $grossProfit - $shipping - $commissions;
-            $margin = $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 1) : 0;
+            $margin = $netRevenue > 0 ? (float) round(($netProfit / $netRevenue) * 100, 1) : 0.0;
 
             $trend[] = [
                 'month' => $monthStart->format('M Y'),
@@ -286,7 +286,9 @@ class FinanceDashboardService
                 'channel' => $r->source_channel ?? 'Unknown',
                 'revenue' => (float) $r->total,
                 'orders' => (int) $r->count,
-            ]);
+            ])
+            ->values()
+            ->all();
 
         return [
             'current' => [
