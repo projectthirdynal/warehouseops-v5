@@ -8,7 +8,6 @@ use App\Domain\Finance\Models\Currency;
 use App\Domain\Finance\Models\ExchangeRate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class MultiCurrencyService
 {
