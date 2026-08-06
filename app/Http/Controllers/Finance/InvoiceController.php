@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Domain\Finance\Services\QboSyncService;
 use App\Domain\Product\Models\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
@@ -11,6 +12,7 @@ use App\Models\ThirdParty;
 use App\Services\Finance\InvoiceCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class InvoiceController extends Controller
@@ -173,6 +175,13 @@ class InvoiceController extends Controller
             'updated_by' => $request->user()->id,
         ]);
 
+        // Auto-sync to QuickBooks if connected
+        try {
+            app(QboSyncService::class)->enqueueInvoice($invoice->fresh(['lines']));
+        } catch (\Throwable $e) {
+            Log::warning('QBO invoice sync failed', ['invoice' => $invoice->id, 'error' => $e->getMessage()]);
+        }
+
         return back()->with('success', 'Invoice marked as sent.');
     }
 
@@ -271,6 +280,16 @@ class InvoiceController extends Controller
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        // Auto-sync payment to QuickBooks if connected
+        try {
+            $payment = InvoicePayment::where('invoice_id', $invoice->id)->latest()->first();
+            if ($payment) {
+                app(QboSyncService::class)->enqueuePayment($payment);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('QBO payment sync failed', ['invoice' => $invoice->id, 'error' => $e->getMessage()]);
         }
 
         return back()->with('success', 'Payment recorded.');

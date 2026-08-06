@@ -9,6 +9,7 @@ use App\Domain\Finance\Models\QboAccountMapping;
 use App\Domain\Finance\Models\QboConnection;
 use App\Domain\Finance\Models\QboSyncQueue;
 use App\Domain\Finance\Services\QboClient;
+use App\Domain\Finance\Services\QboSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -32,7 +33,7 @@ class QuickBooksController extends Controller
         ];
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $connection = QboConnection::active();
         $stats = [
@@ -41,7 +42,14 @@ class QuickBooksController extends Controller
             'synced' => QboSyncQueue::synced()->count(),
         ];
 
-        $recent = QboSyncQueue::latest()->limit(50)->get([
+        $query = QboSyncQueue::latest();
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('entity_type')) {
+            $query->where('entity_type', $request->entity_type);
+        }
+        $recent = $query->limit(50)->get([
             'id', 'entity_type', 'entity_id', 'operation', 'status',
             'qbo_id', 'attempts', 'error_message', 'synced_at', 'created_at',
         ]);
@@ -55,6 +63,8 @@ class QuickBooksController extends Controller
 
         $sandboxCredentials = $this->qboCredentials('sandbox');
         $productionCredentials = $this->qboCredentials('production');
+
+        $syncService = app(QboSyncService::class);
 
         return Inertia::render('Finance/QuickBooks/Dashboard', [
             'connection' => $connection ? [
@@ -73,6 +83,9 @@ class QuickBooksController extends Controller
                 $productionCredentials['client_id'] !== '' && $productionCredentials['client_secret'] !== ''
             ),
             'redirect_uri' => url('/finance/quickbooks/callback'),
+            'entity_stats' => $syncService->getEntityStats(),
+            'sync_settings' => $syncService->getSyncSettings(),
+            'filters' => $request->only(['status', 'entity_type']),
         ]);
     }
 
@@ -222,5 +235,28 @@ class QuickBooksController extends Controller
         );
 
         return back()->with('success', 'Mapping saved.');
+    }
+
+    public function bulkRetry()
+    {
+        $count = app(QboSyncService::class)->bulkRetry();
+
+        return back()->with('success', "Re-queued {$count} failed sync item(s).");
+    }
+
+    public function updateSyncSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'auto_sync_invoice' => 'nullable|boolean',
+            'auto_sync_payment' => 'nullable|boolean',
+            'auto_sync_bill' => 'nullable|boolean',
+            'auto_sync_bill_payment' => 'nullable|boolean',
+            'auto_sync_deposit' => 'nullable|boolean',
+            'auto_sync_cogs' => 'nullable|boolean',
+        ]);
+
+        app(QboSyncService::class)->updateSyncSettings($validated);
+
+        return back()->with('success', 'Sync settings updated.');
     }
 }

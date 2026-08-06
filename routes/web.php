@@ -487,6 +487,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::get('/accounts', [QuickBooksController::class, 'accounts'])->name('accounts');
             Route::get('/mappings', [QuickBooksController::class, 'mappings'])->name('mappings.index');
             Route::post('/mappings', [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
+            Route::post('/sync/bulk-retry', [QuickBooksController::class, 'bulkRetry'])->name('sync.bulk-retry');
+            Route::patch('/sync-settings', [QuickBooksController::class, 'updateSyncSettings'])->name('sync-settings');
         });
 
         // Invoices

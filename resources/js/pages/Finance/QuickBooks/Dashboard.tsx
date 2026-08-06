@@ -1,4 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,8 @@ import {
   Power,
   Settings,
   KeyRound,
+  Zap,
+  Filter,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { PageProps } from '@/types';
@@ -45,6 +48,21 @@ interface SyncRow {
   created_at: string;
 }
 
+interface EntityStat {
+  pending: number;
+  synced: number;
+  failed: number;
+}
+
+interface SyncSettings {
+  auto_sync_invoice: boolean;
+  auto_sync_payment: boolean;
+  auto_sync_bill: boolean;
+  auto_sync_bill_payment: boolean;
+  auto_sync_deposit: boolean;
+  auto_sync_cogs: boolean;
+}
+
 interface Props {
   connection: Connection | null;
   stats: { pending: number; failed: number; synced: number };
@@ -52,6 +70,9 @@ interface Props {
   mapping_status: Record<string, string | null>;
   credentials_configured: boolean;
   redirect_uri: string;
+  entity_stats: Record<string, EntityStat>;
+  sync_settings: SyncSettings;
+  filters: { status?: string; entity_type?: string };
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -67,6 +88,9 @@ export default function QuickBooksDashboard({
   mapping_status,
   credentials_configured,
   redirect_uri,
+  entity_stats,
+  sync_settings,
+  filters,
 }: Props) {
   const flash =
     usePage<PageProps & { flash?: { error?: string; success?: string } }>().props.flash ?? {};
@@ -74,14 +98,49 @@ export default function QuickBooksDashboard({
     .filter(([, v]) => !v)
     .map(([k]) => k);
 
+  const [settingsForm, setSettingsForm] = useState<SyncSettings>(sync_settings);
+
+  useEffect(() => {
+    setSettingsForm(sync_settings);
+  }, [sync_settings]);
+
   function retry(id: number) {
     router.post(`/finance/quickbooks/sync/${id}/retry`);
+  }
+  function bulkRetry() {
+    if (window.confirm(`Retry all ${stats.failed} failed sync items?`)) {
+      router.post('/finance/quickbooks/sync/bulk-retry');
+    }
   }
   function disconnect() {
     if (window.confirm('Disconnect QuickBooks? Pending syncs will not retry until reconnected.')) {
       router.post('/finance/quickbooks/disconnect');
     }
   }
+  function applyFilter(key: string, value: string) {
+    router.get(
+      '/finance/quickbooks',
+      { ...filters, [key]: value || undefined },
+      { preserveState: true }
+    );
+  }
+  function saveSettings() {
+    router.patch(
+      '/finance/quickbooks/sync-settings',
+      settingsForm as unknown as Record<string, boolean>
+    );
+  }
+
+  const ENTITY_LABELS: Record<string, string> = {
+    bill: 'Bills',
+    invoice: 'Invoices',
+    payment: 'Payments',
+    bill_payment: 'Bill Payments',
+    journal_entry: 'Journal Entries',
+    deposit: 'Deposits',
+    vendor: 'Vendors',
+    purchase_order: 'Purchase Orders',
+  };
 
   return (
     <AppLayout>
@@ -243,10 +302,114 @@ QBO_ENVIRONMENT=sandbox    # or "production"`}
           />
         </div>
 
+        {/* Bulk retry bar */}
+        {stats.failed > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span>{stats.failed} failed sync item(s) need attention</span>
+            </div>
+            <Button size="sm" variant="outline" onClick={bulkRetry}>
+              <Zap className="mr-1 h-3.5 w-3.5" />
+              Retry All Failed
+            </Button>
+          </div>
+        )}
+
+        {/* Entity breakdown */}
+        {Object.keys(entity_stats).length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Sync by Entity Type</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {Object.entries(entity_stats).map(([type, s]) => (
+                  <div key={type} className="rounded-lg border p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {ENTITY_LABELS[type] ?? type}
+                    </p>
+                    <div className="mt-1 flex items-center gap-3 text-xs">
+                      <span className="text-info">{s.pending} pending</span>
+                      <span className="text-success">{s.synced} synced</span>
+                      {s.failed > 0 && <span className="text-destructive">{s.failed} failed</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Sync settings */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Auto-Sync Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {(
+                [
+                  ['auto_sync_invoice', 'Invoices'],
+                  ['auto_sync_payment', 'Payments'],
+                  ['auto_sync_bill', 'Bills'],
+                  ['auto_sync_bill_payment', 'Bill Payments'],
+                  ['auto_sync_deposit', 'Deposits'],
+                  ['auto_sync_cogs', 'COGS'],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={settingsForm[key]}
+                    onChange={(e) => setSettingsForm((p) => ({ ...p, [key]: e.target.checked }))}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <div className="mt-3">
+              <Button size="sm" onClick={saveSettings}>
+                Save Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Recent sync queue */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent Sync Activity</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Recent Sync Activity</CardTitle>
+              <div className="flex items-center gap-2">
+                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                <select
+                  value={filters.status ?? ''}
+                  onChange={(e) => applyFilter('status', e.target.value)}
+                  className="border rounded px-2 py-1 text-xs"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="SYNCED">Synced</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+                <select
+                  value={filters.entity_type ?? ''}
+                  onChange={(e) => applyFilter('entity_type', e.target.value)}
+                  className="border rounded px-2 py-1 text-xs"
+                >
+                  <option value="">All Types</option>
+                  <option value="bill">Bill</option>
+                  <option value="invoice">Invoice</option>
+                  <option value="payment">Payment</option>
+                  <option value="bill_payment">Bill Payment</option>
+                  <option value="journal_entry">Journal Entry</option>
+                  <option value="deposit">Deposit</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="purchase_order">Purchase Order</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
