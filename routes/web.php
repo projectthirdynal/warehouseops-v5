@@ -28,6 +28,7 @@ use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\PaymentGatewayController;
 use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
@@ -467,6 +468,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::post('/cod-reconciliation/manual-match', [FinanceController::class, 'manualMatchCodItem'])->name('cod-reconciliation.manual-match');
         Route::post('/cod-reconciliation/unmatch', [FinanceController::class, 'unmatchCodItem'])->name('cod-reconciliation.unmatch');
         Route::post('/cod-reconciliation/{settlement}/finalize', [FinanceController::class, 'finalizeCodReconciliation'])->name('cod-reconciliation.finalize');
+
+        // Payment Gateway — GCash, bank transfer with auto-reconciliation
+        Route::get('/payment-gateway', [PaymentGatewayController::class, 'index'])->name('payment-gateway');
+        Route::post('/payment-gateway', [PaymentGatewayController::class, 'store'])->name('payment-gateway.store');
+        Route::post('/payment-gateway/{transaction}/verify', [PaymentGatewayController::class, 'verify'])->name('payment-gateway.verify');
+        Route::post('/payment-gateway/{transaction}/fail', [PaymentGatewayController::class, 'fail'])->name('payment-gateway.fail');
+        Route::post('/payment-gateway/{transaction}/reconcile', [PaymentGatewayController::class, 'reconcile'])->name('payment-gateway.reconcile');
+        Route::patch('/payment-gateway/settings', [PaymentGatewayController::class, 'updateSettings'])->name('payment-gateway.settings');
 
         // QuickBooks (accounting + admins only — finance officers view only)
         Route::prefix('quickbooks')->name('quickbooks.')->group(function () {

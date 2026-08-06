@@ -65,6 +65,7 @@ import {
   LineChart,
   ClipboardList,
   CalendarClock,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -192,6 +193,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/finance/commissions': 'Commissions',
   '/finance/commission-automation': 'Commission Automation',
   '/finance/cod-reconciliation': 'COD Reconciliation',
+  '/finance/payment-gateway': 'Payment Gateway',
 };
 
 const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
@@ -595,6 +597,12 @@ const navigation: NavEntry[] = [
         name: 'COD Reconciliation',
         href: '/finance/cod-reconciliation',
         icon: Search,
+        roles: FINANCE_ROLES,
+      },
+      {
+        name: 'Payment Gateway',
+        href: '/finance/payment-gateway',
+        icon: CreditCard,
         roles: FINANCE_ROLES,
       },
     ],
