@@ -241,7 +241,7 @@ class MultiCurrencyService
                         'to' => $to,
                         'rate' => round(1.0 / (float) $inverse->rate, 6),
                         'rate_date' => $inverse->rate_date->toDateString(),
-                        'source' => $inverse->source . ' (inverse)',
+                        'source' => $inverse->source.' (inverse)',
                     ]);
                 }
             }
