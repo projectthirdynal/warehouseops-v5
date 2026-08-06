@@ -41,7 +41,7 @@ class FinanceDashboardService
             ->whereBetween('transaction_date', [$from, $to])
             ->sum('amount');
 
-        $invoicePayments = (float) InvoicePayment::whereBetween('paid_at', [$from, $to])
+        $invoicePayments = (float) InvoicePayment::whereBetween('payment_date', [$from, $to])
             ->sum('amount');
 
         $totalInflows = $revenueInflow + $codReceived + $gatewayInflow + $invoicePayments;
@@ -167,8 +167,8 @@ class FinanceDashboardService
     {
         // Assets
         $inventoryValue = (float) DB::table('stock_cost_lots')
-            ->where('remaining_quantity', '>', 0)
-            ->sum(DB::raw('remaining_quantity * unit_cost'));
+            ->where('quantity_remaining', '>', 0)
+            ->sum(DB::raw('quantity_remaining * unit_cost'));
 
         $accountsReceivable = (float) Invoice::whereNotIn('status', ['DRAFT', 'CANCELLED', 'PAID'])
             ->sum('amount_due');
@@ -247,8 +247,8 @@ class FinanceDashboardService
         $prevNet = $prevRevenue - $prevRefunds;
 
         $revenueGrowth = $prevNet > 0
-            ? round((($currentNet - $prevNet) / $prevNet) * 100, 1)
-            : 0;
+            ? (float) round((($currentNet - $prevNet) / $prevNet) * 100, 1)
+            : 0.0;
 
         // Daily revenue with refund overlay
         $dailyData = FinancialTransaction::whereBetween('transaction_date', [$from, $to])
