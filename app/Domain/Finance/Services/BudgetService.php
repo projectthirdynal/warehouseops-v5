@@ -9,7 +9,6 @@ use App\Domain\Finance\Models\BudgetLine;
 use App\Domain\Finance\Models\BudgetVarianceAlert;
 use App\Domain\Finance\Models\CogsEntry;
 use App\Domain\Finance\Models\FinancialTransaction;
-use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -188,7 +187,7 @@ class BudgetService
         $created = [];
 
         foreach ($comparison['lines'] as $line) {
-            if (! $line['is_over_threshold']) {
+            if (!$line['is_over_threshold']) {
                 continue;
             }
 
