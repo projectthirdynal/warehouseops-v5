@@ -522,6 +522,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         });
 
         Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
+        Route::get('/cost-of-goods/dashboard', [CostOfGoodsController::class, 'dashboard'])->name('cogs.dashboard');
+        Route::get('/api/cogs/dashboard', [CostOfGoodsController::class, 'apiDashboard'])->name('cogs.api.dashboard');
+        Route::get('/api/cogs/daily-summary', [CostOfGoodsController::class, 'apiDailySummary'])->name('cogs.api.daily-summary');
+        Route::patch('/api/cogs/alerts/{alertId}/resolve', [CostOfGoodsController::class, 'resolveAlert'])->name('cogs.api.alerts.resolve');
 
         // Three-Way Match
         Route::prefix('three-way-match')->name('three-way-match.')->group(function () {

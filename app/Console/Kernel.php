@@ -57,6 +57,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('leads:check-pool-capacity')->everyThirtyMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('predictive:retrain')->dailyAt('04:30')->withoutOverlapping()->onOneServer();
         $schedule->command('meta:validate-tokens')->dailyAt('05:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('cogs:generate-daily-summary')->dailyAt('01:00')->withoutOverlapping()->onOneServer();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {
