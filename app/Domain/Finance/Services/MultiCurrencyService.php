@@ -184,7 +184,7 @@ class MultiCurrencyService
     public function toggleCurrency(string $code): Currency
     {
         $currency = Currency::findOrFail(strtoupper($code));
-        $currency->update(['is_active' => !$currency->is_active]);
+        $currency->update(['is_active' => ! $currency->is_active]);
 
         return $currency->fresh();
     }
