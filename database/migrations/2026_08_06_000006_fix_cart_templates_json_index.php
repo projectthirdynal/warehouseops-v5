@@ -16,7 +16,7 @@ return new class extends Migration
 
         // Convert allowed_roles from json to jsonb for GIN index support
         if (Schema::hasColumn('cart_templates', 'allowed_roles')) {
-            DB::statement("ALTER TABLE cart_templates ALTER COLUMN allowed_roles TYPE jsonb USING allowed_roles::jsonb");
+            DB::statement('ALTER TABLE cart_templates ALTER COLUMN allowed_roles TYPE jsonb USING allowed_roles::jsonb');
         }
 
         // Drop the failed composite index if it somehow exists
@@ -39,7 +39,7 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS cart_templates_is_shared_index');
 
         if (Schema::hasColumn('cart_templates', 'allowed_roles')) {
-            DB::statement("ALTER TABLE cart_templates ALTER COLUMN allowed_roles TYPE json USING allowed_roles::json");
+            DB::statement('ALTER TABLE cart_templates ALTER COLUMN allowed_roles TYPE json USING allowed_roles::json');
         }
     }
 };
