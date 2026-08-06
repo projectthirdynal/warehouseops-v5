@@ -8,6 +8,7 @@ use App\Domain\Finance\Models\CommissionRule;
 use App\Domain\Finance\Models\CommissionRun;
 use App\Domain\Finance\Services\CodReconciliationService;
 use App\Domain\Finance\Services\CommissionService;
+use App\Domain\Finance\Services\FinanceDashboardService;
 use App\Domain\Finance\Services\RevenueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,7 @@ class FinanceController extends Controller
         private CommissionService $commissions,
         private RevenueService $revenue,
         private CodReconciliationService $codReconciliation,
+        private FinanceDashboardService $dashboardService,
     ) {}
 
     public function dashboard(Request $request)
@@ -48,8 +50,45 @@ class FinanceController extends Controller
             'dailyRevenue' => $dailyRevenue,
             'commissionStats' => $commissionStats,
             'codStats' => $codStats,
+            'enhanced' => $this->dashboardService->getDashboardData($from, $to),
             'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
         ]);
+    }
+
+    public function apiDashboard(Request $request)
+    {
+        $from = $request->filled('from') ? Carbon::parse($request->from) : now()->startOfMonth();
+        $to = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : now()->endOfDay();
+
+        return response()->json($this->dashboardService->getDashboardData($from, $to));
+    }
+
+    public function apiCashFlow(Request $request)
+    {
+        $from = $request->filled('from') ? Carbon::parse($request->from) : now()->startOfMonth();
+        $to = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : now()->endOfDay();
+
+        return response()->json($this->dashboardService->getCashFlow($from, $to));
+    }
+
+    public function apiPlTrend(Request $request)
+    {
+        $months = (int) ($request->get('months', 6));
+
+        return response()->json($this->dashboardService->getPlTrend($months));
+    }
+
+    public function apiBalanceSheet()
+    {
+        return response()->json($this->dashboardService->getBalanceSheet());
+    }
+
+    public function apiRevenueTrends(Request $request)
+    {
+        $from = $request->filled('from') ? Carbon::parse($request->from) : now()->startOfMonth();
+        $to = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : now()->endOfDay();
+
+        return response()->json($this->dashboardService->getRevenueTrends($from, $to));
     }
 
     public function commissions(Request $request)

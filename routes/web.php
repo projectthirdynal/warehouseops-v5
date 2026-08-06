@@ -444,6 +444,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
     // Finance dashboard + commissions + COD
     Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/', [FinanceController::class, 'dashboard'])->name('dashboard');
+        Route::get('/api/dashboard', [FinanceController::class, 'apiDashboard'])->name('api.dashboard');
+        Route::get('/api/cash-flow', [FinanceController::class, 'apiCashFlow'])->name('api.cash-flow');
+        Route::get('/api/pl-trend', [FinanceController::class, 'apiPlTrend'])->name('api.pl-trend');
+        Route::get('/api/balance-sheet', [FinanceController::class, 'apiBalanceSheet'])->name('api.balance-sheet');
+        Route::get('/api/revenue-trends', [FinanceController::class, 'apiRevenueTrends'])->name('api.revenue-trends');
         Route::get('/commissions', [FinanceController::class, 'commissions'])->name('commissions');
         Route::post('/commissions/approve', [FinanceController::class, 'approveCommissions'])->name('commissions.approve');
         Route::post('/commissions/pay', [FinanceController::class, 'payCommissions'])->name('commissions.pay');
