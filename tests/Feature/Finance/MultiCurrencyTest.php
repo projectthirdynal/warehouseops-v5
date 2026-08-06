@@ -14,10 +14,10 @@ beforeEach(function () {
     $this->service = app(MultiCurrencyService::class);
     $this->withoutMiddleware([VerifyCsrfToken::class]);
 
-    // Seed base currencies
-    Currency::create(['code' => 'PHP', 'name' => 'Philippine Peso', 'symbol' => '₱', 'decimal_places' => 2, 'is_active' => true]);
-    Currency::create(['code' => 'USD', 'name' => 'US Dollar', 'symbol' => '$', 'decimal_places' => 2, 'is_active' => true]);
-    Currency::create(['code' => 'CNY', 'name' => 'Chinese Yuan', 'symbol' => '¥', 'decimal_places' => 2, 'is_active' => true]);
+    // Seed base currencies (migration may already seed these)
+    Currency::firstOrCreate(['code' => 'PHP'], ['name' => 'Philippine Peso', 'symbol' => '₱', 'decimal_places' => 2, 'is_active' => true]);
+    Currency::firstOrCreate(['code' => 'USD'], ['name' => 'US Dollar', 'symbol' => '$', 'decimal_places' => 2, 'is_active' => true]);
+    Currency::firstOrCreate(['code' => 'CNY'], ['name' => 'Chinese Yuan', 'symbol' => '¥', 'decimal_places' => 2, 'is_active' => true]);
 });
 
 describe('MultiCurrencyService', function () {
