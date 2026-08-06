@@ -460,6 +460,14 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::post('/commission-automation/commission/reject', [FinanceController::class, 'rejectCommission'])->name('commission-automation.commission.reject');
         Route::patch('/commission-automation/settings', [FinanceController::class, 'updateCommissionSettings'])->name('commission-automation.settings');
 
+        // COD Reconciliation — auto-match remittances against delivered waybills
+        Route::get('/cod-reconciliation', [FinanceController::class, 'codReconciliation'])->name('cod-reconciliation');
+        Route::get('/cod-reconciliation/{settlement}', [FinanceController::class, 'codReconciliationShow'])->name('cod-reconciliation.show');
+        Route::post('/cod-reconciliation/{settlement}/auto-match', [FinanceController::class, 'autoMatchCodSettlement'])->name('cod-reconciliation.auto-match');
+        Route::post('/cod-reconciliation/manual-match', [FinanceController::class, 'manualMatchCodItem'])->name('cod-reconciliation.manual-match');
+        Route::post('/cod-reconciliation/unmatch', [FinanceController::class, 'unmatchCodItem'])->name('cod-reconciliation.unmatch');
+        Route::post('/cod-reconciliation/{settlement}/finalize', [FinanceController::class, 'finalizeCodReconciliation'])->name('cod-reconciliation.finalize');
+
         // QuickBooks (accounting + admins only — finance officers view only)
         Route::prefix('quickbooks')->name('quickbooks.')->group(function () {
             Route::get('/', [QuickBooksController::class, 'dashboard'])->name('dashboard');

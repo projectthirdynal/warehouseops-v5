@@ -191,6 +191,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/finance/cod': 'COD Settlements',
   '/finance/commissions': 'Commissions',
   '/finance/commission-automation': 'Commission Automation',
+  '/finance/cod-reconciliation': 'COD Reconciliation',
 };
 
 const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
@@ -588,6 +589,12 @@ const navigation: NavEntry[] = [
         name: 'Commission Automation',
         href: '/finance/commission-automation',
         icon: CalendarClock,
+        roles: FINANCE_ROLES,
+      },
+      {
+        name: 'COD Reconciliation',
+        href: '/finance/cod-reconciliation',
+        icon: Search,
         roles: FINANCE_ROLES,
       },
     ],

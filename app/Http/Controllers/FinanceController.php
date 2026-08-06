@@ -6,6 +6,7 @@ use App\Domain\Finance\Models\AgentCommission;
 use App\Domain\Finance\Models\CodSettlement;
 use App\Domain\Finance\Models\CommissionRule;
 use App\Domain\Finance\Models\CommissionRun;
+use App\Domain\Finance\Services\CodReconciliationService;
 use App\Domain\Finance\Services\CommissionService;
 use App\Domain\Finance\Services\RevenueService;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class FinanceController extends Controller
     public function __construct(
         private CommissionService $commissions,
         private RevenueService $revenue,
+        private CodReconciliationService $codReconciliation,
     ) {}
 
     public function dashboard(Request $request)
@@ -273,5 +275,96 @@ class FinanceController extends Controller
         $this->commissions->updateSettings($validated);
 
         return back()->with('success', 'Commission automation settings updated.');
+    }
+
+    // ── COD Reconciliation ─────────────────────────────────────────────────
+
+    public function codReconciliation(Request $request)
+    {
+        $query = CodSettlement::with(['reconciledBy:id,name'])
+            ->whereIn('status', ['RECEIVED', 'RECONCILED']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('courier_code')) {
+            $query->where('courier_code', $request->courier_code);
+        }
+
+        $settlements = $query->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
+        $stats = $this->codReconciliation->getStats();
+
+        return Inertia::render('Finance/CodReconciliation', [
+            'settlements' => $settlements,
+            'stats' => $stats,
+            'filters' => $request->only(['status', 'courier_code']),
+        ]);
+    }
+
+    public function codReconciliationShow(CodSettlement $settlement)
+    {
+        $settlement->load(['reconciledBy:id,name']);
+        $items = $settlement->reconciliationItems()
+            ->with(['order:id,order_number,cod_amount,receiver_name', 'waybill:id,waybill_number,amount'])
+            ->orderBy('match_status')
+            ->orderBy('expected_cod', 'desc')
+            ->paginate(50);
+
+        $unmatchedOrders = $this->codReconciliation->getUnmatchedOrders($settlement);
+
+        return Inertia::render('Finance/CodReconciliationDetail', [
+            'settlement' => $settlement,
+            'items' => $items,
+            'unmatchedOrders' => $unmatchedOrders->map(fn ($o) => [
+                'id' => $o->id,
+                'order_number' => $o->order_number,
+                'cod_amount' => (float) $o->cod_amount,
+                'receiver_name' => $o->receiver_name,
+                'delivered_at' => $o->delivered_at?->toDateTimeString(),
+            ]),
+        ]);
+    }
+
+    public function autoMatchCodSettlement(CodSettlement $settlement)
+    {
+        $result = $this->codReconciliation->autoMatch($settlement);
+
+        return back()->with('success', "Auto-match complete: {$result['matched']} matched, {$result['unmatched']} unmatched. Expected COD: {$result['expected_cod']}, Variance: {$result['variance']}");
+    }
+
+    public function manualMatchCodItem(Request $request)
+    {
+        $validated = $request->validate([
+            'item_id' => ['required', 'integer', 'exists:cod_reconciliation_items,id'],
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'remitted_cod' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $this->codReconciliation->manualMatch(
+            $validated['item_id'],
+            $validated['order_id'],
+            $validated['remitted_cod'] ?? null,
+        );
+
+        return back()->with('success', 'Item manually matched.');
+    }
+
+    public function unmatchCodItem(Request $request)
+    {
+        $validated = $request->validate([
+            'item_id' => ['required', 'integer', 'exists:cod_reconciliation_items,id'],
+        ]);
+
+        $this->codReconciliation->unmatch($validated['item_id']);
+
+        return back()->with('success', 'Item unmatched.');
+    }
+
+    public function finalizeCodReconciliation(Request $request, CodSettlement $settlement)
+    {
+        $settlement = $this->codReconciliation->finalize($settlement, $request->user()->id);
+
+        return back()->with('success', "Settlement #{$settlement->id} reconciled successfully.");
     }
 }
