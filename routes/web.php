@@ -25,6 +25,7 @@ use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\Finance\InvoiceController;
+use App\Http\Controllers\Finance\MultiCurrencyController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\Finance\ThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
@@ -538,6 +539,20 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::get('/{matchId}', [ThreeWayMatchController::class, 'show'])->name('show');
             Route::post('/run', [ThreeWayMatchController::class, 'runMatch'])->name('run');
             Route::get('/api/stats', [ThreeWayMatchController::class, 'apiStats'])->name('api.stats');
+        });
+
+        // Multi-Currency — conversion for international suppliers
+        Route::prefix('multi-currency')->name('multi-currency.')->group(function () {
+            Route::get('/', [MultiCurrencyController::class, 'index'])->name('index');
+            Route::get('/api', [MultiCurrencyController::class, 'apiIndex'])->name('api.index');
+            Route::get('/api/currencies', [MultiCurrencyController::class, 'apiCurrencies'])->name('api.currencies');
+            Route::post('/api/currencies', [MultiCurrencyController::class, 'apiStoreCurrency'])->name('api.currencies.store');
+            Route::patch('/api/currencies/{code}/toggle', [MultiCurrencyController::class, 'apiToggleCurrency'])->name('api.currencies.toggle');
+            Route::get('/api/exchange-rates', [MultiCurrencyController::class, 'apiExchangeRates'])->name('api.exchange-rates');
+            Route::post('/api/exchange-rates', [MultiCurrencyController::class, 'apiStoreRate'])->name('api.exchange-rates.store');
+            Route::delete('/api/exchange-rates/{id}', [MultiCurrencyController::class, 'apiDeleteRate'])->name('api.exchange-rates.destroy');
+            Route::get('/api/rate-history/{from}/{to}', [MultiCurrencyController::class, 'apiRateHistory'])->name('api.rate-history');
+            Route::post('/api/convert', [MultiCurrencyController::class, 'apiConvert'])->name('api.convert');
         });
     });
 
