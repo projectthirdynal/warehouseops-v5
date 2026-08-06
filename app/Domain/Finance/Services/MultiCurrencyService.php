@@ -145,7 +145,7 @@ class MultiCurrencyService
      */
     public function getExchangeRates(int $perPage = 25): array
     {
-        $rates = ExchangeRate::with(['fromCurrency:id,code,name,symbol', 'toCurrency:id,code,name,symbol'])
+        $rates = ExchangeRate::with(['fromCurrency:code,name,symbol', 'toCurrency:code,name,symbol'])
             ->orderByDesc('rate_date')
             ->orderBy('from_currency')
             ->orderBy('to_currency')
@@ -224,6 +224,24 @@ class MultiCurrencyService
                         'rate' => (float) $rate->rate,
                         'rate_date' => $rate->rate_date->toDateString(),
                         'source' => $rate->source,
+                    ]);
+
+                    continue;
+                }
+
+                // Try inverse rate
+                $inverse = ExchangeRate::where('from_currency', $to)
+                    ->where('to_currency', $from)
+                    ->orderByDesc('rate_date')
+                    ->first();
+
+                if ($inverse) {
+                    $board->push([
+                        'from' => $from,
+                        'to' => $to,
+                        'rate' => round(1.0 / (float) $inverse->rate, 6),
+                        'rate_date' => $inverse->rate_date->toDateString(),
+                        'source' => $inverse->source . ' (inverse)',
                     ]);
                 }
             }

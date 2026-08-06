@@ -117,7 +117,7 @@ describe('MultiCurrencyService', function () {
         $board = $this->service->getRateBoard();
 
         expect($board)->toHaveCount(6);
-        $usdPhp = $board->firstWhere('from', 'USD')->where('to', 'PHP');
+        $usdPhp = $board->where('from', 'USD')->firstWhere('to', 'PHP');
         expect($usdPhp)->not->toBeNull();
     });
 
