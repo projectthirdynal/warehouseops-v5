@@ -24,6 +24,7 @@ use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\Finance\BudgetController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\MultiCurrencyController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
@@ -553,6 +554,21 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::delete('/api/exchange-rates/{id}', [MultiCurrencyController::class, 'apiDeleteRate'])->name('api.exchange-rates.destroy');
             Route::get('/api/rate-history/{from}/{to}', [MultiCurrencyController::class, 'apiRateHistory'])->name('api.rate-history');
             Route::post('/api/convert', [MultiCurrencyController::class, 'apiConvert'])->name('api.convert');
+        });
+
+        // Budget vs Actual — department budgets with variance alerts
+        Route::prefix('budget')->name('budget.')->group(function () {
+            Route::get('/', [BudgetController::class, 'index'])->name('index');
+            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
+            Route::get('/api', [BudgetController::class, 'apiIndex'])->name('api.index');
+            Route::get('/api/{budget}', [BudgetController::class, 'apiShow'])->name('api.show');
+            Route::post('/api', [BudgetController::class, 'apiStore'])->name('api.store');
+            Route::put('/api/{budget}', [BudgetController::class, 'apiUpdate'])->name('api.update');
+            Route::delete('/api/{budget}', [BudgetController::class, 'apiDestroy'])->name('api.destroy');
+            Route::get('/api/{budget}/comparison', [BudgetController::class, 'apiComparison'])->name('api.comparison');
+            Route::post('/api/{budget}/generate-alerts', [BudgetController::class, 'apiGenerateAlerts'])->name('api.generate-alerts');
+            Route::get('/api/{budget}/alerts', [BudgetController::class, 'apiAlerts'])->name('api.alerts');
+            Route::patch('/api/alerts/{alertId}/resolve', [BudgetController::class, 'apiResolveAlert'])->name('api.alerts.resolve');
         });
     });
 
