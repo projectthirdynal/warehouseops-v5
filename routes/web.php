@@ -28,7 +28,7 @@ use App\Http\Controllers\Finance\BudgetController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\MultiCurrencyController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
-use App\Http\Controllers\Finance\ThreeWayMatchController;
+use App\Http\Controllers\Finance\ThreeWayMatchController as FinanceThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\InventoryDashboardController;
@@ -61,6 +61,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\SmsController;
 use App\Http\Controllers\SourceAnalyticsController;
+use App\Http\Controllers\StatusController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockDashboardController;
 use App\Http\Controllers\StockTransferController;
@@ -89,6 +90,8 @@ Route::middleware('guest')->group(function () {
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
+
+Route::get('/api/status', StatusController::class)->name('api.status');
 
 Route::get('/meta/privacy', [MetaComplianceController::class, 'privacy'])->name('meta.privacy');
 Route::get('/meta/terms', [MetaComplianceController::class, 'terms'])->name('meta.terms');
@@ -536,10 +539,10 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
 
         // Three-Way Match
         Route::prefix('three-way-match')->name('three-way-match.')->group(function () {
-            Route::get('/', [ThreeWayMatchController::class, 'index'])->name('index');
-            Route::get('/{matchId}', [ThreeWayMatchController::class, 'show'])->name('show');
-            Route::post('/run', [ThreeWayMatchController::class, 'runMatch'])->name('run');
-            Route::get('/api/stats', [ThreeWayMatchController::class, 'apiStats'])->name('api.stats');
+            Route::get('/', [FinanceThreeWayMatchController::class, 'index'])->name('index');
+            Route::get('/{matchId}', [FinanceThreeWayMatchController::class, 'show'])->name('show');
+            Route::post('/run', [FinanceThreeWayMatchController::class, 'runMatch'])->name('run');
+            Route::get('/api/stats', [FinanceThreeWayMatchController::class, 'apiStats'])->name('api.stats');
         });
 
         // Multi-Currency — conversion for international suppliers
