@@ -5,12 +5,19 @@ namespace App\Services;
 use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Models\Lead;
 use App\Models\Customer;
+use App\Models\LeadCycle;
+use App\Models\LeadQualityModel;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Leads & Distribution Engine — Phase 1 C1: Lead Scoring.
+ * Leads & Distribution Engine — Phase 4 L2: Quality ML Model.
  *
  * Computes a 0–100 quality score for a lead from three weighted signals:
  *   - Source quality (30%) — how trustworthy/high-converting the lead source is.
+ *     When a trained model is available (see `train()`), the per-source score is
+ *     auto-learned from historical LeadCycle conversion outcomes instead of the
+ *     static SOURCE_SCORES fallback table below.
  *   - Demographics (25%) — completeness/validity of contact and location data.
  *   - History (45%) — prior customer delivery/conversion history (or lead cycle
  *     outcomes for leads without a linked customer). Weighted heaviest since past
@@ -21,6 +28,15 @@ use App\Models\Customer;
  */
 class LeadScoringService
 {
+    private const MODEL_VERSION = 'ml-v1';
+
+    private const MODEL_CACHE_KEY = 'lead_quality_model:'.self::MODEL_VERSION;
+
+    private const MODEL_CACHE_TTL = 3600;
+
+    /** Minimum closed cycles a source must have before its learned score is trusted. */
+    private const MIN_SAMPLES_PER_SOURCE = 10;
+
     private const SOURCE_SCORES = [
         'REFERRAL' => 90,
         'DELIVERED_WAYBILL' => 85,
@@ -121,9 +137,79 @@ class LeadScoringService
         return ['rescored' => $leads->count()];
     }
 
+    /**
+     * Retrain the source-quality signal from historical LeadCycle conversion outcomes.
+     * Computes, per lead source, the actual conversion rate (ORDERED / total closed
+     * cycles) and persists it as the learned `source_map`. Sources with fewer than
+     * `MIN_SAMPLES_PER_SOURCE` closed cycles are excluded and fall back to the static
+     * SOURCE_SCORES table at scoring time so sparse sources aren't over-trusted.
+     *
+     * @return array{sample_size: int, positive_count: int, sources_trained: int}
+     */
+    public function train(): array
+    {
+        $cycles = LeadCycle::whereNotNull('outcome')
+            ->with('lead:id,source')
+            ->get()
+            ->filter(fn (LeadCycle $c) => $c->lead !== null);
+
+        $sampleSize = $cycles->count();
+        $positiveCount = $cycles->where('outcome', 'ORDERED')->count();
+        $baseline = $sampleSize > 0 ? round(($positiveCount / $sampleSize) * 100, 2) : self::DEFAULT_SOURCE_SCORE;
+
+        $bySource = $cycles->groupBy(fn (LeadCycle $c) => $c->lead->source instanceof LeadSource
+            ? $c->lead->source->value
+            : strtoupper((string) $c->lead->source));
+
+        $sourceMap = [];
+        foreach ($bySource as $source => $group) {
+            if ($group->count() < self::MIN_SAMPLES_PER_SOURCE) {
+                continue;
+            }
+
+            $sold = $group->where('outcome', 'ORDERED')->count();
+            $sourceMap[$source] = round(($sold / $group->count()) * 100, 2);
+        }
+
+        LeadQualityModel::updateOrCreate(
+            ['model_version' => self::MODEL_VERSION],
+            [
+                'source_map' => $sourceMap,
+                'baseline_score' => $baseline,
+                'sample_size' => $sampleSize,
+                'positive_count' => $positiveCount,
+                'trained_at' => now(),
+            ]
+        );
+
+        Cache::forget(self::MODEL_CACHE_KEY);
+
+        return [
+            'sample_size' => $sampleSize,
+            'positive_count' => $positiveCount,
+            'sources_trained' => count($sourceMap),
+        ];
+    }
+
+    private function getTrainedModel(): ?LeadQualityModel
+    {
+        return Cache::remember(
+            self::MODEL_CACHE_KEY,
+            self::MODEL_CACHE_TTL,
+            fn () => LeadQualityModel::where('model_version', self::MODEL_VERSION)->first()
+        );
+    }
+
     private function scoreSourceValue(string $source): int
     {
-        return self::SOURCE_SCORES[strtoupper(trim($source))] ?? self::DEFAULT_SOURCE_SCORE;
+        $key = strtoupper(trim($source));
+
+        $model = $this->getTrainedModel();
+        if ($model && isset($model->source_map[$key])) {
+            return (int) round($model->source_map[$key]);
+        }
+
+        return self::SOURCE_SCORES[$key] ?? self::DEFAULT_SOURCE_SCORE;
     }
 
     /**

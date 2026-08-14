@@ -84,6 +84,9 @@ class QboSyncJob implements ShouldQueue
     {
         return match ($entityType) {
             'bill' => 'bill',
+            'invoice' => 'invoice',
+            'payment' => 'payment',
+            'bill_payment' => 'billpayment',
             'journal_entry' => 'journalentry',
             'deposit' => 'deposit',
             'expense' => 'purchase',
@@ -104,6 +107,7 @@ class QboSyncJob implements ShouldQueue
             'Purchaseorder' => 'PurchaseOrder',
             'Inventoryadjustment' => 'InventoryAdjustment',
             'Fixedassetschedule' => 'FixedAssetSchedule',
+            'Billpayment' => 'BillPayment',
             default => $key,
         };
 

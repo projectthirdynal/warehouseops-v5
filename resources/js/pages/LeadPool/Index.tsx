@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
   Search,
   Filter,
@@ -13,6 +13,9 @@ import {
   TrendingUp,
   CheckCircle,
   Inbox,
+  RefreshCw,
+  Archive,
+  XCircle,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -27,6 +30,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DistributionModal } from '@/components/leads/DistributionModal';
+import { BulkReassignModal } from '@/components/leads/BulkReassignModal';
+import { BulkActionModal } from '@/components/leads/BulkActionModal';
 import type { PaginatedResponse } from '@/types';
 import { formatDate } from '@/lib/utils';
 
@@ -73,10 +78,18 @@ interface SourceOption {
 
 type ViewMode = 'pool' | 'imported' | 'all';
 
+interface CapacityAlert {
+  level: 'low' | 'high';
+  count: number;
+  threshold: number;
+  source: string | null;
+}
+
 interface Props {
   leads: PaginatedResponse<PoolLead>;
   stats: any;
   agents: Agent[];
+  capacityAlerts?: CapacityAlert[];
   filters: {
     pool_status?: string;
     source?: string;
@@ -133,16 +146,24 @@ export default function LeadPoolIndex({
   leads,
   stats,
   agents,
+  capacityAlerts = [],
   filters,
   viewMode,
   sourceOptions: _sourceOptions,
   productOptions,
 }: Props) {
+  const { flash } = usePage().props as any;
+  const bulkActionErrors: string[] = flash?.bulkActionErrors ?? [];
+
   const [search, setSearch] = useState(filters?.search || '');
   const [statusFilter, setStatusFilter] = useState(filters?.pool_status || 'all');
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [isDistributeOpen, setIsDistributeOpen] = useState(false);
+  const [isReassignOpen, setIsReassignOpen] = useState(false);
+  const [isRecycleOpen, setIsRecycleOpen] = useState(false);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const isPoolView = viewMode === 'pool';
+  const showCheckboxes = isPoolView || viewMode === 'imported';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,13 +223,70 @@ export default function LeadPoolIndex({
             </h1>
             <p className="text-muted-foreground">View pool, imported, or all leads in one place</p>
           </div>
-          {isPoolView && selectedLeads.length > 0 && (
-            <Button onClick={() => setIsDistributeOpen(true)}>
-              <UserPlus className="mr-1.5 h-4 w-4" />
-              Distribute {selectedLeads.length} Leads
-            </Button>
+          {showCheckboxes && selectedLeads.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {isPoolView && (
+                <Button onClick={() => setIsDistributeOpen(true)}>
+                  <UserPlus className="mr-1.5 h-4 w-4" />
+                  Distribute {selectedLeads.length}
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setIsReassignOpen(true)}>
+                <UserPlus className="mr-1.5 h-4 w-4" />
+                Reassign {selectedLeads.length}
+              </Button>
+              <Button variant="outline" onClick={() => setIsRecycleOpen(true)}>
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                Recycle {selectedLeads.length}
+              </Button>
+              <Button variant="outline" onClick={() => setIsArchiveOpen(true)}>
+                <Archive className="mr-1.5 h-4 w-4" />
+                Archive {selectedLeads.length}
+              </Button>
+            </div>
           )}
         </div>
+
+        {/* Bulk Action Errors */}
+        {bulkActionErrors.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{bulkActionErrors.length} lead(s) could not be processed:</span>
+            </div>
+            <ul className="space-y-1 text-xs text-muted-foreground pl-1 max-h-32 overflow-y-auto">
+              {bulkActionErrors.map((err, i) => (
+                <li key={i}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Capacity Alerts */}
+        {isPoolView && capacityAlerts.length > 0 && (
+          <div className="space-y-2">
+            {capacityAlerts.map((alert, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                  alert.level === 'low'
+                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                    : 'border-warning/30 bg-warning/10 text-warning'
+                }`}
+              >
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  {alert.level === 'low' ? 'Low availability' : 'Overstocked'}
+                  {alert.source ? ` for source "${alert.source}"` : ' in the overall pool'}:{' '}
+                  <strong>{alert.count}</strong> leads (threshold {alert.threshold})
+                  {alert.level === 'low'
+                    ? ' — consider importing more leads.'
+                    : ' — consider distributing to agents.'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* View Tabs */}
         <div className="flex gap-2 border-b pb-2">
@@ -460,7 +538,7 @@ export default function LeadPoolIndex({
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    {isPoolView && (
+                    {showCheckboxes && (
                       <th className="h-12 px-4 text-left align-middle">
                         <Checkbox
                           checked={
@@ -511,7 +589,7 @@ export default function LeadPoolIndex({
                       const poolCfg = poolStatusConfig[lead.pool_status];
                       return (
                         <tr key={lead.id} className="border-b transition-colors hover:bg-muted/50">
-                          {isPoolView && (
+                          {showCheckboxes && (
                             <td className="p-4 align-middle">
                               <Checkbox
                                 checked={selectedLeads.includes(lead.id)}
@@ -582,7 +660,7 @@ export default function LeadPoolIndex({
                   ) : (
                     <tr>
                       <td
-                        colSpan={isPoolView ? 7 : viewMode === 'all' ? 9 : 6}
+                        colSpan={viewMode === 'all' ? 9 : showCheckboxes ? 7 : 6}
                         className="h-24 text-center text-muted-foreground"
                       >
                         No leads found
@@ -633,6 +711,32 @@ export default function LeadPoolIndex({
           productOptions={productOptions}
         />
       )}
+
+      {/* Bulk Reassign Modal */}
+      <BulkReassignModal
+        isOpen={isReassignOpen}
+        onClose={() => setIsReassignOpen(false)}
+        selectedLeadIds={selectedLeads}
+        agents={agents}
+      />
+
+      {/* Bulk Recycle Modal */}
+      <BulkActionModal
+        isOpen={isRecycleOpen}
+        onClose={() => setIsRecycleOpen(false)}
+        selectedLeadIds={selectedLeads}
+        action="recycle"
+        endpoint="/lead-pool/bulk-recycle"
+      />
+
+      {/* Bulk Archive Modal */}
+      <BulkActionModal
+        isOpen={isArchiveOpen}
+        onClose={() => setIsArchiveOpen(false)}
+        selectedLeadIds={selectedLeads}
+        action="archive"
+        endpoint="/lead-pool/bulk-archive"
+      />
     </AppLayout>
   );
 }

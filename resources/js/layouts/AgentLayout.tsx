@@ -1,4 +1,4 @@
-import { PropsWithChildren, useState } from 'react';
+import { PropsWithChildren, useState, useEffect, useCallback, useRef } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
   Phone,
@@ -11,11 +11,18 @@ import {
   ChevronRight,
   Bell,
   User,
+  LayoutDashboard,
+  CircleDot,
+  CircleSlash,
+  Trophy,
+  Smartphone,
 } from 'lucide-react';
+import axios from 'axios';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { usePolling } from '@/hooks/use-polling';
 import type { PageProps } from '@/types';
 
 interface NavItem {
@@ -26,16 +33,35 @@ interface NavItem {
 }
 
 const agentNav: NavItem[] = [
+  { name: 'Dashboard', href: '/agent/dashboard', icon: LayoutDashboard },
   { name: 'My Leads', href: '/agent/leads', icon: Phone },
   { name: 'Track Waybill', href: '/agent/tracking', icon: Search },
+  { name: 'Achievements', href: '/agent/gamification', icon: Trophy },
   { name: 'Tickets', href: '/tickets', icon: Headphones },
 ];
 
-const agentBottomNav: NavItem[] = [{ name: 'Settings', href: '/settings', icon: Settings }];
+const agentBottomNav: NavItem[] = [
+  { name: 'App Settings', href: '/agent/pwa-settings', icon: Smartphone },
+  { name: 'Settings', href: '/settings', icon: Settings },
+];
+
+interface AvailabilityState {
+  is_available: boolean;
+  last_seen_at: string | null;
+  idle_threshold_minutes: number;
+  idle_minutes: number | null;
+  remaining_minutes: number | null;
+  shift_start: string | null;
+  shift_end: string | null;
+  in_shift: boolean;
+}
 
 export default function AgentLayout({ children }: PropsWithChildren) {
   const { auth } = usePage<PageProps>().props;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [availability, setAvailability] = useState<AvailabilityState | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
 
@@ -48,6 +74,70 @@ export default function AgentLayout({ children }: PropsWithChildren) {
       .join('')
       .toUpperCase()
       .slice(0, 2);
+
+  const fetchAvailability = useCallback(async () => {
+    try {
+      const { data } = await axios.get<AvailabilityState>('/api/agent/availability');
+      setAvailability(data);
+    } catch {
+      // silently fail — non-critical
+    }
+  }, []);
+
+  const sendHeartbeat = useCallback(async () => {
+    try {
+      const { data } = await axios.post<AvailabilityState & { restored: boolean }>(
+        '/api/agent/heartbeat'
+      );
+      if (data.restored) {
+        setAvailability({
+          is_available: data.is_available,
+          last_seen_at: data.last_seen_at,
+          idle_threshold_minutes: data.idle_threshold_minutes,
+          idle_minutes: 0,
+          remaining_minutes: data.idle_threshold_minutes,
+          shift_start: availability?.shift_start ?? null,
+          shift_end: availability?.shift_end ?? null,
+          in_shift: availability?.in_shift ?? true,
+        });
+      }
+    } catch {
+      // silently fail
+    }
+  }, [availability]);
+
+  const handleToggle = useCallback(async () => {
+    if (!availability) return;
+    setToggling(true);
+    try {
+      const { data } = await axios.post<AvailabilityState>('/api/agent/availability', {
+        is_available: !availability.is_available,
+      });
+      setAvailability(data);
+    } catch {
+      // silently fail
+    } finally {
+      setToggling(false);
+    }
+  }, [availability]);
+
+  // Fetch initial availability on mount
+  useEffect(() => {
+    fetchAvailability();
+  }, [fetchAvailability]);
+
+  // Send heartbeat every 2 minutes when available
+  useEffect(() => {
+    if (availability?.is_available) {
+      heartbeatTimerRef.current = setInterval(sendHeartbeat, 120000);
+      return () => {
+        if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
+      };
+    }
+  }, [availability?.is_available, sendHeartbeat]);
+
+  // Poll availability status every 30s to detect auto-unavailable from backend
+  usePolling(fetchAvailability, [], { interval: 30000, enabled: true });
 
   const NavLinks = ({ onClick }: { onClick?: () => void }) => (
     <>
@@ -126,10 +216,37 @@ export default function AgentLayout({ children }: PropsWithChildren) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{auth?.user?.name || 'Agent'}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-success/50" />
-                <p className="text-xs text-muted-foreground">Online</p>
-              </div>
+              <button
+                onClick={handleToggle}
+                disabled={toggling || !availability}
+                className="flex items-center gap-1.5 mt-0.5 group cursor-pointer disabled:opacity-50"
+              >
+                {availability?.is_available ? (
+                  <>
+                    <CircleDot className="h-3.5 w-3.5 text-success group-hover:text-warning transition-colors" />
+                    <span className="text-xs text-success group-hover:text-warning transition-colors">
+                      {availability.remaining_minutes !== null &&
+                      availability.remaining_minutes <= 5
+                        ? `Auto-away in ${availability.remaining_minutes}m`
+                        : 'Available'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <CircleSlash className="h-3.5 w-3.5 text-muted-foreground group-hover:text-success transition-colors" />
+                    <span className="text-xs text-muted-foreground group-hover:text-success transition-colors">
+                      {availability?.shift_start && availability?.in_shift === false
+                        ? 'Off Shift'
+                        : 'Away'}
+                    </span>
+                  </>
+                )}
+              </button>
+              {availability?.shift_start && availability?.shift_end && (
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Shift: {availability.shift_start}–{availability.shift_end}
+                </p>
+              )}
             </div>
           </div>
         </div>

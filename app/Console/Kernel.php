@@ -33,11 +33,18 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('inventory:recompute-stock-status')->daily()->withoutOverlapping();
         $schedule->command('inventory:release-expired-reservations')->hourly()->withoutOverlapping();
+        $schedule->command('inventory:check-reorder-points')->dailyAt('06:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('inventory:scan-dead-stock')->dailyAt('06:30')->withoutOverlapping()->onOneServer();
+        $schedule->command('inventory:generate-cycle-counts')->dailyAt('07:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('inventory:post-depreciation')->monthlyOn(1, '07:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('finance:generate-commission-runs --backfill')->dailyAt('07:30')->withoutOverlapping()->onOneServer();
         $schedule->command('invoices:mark-overdue')->dailyAt('06:00')->withoutOverlapping();
         $schedule->command('shop:process-scheduled-messages')->everyMinute()->withoutOverlapping();
         $schedule->command('shop:archive-stale-batches')->dailyAt('02:45')->withoutOverlapping();
         $schedule->command('shop:cleanup-old-batches')->dailyAt('03:00')->withoutOverlapping();
         $schedule->command('shop:check-idle-agents')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('shop:enforce-shift-hours')->everyMinute()->withoutOverlapping()->onOneServer();
+        $schedule->command('shop:balance-workload')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:auto-resolve-inactive')->hourly()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:escalate-sla-breached')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('shop:apply-status-rules')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
@@ -45,8 +52,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('shop:archive-stale-conversations')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
         $schedule->command('shop:check-gamification')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
         $schedule->command('sales-dashboard:generate-scheduled-reports')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+        $schedule->command('quality:train')->dailyAt('04:15')->withoutOverlapping()->onOneServer();
         $schedule->command('leads:rescore --limit=500')->hourly()->withoutOverlapping()->onOneServer();
+        $schedule->command('leads:check-pool-capacity')->everyThirtyMinutes()->withoutOverlapping()->onOneServer();
+        $schedule->command('predictive:retrain')->dailyAt('04:30')->withoutOverlapping()->onOneServer();
         $schedule->command('meta:validate-tokens')->dailyAt('05:00')->withoutOverlapping()->onOneServer();
+        $schedule->command('cogs:generate-daily-summary')->dailyAt('01:00')->withoutOverlapping()->onOneServer();
 
         // Auto-fail orphaned imports: stuck in 'processing' with 0 rows for >15 min
         $schedule->call(function () {

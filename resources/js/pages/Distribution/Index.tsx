@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import DistributionRuleForm from './components/DistributionRuleForm';
 import ManualAssignmentModal from './components/ManualAssignmentModal';
 import AgentWorkloadCard from './components/AgentWorkloadCard';
+import PredictiveModelPanel from './components/PredictiveModelPanel';
 
 interface DistributionRule {
   id: number;
@@ -73,6 +74,7 @@ const strategyColors: Record<string, string> = {
   skill_match: 'bg-success/10 text-success',
   territory: 'bg-warning/10 text-warning',
   hybrid: 'bg-indigo-100 text-indigo-800',
+  predictive: 'bg-purple-100 text-purple-800',
 };
 
 const strategyLabels: Record<string, string> = {
@@ -81,6 +83,7 @@ const strategyLabels: Record<string, string> = {
   skill_match: 'Skill Match',
   territory: 'Territory',
   hybrid: 'Hybrid',
+  predictive: 'Predictive (ML)',
 };
 
 export default function DistributionIndex({ rules, queue, agents, workloads }: Props) {
@@ -281,6 +284,9 @@ export default function DistributionIndex({ rules, queue, agents, workloads }: P
             </div>
           </CardContent>
         </Card>
+
+        {/* Predictive Model */}
+        <PredictiveModelPanel />
 
         {/* Recent Queue */}
         <Card>

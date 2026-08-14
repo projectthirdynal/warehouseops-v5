@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CoachingNote;
 use App\Models\Lead;
 use App\Models\User;
 use App\Models\Waybill;
+use App\Services\CallTrackingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -84,11 +86,72 @@ class AgentController extends Controller
             ->limit(20)
             ->get(['id', 'name', 'status', 'amount', 'created_at', 'updated_at']);
 
+        $coachingNotes = CoachingNote::where('agent_id', $user->id)
+            ->with(['author:id,name', 'resolver:id,name'])
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get();
+
         return Inertia::render('Agents/Show', [
             'agent' => $user,
             'stats' => $stats,
             'recentLeads' => $recentLeads,
+            'coachingNotes' => $coachingNotes,
         ]);
+    }
+
+    public function storeCoachingNote(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'in:general,performance,behavior,attendance,skill_gap,praise,improvement_plan'],
+            'priority' => ['required', 'string', 'in:low,medium,high,urgent'],
+            'subject' => ['required', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:5000'],
+            'action_items' => ['nullable', 'array'],
+            'action_items.*' => ['string', 'max:500'],
+        ]);
+
+        CoachingNote::create([
+            'agent_id' => $user->id,
+            'author_id' => auth()->id(),
+            'category' => $validated['category'],
+            'priority' => $validated['priority'],
+            'subject' => $validated['subject'],
+            'body' => $validated['body'],
+            'action_items' => $validated['action_items'] ?? [],
+        ]);
+
+        return back()->with('success', 'Coaching note added.');
+    }
+
+    public function resolveCoachingNote(Request $request, User $user, CoachingNote $note)
+    {
+        if ($note->agent_id !== $user->id) {
+            return back()->with('error', 'This note does not belong to this agent.');
+        }
+
+        $validated = $request->validate([
+            'resolution_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $note->update([
+            'resolved_at' => now(),
+            'resolved_by' => auth()->id(),
+            'resolution_note' => $validated['resolution_note'] ?? null,
+        ]);
+
+        return back()->with('success', 'Coaching note resolved.');
+    }
+
+    public function deleteCoachingNote(User $user, CoachingNote $note)
+    {
+        if ($note->agent_id !== $user->id) {
+            return back()->with('error', 'This note does not belong to this agent.');
+        }
+
+        $note->delete();
+
+        return back()->with('success', 'Coaching note deleted.');
     }
 
     public function store(Request $request)
@@ -229,8 +292,10 @@ class AgentController extends Controller
         return back()->with('success', "Profile updated for {$user->name}.");
     }
 
-    public function monitoring()
+    public function monitoring(Request $request, CallTrackingService $callTrackingService)
     {
+        $period = $request->query('date_range', 'today');
+
         $metrics = [
             'leads' => [
                 'total' => Lead::count(),
@@ -275,7 +340,8 @@ class AgentController extends Controller
         return Inertia::render('Monitoring/Index', [
             'metrics' => $metrics,
             'hourly_data' => [],
-            'agent_performance' => [],
+            'agent_performance' => $callTrackingService->getTeamPerformance($period),
+            'period' => $period,
         ]);
     }
 }

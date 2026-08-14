@@ -6,6 +6,7 @@ use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\User;
+use App\Services\AgentAvailability;
 use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
 use App\Services\LeadDistributionService;
@@ -25,7 +26,9 @@ class LeadDistributionServiceTest extends TestCase
         $auditService = new LeadAuditService;
         $capacityManager = $this->createMock(CapacityManager::class);
         $poolService = new LeadPoolService($auditService, $capacityManager);
-        $this->service = new LeadDistributionService($poolService, $auditService);
+        $agentAvailability = $this->createMock(AgentAvailability::class);
+        $agentAvailability->method('isWithinShift')->willReturn(true);
+        $this->service = new LeadDistributionService($poolService, $auditService, $agentAvailability);
     }
 
     public function test_distribute_equal_splits_leads_evenly(): void

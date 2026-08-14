@@ -27,15 +27,33 @@ class TelesalesLeadImportController extends Controller
     }
 
     /**
+     * Detect columns in the uploaded file and suggest a field mapping.
+     */
+    public function columns(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+        ]);
+
+        $result = $this->importService->detectColumns($request->file('file'));
+
+        return response()->json($result);
+    }
+
+    /**
      * Preview import: validate file, detect duplicates, return results without writing.
      */
     public function preview(Request $request): JsonResponse
     {
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+            'mapping' => ['nullable', 'array'],
         ]);
 
-        $result = $this->importService->preview($request->file('file'));
+        $result = $this->importService->preview(
+            $request->file('file'),
+            $request->input('mapping', [])
+        );
 
         return response()->json($result);
     }
@@ -44,11 +62,13 @@ class TelesalesLeadImportController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+            'mapping' => ['nullable', 'array'],
         ]);
 
         $result = $this->importService->import(
             $request->file('file'),
-            auth()->id()
+            auth()->id(),
+            $request->input('mapping', [])
         );
 
         return redirect()->route('telesales.import.create')

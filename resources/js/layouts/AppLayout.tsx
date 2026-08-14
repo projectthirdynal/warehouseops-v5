@@ -53,6 +53,19 @@ import {
   RotateCcw,
   Bot,
   ScrollText,
+  Scale,
+  Brain,
+  Activity,
+  ArrowRightLeft,
+  AlertTriangle,
+  Calculator,
+  TrendingDown,
+  Barcode,
+  Grid3x3,
+  LineChart,
+  ClipboardList,
+  CalendarClock,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -135,6 +148,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/qc': 'QC Review',
   '/recycling/pool': 'Recycling',
   '/lead-pool': 'Lead Pool',
+  '/lead-pool/workload-balancing': 'Workload Balancing',
   '/telesales/import': 'Telesales Import',
   '/distribution': 'Distribution',
   '/distribution/analytics': 'Distribution Analytics',
@@ -177,6 +191,9 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/waybills/courier-analytics': 'Courier Analytics',
   '/finance/cod': 'COD Settlements',
   '/finance/commissions': 'Commissions',
+  '/finance/commission-automation': 'Commission Automation',
+  '/finance/cod-reconciliation': 'COD Reconciliation',
+  '/finance/payment-gateway': 'Payment Gateway',
 };
 
 const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
@@ -314,6 +331,12 @@ const navigation: NavEntry[] = [
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {
+        name: 'Real-Time Stock Dashboard',
+        href: '/inventory/stock/dashboard',
+        icon: Activity,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
         name: 'Reservations',
         href: '/inventory?tab=reservations',
         icon: PackageSearch,
@@ -325,7 +348,61 @@ const navigation: NavEntry[] = [
         icon: Recycle,
         roles: INVENTORY_MATERIAL_ROLES,
       },
+      {
+        name: 'Movement Audit Trail',
+        href: '/inventory/audit-trail',
+        icon: Activity,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Multi-Warehouse Transfer',
+        href: '/inventory/transfers',
+        icon: ArrowRightLeft,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Reorder Point Alerts',
+        href: '/inventory/reorder-alerts',
+        icon: AlertTriangle,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Inventory Valuation',
+        href: '/inventory/valuation',
+        icon: Calculator,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Dead Stock Automation',
+        href: '/inventory/dead-stock-automation',
+        icon: Skull,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Depreciation Automation',
+        href: '/inventory/depreciation-automation',
+        icon: TrendingDown,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Barcode Labels',
+        href: '/inventory/barcode-labels',
+        icon: Barcode,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
       { name: 'Warehouses', href: '/warehouses', icon: Building2, roles: OPS_ROLES },
+      {
+        name: 'Warehouse Map',
+        href: '/inventory/warehouse-map',
+        icon: Grid3x3,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Demand Forecasting',
+        href: '/inventory/demand-forecast',
+        icon: LineChart,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
       { name: 'Returns', href: '/waybills/returns', icon: RotateCcw, roles: OPS_ADMIN_ROLES },
       {
         name: 'Supplies',
@@ -340,6 +417,12 @@ const navigation: NavEntry[] = [
         roles: INVENTORY_MATERIAL_ROLES,
       },
       {
+        name: 'Bulk Import',
+        href: '/inventory/adjustment-bulk-import',
+        icon: Upload,
+        roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
         name: 'Non-Moving',
         href: '/inventory/non-moving',
         icon: AlertOctagon,
@@ -350,6 +433,12 @@ const navigation: NavEntry[] = [
         href: '/inventory/dead-stock',
         icon: Skull,
         roles: INVENTORY_MATERIAL_ROLES,
+      },
+      {
+        name: 'Cycle Counts',
+        href: '/inventory/cycle-counts',
+        icon: ClipboardList,
+        roles: OPS_ROLES,
       },
     ],
   },
@@ -386,7 +475,7 @@ const navigation: NavEntry[] = [
     children: [
       {
         name: 'Rules',
-        href: '/shop/auto-assign/settings',
+        href: '/shop?tab=auto-assign',
         icon: SlidersHorizontal,
         roles: ADMIN_ONLY,
       },
@@ -398,11 +487,11 @@ const navigation: NavEntry[] = [
       },
       {
         name: 'Assignment Rules',
-        href: '/shop/auto-assign/settings?tab=rules',
+        href: '/shop?tab=rules',
         icon: UserCog,
         roles: ADMIN_ONLY,
       },
-      { name: 'Broadcast Rules', href: '/shop/broadcast', icon: Bot, roles: ADMIN_ONLY },
+      { name: 'Broadcast Rules', href: '/shop?tab=broadcast', icon: Bot, roles: ADMIN_ONLY },
     ],
   },
 
@@ -498,6 +587,24 @@ const navigation: NavEntry[] = [
       { name: 'QuickBooks', href: '/finance/quickbooks', icon: Building2, roles: FINANCE_ROLES },
       { name: 'COD Settlements', href: '/finance/cod', icon: DollarSign, roles: FINANCE_ROLES },
       { name: 'Commissions', href: '/finance/commissions', icon: TrendingUp, roles: FINANCE_ROLES },
+      {
+        name: 'Commission Automation',
+        href: '/finance/commission-automation',
+        icon: CalendarClock,
+        roles: FINANCE_ROLES,
+      },
+      {
+        name: 'COD Reconciliation',
+        href: '/finance/cod-reconciliation',
+        icon: Search,
+        roles: FINANCE_ROLES,
+      },
+      {
+        name: 'Payment Gateway',
+        href: '/finance/payment-gateway',
+        icon: CreditCard,
+        roles: FINANCE_ROLES,
+      },
     ],
   },
 
@@ -531,6 +638,12 @@ const navigation: NavEntry[] = [
     roles: OPS_ADMIN_ROLES,
     children: [
       { name: 'Lead Pool', href: '/lead-pool', icon: Users, roles: OPS_ADMIN_ROLES },
+      {
+        name: 'Workload Balancing',
+        href: '/lead-pool/workload-balancing',
+        icon: Scale,
+        roles: OPS_ADMIN_ROLES,
+      },
       { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: OPS_ADMIN_ROLES },
       {
         name: 'Distribution Analytics',
@@ -553,6 +666,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: 'Admin Panel', href: '/admin', icon: Shield, roles: ADMIN_ONLY },
       { name: 'Agents', href: '/agents/governance', icon: UserCog, roles: ADMIN_ONLY },
+      { name: 'Burnout Prediction', href: '/agents/burnout', icon: Brain, roles: ADMIN_ONLY },
       { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, roles: ADMIN_ONLY },
       {
         name: 'Approvals',
@@ -758,8 +872,12 @@ export default function AppLayout({ children }: PropsWithChildren) {
       isHovered && children.length > 0 && flyoutPos
         ? createPortal(
             <div
-              className="fixed z-[9999] w-56 origin-left animate-in fade-in-0 zoom-in-95 slide-in-from-left-1 rounded-xl border bg-popover p-2 shadow-lg duration-150"
-              style={{ top: flyoutPos.top, left: flyoutPos.left }}
+              className="fixed z-[9999] w-56 origin-left animate-in fade-in-0 zoom-in-95 slide-in-from-left-1 overflow-y-auto rounded-xl border bg-popover p-2 shadow-lg duration-150"
+              style={{
+                top: flyoutPos.top,
+                left: flyoutPos.left,
+                maxHeight: `calc(100vh - ${flyoutPos.top}px - 16px)`,
+              }}
               onMouseEnter={() => openGroup(group.name)}
               onMouseLeave={closeGroup}
             >

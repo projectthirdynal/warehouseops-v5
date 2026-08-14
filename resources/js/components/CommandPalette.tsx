@@ -160,6 +160,12 @@ const allNavItems: NavItem[] = [
     section: 'Operations',
   },
   { name: 'Supplies', href: '/inventory/supplies', icon: Package, section: 'Operations' },
+  {
+    name: 'Cycle Counts',
+    href: '/inventory/cycle-counts',
+    icon: ClipboardCheck,
+    section: 'Operations',
+  },
   { name: 'Products', href: '/products', icon: Package, section: 'Operations' },
   { name: 'Warehouses', href: '/warehouses', icon: Building2, section: 'Operations' },
   {

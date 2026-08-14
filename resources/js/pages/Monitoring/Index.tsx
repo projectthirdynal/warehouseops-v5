@@ -1,9 +1,18 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { Users, Truck, Target, Activity, Calendar } from 'lucide-react';
+import { Users, Truck, Target, Activity, Calendar, Phone, Clock } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -47,7 +56,17 @@ interface Props {
     };
   };
   hourly_data: { hour: string; leads: number; sales: number }[];
-  agent_performance: { name: string; leads: number; sales: number; rate: number }[];
+  agent_performance: {
+    id: number;
+    name: string;
+    is_available: boolean;
+    calls: number;
+    leads: number;
+    sales: number;
+    conversion_rate: number;
+    avg_handle_time_hours: number;
+  }[];
+  period?: string;
 }
 
 const sampleActivity: ActivityItem[] = [
@@ -88,11 +107,31 @@ const sampleActivity: ActivityItem[] = [
   },
 ];
 
-export default function MonitoringIndex({ metrics, hourly_data }: Props) {
-  const [period, setPeriod] = useState('today');
+export default function MonitoringIndex({
+  metrics,
+  hourly_data,
+  agent_performance,
+  period: initialPeriod,
+}: Props) {
+  const [period, setPeriod] = useState(initialPeriod ?? 'today');
   const { success } = useToast();
 
-  usePolling(() => {}, [period], { interval: 30000, enabled: true });
+  const applyPeriod = (value: string) => {
+    setPeriod(value);
+    router.get(
+      '/monitoring/dashboard',
+      { date_range: value },
+      { preserveState: true, preserveScroll: true, replace: true }
+    );
+  };
+
+  usePolling(
+    () => {
+      router.reload({ only: ['metrics', 'hourly_data', 'agent_performance'] });
+    },
+    [period],
+    { interval: 30000, enabled: true }
+  );
 
   const safeHourly = hourly_data?.length
     ? hourly_data
@@ -119,7 +158,7 @@ export default function MonitoringIndex({ metrics, hourly_data }: Props) {
             <p className="text-muted-foreground">Real-time analytics and performance tracking</p>
           </div>
           <div className="flex gap-2">
-            <Select value={period} onValueChange={setPeriod}>
+            <Select value={period} onValueChange={applyPeriod}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
@@ -251,6 +290,60 @@ export default function MonitoringIndex({ metrics, hourly_data }: Props) {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Agent Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">
+                    <Phone className="mr-1 inline h-3.5 w-3.5" />
+                    Calls
+                  </TableHead>
+                  <TableHead className="text-right">Leads</TableHead>
+                  <TableHead className="text-right">Sales</TableHead>
+                  <TableHead className="text-right">Conversion</TableHead>
+                  <TableHead className="text-right">
+                    <Clock className="mr-1 inline h-3.5 w-3.5" />
+                    Avg Handle Time
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agent_performance?.length ? (
+                  agent_performance.map((agent) => (
+                    <TableRow key={agent.id}>
+                      <TableCell className="font-medium">{agent.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={agent.is_available ? 'default' : 'outline'}>
+                          {agent.is_available ? 'Available' : 'Offline'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{agent.calls}</TableCell>
+                      <TableCell className="text-right">{agent.leads}</TableCell>
+                      <TableCell className="text-right">{agent.sales}</TableCell>
+                      <TableCell className="text-right">{agent.conversion_rate}%</TableCell>
+                      <TableCell className="text-right">
+                        {agent.avg_handle_time_hours > 0 ? `${agent.avg_handle_time_hours}h` : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      No agent activity for this period.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

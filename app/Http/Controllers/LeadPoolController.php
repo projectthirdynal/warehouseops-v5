@@ -11,6 +11,7 @@ use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
+use App\Services\WorkloadBalancingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -20,7 +21,8 @@ class LeadPoolController extends Controller
 {
     public function __construct(
         private LeadPoolService $poolService,
-        private LeadDistributionService $distributionService
+        private LeadDistributionService $distributionService,
+        private WorkloadBalancingService $workloadService
     ) {
         $this->middleware(function ($request, $next) {
             if (! in_array(auth()->user()->role, ['superadmin', 'admin', 'supervisor'])) {
@@ -109,6 +111,7 @@ class LeadPoolController extends Controller
         return Inertia::render('LeadPool/Index', [
             'leads' => LeadPoolResource::collection($leads),
             'stats' => $stats,
+            'capacityAlerts' => $viewMode === 'pool' ? $this->poolService->checkCapacityAlerts() : [],
             'agents' => $agents->map(fn ($agent) => [
                 'id' => $agent->id,
                 'name' => $agent->name,
@@ -174,6 +177,67 @@ class LeadPoolController extends Controller
         return redirect()->back()->with('success', "Distributed {$result['total_distributed']} leads to {$result['agent_count']} agents");
     }
 
+    public function capacityAlerts()
+    {
+        return response()->json([
+            'alerts' => $this->poolService->checkCapacityAlerts(),
+        ]);
+    }
+
+    /**
+     * Bulk recycle — Phase 4 L1: Batch Operations.
+     * Returns multiple leads to the pool (AVAILABLE), closing active cycles.
+     */
+    public function bulkRecycle(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = $this->poolService->bulkRecycle(
+            $validated['lead_ids'],
+            auth()->user(),
+            $validated['reason'] ?? null
+        );
+
+        if ($result['recycled'] === 0) {
+            return redirect()->back()->with('error', 'No leads could be recycled. '.implode(' ', $result['errors']));
+        }
+
+        return redirect()->back()
+            ->with('success', "Recycled {$result['recycled']} lead(s) back to the pool.".($result['failed'] > 0 ? " {$result['failed']} failed." : ''))
+            ->with('bulkActionErrors', $result['errors']);
+    }
+
+    /**
+     * Bulk archive — Phase 4 L1: Batch Operations.
+     * Marks multiple leads as EXHAUSTED, removing them from active circulation.
+     */
+    public function bulkArchive(Request $request)
+    {
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['integer', 'exists:leads,id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $result = $this->poolService->bulkArchive(
+            $validated['lead_ids'],
+            auth()->user(),
+            $validated['reason'] ?? null
+        );
+
+        if ($result['archived'] === 0) {
+            return redirect()->back()->with('error', 'No leads could be archived. '.implode(' ', $result['errors']));
+        }
+
+        return redirect()->back()
+            ->with('success', "Archived {$result['archived']} lead(s).".($result['failed'] > 0 ? " {$result['failed']} failed." : ''))
+            ->with('bulkActionErrors', $result['errors']);
+    }
+
     public function agentPerformance(): Response
     {
         $agents = User::where('role', 'agent')
@@ -216,5 +280,88 @@ class LeadPoolController extends Controller
         return Inertia::render('LeadPool/AgentPerformance', [
             'agents' => $agents,
         ]);
+    }
+
+    /**
+     * Workload Balancing dashboard — supervisor view of agent workload
+     * with rebalancing controls.
+     */
+    public function workloadBalancing(): Response
+    {
+        $snapshot = $this->workloadService->getWorkloadSnapshot();
+
+        return Inertia::render('LeadPool/WorkloadBalancing', [
+            'snapshot' => $snapshot,
+        ]);
+    }
+
+    /**
+     * API: Get current workload snapshot (for polling).
+     */
+    public function workloadStatus()
+    {
+        return response()->json(
+            $this->workloadService->getWorkloadSnapshot()
+        );
+    }
+
+    /**
+     * API: Rebalance a specific overloaded agent — redistribute excess leads.
+     */
+    public function rebalanceAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+            'max_to_redistribute' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $result = $this->workloadService->redistributeFromAgent(
+            $validated['agent_id'],
+            $validated['max_to_redistribute'] ?? 0
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * API: Pause an agent's auto-assignment.
+     */
+    public function pauseAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->workloadService->pauseAgent(
+            $validated['agent_id'],
+            $validated['reason'] ?? 'Manual pause from workload dashboard'
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * API: Resume an agent's auto-assignment.
+     */
+    public function resumeAgent(Request $request)
+    {
+        $validated = $request->validate([
+            'agent_id' => ['required', 'integer', 'exists:agent_profiles,user_id'],
+        ]);
+
+        $this->workloadService->resumeAgent($validated['agent_id']);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * API: Run full balancing cycle manually.
+     */
+    public function runBalancingCycle()
+    {
+        $result = $this->workloadService->runBalancingCycle();
+
+        return response()->json($result);
     }
 }

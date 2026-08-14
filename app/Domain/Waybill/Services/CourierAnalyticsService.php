@@ -187,7 +187,7 @@ class CourierAnalyticsService
                 ->get();
         } elseif ($groupBy === 'week') {
             $rows = (clone $query)
-                ->selectRaw('DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) as period')
+                ->selectRaw("DATE_TRUNC('week', created_at)::date as period")
                 ->selectRaw('COUNT(*) as total')
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered")
                 ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END) as returned")
@@ -197,7 +197,7 @@ class CourierAnalyticsService
                 ->get();
         } else {
             $rows = (clone $query)
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as period")
+                ->selectRaw("TO_CHAR(created_at, 'YYYY-MM') as period")
                 ->selectRaw('COUNT(*) as total')
                 ->selectRaw("SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered")
                 ->selectRaw("SUM(CASE WHEN status = 'RETURNED' THEN 1 ELSE 0 END) as returned")

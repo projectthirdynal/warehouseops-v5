@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Procurement\Services;
 
 use App\Domain\Finance\Services\QboSyncService;
+use App\Domain\Inventory\Models\SupplyMovement;
 use App\Domain\Inventory\Models\SupplyStock;
+use App\Domain\Inventory\Services\MovementAuditTrailService;
 use App\Domain\Inventory\Services\StockService;
 use App\Domain\Procurement\Enums\GrnStatus;
 use App\Domain\Procurement\Enums\PoStatus;
@@ -159,12 +161,13 @@ class ProcurementService
                             ['supply_id' => $poItem->supply_id, 'warehouse_id' => $grn->warehouse_id, 'location_id' => null],
                             ['current_stock' => 0, 'reserved_stock' => 0, 'reorder_point' => 0]
                         );
+                        $beforeQty = (int) $supplyStock->current_stock;
                         $supplyStock->current_stock += $qty;
                         $supplyStock->last_restock_at = now();
                         $supplyStock->last_movement_at = now();
                         $supplyStock->save();
 
-                        DB::table('supply_movements')->insert([
+                        $movement = SupplyMovement::create([
                             'supply_id' => $poItem->supply_id,
                             'warehouse_id' => $grn->warehouse_id,
                             'type' => 'STOCK_IN',
@@ -174,9 +177,16 @@ class ProcurementService
                             'reference_id' => $grnItem->id,
                             'notes' => "Received via GRN {$grn->grn_number}",
                             'performed_by' => $grn->received_by,
-                            'created_at' => now(),
-                            'updated_at' => now(),
                         ]);
+
+                        app(MovementAuditTrailService::class)->recordSupplyMovement(
+                            $movement,
+                            beforeQuantity: $beforeQty,
+                            afterQuantity: $beforeQty + $qty,
+                            beforeReserved: (int) $supplyStock->reserved_stock,
+                            afterReserved: (int) $supplyStock->reserved_stock,
+                            reasonNotes: "Received via GRN {$grn->grn_number}",
+                        );
                     }
                 }
 

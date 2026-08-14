@@ -1,40 +1,55 @@
 <?php
 
 use App\Domain\Courier\Http\Controllers\CourierProviderController;
+use App\Http\Controllers\AdjustmentBulkImportController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\ApprovalsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BarcodeLabelController;
+use App\Http\Controllers\BurnoutPredictionController;
 use App\Http\Controllers\CapexAssetController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\CourierAnalyticsController;
 use App\Http\Controllers\Crm\ThirdPartyController;
+use App\Http\Controllers\CycleCountController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeadStockAutomationController;
 use App\Http\Controllers\DeadStockController;
+use App\Http\Controllers\DemandForecastController;
+use App\Http\Controllers\DepreciationAutomationController;
 use App\Http\Controllers\DistributionAnalyticsController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\DuplicateDetectionController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\Finance\BudgetController;
 use App\Http\Controllers\Finance\InvoiceController;
+use App\Http\Controllers\Finance\MultiCurrencyController;
 use App\Http\Controllers\Finance\SupplierInvoiceController;
+use App\Http\Controllers\Finance\ThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\InventoryDashboardController;
+use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadImportController;
 use App\Http\Controllers\LeadPoolController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\MockCourierController;
+use App\Http\Controllers\MovementAuditTrailController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentGatewayController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\QuickBooksController;
 use App\Http\Controllers\ReceivingReportController;
 use App\Http\Controllers\RecyclingController;
+use App\Http\Controllers\ReorderPointAlertController;
 use App\Http\Controllers\ReplyTemplateController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnReceiptController;
@@ -45,13 +60,17 @@ use App\Http\Controllers\ScannerController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\SmsController;
+use App\Http\Controllers\SourceAnalyticsController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockDashboardController;
+use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplyController;
 use App\Http\Controllers\TelesalesLeadImportController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseMapController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\WaybillImportController;
@@ -96,18 +115,31 @@ Route::middleware('auth')->group(function () {
 // Agent Self-Service Portal (all authenticated users can access their own portal)
 Route::middleware(['auth'])->group(function () {
     Route::prefix('agent')->name('agent.')->group(function () {
+        Route::get('/dashboard', [AgentLeadController::class, 'dashboard'])->name('dashboard');
         Route::get('/leads', [AgentLeadController::class, 'portal'])->name('leads');
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::get('/tracking', [AgentLeadController::class, 'tracking'])->name('tracking');
+        Route::get('/gamification', [AgentLeadController::class, 'gamification'])->name('gamification');
+        Route::get('/pwa-settings', [AgentLeadController::class, 'pwaSettings'])->name('pwa-settings');
     });
 
     // Agent API (AJAX calls from portal)
     Route::prefix('api/agent')->name('api.agent.')->group(function () {
+        Route::post('/heartbeat', [AgentLeadController::class, 'heartbeat'])->name('heartbeat');
+        Route::post('/availability', [AgentLeadController::class, 'toggleAvailability'])->name('availability.toggle');
+        Route::get('/availability', [AgentLeadController::class, 'availabilityStatus'])->name('availability.status');
         Route::post('/leads/request', [AgentLeadController::class, 'requestLeads'])->name('leads.request');
         Route::post('/leads/{lead}/call', [AgentLeadController::class, 'call'])->name('leads.call');
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
         Route::get('/leads/{lead}/customer-history', [AgentLeadController::class, 'customerHistory'])->name('leads.customer-history');
         Route::get('/leads/unread-count', [AgentLeadController::class, 'unreadCount'])->name('leads.unread-count');
+    });
+
+    // Push notification subscriptions (PWA)
+    Route::prefix('api/push')->name('api.push.')->group(function () {
+        Route::post('/subscribe', [PushNotificationController::class, 'subscribe'])->name('subscribe');
+        Route::post('/unsubscribe', [PushNotificationController::class, 'unsubscribe'])->name('unsubscribe');
+        Route::get('/status', [PushNotificationController::class, 'status'])->name('status');
     });
 });
 
@@ -189,6 +221,22 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,finance,a
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/inventory/movements', [InventoryDashboardController::class, 'movements'])->name('inventory.movements');
     Route::get('/inventory/non-moving', [InventoryDashboardController::class, 'nonMoving'])->name('inventory.non-moving');
+
+    // Phase 1 C1: Real-Time Stock Dashboard with low-stock alerts and reorder triggers
+    Route::prefix('inventory/stock')->name('inventory.stock.')->group(function () {
+        Route::get('/dashboard', [StockDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/api', [StockDashboardController::class, 'api'])->name('dashboard.api');
+        Route::post('/alerts/sync', [StockDashboardController::class, 'syncAlerts'])->name('alerts.sync');
+        Route::patch('/alerts/{alert}/acknowledge', [StockDashboardController::class, 'acknowledgeAlert'])->name('alerts.acknowledge');
+    });
+
+    // Phase 1 C2: Movement Audit Trail — complete history per item with before/after, reason, user
+    Route::prefix('inventory/audit-trail')->name('inventory.audit-trail.')->group(function () {
+        Route::get('/', [MovementAuditTrailController::class, 'index'])->name('index');
+        Route::get('/api', [MovementAuditTrailController::class, 'api'])->name('api');
+        Route::get('/item', [MovementAuditTrailController::class, 'itemTrail'])->name('item');
+        Route::post('/backfill', [MovementAuditTrailController::class, 'backfill'])->name('backfill');
+    });
 });
 
 // ── INVENTORY MATERIALS + ADJUSTMENTS: accounting + finance can participate in controls
@@ -205,6 +253,34 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
         Route::patch('/supplies/{supply}/status', [SupplyController::class, 'updateStatus'])->name('supplies.status.update');
         Route::get('/supplies/{supply}/summary', [SupplyController::class, 'summary'])->name('supplies.summary');
         Route::post('/supplies/{id}/restore', [SupplyController::class, 'restore'])->name('supplies.restore');
+
+        // Phase 1 C3: Multi-Warehouse Transfer — request, approve, reject, cancel
+        Route::prefix('transfers')->name('transfers.')->group(function () {
+            Route::get('/', [StockTransferController::class, 'index'])->name('index');
+            Route::get('/api', [StockTransferController::class, 'api'])->name('api');
+            Route::post('/', [StockTransferController::class, 'store'])->name('store');
+            Route::post('/{transfer}/approve', [StockTransferController::class, 'approve'])->name('approve');
+            Route::post('/{transfer}/reject', [StockTransferController::class, 'reject'])->name('reject');
+            Route::post('/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('cancel');
+        });
+
+        // Phase 2 H1: Reorder Point Alerts — scan, notify, acknowledge, configure
+        Route::prefix('reorder-alerts')->name('reorder-alerts.')->group(function () {
+            Route::get('/', [ReorderPointAlertController::class, 'index'])->name('index');
+            Route::get('/api', [ReorderPointAlertController::class, 'api'])->name('api');
+            Route::post('/scan', [ReorderPointAlertController::class, 'triggerScan'])->name('scan');
+            Route::post('/scan/api', [ReorderPointAlertController::class, 'apiTriggerScan'])->name('scan.api');
+            Route::post('/{alert}/acknowledge', [ReorderPointAlertController::class, 'acknowledge'])->name('acknowledge');
+            Route::post('/{alert}/acknowledge/api', [ReorderPointAlertController::class, 'apiAcknowledge'])->name('acknowledge.api');
+            Route::patch('/settings', [ReorderPointAlertController::class, 'updateSettings'])->name('settings');
+        });
+
+        // Phase 2 H2: Inventory Valuation — FIFO, LIFO, weighted average, exportable
+        Route::prefix('valuation')->name('valuation.')->group(function () {
+            Route::get('/', [InventoryValuationController::class, 'index'])->name('index');
+            Route::get('/api', [InventoryValuationController::class, 'api'])->name('api');
+            Route::get('/export', [InventoryValuationController::class, 'exportCsv'])->name('export');
+        });
 
         Route::prefix('assets')->name('assets.')->group(function () {
             Route::get('/', [CapexAssetController::class, 'index'])->name('index');
@@ -227,8 +303,83 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,warehouse,accountin
             Route::post('/{id}/reject', [StockAdjustmentController::class, 'reject'])->name('reject');
         });
 
+        // Phase 3 M2: Adjustment Bulk Import — CSV with validation and preview
+        Route::prefix('adjustment-bulk-import')->name('adjustment-bulk-import.')->group(function () {
+            Route::get('/', [AdjustmentBulkImportController::class, 'index'])->name('index');
+            Route::post('/preview', [AdjustmentBulkImportController::class, 'preview'])->name('preview');
+            Route::post('/confirm', [AdjustmentBulkImportController::class, 'confirm'])->name('confirm');
+            Route::get('/template', [AdjustmentBulkImportController::class, 'template'])->name('template');
+        });
+
+        // Phase 3 M3: Warehouse Map — visual layout with bin locations and occupancy
+        Route::prefix('warehouse-map')->name('warehouse-map.')->group(function () {
+            Route::get('/', [WarehouseMapController::class, 'index'])->name('index');
+            Route::get('/api/warehouse/{warehouseId}', [WarehouseMapController::class, 'apiWarehouseMap'])->name('warehouse');
+            Route::get('/api/location/{locationId}', [WarehouseMapController::class, 'apiLocationDetails'])->name('location');
+            Route::put('/api/location/{locationId}/coordinates', [WarehouseMapController::class, 'apiUpdateCoordinates'])->name('coordinates');
+        });
+
+        // Phase 4 L1: Demand Forecasting — historical usage and seasonality
+        Route::prefix('demand-forecast')->name('demand-forecast.')->group(function () {
+            Route::get('/', [DemandForecastController::class, 'index'])->name('index');
+            Route::get('/api', [DemandForecastController::class, 'api'])->name('api');
+            Route::get('/api/product/{productId}', [DemandForecastController::class, 'apiProductDetail'])->name('product');
+        });
+
+        // Phase 4 L2: Cycle Count Module — scheduled tasks with variance reporting
+        Route::prefix('cycle-counts')->name('cycle-counts.')->group(function () {
+            Route::get('/', [CycleCountController::class, 'index'])->name('index');
+            Route::get('/api', [CycleCountController::class, 'api'])->name('api');
+            Route::post('/', [CycleCountController::class, 'store'])->name('store');
+            Route::get('/report', [CycleCountController::class, 'report'])->name('report');
+            Route::patch('/settings', [CycleCountController::class, 'updateSettings'])->name('settings');
+            Route::get('/{id}', [CycleCountController::class, 'show'])->name('show');
+            Route::get('/{id}/api', [CycleCountController::class, 'apiShow'])->name('show.api');
+            Route::post('/{id}/finalize', [CycleCountController::class, 'finalize'])->name('finalize');
+            Route::post('/{id}/cancel', [CycleCountController::class, 'cancel'])->name('cancel');
+            Route::post('/items/{itemId}/count', [CycleCountController::class, 'recordCount'])->name('items.count');
+            Route::post('/items/{itemId}/count/api', [CycleCountController::class, 'apiRecordCount'])->name('items.count.api');
+            Route::post('/items/{itemId}/skip', [CycleCountController::class, 'skipItem'])->name('items.skip');
+        });
+
         Route::get('/dead-stock', [DeadStockController::class, 'index'])->name('dead-stock.index');
         Route::post('/dead-stock', [DeadStockController::class, 'store'])->name('dead-stock.store');
+
+        // Phase 2 H3: Dead Stock Automation — scheduled scan, auto-flag, aging buckets, notifications
+        Route::prefix('dead-stock-automation')->name('dead-stock-automation.')->group(function () {
+            Route::get('/', [DeadStockAutomationController::class, 'index'])->name('index');
+            Route::get('/api', [DeadStockAutomationController::class, 'api'])->name('api');
+            Route::post('/scan', [DeadStockAutomationController::class, 'triggerScan'])->name('scan');
+            Route::post('/scan/api', [DeadStockAutomationController::class, 'apiTriggerScan'])->name('scan.api');
+            Route::patch('/settings', [DeadStockAutomationController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [DeadStockAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
+            Route::get('/export', [DeadStockAutomationController::class, 'exportCsv'])->name('export');
+        });
+
+        // Phase 2 H4: Asset Depreciation Automation — scheduled monthly posting with journal entries
+        Route::prefix('depreciation-automation')->name('depreciation-automation.')->group(function () {
+            Route::get('/', [DepreciationAutomationController::class, 'index'])->name('index');
+            Route::get('/api', [DepreciationAutomationController::class, 'api'])->name('api');
+            Route::post('/post', [DepreciationAutomationController::class, 'triggerPost'])->name('post');
+            Route::post('/post/api', [DepreciationAutomationController::class, 'apiTriggerPost'])->name('post.api');
+            Route::patch('/settings', [DepreciationAutomationController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [DepreciationAutomationController::class, 'apiUpdateSettings'])->name('settings.api');
+            Route::get('/export', [DepreciationAutomationController::class, 'exportCsv'])->name('export');
+        });
+
+        // Phase 3 M1: Barcode Labels — generate and print from inventory UI
+        Route::prefix('barcode-labels')->name('barcode-labels.')->group(function () {
+            Route::get('/', [BarcodeLabelController::class, 'index'])->name('index');
+            Route::get('/api', [BarcodeLabelController::class, 'api'])->name('api');
+            Route::get('/items', [BarcodeLabelController::class, 'items'])->name('items');
+            Route::post('/generate', [BarcodeLabelController::class, 'generateLabels'])->name('generate');
+            Route::post('/auto-generate', [BarcodeLabelController::class, 'autoGenerate'])->name('auto-generate');
+            Route::post('/auto-generate/api', [BarcodeLabelController::class, 'apiAutoGenerate'])->name('auto-generate.api');
+            Route::post('/assign', [BarcodeLabelController::class, 'assignBarcode'])->name('assign');
+            Route::post('/assign/api', [BarcodeLabelController::class, 'apiAssignBarcode'])->name('assign.api');
+            Route::patch('/settings', [BarcodeLabelController::class, 'updateSettings'])->name('settings');
+            Route::patch('/settings/api', [BarcodeLabelController::class, 'apiUpdateSettings'])->name('settings.api');
+        });
     });
 });
 
@@ -295,6 +446,11 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
     // Finance dashboard + commissions + COD
     Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/', [FinanceController::class, 'dashboard'])->name('dashboard');
+        Route::get('/api/dashboard', [FinanceController::class, 'apiDashboard'])->name('api.dashboard');
+        Route::get('/api/cash-flow', [FinanceController::class, 'apiCashFlow'])->name('api.cash-flow');
+        Route::get('/api/pl-trend', [FinanceController::class, 'apiPlTrend'])->name('api.pl-trend');
+        Route::get('/api/balance-sheet', [FinanceController::class, 'apiBalanceSheet'])->name('api.balance-sheet');
+        Route::get('/api/revenue-trends', [FinanceController::class, 'apiRevenueTrends'])->name('api.revenue-trends');
         Route::get('/commissions', [FinanceController::class, 'commissions'])->name('commissions');
         Route::post('/commissions/approve', [FinanceController::class, 'approveCommissions'])->name('commissions.approve');
         Route::post('/commissions/pay', [FinanceController::class, 'payCommissions'])->name('commissions.pay');
@@ -302,6 +458,32 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         Route::get('/cod', [FinanceController::class, 'codSettlements'])->name('cod');
         Route::post('/cod', [FinanceController::class, 'storeCodSettlement'])->name('cod.store');
         Route::post('/cod/{settlement}/receive', [FinanceController::class, 'receiveCodSettlement'])->name('cod.receive');
+
+        // Commission Automation — scheduled runs with approval workflow
+        Route::get('/commission-automation', [FinanceController::class, 'commissionAutomation'])->name('commission-automation');
+        Route::get('/commission-automation/{run}', [FinanceController::class, 'commissionRunShow'])->name('commission-automation.show');
+        Route::post('/commission-automation', [FinanceController::class, 'createCommissionRun'])->name('commission-automation.create');
+        Route::post('/commission-automation/{run}/approve', [FinanceController::class, 'approveCommissionRun'])->name('commission-automation.approve');
+        Route::post('/commission-automation/{run}/reject', [FinanceController::class, 'rejectCommissionRun'])->name('commission-automation.reject');
+        Route::post('/commission-automation/{run}/pay', [FinanceController::class, 'payCommissionRun'])->name('commission-automation.pay');
+        Route::post('/commission-automation/commission/reject', [FinanceController::class, 'rejectCommission'])->name('commission-automation.commission.reject');
+        Route::patch('/commission-automation/settings', [FinanceController::class, 'updateCommissionSettings'])->name('commission-automation.settings');
+
+        // COD Reconciliation — auto-match remittances against delivered waybills
+        Route::get('/cod-reconciliation', [FinanceController::class, 'codReconciliation'])->name('cod-reconciliation');
+        Route::get('/cod-reconciliation/{settlement}', [FinanceController::class, 'codReconciliationShow'])->name('cod-reconciliation.show');
+        Route::post('/cod-reconciliation/{settlement}/auto-match', [FinanceController::class, 'autoMatchCodSettlement'])->name('cod-reconciliation.auto-match');
+        Route::post('/cod-reconciliation/manual-match', [FinanceController::class, 'manualMatchCodItem'])->name('cod-reconciliation.manual-match');
+        Route::post('/cod-reconciliation/unmatch', [FinanceController::class, 'unmatchCodItem'])->name('cod-reconciliation.unmatch');
+        Route::post('/cod-reconciliation/{settlement}/finalize', [FinanceController::class, 'finalizeCodReconciliation'])->name('cod-reconciliation.finalize');
+
+        // Payment Gateway — GCash, bank transfer with auto-reconciliation
+        Route::get('/payment-gateway', [PaymentGatewayController::class, 'index'])->name('payment-gateway');
+        Route::post('/payment-gateway', [PaymentGatewayController::class, 'store'])->name('payment-gateway.store');
+        Route::post('/payment-gateway/{transaction}/verify', [PaymentGatewayController::class, 'verify'])->name('payment-gateway.verify');
+        Route::post('/payment-gateway/{transaction}/fail', [PaymentGatewayController::class, 'fail'])->name('payment-gateway.fail');
+        Route::post('/payment-gateway/{transaction}/reconcile', [PaymentGatewayController::class, 'reconcile'])->name('payment-gateway.reconcile');
+        Route::patch('/payment-gateway/settings', [PaymentGatewayController::class, 'updateSettings'])->name('payment-gateway.settings');
 
         // QuickBooks (accounting + admins only — finance officers view only)
         Route::prefix('quickbooks')->name('quickbooks.')->group(function () {
@@ -313,6 +495,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::get('/accounts', [QuickBooksController::class, 'accounts'])->name('accounts');
             Route::get('/mappings', [QuickBooksController::class, 'mappings'])->name('mappings.index');
             Route::post('/mappings', [QuickBooksController::class, 'saveMapping'])->name('mappings.save');
+            Route::post('/sync/bulk-retry', [QuickBooksController::class, 'bulkRetry'])->name('sync.bulk-retry');
+            Route::patch('/sync-settings', [QuickBooksController::class, 'updateSyncSettings'])->name('sync-settings');
         });
 
         // Invoices
@@ -345,6 +529,47 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         });
 
         Route::get('/cost-of-goods', [CostOfGoodsController::class, 'index'])->name('cogs');
+        Route::get('/cost-of-goods/dashboard', [CostOfGoodsController::class, 'dashboard'])->name('cogs.dashboard');
+        Route::get('/api/cogs/dashboard', [CostOfGoodsController::class, 'apiDashboard'])->name('cogs.api.dashboard');
+        Route::get('/api/cogs/daily-summary', [CostOfGoodsController::class, 'apiDailySummary'])->name('cogs.api.daily-summary');
+        Route::patch('/api/cogs/alerts/{alertId}/resolve', [CostOfGoodsController::class, 'resolveAlert'])->name('cogs.api.alerts.resolve');
+
+        // Three-Way Match
+        Route::prefix('three-way-match')->name('three-way-match.')->group(function () {
+            Route::get('/', [ThreeWayMatchController::class, 'index'])->name('index');
+            Route::get('/{matchId}', [ThreeWayMatchController::class, 'show'])->name('show');
+            Route::post('/run', [ThreeWayMatchController::class, 'runMatch'])->name('run');
+            Route::get('/api/stats', [ThreeWayMatchController::class, 'apiStats'])->name('api.stats');
+        });
+
+        // Multi-Currency — conversion for international suppliers
+        Route::prefix('multi-currency')->name('multi-currency.')->group(function () {
+            Route::get('/', [MultiCurrencyController::class, 'index'])->name('index');
+            Route::get('/api', [MultiCurrencyController::class, 'apiIndex'])->name('api.index');
+            Route::get('/api/currencies', [MultiCurrencyController::class, 'apiCurrencies'])->name('api.currencies');
+            Route::post('/api/currencies', [MultiCurrencyController::class, 'apiStoreCurrency'])->name('api.currencies.store');
+            Route::patch('/api/currencies/{code}/toggle', [MultiCurrencyController::class, 'apiToggleCurrency'])->name('api.currencies.toggle');
+            Route::get('/api/exchange-rates', [MultiCurrencyController::class, 'apiExchangeRates'])->name('api.exchange-rates');
+            Route::post('/api/exchange-rates', [MultiCurrencyController::class, 'apiStoreRate'])->name('api.exchange-rates.store');
+            Route::delete('/api/exchange-rates/{id}', [MultiCurrencyController::class, 'apiDeleteRate'])->name('api.exchange-rates.destroy');
+            Route::get('/api/rate-history/{from}/{to}', [MultiCurrencyController::class, 'apiRateHistory'])->name('api.rate-history');
+            Route::post('/api/convert', [MultiCurrencyController::class, 'apiConvert'])->name('api.convert');
+        });
+
+        // Budget vs Actual — department budgets with variance alerts
+        Route::prefix('budget')->name('budget.')->group(function () {
+            Route::get('/', [BudgetController::class, 'index'])->name('index');
+            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
+            Route::get('/api', [BudgetController::class, 'apiIndex'])->name('api.index');
+            Route::get('/api/{budget}', [BudgetController::class, 'apiShow'])->name('api.show');
+            Route::post('/api', [BudgetController::class, 'apiStore'])->name('api.store');
+            Route::put('/api/{budget}', [BudgetController::class, 'apiUpdate'])->name('api.update');
+            Route::delete('/api/{budget}', [BudgetController::class, 'apiDestroy'])->name('api.destroy');
+            Route::get('/api/{budget}/comparison', [BudgetController::class, 'apiComparison'])->name('api.comparison');
+            Route::post('/api/{budget}/generate-alerts', [BudgetController::class, 'apiGenerateAlerts'])->name('api.generate-alerts');
+            Route::get('/api/{budget}/alerts', [BudgetController::class, 'apiAlerts'])->name('api.alerts');
+            Route::patch('/api/alerts/{alertId}/resolve', [BudgetController::class, 'apiResolveAlert'])->name('api.alerts.resolve');
+        });
     });
 
     // Reports
@@ -842,6 +1067,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
             return redirect('/lead-pool');
         })->name('index');
         Route::get('/{lead}', [LeadController::class, 'show'])->name('show');
+        Route::get('/{lead}/lifecycle', [LeadController::class, 'lifecycle'])->name('lifecycle');
     });
 
     // Orders
@@ -889,6 +1115,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::patch('/{user}/toggle-active', [AgentController::class, 'toggleActive'])->name('toggle-active')->whereNumber('user');
         Route::patch('/{user}', [AgentController::class, 'update'])->name('update')->whereNumber('user');
         Route::post('/{user}/delete', [AgentController::class, 'destroy'])->name('destroy')->whereNumber('user');
+        Route::post('/{user}/coaching-notes', [AgentController::class, 'storeCoachingNote'])->name('coaching-notes.store')->whereNumber('user');
+        Route::patch('/{user}/coaching-notes/{note}/resolve', [AgentController::class, 'resolveCoachingNote'])->name('coaching-notes.resolve')->whereNumber('user', 'note');
+        Route::delete('/{user}/coaching-notes/{note}', [AgentController::class, 'deleteCoachingNote'])->name('coaching-notes.destroy')->whereNumber('user', 'note');
+
+        // Burnout Prediction (L2)
+        Route::get('/burnout', [BurnoutPredictionController::class, 'index'])->name('burnout');
+        Route::get('/burnout/api', [BurnoutPredictionController::class, 'apiIndex'])->name('burnout.api');
+        Route::post('/burnout/recalculate', [BurnoutPredictionController::class, 'recalculate'])->name('burnout.recalculate');
+        Route::get('/{user}/burnout', [BurnoutPredictionController::class, 'agent'])->name('burnout.agent')->whereNumber('user');
     });
 
     // SMS
@@ -933,7 +1168,16 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     Route::prefix('lead-pool')->name('lead-pool.')->group(function () {
         Route::get('/', [LeadPoolController::class, 'index'])->name('index');
         Route::post('/distribute', [LeadPoolController::class, 'distribute'])->name('distribute');
+        Route::post('/bulk-recycle', [LeadPoolController::class, 'bulkRecycle'])->name('bulk-recycle');
+        Route::post('/bulk-archive', [LeadPoolController::class, 'bulkArchive'])->name('bulk-archive');
         Route::get('/agents', [LeadPoolController::class, 'agentPerformance'])->name('agents');
+        Route::get('/capacity-alerts', [LeadPoolController::class, 'capacityAlerts'])->name('capacity-alerts');
+        Route::get('/workload-balancing', [LeadPoolController::class, 'workloadBalancing'])->name('workload-balancing');
+        Route::get('/api/workload-status', [LeadPoolController::class, 'workloadStatus'])->name('api.workload-status');
+        Route::post('/api/rebalance-agent', [LeadPoolController::class, 'rebalanceAgent'])->name('api.rebalance-agent');
+        Route::post('/api/pause-agent', [LeadPoolController::class, 'pauseAgent'])->name('api.pause-agent');
+        Route::post('/api/resume-agent', [LeadPoolController::class, 'resumeAgent'])->name('api.resume-agent');
+        Route::post('/api/run-balancing-cycle', [LeadPoolController::class, 'runBalancingCycle'])->name('api.run-balancing-cycle');
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
@@ -944,6 +1188,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
         Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
+        Route::post('/import/columns', [TelesalesLeadImportController::class, 'columns'])->name('import.columns');
     });
 
     // Distribution Engine
@@ -954,6 +1199,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::delete('/rules/{rule}', [DistributionController::class, 'destroyRule'])->name('rules.destroy');
         Route::post('/assign', [DistributionController::class, 'assign'])->name('assign');
         Route::post('/reassign', [DistributionController::class, 'reassign'])->name('reassign');
+        Route::post('/bulk-reassign', [DistributionController::class, 'bulkReassign'])->name('bulk-reassign');
         Route::post('/auto-distribute', [DistributionController::class, 'autoDistribute'])->name('auto-distribute');
         Route::get('/queue', [DistributionController::class, 'queue'])->name('queue');
         Route::get('/agents/{agent}/workload', [DistributionController::class, 'agentWorkload'])->name('agents.workload');
@@ -966,6 +1212,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/analytics/imbalance-alerts', [DistributionAnalyticsController::class, 'imbalanceAlerts'])->name('analytics.imbalance');
         Route::get('/analytics/fairness-trend', [DistributionAnalyticsController::class, 'fairnessTrend'])->name('analytics.fairness-trend');
         Route::post('/analytics/rebalance', [DistributionAnalyticsController::class, 'applyRebalancing'])->name('analytics.rebalance');
+
+        // Predictive Assignment
+        Route::get('/predictive/model', [DistributionController::class, 'modelStatus'])->name('predictive.model');
+        Route::post('/predictive/predict', [DistributionController::class, 'predict'])->name('predictive.predict');
+        Route::post('/predictive/retrain', [DistributionController::class, 'retrain'])->name('predictive.retrain');
+
+        // Source Analytics
+        Route::get('/source-analytics', [SourceAnalyticsController::class, 'index'])->name('source-analytics');
+        Route::get('/source-analytics/api', [SourceAnalyticsController::class, 'api'])->name('source-analytics.api');
     });
 });
 

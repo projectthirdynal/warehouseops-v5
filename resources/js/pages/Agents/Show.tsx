@@ -1,4 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import {
   ArrowLeft,
   Mail,
@@ -11,12 +12,28 @@ import {
   Users,
   CheckCircle,
   Calendar,
+  Save,
+  Sunrise,
+  Sunset,
+  Package,
+  Tag,
+  MapPin,
+  Ban,
+  Filter,
+  Plus,
+  X,
+  Layers,
+  Edit3,
+  ClipboardList,
+  CheckSquare,
+  Trash2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
 import { formatDate } from '@/lib/utils';
 import type { User, AgentProfile } from '@/types';
 
@@ -35,6 +52,20 @@ interface RecentLead {
   updated_at: string;
 }
 
+interface CoachingNoteItem {
+  id: number;
+  category: string;
+  priority: string;
+  subject: string;
+  body: string;
+  action_items: string[] | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  created_at: string;
+  author: { id: number; name: string } | null;
+  resolver: { id: number; name: string } | null;
+}
+
 interface Props {
   agent: Agent;
   stats: {
@@ -47,6 +78,7 @@ interface Props {
     sales_today: number;
   };
   recentLeads: RecentLead[];
+  coachingNotes: CoachingNoteItem[];
 }
 
 const statusColors: Record<string, string> = {
@@ -69,8 +101,353 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-export default function AgentShow({ agent, stats, recentLeads }: Props) {
+interface SkillFieldConfig {
+  key: keyof Pick<
+    AgentProfile,
+    'product_skills' | 'category_skills' | 'regions' | 'excluded_regions' | 'preferred_lead_sources'
+  >;
+  label: string;
+  icon: typeof Package;
+  color: string;
+  placeholder: string;
+  description: string;
+}
+
+const SKILL_FIELDS: SkillFieldConfig[] = [
+  {
+    key: 'product_skills',
+    label: 'Product Skills',
+    icon: Package,
+    color: 'text-purple-600',
+    placeholder: 'e.g. STEM Coffee, Mullein Inhaler',
+    description: 'Agent receives leads matching these products',
+  },
+  {
+    key: 'category_skills',
+    label: 'Category Skills',
+    icon: Layers,
+    color: 'text-blue-600',
+    placeholder: 'e.g. Electronics, Fashion, Food',
+    description: 'Soft match — agent accepts leads in these categories',
+  },
+  {
+    key: 'regions',
+    label: 'Assigned Regions',
+    icon: MapPin,
+    color: 'text-green-600',
+    placeholder: 'e.g. Metro Manila, Cebu, Davao',
+    description: 'Agent handles leads from these regions',
+  },
+  {
+    key: 'excluded_regions',
+    label: 'Excluded Regions',
+    icon: Ban,
+    color: 'text-red-600',
+    placeholder: 'e.g. BARMM, CARAGA',
+    description: 'Agent will NOT receive leads from these regions',
+  },
+  {
+    key: 'preferred_lead_sources',
+    label: 'Preferred Lead Sources',
+    icon: Filter,
+    color: 'text-amber-600',
+    placeholder: 'e.g. facebook, referral, walk_in',
+    description: 'Agent is prioritized for leads from these sources',
+  },
+];
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+  color,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  color: string;
+}) {
+  const [input, setInput] = useState('');
+
+  const addTag = () => {
+    const trimmed = input.trim();
+    if (trimmed && !values.includes(trimmed)) {
+      onChange([...values, trimmed]);
+    }
+    setInput('');
+  };
+
+  const removeTag = (tag: string) => onChange(values.filter((v) => v !== tag));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addTag();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex h-8 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <button
+          type="button"
+          onClick={addTag}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+          {values.map((tag) => (
+            <span
+              key={tag}
+              className={`flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium ${color}`}
+            >
+              {tag}
+              <button
+                onClick={() => removeTag(tag)}
+                className="ml-0.5 text-muted-foreground hover:text-destructive"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillMatrix({ profile, agentId }: { profile: AgentProfile; agentId: number }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    product_skills: profile.product_skills ?? [],
+    category_skills: profile.category_skills ?? [],
+    regions: profile.regions ?? [],
+    excluded_regions: profile.excluded_regions ?? [],
+    preferred_lead_sources: profile.preferred_lead_sources ?? [],
+  });
+
+  const startEditing = () => {
+    setDraft({
+      product_skills: profile.product_skills ?? [],
+      category_skills: profile.category_skills ?? [],
+      regions: profile.regions ?? [],
+      excluded_regions: profile.excluded_regions ?? [],
+      preferred_lead_sources: profile.preferred_lead_sources ?? [],
+    });
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    router.patch(
+      `/agents/${agentId}/profile`,
+      {
+        product_skills: draft.product_skills,
+        category_skills: draft.category_skills,
+        regions: draft.regions,
+        excluded_regions: draft.excluded_regions,
+        preferred_lead_sources: draft.preferred_lead_sources,
+      },
+      {
+        onFinish: () => {
+          setSaving(false);
+          setEditing(false);
+        },
+      }
+    );
+  };
+
+  const updateField = (key: keyof typeof draft, values: string[]) => {
+    setDraft((prev) => ({ ...prev, [key]: values }));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Tag className="h-5 w-5" />
+          Skill Matrix
+          <Badge variant="outline" className="ml-1 text-xs">
+            {[...SKILL_FIELDS].reduce((acc, f) => acc + (profile[f.key]?.length ?? 0), 0)} skills
+          </Badge>
+          {!editing && (
+            <Button variant="outline" size="sm" className="ml-auto" onClick={startEditing}>
+              <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+              Edit Skills
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {SKILL_FIELDS.map((field) => {
+          const Icon = field.icon;
+          const currentValues = editing ? draft[field.key] : (profile[field.key] ?? []);
+          return (
+            <div key={field.key}>
+              <div className="flex items-center gap-2 mb-1">
+                <Icon className={`h-4 w-4 ${field.color}`} />
+                <span className="text-sm font-medium">{field.label}</span>
+                {currentValues.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {currentValues.length}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">{field.description}</p>
+              {editing ? (
+                <TagInput
+                  values={currentValues}
+                  onChange={(v) => updateField(field.key, v)}
+                  placeholder={field.placeholder}
+                  color={field.color}
+                />
+              ) : currentValues.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {currentValues.map((tag) => (
+                    <span
+                      key={tag}
+                      className={`rounded-full bg-primary/5 px-2.5 py-0.5 text-xs font-medium ${field.color}`}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">None set</p>
+              )}
+            </div>
+          );
+        })}
+        {editing && (
+          <div className="flex gap-2 pt-2 border-t">
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {saving ? 'Saving...' : 'Save Skills'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function isCurrentlyInShift(profile?: AgentProfile): boolean {
+  if (!profile?.shift_start || !profile?.shift_end) return true;
+  const now = new Date();
+  const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const start = profile.shift_start;
+  const end = profile.shift_end;
+  if (end < start) {
+    return nowTime >= start || nowTime < end;
+  }
+  return nowTime >= start && nowTime < end;
+}
+
+export default function AgentShow({ agent, stats, recentLeads, coachingNotes }: Props) {
   const profile = agent.agentProfile;
+  const [editingShift, setEditingShift] = useState(false);
+  const [shiftStart, setShiftStart] = useState(profile?.shift_start ?? '');
+  const [shiftEnd, setShiftEnd] = useState(profile?.shift_end ?? '');
+  const [savingShift, setSavingShift] = useState(false);
+
+  const inShift = isCurrentlyInShift(profile);
+
+  const handleSaveShift = () => {
+    setSavingShift(true);
+    router.patch(
+      `/agents/${agent.id}/profile`,
+      {
+        shift_start: shiftStart || null,
+        shift_end: shiftEnd || null,
+      },
+      {
+        onFinish: () => {
+          setSavingShift(false);
+          setEditingShift(false);
+        },
+      }
+    );
+  };
+
+  const [showCoachingForm, setShowCoachingForm] = useState(false);
+  const [coachingForm, setCoachingForm] = useState({
+    category: 'general',
+    priority: 'medium',
+    subject: '',
+    body: '',
+    action_items: [''] as string[],
+  });
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
+
+  const submitCoachingNote = () => {
+    router.post(
+      `/agents/${agent.id}/coaching-notes`,
+      {
+        ...coachingForm,
+        action_items: coachingForm.action_items.filter((a) => a.trim() !== ''),
+      },
+      {
+        onSuccess: () => {
+          setShowCoachingForm(false);
+          setCoachingForm({
+            category: 'general',
+            priority: 'medium',
+            subject: '',
+            body: '',
+            action_items: [''],
+          });
+        },
+      }
+    );
+  };
+
+  const resolveNote = (noteId: number) => {
+    router.patch(
+      `/agents/${agent.id}/coaching-notes/${noteId}/resolve`,
+      { resolution_note: resolutionNote },
+      {
+        onSuccess: () => {
+          setResolvingId(null);
+          setResolutionNote('');
+        },
+      }
+    );
+  };
+
+  const deleteNote = (noteId: number) => {
+    router.delete(`/agents/${agent.id}/coaching-notes/${noteId}`);
+  };
+
+  const priorityColors: Record<string, string> = {
+    low: 'text-muted-foreground',
+    medium: 'text-info',
+    high: 'text-warning',
+    urgent: 'text-destructive',
+  };
+
+  const categoryLabels: Record<string, string> = {
+    general: 'General',
+    performance: 'Performance',
+    behavior: 'Behavior',
+    attendance: 'Attendance',
+    skill_gap: 'Skill Gap',
+    praise: 'Praise',
+    improvement_plan: 'Improvement Plan',
+  };
 
   return (
     <AppLayout>
@@ -210,6 +587,100 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
           </Card>
         </div>
 
+        {/* Shift Schedule Card */}
+        {profile && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Shift Schedule
+                {profile.shift_start && profile.shift_end ? (
+                  <Badge
+                    variant={inShift ? 'default' : 'secondary'}
+                    className={inShift ? 'text-success' : ''}
+                  >
+                    {inShift ? 'In Shift' : 'Off Shift'}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">No shift set</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!editingShift ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Sunrise className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-xs text-muted-foreground">Start</div>
+                        <div className="text-sm font-medium">{profile.shift_start ?? '—'}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Sunset className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-xs text-muted-foreground">End</div>
+                        <div className="text-sm font-medium">{profile.shift_end ?? '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leads are only assigned during shift hours. The system auto-toggles availability
+                    at shift boundaries. Leave blank for 24/7 availability.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setEditingShift(true)}>
+                    Edit Shift Schedule
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Shift Start</label>
+                      <input
+                        type="time"
+                        value={shiftStart}
+                        onChange={(e) => setShiftStart(e.target.value)}
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Shift End</label>
+                      <input
+                        type="time"
+                        value={shiftEnd}
+                        onChange={(e) => setShiftEnd(e.target.value)}
+                        className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveShift} disabled={savingShift}>
+                      <Save className="mr-1.5 h-3.5 w-3.5" />
+                      {savingShift ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingShift(false);
+                        setShiftStart(profile?.shift_start ?? '');
+                        setShiftEnd(profile?.shift_end ?? '');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Skill Matrix */}
+        {profile && <SkillMatrix profile={profile} agentId={agent.id} />}
+
         {/* Agent Profile Details */}
         {profile && (
           <div className="grid gap-4 md:grid-cols-2">
@@ -232,6 +703,12 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Auto-Assign</span>
+                  <Badge variant={profile.auto_assign_enabled ? 'default' : 'secondary'}>
+                    {profile.auto_assign_enabled ? 'Enabled' : 'Disabled'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Priority Weight</span>
                   <span className="font-medium">{profile.priority_weight}</span>
                 </div>
@@ -242,43 +719,274 @@ export default function AgentShow({ agent, stats, recentLeads }: Props) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
-                  Skills & Regions
+                  Lead Assignment Limits
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm font-medium mb-2">Product Skills</div>
-                  {profile.product_skills?.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile.product_skills.map((skill, i) => (
-                        <Badge key={i} variant="outline">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No product skills set</p>
-                  )}
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Max Daily Leads</span>
+                  <span className="font-medium">{profile.max_daily_leads ?? '—'}</span>
                 </div>
-
-                <div>
-                  <div className="text-sm font-medium mb-2">Regions</div>
-                  {profile.regions?.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile.regions.map((region, i) => (
-                        <Badge key={i} variant="outline">
-                          {region}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No regions assigned</p>
-                  )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Concurrent Lead Cap</span>
+                  <span className="font-medium">{profile.concurrent_lead_cap ?? '—'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Distribution Weight</span>
+                  <span className="font-medium">{profile.distribution_weight ?? '1.00'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Idle Threshold</span>
+                  <span className="font-medium">{profile.idle_threshold_minutes ?? 15} min</span>
                 </div>
               </CardContent>
             </Card>
           </div>
         )}
+
+        {/* Coaching Notes */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Coaching Notes
+              <Badge variant="outline" className="ml-1 text-xs">
+                {coachingNotes.filter((n) => !n.resolved_at).length} open
+              </Badge>
+              {!showCoachingForm && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={() => setShowCoachingForm(true)}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Note
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showCoachingForm && (
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Category</label>
+                    <select
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={coachingForm.category}
+                      onChange={(e) =>
+                        setCoachingForm({ ...coachingForm, category: e.target.value })
+                      }
+                    >
+                      {Object.entries(categoryLabels).map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Priority</label>
+                    <select
+                      className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={coachingForm.priority}
+                      onChange={(e) =>
+                        setCoachingForm({ ...coachingForm, priority: e.target.value })
+                      }
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Subject</label>
+                  <input
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={coachingForm.subject}
+                    onChange={(e) => setCoachingForm({ ...coachingForm, subject: e.target.value })}
+                    placeholder="Brief subject..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Details</label>
+                  <Textarea
+                    className="mt-1"
+                    rows={3}
+                    value={coachingForm.body}
+                    onChange={(e) => setCoachingForm({ ...coachingForm, body: e.target.value })}
+                    placeholder="Detailed feedback or coaching note..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Action Items</label>
+                  <div className="mt-1 space-y-1">
+                    {coachingForm.action_items.map((item, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input
+                          className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                          value={item}
+                          onChange={(e) => {
+                            const items = [...coachingForm.action_items];
+                            items[i] = e.target.value;
+                            setCoachingForm({ ...coachingForm, action_items: items });
+                          }}
+                          placeholder="Action item..."
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setCoachingForm({
+                              ...coachingForm,
+                              action_items: coachingForm.action_items.filter((_, idx) => idx !== i),
+                            })
+                          }
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setCoachingForm({
+                          ...coachingForm,
+                          action_items: [...coachingForm.action_items, ''],
+                        })
+                      }
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add action item
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowCoachingForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={submitCoachingNote}
+                    disabled={!coachingForm.subject.trim() || !coachingForm.body.trim()}
+                  >
+                    <Save className="mr-1 h-4 w-4" />
+                    Save Note
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {coachingNotes.length > 0 ? (
+              <div className="space-y-3">
+                {coachingNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className={`rounded-lg border p-4 ${note.resolved_at ? 'opacity-60' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{note.subject}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {categoryLabels[note.category] ?? note.category}
+                          </Badge>
+                          <span
+                            className={`text-xs font-medium ${priorityColors[note.priority] ?? ''}`}
+                          >
+                            {note.priority}
+                          </span>
+                          {note.resolved_at && (
+                            <Badge variant="default" className="text-xs">
+                              <CheckSquare className="mr-1 h-3 w-3" />
+                              Resolved
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
+                          {note.body}
+                        </p>
+                        {note.action_items && note.action_items.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {note.action_items.map((item, i) => (
+                              <li key={i} className="flex items-center gap-2 text-xs">
+                                <CheckSquare className="h-3 w-3 text-muted-foreground" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {note.resolution_note && (
+                          <div className="mt-2 rounded-md bg-success/5 p-2 text-xs text-muted-foreground">
+                            <span className="font-medium">Resolution:</span> {note.resolution_note}
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>By {note.author?.name ?? 'System'}</span>
+                          <span>{formatDate(note.created_at)}</span>
+                          {note.resolver && <span>Resolved by {note.resolver.name}</span>}
+                        </div>
+                      </div>
+                      {!note.resolved_at && (
+                        <div className="flex flex-col gap-1">
+                          {resolvingId === note.id ? (
+                            <div className="space-y-1">
+                              <Textarea
+                                rows={2}
+                                className="text-xs"
+                                placeholder="Resolution note (optional)..."
+                                value={resolutionNote}
+                                onChange={(e) => setResolutionNote(e.target.value)}
+                              />
+                              <div className="flex gap-1">
+                                <Button size="sm" onClick={() => resolveNote(note.id)}>
+                                  Confirm
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setResolvingId(null);
+                                    setResolutionNote('');
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setResolvingId(note.id)}
+                              >
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Resolve
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => deleteNote(note.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8">
+                <ClipboardList className="h-10 w-10 text-muted-foreground/50" />
+                <p className="mt-3 text-sm text-muted-foreground">No coaching notes yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Recent Leads */}
         <Card>

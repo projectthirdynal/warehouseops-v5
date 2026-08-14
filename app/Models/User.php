@@ -44,7 +44,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
         'birthday' => 'date',
@@ -126,5 +125,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function milestones(): HasMany
     {
         return $this->hasMany(AgentMilestone::class);
+    }
+
+    public function coachingNotes(): HasMany
+    {
+        return $this->hasMany(CoachingNote::class, 'agent_id');
+    }
+
+    public function authoredCoachingNotes(): HasMany
+    {
+        return $this->hasMany(CoachingNote::class, 'author_id');
     }
 }

@@ -11,6 +11,7 @@ enum DistributionStrategy: string
     case SKILL_MATCH = 'skill_match';
     case TERRITORY = 'territory';
     case HYBRID = 'hybrid';
+    case PREDICTIVE = 'predictive';
 
     public function label(): string
     {
@@ -20,6 +21,7 @@ enum DistributionStrategy: string
             self::SKILL_MATCH => 'Skill Match',
             self::TERRITORY => 'Territory',
             self::HYBRID => 'Hybrid',
+            self::PREDICTIVE => 'Predictive (ML)',
         };
     }
 }

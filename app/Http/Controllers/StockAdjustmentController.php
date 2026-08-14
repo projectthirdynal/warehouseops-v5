@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Models\StockAdjustment;
 use App\Domain\Inventory\Models\Supply;
+use App\Domain\Inventory\Models\SupplyMovement;
 use App\Domain\Inventory\Models\SupplyStock;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\MovementAuditTrailService;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Models\ProductStock;
@@ -263,7 +265,7 @@ class StockAdjustmentController extends Controller
 
             // Write the movement ledger entry so the Movements page reflects this
             if ($adjustment->supply_id) {
-                DB::table('supply_movements')->insert([
+                $movement = SupplyMovement::create([
                     'supply_id' => $adjustment->supply_id,
                     'warehouse_id' => $adjustment->warehouse_id,
                     'type' => 'ADJUSTMENT',
@@ -272,11 +274,20 @@ class StockAdjustmentController extends Controller
                     'reference_id' => $adjustment->id,
                     'notes' => '['.$adjustment->reason_code.'] '.($adjustment->reason_notes ?? ''),
                     'performed_by' => $request->user()?->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
+
+                app(MovementAuditTrailService::class)->recordSupplyMovement(
+                    $movement,
+                    beforeQuantity: $adjustment->quantity_before,
+                    afterQuantity: $adjustment->quantity_after,
+                    beforeReserved: (int) $stock->reserved_stock,
+                    afterReserved: (int) $stock->reserved_stock,
+                    reasonCode: $adjustment->reason_code,
+                    reasonNotes: $adjustment->reason_notes,
+                    request: $request,
+                );
             } else {
-                InventoryMovement::create([
+                $movement = InventoryMovement::create([
                     'product_id' => $adjustment->product_id,
                     'variant_id' => $adjustment->variant_id,
                     'warehouse_id' => $adjustment->warehouse_id,
@@ -288,6 +299,17 @@ class StockAdjustmentController extends Controller
                     'notes' => '['.$adjustment->reason_code.'] '.($adjustment->reason_notes ?? ''),
                     'performed_by' => $request->user()?->id,
                 ]);
+
+                app(MovementAuditTrailService::class)->recordProductMovement(
+                    $movement,
+                    beforeQuantity: $adjustment->quantity_before,
+                    afterQuantity: $adjustment->quantity_after,
+                    beforeReserved: (int) $stock->reserved_stock,
+                    afterReserved: (int) $stock->reserved_stock,
+                    reasonCode: $adjustment->reason_code,
+                    reasonNotes: $adjustment->reason_notes,
+                    request: $request,
+                );
             }
         });
 

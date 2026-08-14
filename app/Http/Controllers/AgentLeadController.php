@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Shop\Services\GamificationService;
 use App\Http\Resources\AgentLeadResource;
+use App\Models\CoachingNote;
 use App\Models\LeadCycle;
 use App\Models\Waybill;
+use App\Services\AgentPortalService;
 use App\Services\CallTrackingService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
@@ -24,8 +27,50 @@ class AgentLeadController extends Controller
         private CallTrackingService $callService,
         private LeadRecyclingService $recyclingService,
         private LeadDistributionService $distributionService,
-        private LeadPoolService $poolService
+        private LeadPoolService $poolService,
+        private AgentPortalService $portalService,
+        private GamificationService $gamificationService
     ) {}
+
+    public function dashboard(): Response
+    {
+        $agent = auth()->user();
+        $agent->load('agentProfile');
+
+        $data = $this->portalService->getDashboardData($agent);
+
+        $gamificationProfile = $this->gamificationService->getAgentProfile($agent->id);
+
+        $coachingNotes = CoachingNote::where('agent_id', $agent->id)
+            ->unresolved()
+            ->with('author:id,name')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        return Inertia::render('AgentLeads/Dashboard', [
+            'earnings' => $data['earnings'],
+            'recent_commissions' => $data['recent_commissions'],
+            'lead_history' => $data['lead_history'],
+            'leaderboard' => $data['leaderboard'],
+            'workload' => $data['workload'],
+            'agent' => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'performance_score' => (float) ($agent->agentProfile?->performance_score ?? 0),
+                'is_available' => (bool) ($agent->agentProfile?->is_available ?? false),
+            ],
+            'gamification' => [
+                'current_streak' => $gamificationProfile['streak']['current'] ?? 0,
+                'longest_streak' => $gamificationProfile['streak']['longest'] ?? 0,
+                'total_badges' => $gamificationProfile['total_badges'] ?? 0,
+                'total_badges_available' => count($gamificationProfile['available_badges'] ?? []),
+                'total_milestones_completed' => $gamificationProfile['total_milestones_completed'] ?? 0,
+                'total_milestones' => count($gamificationProfile['milestones'] ?? []),
+            ],
+            'coachingNotes' => $coachingNotes,
+        ]);
+    }
 
     public function portal(Request $request): Response
     {
@@ -537,5 +582,137 @@ class AgentLeadController extends Controller
                 'priority' => $latest->quality_score ?? 50,
             ] : null,
         ]);
+    }
+
+    public function heartbeat(): JsonResponse
+    {
+        $agent = auth()->user();
+        $profile = $agent->agentProfile()->firstOrCreate(
+            ['user_id' => $agent->id],
+            ['is_available' => true]
+        );
+
+        $wasAutoUnavailable = ! $profile->is_available;
+
+        $profile->forceFill([
+            'last_seen_at' => now(),
+            'is_available' => true,
+        ])->save();
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        return response()->json([
+            'is_available' => true,
+            'last_seen_at' => $profile->last_seen_at->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+            'restored' => $wasAutoUnavailable,
+        ]);
+    }
+
+    public function toggleAvailability(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'is_available' => ['required', 'boolean'],
+        ]);
+
+        $agent = auth()->user();
+        $profile = $agent->agentProfile()->firstOrCreate(
+            ['user_id' => $agent->id],
+            ['is_available' => true]
+        );
+
+        $profile->forceFill([
+            'is_available' => $validated['is_available'],
+            'last_seen_at' => now(),
+        ])->save();
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+
+        return response()->json([
+            'is_available' => $profile->is_available,
+            'last_seen_at' => $profile->last_seen_at->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+        ]);
+    }
+
+    public function availabilityStatus(): JsonResponse
+    {
+        $agent = auth()->user();
+        $profile = $agent->agentProfile;
+
+        if (! $profile) {
+            return response()->json([
+                'is_available' => false,
+                'last_seen_at' => null,
+                'idle_threshold_minutes' => 15,
+                'idle_minutes' => null,
+                'remaining_minutes' => null,
+                'shift_start' => null,
+                'shift_end' => null,
+                'in_shift' => true,
+            ]);
+        }
+
+        $threshold = $profile->idle_threshold_minutes ?? 15;
+        $idleMinutes = $profile->last_seen_at
+            ? (int) $profile->last_seen_at->diffInMinutes(now())
+            : null;
+        $remainingMinutes = $idleMinutes !== null
+            ? max(0, $threshold - $idleMinutes)
+            : null;
+
+        $inShift = $this->isInShift($profile->shift_start, $profile->shift_end);
+
+        return response()->json([
+            'is_available' => $profile->is_available,
+            'last_seen_at' => $profile->last_seen_at?->toIso8601String(),
+            'idle_threshold_minutes' => $threshold,
+            'idle_minutes' => $idleMinutes,
+            'remaining_minutes' => $remainingMinutes,
+            'shift_start' => $profile->shift_start,
+            'shift_end' => $profile->shift_end,
+            'in_shift' => $inShift,
+        ]);
+    }
+
+    private function isInShift(?string $shiftStart, ?string $shiftEnd): bool
+    {
+        if (! $shiftStart || ! $shiftEnd) {
+            return true;
+        }
+
+        $nowTime = now()->format('H:i');
+        $startTime = now()->parse($shiftStart)->format('H:i');
+        $endTime = now()->parse($shiftEnd)->format('H:i');
+
+        if ($endTime < $startTime) {
+            return $nowTime >= $startTime || $nowTime < $endTime;
+        }
+
+        return $nowTime >= $startTime && $nowTime < $endTime;
+    }
+
+    public function gamification(): Response
+    {
+        $agent = auth()->user();
+
+        $profile = $this->gamificationService->getAgentProfile($agent->id);
+        $leaderboard = $this->gamificationService->getLeaderboard(10);
+        $settings = $this->gamificationService->getSettings();
+
+        return Inertia::render('AgentLeads/Gamification', [
+            'profile' => $profile,
+            'leaderboard' => $leaderboard,
+            'settings' => $settings,
+            'agent' => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+            ],
+        ]);
+    }
+
+    public function pwaSettings(): Response
+    {
+        return Inertia::render('AgentLeads/PWASettings');
     }
 }

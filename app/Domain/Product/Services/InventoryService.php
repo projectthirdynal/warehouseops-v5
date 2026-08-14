@@ -6,6 +6,7 @@ namespace App\Domain\Product\Services;
 
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Inventory\Models\Warehouse;
+use App\Domain\Inventory\Services\MovementAuditTrailService;
 use App\Domain\Product\Models\InventoryMovement;
 use App\Domain\Product\Models\ProductStock;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,6 +31,8 @@ class InventoryService
             $warehouseId ??= $this->defaultWarehouseId();
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
             $stock->current_stock += abs($quantity);
             $stock->last_restock_at = now();
             $stock->last_movement_at = now();
@@ -46,6 +49,14 @@ class InventoryService
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
             ]);
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty + abs($quantity),
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved,
+            );
 
             return $movement;
         });
@@ -74,6 +85,9 @@ class InventoryService
                 );
             }
 
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
+
             $movement = InventoryMovement::create([
                 'product_id' => $productId,
                 'variant_id' => $variantId,
@@ -89,6 +103,14 @@ class InventoryService
             $stock->current_stock -= abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty - abs($quantity),
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved,
+            );
 
             return $movement;
         });
@@ -113,6 +135,9 @@ class InventoryService
                 throw new \RuntimeException("Insufficient stock. Available: {$stock->available_stock}, requested: {$quantity}");
             }
 
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
+
             $movement = InventoryMovement::create([
                 'product_id' => $productId,
                 'variant_id' => $variantId,
@@ -127,6 +152,14 @@ class InventoryService
             $stock->reserved_stock += abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty,
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved + abs($quantity),
+            );
 
             StockReservation::create([
                 'product_id' => $productId,
@@ -169,9 +202,19 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
             $stock->reserved_stock = max(0, $stock->reserved_stock - abs($quantity));
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty,
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved - abs($quantity),
+            );
 
             StockReservation::where('reference_type', $referenceType)
                 ->where('reference_id', $referenceId)
@@ -217,10 +260,20 @@ class InventoryService
                     "Insufficient stock for reservation confirmation. Current: {$stock->current_stock}, requested: {$quantity}"
                 );
             }
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
             $stock->current_stock -= abs($quantity);
             $stock->reserved_stock = max(0, $stock->reserved_stock - abs($quantity));
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty - abs($quantity),
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved - abs($quantity),
+            );
 
             StockReservation::where('reference_type', $referenceType)
                 ->where('reference_id', $referenceId)
@@ -260,9 +313,19 @@ class InventoryService
             ]);
 
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
             $stock->current_stock += abs($quantity);
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $beforeQty + abs($quantity),
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved,
+            );
 
             return $movement;
         });
@@ -284,6 +347,9 @@ class InventoryService
             $stock = $this->getOrCreateStock($productId, $variantId, $warehouseId);
             $diff = $newQuantity - $stock->current_stock;
 
+            $beforeQty = (int) $stock->current_stock;
+            $beforeReserved = (int) $stock->reserved_stock;
+
             $movement = InventoryMovement::create([
                 'product_id' => $productId,
                 'variant_id' => $variantId,
@@ -297,6 +363,14 @@ class InventoryService
             $stock->current_stock = $newQuantity;
             $stock->last_movement_at = now();
             $stock->save();
+
+            app(MovementAuditTrailService::class)->recordProductMovement(
+                $movement,
+                beforeQuantity: $beforeQty,
+                afterQuantity: $newQuantity,
+                beforeReserved: $beforeReserved,
+                afterReserved: $beforeReserved,
+            );
 
             return $movement;
         });
