@@ -81,7 +81,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function buildRevenueSummary(): array
+    private function buildRevenueMetrics(): array
     {
         $summary = $this->revenueMetrics->revenueSummary();
 
@@ -104,7 +104,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildConversionTrend(): array
+    private function buildRevenueSummary(): array
     {
         // Conversion trend (last 7 days)
         $conversionTrend = [];
@@ -146,13 +146,13 @@ class DashboardController extends Controller
             ];
         })->values()->all();
 
-        $revenueSummary = $this->buildRevenueSummary();
+        $revenueMetrics = $this->buildRevenueMetrics();
 
         return [
             'periods' => [
-                'today' => ['value' => $revenueSummary['today'], 'trend' => $revenueSummary['today_trend']],
-                'week' => ['value' => $revenueSummary['week'], 'trend' => $revenueSummary['week_trend']],
-                'month' => ['value' => $revenueSummary['month'], 'trend' => $revenueSummary['month_trend']],
+                'today' => ['value' => $revenueMetrics['today'], 'trend' => $revenueMetrics['today_trend']],
+                'week' => ['value' => $revenueMetrics['week'], 'trend' => $revenueMetrics['week_trend']],
+                'month' => ['value' => $revenueMetrics['month'], 'trend' => $revenueMetrics['month_trend']],
             ],
             'conversion_trend' => $conversionTrend,
             'top_products' => $topProducts,
