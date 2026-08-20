@@ -1015,16 +1015,15 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
 
         // Google Sheet Sync — automated backtracking from Google Sheets
-        Route::prefix('sync')->name('sync.')->group(function () {
-            Route::get('/', [GoogleSheetSyncController::class, 'index'])->name('index');
-            Route::get('/connect', [GoogleSheetSyncController::class, 'connect'])->name('connect');
-            Route::get('/callback', [GoogleSheetSyncController::class, 'callback'])->name('callback');
-            Route::post('/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('disconnect');
-            Route::get('/status', [GoogleSheetSyncController::class, 'status'])->name('status');
-            Route::post('/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('configs');
-            Route::post('/run', [GoogleSheetSyncController::class, 'run'])->name('run');
-            Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
-        });
+        // Note: registered with full paths (not nested prefix) to avoid route cache compilation issues
+        Route::get('/sync', [GoogleSheetSyncController::class, 'index'])->name('sync.index');
+        Route::get('/sync/connect', [GoogleSheetSyncController::class, 'connect'])->name('sync.connect');
+        Route::get('/sync/callback', [GoogleSheetSyncController::class, 'callback'])->name('sync.callback');
+        Route::post('/sync/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('sync.disconnect');
+        Route::get('/sync/status', [GoogleSheetSyncController::class, 'status'])->name('sync.status');
+        Route::post('/sync/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('sync.configs');
+        Route::post('/sync/run', [GoogleSheetSyncController::class, 'run'])->name('sync.run');
+        Route::get('/sync/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('sync.run.status');
 
         Route::prefix('claims')->name('claims.')->group(function () {
             Route::get('/', [ClaimController::class, 'index'])->name('index');
