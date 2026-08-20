@@ -31,6 +31,7 @@ use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\Finance\ThreeWayMatchController as FinanceThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\GoogleSheetSyncController;
 use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
@@ -75,7 +76,6 @@ use App\Http\Controllers\WarehouseMapController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\WaybillImportController;
-use App\Http\Controllers\GoogleSheetSyncController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -1079,7 +1079,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/run', [GoogleSheetSyncController::class, 'run'])->name('run');
         Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
     });
-
 
     // Leads — index now redirects to unified Lead Pool view
     Route::prefix('leads')->name('leads.')->group(function () {
