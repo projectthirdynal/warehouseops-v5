@@ -1,25 +1,25 @@
 import { Head, router } from '@inertiajs/react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Upload,
   FileSpreadsheet,
   CheckCircle,
   XCircle,
   Clock,
   RefreshCw,
-  Download,
   AlertCircle,
   Loader2,
   Eye,
   StopCircle,
   Ban,
-  X,
+  Link2,
 } from 'lucide-react';
 import AppLayout from '@/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -72,15 +72,14 @@ interface UploadProgress {
   error_rows: number;
 }
 
-interface ValidationResult {
-  valid: boolean;
-  total_rows_detected: string | number;
-  detected_columns: string[];
-  sample_rows: Record<string, unknown>[];
-  duplicate_waybills_count: number;
-  missing_headers: string[];
-  warnings: string[];
-  errors?: string[];
+interface SheetConfig {
+  id: number;
+  courier: string;
+  month: string;
+  data_year: number;
+  sheet_url: string | null;
+  sheet_tab_name: string | null;
+  enabled: boolean;
 }
 
 interface Props {
@@ -94,33 +93,61 @@ interface Props {
     pending_uploads: number;
     recent_errors: number;
   };
+  sheet_configs: SheetConfig[];
 }
 
-type UploadPhase = 'idle' | 'uploading' | 'validating' | 'preview' | 'starting' | 'done';
+const COURIER_LABELS: Record<string, string> = {
+  jnt: 'J&T Express',
+  flash: 'Flash Express',
+  spx: 'SPX Express',
+};
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const formatImportType = (type: string | null) => {
   if (!type) return '';
   if (type === 'auto_sync') return 'Auto Sync';
+  if (type === 'google_sync') return 'Google Sync';
   return type
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 };
 
-export default function WaybillImport({ uploads, stats }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
+export default function WaybillImport({ uploads, stats, sheet_configs }: Props) {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCourier, setSelectedCourier] = useState<string>('jnt');
-  const [dragOver, setDragOver] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [transferPct, setTransferPct] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[new Date().getMonth()]);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [sheetUrl, setSheetUrl] = useState<string>('');
+  const [sheetTabName, setSheetTabName] = useState<string>('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [liveProgress, setLiveProgress] = useState<Record<number, UploadProgress>>({});
-  const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [pendingUploadId, setPendingUploadId] = useState<number | null>(null);
+
+  // Load saved sheet URL for selected courier/month/year
+  useEffect(() => {
+    const config = sheet_configs.find(
+      (c) =>
+        c.courier === selectedCourier && c.month === selectedMonth && c.data_year === selectedYear
+    );
+    setSheetUrl(config?.sheet_url ?? '');
+    setSheetTabName(config?.sheet_tab_name ?? '');
+  }, [selectedCourier, selectedMonth, selectedYear, sheet_configs]);
 
   const processingIds = uploads.data
     .filter((u) => ['pending', 'processing', 'queued', 'validating'].includes(u.status))
@@ -166,154 +193,71 @@ export default function WaybillImport({ uploads, stats }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processingIdsKey is the stable representation of processingIds
   }, [processingIdsKey, pollStatus]);
 
-  const handleFileSelect = (file: File) => {
-    setSelectedFile(file);
-    setUploadError(null);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file && isValidFile(file)) handleFileSelect(file);
-  };
-
-  const isValidFile = (file: File): boolean => {
-    const validTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-    ];
-    return validTypes.includes(file.type) || file.name.match(/\.(xlsx|xls|csv)$/i) !== null;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) return;
-
-    setUploadPhase('uploading');
-    setUploadError(null);
-    setValidationResult(null);
-    setTransferPct(0);
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('courier', selectedCourier);
-
-    let uploadId: number;
-    try {
-      uploadId = await new Promise<number>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
-
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable)
-            setTransferPct(Math.round((event.loaded / event.total) * 100));
-        };
-
-        xhr.onload = () => {
-          xhrRef.current = null;
-          setTransferPct(null);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const body = JSON.parse(xhr.responseText);
-              resolve(body.upload_id);
-            } catch {
-              reject(new Error('Invalid server response.'));
-            }
-          } else {
-            try {
-              const body = JSON.parse(xhr.responseText);
-              reject(new Error(body?.errors?.file?.[0] ?? body?.message ?? 'Upload failed.'));
-            } catch {
-              reject(new Error('Upload failed.'));
-            }
-          }
-        };
-
-        xhr.onerror = () => {
-          xhrRef.current = null;
-          setTransferPct(null);
-          reject(new Error('Network error.'));
-        };
-
-        const csrfToken =
-          (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
-        xhr.open('POST', '/waybills/import');
-        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.send(formData);
-      });
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
-      setUploadPhase('idle');
+  const handleSync = async () => {
+    if (!sheetUrl.trim()) {
+      setSyncError('Please enter a Google Sheet URL.');
       return;
     }
 
-    setUploadPhase('validating');
-    setPendingUploadId(uploadId);
+    setSyncing(true);
+    setSyncError(null);
+
     try {
       const csrfToken =
         (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
-      const res = await fetch(`/waybills/import/${uploadId}/validate`, {
+      const res = await fetch('/waybills/import/sync-sheet', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-CSRF-TOKEN': csrfToken,
           'X-Requested-With': 'XMLHttpRequest',
           Accept: 'application/json',
         },
+        body: JSON.stringify({
+          courier: selectedCourier,
+          sheet_url: sheetUrl.trim(),
+          sheet_tab_name: sheetTabName.trim() || null,
+          month: selectedMonth,
+          data_year: selectedYear,
+        }),
       });
-      const result: ValidationResult = await res.json();
-      setValidationResult(result);
-      setUploadPhase('preview');
-      router.reload({ only: ['uploads', 'stats'] });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncError(data.error ?? data.message ?? 'Sync failed.');
+        return;
+      }
+
+      // Reload to show the new upload in the list
+      router.reload({ only: ['uploads', 'stats', 'sheet_configs'] });
     } catch {
-      setUploadError('Validation request failed. Please try again.');
-      setUploadPhase('idle');
+      setSyncError('Network error. Please try again.');
+    } finally {
+      setSyncing(false);
     }
   };
 
-  const handleStartImport = async () => {
-    if (!pendingUploadId) return;
-    setUploadPhase('starting');
-    try {
-      const csrfToken =
-        (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
-      await fetch(`/waybills/import/${pendingUploadId}/start`, {
-        method: 'POST',
-        headers: {
-          'X-CSRF-TOKEN': csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-          Accept: 'application/json',
-        },
-      });
-      setUploadPhase('done');
-      setSelectedFile(null);
-      setPendingUploadId(null);
-      setValidationResult(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      router.reload({ only: ['uploads', 'stats'] });
-    } catch {
-      setUploadError('Failed to start import. Please try again.');
-      setUploadPhase('preview');
-    }
-  };
-
-  const handleCancelUpload = () => {
-    xhrRef.current?.abort();
-    xhrRef.current = null;
-    setTransferPct(null);
-    setUploadPhase('idle');
-  };
-
-  const handleResetPreview = () => {
-    setUploadPhase('idle');
-    setValidationResult(null);
-    setPendingUploadId(null);
-    setSelectedFile(null);
-    setUploadError(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleSaveUrl = async () => {
+    const csrfToken =
+      (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+    await fetch('/waybills/import/save-sheet-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        courier: selectedCourier,
+        sheet_url: sheetUrl.trim() || null,
+        sheet_tab_name: sheetTabName.trim() || null,
+        month: selectedMonth,
+        data_year: selectedYear,
+        enabled: true,
+      }),
+    });
+    router.reload({ only: ['sheet_configs'] });
   };
 
   const handleRetry = (uploadId: number) => {
@@ -352,10 +296,10 @@ export default function WaybillImport({ uploads, stats }: Props) {
             <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Validating
           </Badge>
         );
-      case 'ready_to_process':
+      case 'queued':
         return (
-          <Badge className="bg-info/10 text-info border-info/20">
-            <Clock className="w-3 h-3 mr-1" /> Ready
+          <Badge className="bg-muted text-muted-foreground">
+            <Clock className="w-3 h-3 mr-1" /> Queued
           </Badge>
         );
       case 'failed':
@@ -364,66 +308,50 @@ export default function WaybillImport({ uploads, stats }: Props) {
             <XCircle className="w-3 h-3 mr-1" /> Failed
           </Badge>
         );
+      case 'cancelled':
+        return (
+          <Badge className="bg-muted text-muted-foreground">
+            <Ban className="w-3 h-3 mr-1" /> Cancelled
+          </Badge>
+        );
       case 'validation_failed':
         return (
           <Badge className="bg-destructive/10 text-destructive border-destructive/20">
             <XCircle className="w-3 h-3 mr-1" /> Validation Failed
           </Badge>
         );
-      case 'cancelled':
-        return (
-          <Badge className="bg-warning/10 text-warning border-warning/20">
-            <Ban className="w-3 h-3 mr-1" /> Cancelled
-          </Badge>
-        );
       default:
-        return (
-          <Badge className="bg-muted text-foreground border-border">
-            <Clock className="w-3 h-3 mr-1" /> Queued
-          </Badge>
-        );
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
-  const getRowSummary = (upload: UploadRecord) => {
-    const live = liveProgress[upload.id];
-    const isActive = upload.status === 'processing' || upload.status === 'pending';
-
-    if (isActive && live) {
-      return {
-        processed: live.processed_rows ?? 0,
-        total: live.total_rows ?? 0,
-        success: live.success_rows,
-        inserted: live.inserted_rows ?? 0,
-        updated: live.updated_rows ?? 0,
-        skipped: live.skipped_rows ?? 0,
-        errors: live.error_rows,
-        pct:
-          live.total_rows > 0
-            ? Math.min(Math.round((live.processed_rows / live.total_rows) * 100), 99)
-            : null,
-      };
-    }
-
-    return {
-      processed: upload.processed_rows,
-      total: upload.total_rows,
-      success: upload.success_rows,
-      inserted: upload.inserted_rows ?? 0,
-      updated: upload.updated_rows ?? 0,
-      skipped: upload.skipped_rows ?? 0,
-      errors: upload.error_rows,
-      pct: null,
+  const getCourierBadge = (courier: string | null) => {
+    if (!courier) return null;
+    const colors: Record<string, string> = {
+      jnt: 'bg-red-100 text-red-700 border-red-200',
+      flash: 'bg-orange-100 text-orange-700 border-orange-200',
+      spx: 'bg-blue-100 text-blue-700 border-blue-200',
     };
+    return (
+      <Badge className={colors[courier] ?? 'bg-muted text-muted-foreground'}>
+        {COURIER_LABELS[courier] ?? courier.toUpperCase()}
+      </Badge>
+    );
   };
 
-  const isUploading = uploadPhase === 'uploading';
-  const isFormDisabled =
-    isUploading ||
-    uploadPhase === 'validating' ||
-    uploadPhase === 'preview' ||
-    uploadPhase === 'starting' ||
-    uploadPhase === 'done';
+  const getProgressPct = (upload: UploadRecord): number => {
+    const live = liveProgress[upload.id];
+    const total = live?.total_rows ?? upload.total_rows;
+    const processed = live?.processed_rows ?? upload.processed_rows;
+    if (total === 0) return 0;
+    return Math.min(100, Math.round((processed / total) * 100));
+  };
+
+  const isProcessing = (upload: UploadRecord): boolean => {
+    const live = liveProgress[upload.id];
+    const status = live?.status ?? upload.status;
+    return ['processing', 'queued', 'validating', 'pending'].includes(status);
+  };
 
   return (
     <AppLayout>
@@ -434,23 +362,17 @@ export default function WaybillImport({ uploads, stats }: Props) {
           <div>
             <h1 className="text-xl font-bold font-display tracking-tight">Import Waybills</h1>
             <p className="text-muted-foreground">
-              Upload courier file. Existing waybills will be updated automatically; new waybills
-              will be added.
+              Sync waybills from Google Sheets. Existing waybills update automatically; new waybills
+              are added. Re-sync to pick up newly appended rows.
             </p>
           </div>
-          <Button variant="outline" asChild>
-            <a href={`/waybills/import/template?courier=${selectedCourier}`}>
-              <Download className="mr-1.5 h-4 w-4" />
-              Download Template
-            </a>
-          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Uploads</CardTitle>
-              <Upload className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Imports</CardTitle>
+              <RefreshCw className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold font-display">{stats.total_uploads}</div>
@@ -490,461 +412,327 @@ export default function WaybillImport({ uploads, stats }: Props) {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
+          {/* Google Sheet Sync Panel */}
           <div className="lg:col-span-1 space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Upload File</CardTitle>
-                <CardDescription>Select courier and upload Excel file</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5" />
+                  Google Sheet Sync
+                </CardTitle>
+                <CardDescription>
+                  Paste a shared Google Sheet link and sync. Re-sync to update statuses and pick up
+                  new rows.
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Courier Provider</label>
-                    <Select
-                      value={selectedCourier}
-                      onValueChange={setSelectedCourier}
-                      disabled={isFormDisabled}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select courier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="jnt">J&T Express</SelectItem>
-                        <SelectItem value="flash">Flash Express</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div
-                    className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                      isUploading || uploadPhase === 'validating'
-                        ? 'border-info/30 bg-info/5 pointer-events-none'
-                        : uploadPhase === 'preview' ||
-                            uploadPhase === 'starting' ||
-                            uploadPhase === 'done'
-                          ? 'border-border bg-muted/50 pointer-events-none'
-                          : dragOver
-                            ? 'border-primary bg-primary/5'
-                            : selectedFile
-                              ? 'border-success bg-success/5'
-                              : 'border-muted-foreground/25 hover:border-primary'
-                    }`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (!isFormDisabled) setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={handleDrop}
+              <CardContent className="space-y-4">
+                {/* Courier selection */}
+                <div className="space-y-2">
+                  <Label>Courier Provider</Label>
+                  <Select
+                    value={selectedCourier}
+                    onValueChange={setSelectedCourier}
+                    disabled={syncing}
                   >
-                    {!isFormDisabled && (
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handleFileSelect(f);
-                        }}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                    )}
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select courier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="jnt">J&T Express</SelectItem>
+                      <SelectItem value="flash">Flash Express</SelectItem>
+                      <SelectItem value="spx">SPX Express</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    {isUploading ? (
-                      <div className="space-y-3">
-                        <Loader2 className="mx-auto h-10 w-10 text-info animate-spin" />
-                        <p className="font-medium text-info">Uploading file...</p>
-                        <div className="space-y-1">
-                          <Progress value={transferPct ?? 0} className="h-2" />
-                          <p className="text-sm text-info font-medium">{transferPct}%</p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCancelUpload}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <X className="h-3 w-3 mr-1" /> Cancel
-                        </Button>
-                      </div>
-                    ) : uploadPhase === 'validating' ? (
-                      <div className="space-y-3">
-                        <Loader2 className="mx-auto h-10 w-10 text-warning animate-spin" />
-                        <p className="font-medium text-warning">Validating file...</p>
-                      </div>
-                    ) : uploadPhase === 'preview' ||
-                      uploadPhase === 'starting' ||
-                      uploadPhase === 'done' ? (
-                      <div className="space-y-2">
-                        <CheckCircle className="mx-auto h-10 w-10 text-success" />
-                        <p className="font-medium text-success">
-                          {selectedFile?.name ?? 'File uploaded'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">Validation complete</p>
-                      </div>
-                    ) : selectedFile ? (
-                      <div className="space-y-2">
-                        <FileSpreadsheet className="mx-auto h-10 w-10 text-success" />
-                        <p className="font-medium text-success break-all">{selectedFile.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFile(null);
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Upload className="mx-auto h-10 w-10 text-muted-foreground" />
-                        <p className="font-medium">Drop file here or click to browse</p>
-                        <p className="text-sm text-muted-foreground">
-                          Supports XLSX, XLS, CSV (max 100MB)
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                {/* Month selection */}
+                <div className="space-y-2">
+                  <Label>Month</Label>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={syncing}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  {uploadError && (
-                    <div className="flex items-start gap-2 p-3 bg-destructive/5 border border-destructive/20 rounded-md">
-                      <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                      <p className="text-sm text-destructive">{uploadError}</p>
-                    </div>
-                  )}
+                {/* Year selection */}
+                <div className="space-y-2">
+                  <Label>Year</Label>
+                  <Select
+                    value={String(selectedYear)}
+                    onValueChange={(v) => setSelectedYear(Number(v))}
+                    disabled={syncing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[selectedYear - 1, selectedYear, selectedYear + 1].map((y) => (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  {uploadPhase === 'idle' || uploadPhase === 'uploading' ? (
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={!selectedFile || isUploading}
-                    >
-                      {isUploading ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                          Uploading {transferPct}%
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-1.5 h-4 w-4" />
-                          Upload &amp; Validate
-                        </>
-                      )}
-                    </Button>
-                  ) : null}
+                {/* Sheet URL input */}
+                <div className="space-y-2">
+                  <Label>Google Sheet URL</Label>
+                  <Input
+                    type="url"
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    disabled={syncing}
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Existing waybills will be updated automatically. New waybills will be added.
+                    Sheet must be shared as &ldquo;Anyone with the link — Viewer&rdquo;
                   </p>
-                </form>
+                </div>
+
+                {/* Sheet tab name (optional) */}
+                <div className="space-y-2">
+                  <Label>Sheet Tab Name (optional)</Label>
+                  <Input
+                    type="text"
+                    placeholder="Leave blank to use first tab"
+                    value={sheetTabName}
+                    onChange={(e) => setSheetTabName(e.target.value)}
+                    disabled={syncing}
+                  />
+                </div>
+
+                {/* Error message */}
+                {syncError && (
+                  <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{syncError}</span>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSync}
+                    disabled={syncing || !sheetUrl.trim()}
+                    className="flex-1"
+                  >
+                    {syncing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Sync Now
+                      </>
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={handleSaveUrl} disabled={syncing}>
+                    Save URL
+                  </Button>
+                </div>
+
+                {/* Info notice */}
+                <div className="rounded-md bg-info/5 border border-info/20 p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">How it works:</p>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>System reads the entire sheet and imports all waybill rows</li>
+                    <li>
+                      Re-syncing updates statuses for changed waybills (inserted/updated/skipped)
+                    </li>
+                    <li>New rows appended to the sheet are picked up on next sync</li>
+                    <li>Changing the URL for next month leaves previous data intact</li>
+                  </ul>
+                </div>
               </CardContent>
             </Card>
-
-            {uploadPhase === 'preview' && validationResult && (
-              <Card
-                className={validationResult.valid ? 'border-success/20' : 'border-destructive/20'}
-              >
-                <CardHeader className="pb-3">
-                  <CardTitle
-                    className={`text-base flex items-center gap-2 ${validationResult.valid ? 'text-success' : 'text-destructive'}`}
-                  >
-                    {validationResult.valid ? (
-                      <>
-                        <CheckCircle className="h-5 w-5" /> Validation Passed
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-5 w-5" /> Validation Failed
-                      </>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-sm space-y-1">
-                    <p>
-                      <span className="font-medium">Rows detected:</span>{' '}
-                      {typeof validationResult.total_rows_detected === 'number'
-                        ? validationResult.total_rows_detected.toLocaleString()
-                        : validationResult.total_rows_detected}
-                    </p>
-                    {validationResult.duplicate_waybills_count > 0 && (
-                      <p className="text-warning">
-                        <span className="font-medium">Duplicates:</span>{' '}
-                        {validationResult.duplicate_waybills_count.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-
-                  {validationResult.warnings.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-warning">Warnings</p>
-                      <ul className="text-xs text-warning space-y-0.5">
-                        {validationResult.warnings.map((w, i) => (
-                          <li key={i}>• {w}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validationResult.errors && validationResult.errors.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-destructive">Errors</p>
-                      <ul className="text-xs text-destructive space-y-0.5">
-                        {validationResult.errors.map((e, i) => (
-                          <li key={i}>• {e}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validationResult.missing_headers.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-destructive">Missing headers</p>
-                      <p className="text-xs text-destructive">
-                        {validationResult.missing_headers.join(', ')}
-                      </p>
-                    </div>
-                  )}
-
-                  {validationResult.sample_rows.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Preview (first {validationResult.sample_rows.length} rows)
-                      </p>
-                      <div className="overflow-auto max-h-48 rounded border">
-                        <table className="text-xs w-full">
-                          <thead>
-                            <tr className="bg-muted">
-                              {validationResult.detected_columns.slice(0, 5).map((col) => (
-                                <th
-                                  key={col}
-                                  className="px-2 py-1 text-left font-medium whitespace-nowrap"
-                                >
-                                  {col}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {validationResult.sample_rows.map((row, i) => (
-                              <tr key={i} className="border-t">
-                                {validationResult.detected_columns.slice(0, 5).map((col) => (
-                                  <td
-                                    key={col}
-                                    className="px-2 py-1 whitespace-nowrap truncate max-w-[120px]"
-                                  >
-                                    {String(row[col] ?? '')}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-1">
-                    {validationResult.valid && (
-                      <Button className="flex-1" onClick={handleStartImport}>
-                        <CheckCircle className="mr-1.5 h-4 w-4" />
-                        Start Import
-                      </Button>
-                    )}
-                    <Button variant="outline" className="flex-1" onClick={handleResetPreview}>
-                      {validationResult.valid ? 'Cancel' : 'Re-upload'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Upload History</CardTitle>
-              <CardDescription>Recent file uploads and their status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {uploads.data.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-4 text-muted-foreground">No uploads yet</p>
-                </div>
-              ) : (
+          {/* Upload History */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Import History</CardTitle>
+                <CardDescription>Recent sync and import runs</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-3">
-                  {uploads.data.map((upload) => {
-                    const {
-                      processed,
-                      total,
-                      inserted,
-                      updated,
-                      skipped,
-                      errors: errCount,
-                      pct,
-                    } = getRowSummary(upload);
-                    const live = liveProgress[upload.id];
-                    const isActive = upload.status === 'processing' || upload.status === 'pending';
-                    const displayTotal = total > 0 ? total : processed;
+                  {uploads.data.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <FileSpreadsheet className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                      <p>No imports yet. Paste a Google Sheet URL to get started.</p>
+                    </div>
+                  ) : (
+                    uploads.data.map((upload) => {
+                      const live = liveProgress[upload.id];
+                      const status = live?.status ?? upload.status;
+                      const processing = isProcessing(upload);
+                      const pct = getProgressPct(upload);
 
-                    return (
-                      <div key={upload.id} className="border rounded-lg p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <FileSpreadsheet className="h-8 w-8 text-success shrink-0" />
-                            <div className="min-w-0">
+                      return (
+                        <div
+                          key={upload.id}
+                          className="border rounded-lg p-4 space-y-3 hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1 min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium truncate">{upload.original_filename}</p>
-                                {upload.courier && (
-                                  <Badge variant="outline" className="text-xs uppercase shrink-0">
-                                    {upload.courier}
-                                  </Badge>
-                                )}
+                                {getCourierBadge(upload.courier)}
                                 {upload.import_type && (
-                                  <Badge variant="outline" className="text-xs shrink-0">
+                                  <Badge variant="outline" className="text-xs">
                                     {formatImportType(upload.import_type)}
                                   </Badge>
                                 )}
+                                {getStatusBadge(status)}
                               </div>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
-                                {displayTotal > 0 && (
-                                  <span>{displayTotal.toLocaleString()} rows</span>
-                                )}
-                                {inserted > 0 && (
-                                  <>
-                                    <span>|</span>
-                                    <span className="text-success">
-                                      {inserted.toLocaleString()} ins
-                                    </span>
-                                  </>
-                                )}
-                                {updated > 0 && (
-                                  <>
-                                    <span>|</span>
-                                    <span className="text-info">
-                                      {updated.toLocaleString()} upd
-                                    </span>
-                                  </>
-                                )}
-                                {skipped > 0 && (
-                                  <>
-                                    <span>|</span>
-                                    <span className="text-warning">
-                                      {skipped.toLocaleString()} skp
-                                    </span>
-                                  </>
-                                )}
-                                {errCount > 0 && (
-                                  <>
-                                    <span>|</span>
-                                    <span className="text-destructive">
-                                      {errCount.toLocaleString()} err
-                                    </span>
-                                  </>
-                                )}
-                              </div>
+                              <p className="text-sm font-medium truncate">
+                                {upload.original_filename}
+                              </p>
                               <p className="text-xs text-muted-foreground">
                                 {formatDateTime(upload.created_at)}
-                                {upload.uploaded_by && ` by ${upload.uploaded_by.name}`}
+                                {upload.uploaded_by?.name && ` · ${upload.uploaded_by.name}`}
                               </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={`/waybills/import/${upload.id}`}>
+                                  <Eye className="h-3.5 w-3.5" />
+                                </a>
+                              </Button>
+                              {processing && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleCancel(upload.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <StopCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {upload.status === 'failed' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRetry(upload.id)}
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            {getStatusBadge(isActive && live ? live.status : upload.status)}
-                            {isActive && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/5"
-                                onClick={() => handleCancel(upload.id)}
-                                title="Stop import"
-                              >
-                                <StopCircle className="h-4 w-4" />
-                              </Button>
+                          {/* Progress bar for processing uploads */}
+                          {processing && (
+                            <div className="space-y-1">
+                              <Progress value={pct} className="h-1.5" />
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>
+                                  {(live?.processed_rows ?? upload.processed_rows).toLocaleString()}{' '}
+                                  / {(live?.total_rows ?? upload.total_rows).toLocaleString()} rows
+                                </span>
+                                <span>{pct}%</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Stats row */}
+                          {!processing &&
+                            upload.status !== 'queued' &&
+                            upload.status !== 'validating' && (
+                              <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+                                {upload.total_rows > 0 && (
+                                  <span>Total: {upload.total_rows.toLocaleString()}</span>
+                                )}
+                                {upload.inserted_rows > 0 && (
+                                  <span className="text-success">
+                                    Inserted: {upload.inserted_rows.toLocaleString()}
+                                  </span>
+                                )}
+                                {upload.updated_rows > 0 && (
+                                  <span className="text-info">
+                                    Updated: {upload.updated_rows.toLocaleString()}
+                                  </span>
+                                )}
+                                {upload.skipped_rows > 0 && (
+                                  <span className="text-muted-foreground">
+                                    Skipped: {upload.skipped_rows.toLocaleString()}
+                                  </span>
+                                )}
+                                {upload.error_rows > 0 && (
+                                  <span className="text-destructive">
+                                    Errors: {upload.error_rows.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
                             )}
-                            {upload.status === 'failed' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRetry(upload.id)}
-                                title="Retry"
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => router.visit(`/waybills/import/${upload.id}`)}
-                              title="View details"
-                            >
-                              <Eye className="h-4 w-4" />
+
+                          {/* Error details */}
+                          {upload.status === 'failed' && upload.errors && (
+                            <div className="rounded-md bg-destructive/5 p-2 text-xs text-destructive">
+                              {Array.isArray(upload.errors)
+                                ? upload.errors.slice(0, 3).map((e, i) => (
+                                    <div key={i}>
+                                      {e.row ? `Row ${e.row}: ` : ''}
+                                      {e.error}
+                                    </div>
+                                  ))
+                                : upload.errors &&
+                                    typeof upload.errors === 'object' &&
+                                    'message' in upload.errors
+                                  ? String((upload.errors as Record<string, unknown>).message)
+                                  : 'Import failed.'}
+                              {Array.isArray(upload.errors) && upload.errors.length > 3 && (
+                                <div className="mt-1 text-muted-foreground">
+                                  ...and {upload.errors.length - 3} more errors
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Completed with errors - download link */}
+                          {upload.status === 'completed_with_errors' && upload.error_rows > 0 && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={`/waybills/import/${upload.id}/errors/download`}>
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Download Error Report
+                              </a>
                             </Button>
-                          </div>
+                          )}
                         </div>
-
-                        {isActive && (
-                          <div className="space-y-1.5">
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>
-                                {live && live.processed_rows > 0
-                                  ? `${live.processed_rows.toLocaleString()} rows processed`
-                                  : 'Queued — waiting to start…'}
-                              </span>
-                              {pct !== null && <span>{pct}%</span>}
-                            </div>
-                            <Progress
-                              value={pct ?? 0}
-                              className={`h-1.5 ${pct === null ? 'animate-pulse' : ''}`}
-                            />
-                          </div>
-                        )}
-
-                        {upload.status === 'failed' && upload.errors && (
-                          <div className="text-xs text-destructive bg-destructive/5 border border-destructive/10 rounded px-3 py-2 space-y-0.5">
-                            {Array.isArray(upload.errors) ? (
-                              upload.errors.slice(0, 2).map((e, i) => (
-                                <p key={i}>
-                                  Row {e.row}: {e.error}
-                                </p>
-                              ))
-                            ) : (
-                              <p>
-                                {(upload.errors as { message?: string })?.message ??
-                                  'Unknown error'}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {uploads.links.length > 3 && (
-                    <div className="flex justify-center gap-1 pt-2">
-                      {uploads.links.map((link, index) => (
-                        <Button
-                          key={index}
-                          variant={link.active ? 'default' : 'outline'}
-                          size="sm"
-                          disabled={!link.url}
-                          onClick={() => link.url && router.visit(link.url)}
-                          dangerouslySetInnerHTML={{ __html: link.label }}
-                        />
-                      ))}
-                    </div>
+                      );
+                    })
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Pagination */}
+                {uploads.links && uploads.links.some((l) => l.url !== null) && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    {uploads.links.map((link, i) => (
+                      <Button
+                        key={i}
+                        variant={link.active ? 'default' : 'outline'}
+                        size="sm"
+                        disabled={!link.url}
+                        onClick={() => link.url && router.visit(link.url)}
+                      >
+                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </AppLayout>

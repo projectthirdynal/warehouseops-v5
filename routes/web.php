@@ -31,7 +31,6 @@ use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\Finance\ThreeWayMatchController as FinanceThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
-use App\Http\Controllers\GoogleSheetSyncController;
 use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
@@ -1013,6 +1012,8 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import/{upload}/error-details', [WaybillImportController::class, 'errorDetails'])->name('import.error-details');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
+        Route::post('/import/sync-sheet', [WaybillImportController::class, 'syncSheet'])->name('import.sync-sheet');
+        Route::post('/import/save-sheet-config', [WaybillImportController::class, 'saveSheetConfig'])->name('import.save-sheet-config');
 
         Route::prefix('claims')->name('claims.')->group(function () {
             Route::get('/', [ClaimController::class, 'index'])->name('index');
@@ -1064,20 +1065,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
-    });
-
-    // Google Sheet Sync — automated backtracking from Google Sheets
-    // Registered at top level (not inside waybills prefix) to avoid route cache
-    // compilation issues with nested prefix groups and parameter routes.
-    Route::prefix('waybills/sync')->name('waybills.sync.')->group(function () {
-        Route::get('/', [GoogleSheetSyncController::class, 'index'])->name('index');
-        Route::get('/connect', [GoogleSheetSyncController::class, 'connect'])->name('connect');
-        Route::get('/callback', [GoogleSheetSyncController::class, 'callback'])->name('callback');
-        Route::post('/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('disconnect');
-        Route::get('/status', [GoogleSheetSyncController::class, 'status'])->name('status');
-        Route::post('/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('configs');
-        Route::post('/run', [GoogleSheetSyncController::class, 'run'])->name('run');
-        Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
     });
 
     // Leads — index now redirects to unified Lead Pool view

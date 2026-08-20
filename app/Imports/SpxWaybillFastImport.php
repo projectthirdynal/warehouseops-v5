@@ -6,6 +6,7 @@ use App\Domain\Courier\Services\StatusMapper;
 use App\Models\Upload;
 use App\Models\WaybillTrackingHistory;
 use Illuminate\Support\Facades\DB;
+use Rap2hpoutre\FastExcel\FastExcel;
 
 /**
  * SPX Express (Shopee Express) import using array-based row input.
@@ -192,6 +193,19 @@ class SpxWaybillFastImport
         } finally {
             DB::statement('SET synchronous_commit = ON');
         }
+    }
+
+    /**
+     * Import from a CSV/Excel file path (for Google Sheet sync downloads).
+     * Reads the file with FastExcel and delegates to importRows().
+     */
+    public function import(string $filePath): void
+    {
+        $rows = [];
+        (new FastExcel)->import($filePath, function ($row) use (&$rows) {
+            $rows[] = $row;
+        });
+        $this->importRows($rows);
     }
 
     protected function mapRow(array $row, string $now): ?array

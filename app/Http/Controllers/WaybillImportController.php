@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Waybill\Models\GoogleSheetConfig;
 use App\Jobs\ProcessWaybillImport;
 use App\Jobs\RetryFailedRowsJob;
 use App\Models\Upload;
 use App\Models\Waybill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Rap2hpoutre\FastExcel\FastExcel;
@@ -50,6 +52,18 @@ class WaybillImportController extends Controller
         return Inertia::render('Waybills/Import', [
             'uploads' => $uploads,
             'stats' => $stats,
+            'sheet_configs' => GoogleSheetConfig::orderBy('courier')
+                ->orderByRaw("ARRAY_POSITION(ARRAY['January','February','March','April','May','June','July','August','September','October','November','December'], month)")
+                ->get()
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'courier' => $c->courier,
+                    'month' => $c->month,
+                    'data_year' => $c->data_year,
+                    'sheet_url' => $c->sheet_url,
+                    'sheet_tab_name' => $c->sheet_tab_name,
+                    'enabled' => $c->enabled,
+                ]),
         ]);
     }
 
@@ -57,7 +71,7 @@ class WaybillImportController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:102400',
-            'courier' => 'required|string|in:jnt,flash',
+            'courier' => 'required|string|in:jnt,flash,spx',
         ]);
 
         $file = $request->file('file');
@@ -104,6 +118,185 @@ class WaybillImportController extends Controller
         ]);
 
         return response()->json(['upload_id' => $upload->id]);
+    }
+
+    /**
+     * Sync waybills from a public Google Sheet URL.
+     * Downloads the sheet as CSV via the GViz export endpoint, saves to a temp
+     * file, then dispatches the existing ProcessWaybillImport pipeline.
+     * Re-syncing the same sheet will upsert — unchanged rows are skipped, new
+     * rows are inserted, and status-changed rows are updated with tracking history.
+     */
+    public function syncSheet(Request $request)
+    {
+        $validated = $request->validate([
+            'courier' => 'required|string|in:jnt,flash,spx',
+            'sheet_url' => 'required|string|max:2000',
+            'sheet_tab_name' => 'nullable|string|max:200',
+            'month' => 'nullable|string|max:50',
+            'data_year' => 'nullable|integer',
+        ]);
+
+        $courier = $validated['courier'];
+        $sheetUrl = $validated['sheet_url'];
+        $tabName = $validated['sheet_tab_name'] ?? null;
+
+        // Extract spreadsheet ID from the URL
+        $spreadsheetId = $this->extractSpreadsheetId($sheetUrl);
+        if (! $spreadsheetId) {
+            return response()->json(['error' => 'Invalid Google Sheet URL. Could not extract spreadsheet ID.'], 422);
+        }
+
+        // Extract gid from URL if present (specific tab)
+        $gid = $this->extractGid($sheetUrl);
+
+        // Build the CSV export URL
+        $csvUrl = $this->buildCsvExportUrl($spreadsheetId, $gid, $tabName);
+        if (! $csvUrl) {
+            return response()->json(['error' => 'Could not build CSV export URL. Ensure the sheet is shared as "Anyone with the link — Viewer".'], 422);
+        }
+
+        // Download the CSV
+        try {
+            $response = Http::timeout(120)->get($csvUrl);
+            if (! $response->ok()) {
+                return response()->json(['error' => 'Failed to download Google Sheet. HTTP '.$response->status().'. Ensure the sheet is shared as "Anyone with the link — Viewer".'], 422);
+            }
+            $csvContent = $response->body();
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Failed to download Google Sheet: '.$e->getMessage()], 422);
+        }
+
+        if (empty(trim($csvContent))) {
+            return response()->json(['error' => 'The Google Sheet appears to be empty.'], 422);
+        }
+
+        // Save CSV to temp file
+        $tempDir = storage_path('app/uploads/waybills');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        $filename = 'gsheet_'.time().'_'.$courier.'.csv';
+        $tempPath = $tempDir.'/'.$filename;
+        file_put_contents($tempPath, $csvContent);
+
+        $fileHash = hash_file('sha256', $tempPath);
+
+        // Save/update the sheet config for future re-syncs
+        $month = $validated['month'] ?? now()->format('F');
+        $dataYear = $validated['data_year'] ?? now()->year;
+        GoogleSheetConfig::updateOrCreate(
+            [
+                'courier' => $courier,
+                'month' => $month,
+                'data_year' => $dataYear,
+            ],
+            [
+                'sheet_url' => $sheetUrl,
+                'sheet_tab_name' => $tabName,
+                'enabled' => true,
+                'updated_by' => $request->user()->id,
+            ]
+        );
+
+        // Create upload record
+        $label = strtoupper($courier).' '.$month.' '.$dataYear;
+        $upload = Upload::create([
+            'filename' => $filename,
+            'original_filename' => 'Google Sheet: '.$label,
+            'type' => 'waybill',
+            'courier' => $courier,
+            'import_type' => 'google_sync',
+            'file_hash' => $fileHash,
+            'status' => Upload::STATUS_PROCESSING,
+            'started_at' => now(),
+            'uploaded_by' => $request->user()->id,
+        ]);
+
+        // Dispatch the import job directly (skip validation step — sheets are trusted)
+        ProcessWaybillImport::dispatch(
+            $upload->id,
+            $courier,
+            $tempPath,
+            $request->user()->id,
+        );
+
+        return response()->json([
+            'upload_id' => $upload->id,
+            'message' => 'Sync started for '.$label.'. Downloading and processing in the background.',
+        ]);
+    }
+
+    /**
+     * Save sheet URL configuration for a courier (without triggering sync).
+     */
+    public function saveSheetConfig(Request $request)
+    {
+        $validated = $request->validate([
+            'courier' => 'required|string|in:jnt,flash,spx',
+            'sheet_url' => 'nullable|string|max:2000',
+            'sheet_tab_name' => 'nullable|string|max:200',
+            'month' => 'nullable|string|max:50',
+            'data_year' => 'nullable|integer',
+            'enabled' => 'boolean',
+        ]);
+
+        $month = $validated['month'] ?? now()->format('F');
+        $dataYear = $validated['data_year'] ?? now()->year;
+
+        GoogleSheetConfig::updateOrCreate(
+            [
+                'courier' => $validated['courier'],
+                'month' => $month,
+                'data_year' => $dataYear,
+            ],
+            [
+                'sheet_url' => $validated['sheet_url'] ?? null,
+                'sheet_tab_name' => $validated['sheet_tab_name'] ?? null,
+                'enabled' => $validated['enabled'] ?? true,
+                'updated_by' => $request->user()->id,
+            ]
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Extract the spreadsheet ID from a Google Sheets URL.
+     */
+    private function extractSpreadsheetId(string $url): ?string
+    {
+        if (preg_match('/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/', $url, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract the gid (tab ID) from a Google Sheets URL.
+     */
+    private function extractGid(string $url): ?string
+    {
+        if (preg_match('/[?#&]gid=(\d+)/', $url, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Build the CSV export URL for a Google Sheet.
+     * Uses the export endpoint which works for "Anyone with the link" shared sheets.
+     */
+    private function buildCsvExportUrl(string $spreadsheetId, ?string $gid, ?string $tabName): ?string
+    {
+        $params = ['format' => 'csv'];
+        if ($gid) {
+            $params['gid'] = $gid;
+        }
+
+        return "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/export?".http_build_query($params);
     }
 
     public function validateUpload(Request $request, Upload $upload)

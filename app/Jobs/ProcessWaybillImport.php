@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
+use App\Imports\SpxWaybillFastImport;
 use App\Models\Upload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -44,6 +45,8 @@ class ProcessWaybillImport implements ShouldQueue
         try {
             if ($this->courier === 'jnt') {
                 $import = new JntWaybillFastImport($upload, $this->userId);
+            } elseif ($this->courier === 'spx') {
+                $import = new SpxWaybillFastImport($upload, $this->userId);
             } else {
                 $import = new FlashWaybillFastImport($upload, $this->userId);
             }
