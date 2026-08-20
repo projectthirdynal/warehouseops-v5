@@ -1014,17 +1014,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
 
-        // Google Sheet Sync — automated backtracking from Google Sheets
-        // Note: registered with full paths (not nested prefix) to avoid route cache compilation issues
-        Route::get('/sync', [GoogleSheetSyncController::class, 'index'])->name('sync.index');
-        Route::get('/sync/connect', [GoogleSheetSyncController::class, 'connect'])->name('sync.connect');
-        Route::get('/sync/callback', [GoogleSheetSyncController::class, 'callback'])->name('sync.callback');
-        Route::post('/sync/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('sync.disconnect');
-        Route::get('/sync/status', [GoogleSheetSyncController::class, 'status'])->name('sync.status');
-        Route::post('/sync/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('sync.configs');
-        Route::post('/sync/run', [GoogleSheetSyncController::class, 'run'])->name('sync.run');
-        Route::get('/sync/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('sync.run.status');
-
         Route::prefix('claims')->name('claims.')->group(function () {
             Route::get('/', [ClaimController::class, 'index'])->name('index');
             Route::get('/approved', [ClaimController::class, 'approved'])->name('approved');
@@ -1075,6 +1064,20 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/search', [WaybillController::class, 'search'])->name('search');
         Route::get('/{waybill}', [WaybillController::class, 'show'])->name('show');
         Route::patch('/{waybill}/status', [WaybillController::class, 'updateStatus'])->name('update-status');
+    });
+
+    // Google Sheet Sync — automated backtracking from Google Sheets
+    // Registered at top level (not inside waybills prefix) to avoid route cache
+    // compilation issues with nested prefix groups and parameter routes.
+    Route::prefix('waybills/sync')->name('waybills.sync.')->group(function () {
+        Route::get('/', [GoogleSheetSyncController::class, 'index'])->name('index');
+        Route::get('/connect', [GoogleSheetSyncController::class, 'connect'])->name('connect');
+        Route::get('/callback', [GoogleSheetSyncController::class, 'callback'])->name('callback');
+        Route::post('/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('disconnect');
+        Route::get('/status', [GoogleSheetSyncController::class, 'status'])->name('status');
+        Route::post('/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('configs');
+        Route::post('/run', [GoogleSheetSyncController::class, 'run'])->name('run');
+        Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
     });
 
     // Leads — index now redirects to unified Lead Pool view
