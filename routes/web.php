@@ -75,6 +75,7 @@ use App\Http\Controllers\WarehouseMapController;
 use App\Http\Controllers\WaybillController;
 use App\Http\Controllers\WaybillExportController;
 use App\Http\Controllers\WaybillImportController;
+use App\Http\Controllers\GoogleSheetSyncController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -1012,6 +1013,19 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import/{upload}/error-details', [WaybillImportController::class, 'errorDetails'])->name('import.error-details');
         Route::post('/import/{upload}/cancel', [WaybillImportController::class, 'cancel'])->name('import.cancel');
         Route::get('/import/{upload}/status', [WaybillImportController::class, 'status'])->name('import.status');
+
+        // Google Sheet Sync — automated backtracking from Google Sheets
+        Route::prefix('sync')->name('sync.')->group(function () {
+            Route::get('/', [GoogleSheetSyncController::class, 'index'])->name('index');
+            Route::get('/connect', [GoogleSheetSyncController::class, 'connect'])->name('connect');
+            Route::get('/callback', [GoogleSheetSyncController::class, 'callback'])->name('callback');
+            Route::post('/disconnect', [GoogleSheetSyncController::class, 'disconnect'])->name('disconnect');
+            Route::get('/status', [GoogleSheetSyncController::class, 'status'])->name('status');
+            Route::post('/configs', [GoogleSheetSyncController::class, 'saveConfigs'])->name('configs');
+            Route::post('/run', [GoogleSheetSyncController::class, 'run'])->name('run');
+            Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
+        });
+
         Route::prefix('claims')->name('claims.')->group(function () {
             Route::get('/', [ClaimController::class, 'index'])->name('index');
             Route::get('/approved', [ClaimController::class, 'approved'])->name('approved');

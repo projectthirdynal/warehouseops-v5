@@ -66,6 +66,7 @@ import {
   ClipboardList,
   CalendarClock,
   CreditCard,
+  Sheet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -139,6 +140,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/waybills': 'Waybills',
   '/waybills/scanner': 'Scanner',
   '/waybills/import': 'Import',
+  '/waybills/sync': 'Google Sync',
   '/waybills/claims': 'Claims',
   '/waybills/claims/beyond-sla': 'Beyond SLA',
   '/waybills/unknown': 'Unknown',
@@ -524,6 +526,7 @@ const navigation: NavEntry[] = [
       { name: 'All Waybills', href: '/waybills', icon: Truck, roles: OPS_ADMIN_ROLES },
       { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine, roles: OPS_ADMIN_ROLES },
       { name: 'Import', href: '/waybills/import', icon: Upload, roles: OPS_ADMIN_ROLES },
+      { name: 'Google Sync', href: '/waybills/sync', icon: Sheet, roles: OPS_ADMIN_ROLES },
       { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert, roles: OPS_ADMIN_ROLES },
       {
         name: 'Beyond SLA',

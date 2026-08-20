@@ -82,4 +82,10 @@ return [
         'sender_province' => env('SHOP_SENDER_PROVINCE', ''),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect_uri' => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/waybills/sync/callback'),
+    ],
+
 ];
