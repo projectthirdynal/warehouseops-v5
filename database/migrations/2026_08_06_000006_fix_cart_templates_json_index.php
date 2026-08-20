@@ -17,16 +17,16 @@ return new class extends Migration
         // Convert allowed_roles from json to jsonb for GIN index support
         if (Schema::hasColumn('cart_templates', 'allowed_roles')) {
             DB::statement('ALTER TABLE cart_templates ALTER COLUMN allowed_roles TYPE jsonb USING allowed_roles::jsonb');
+
+            // Drop the failed composite index if it somehow exists
+            DB::statement('DROP INDEX IF EXISTS cart_templates_is_shared_allowed_roles_index');
+
+            // GIN index for jsonb allowed_roles (only if column exists)
+            DB::statement('CREATE INDEX IF NOT EXISTS cart_templates_allowed_roles_gin_index ON cart_templates USING gin (allowed_roles)');
         }
 
-        // Drop the failed composite index if it somehow exists
-        DB::statement('DROP INDEX IF EXISTS cart_templates_is_shared_allowed_roles_index');
-
-        // Ensure btree index on is_shared exists
+        // Ensure btree index on is_shared exists (independent of allowed_roles)
         DB::statement('CREATE INDEX IF NOT EXISTS cart_templates_is_shared_index ON cart_templates (is_shared)');
-
-        // GIN index for jsonb allowed_roles
-        DB::statement('CREATE INDEX IF NOT EXISTS cart_templates_allowed_roles_gin_index ON cart_templates USING gin (allowed_roles)');
     }
 
     public function down(): void
