@@ -1080,6 +1080,17 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/run/{upload}', [GoogleSheetSyncController::class, 'runStatus'])->name('run.status');
     });
 
+    // TEMP DEBUG — remove after fixing route cache issue
+    Route::get('/debug-route-test', function () {
+        return response()->json([
+            'path_info' => request()->getPathInfo(),
+            'script_name' => request()->server->get('SCRIPT_NAME'),
+            'request_uri' => request()->server->get('REQUEST_URI'),
+            'matched_route' => optional(request()->route())->uri(),
+            'matched_name' => optional(request()->route())->getName(),
+        ]);
+    })->name('debug.route.test');
+
     // Leads — index now redirects to unified Lead Pool view
     Route::prefix('leads')->name('leads.')->group(function () {
         Route::get('/', function () {
