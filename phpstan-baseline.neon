@@ -740,10 +740,6 @@ parameters:
 			count: 1
 			path: app/Domain/Shop/Services/PhoneDetectionService.php
 
-		-
-			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\ShopOrderItem\\:\\:\\$frequency\\.$#"
-			count: 1
-			path: app/Domain/Shop/Services/ProductRecommendationService.php
 
 		-
 			message: "#^Method App\\\\Domain\\\\Shop\\\\Services\\\\ShopReportsEnhancementService\\:\\:funnel\\(\\) should return array\\{stages\\: array\\<int, array\\{stage\\: string, label\\: string, count\\: int, percentage\\: float\\}\\>, drop_off\\: array\\<int, array\\{from\\: string, to\\: string, lost\\: int, rate\\: float\\}\\>\\} but returns array\\{stages\\: array\\{array\\{stage\\: 'conversations', label\\: 'Conversations', count\\: int\\}, array\\{stage\\: 'assigned', label\\: 'Assigned', count\\: int\\}, array\\{stage\\: 'resolved', label\\: 'Resolved', count\\: int\\}, array\\{stage\\: 'orders', label\\: 'Orders Created', count\\: int\\}, array\\{stage\\: 'confirmed', label\\: 'Confirmed', count\\: int\\}, array\\{stage\\: 'delivered', label\\: 'Delivered', count\\: int\\}\\}, drop_off\\: non\\-empty\\-array\\<int\\<0, max\\>, array\\{from\\: literal\\-string&non\\-falsy\\-string, to\\: literal\\-string&non\\-falsy\\-string, lost\\: int\\<0, max\\>, rate\\: float\\}\\>\\}\\.$#"
