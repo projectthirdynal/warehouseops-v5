@@ -6,24 +6,32 @@ name: Runner Test
       - develop
 
 jobs:
-  test-docker:
-    name: Test Docker and Tools
+  test-checkout:
+    name: Test Checkout v3 and Install rsync
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Check docker socket and tools
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Check workspace
         run: |
-          echo "=== whoami ==="
-          whoami
+          echo "=== pwd ==="
+          pwd
+          echo "=== ls -la ==="
+          ls -la
+          echo "=== list workflow files ==="
+          ls -la .gitea/workflows/ || true
+          echo "=== git status ==="
+          git status || true
+      - name: Install rsync
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq rsync
+          echo "=== which rsync ==="
+          which rsync
+      - name: Check docker after checkout
+        run: |
           echo "=== docker ps ==="
           docker ps
-          echo "=== which docker ==="
-          which docker
-          echo "=== which rsync ==="
-          which rsync || echo "rsync not found"
           echo "=== which npm ==="
-          which npm || echo "npm not found"
-          echo "=== which curl ==="
-          which curl || echo "curl not found"
-          echo "=== ls workspace ==="
-          ls -la "$GITHUB_WORKSPACE" || ls -la .
+          which npm
