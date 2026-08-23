@@ -2,18 +2,19 @@
 
 ## Development Workflow
 
-We use a trunk-based branching strategy. All changes go through PRs into `main`.
+We use a GitFlow-style branching strategy. Feature branches merge into `develop` via PR. `develop` merges into `main` for production releases.
 
 ### Branch Structure
 
-| Branch       | Purpose                                              |
-| ------------ | ---------------------------------------------------- |
-| `main`       | Production-ready code. Protected — no direct pushes. |
-| `feature/*`  | New features / enhancements                          |
-| `fix/*`      | Bug fixes                                            |
-| `refactor/*` | Code refactors                                       |
-| `chore/*`    | Maintenance, deps, config                            |
-| `hotfix/*`   | Critical production fixes (fast-track)               |
+| Branch       | Purpose                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| `main`       | Production-ready code. Protected — no direct pushes. Auto-deploys to production. |
+| `develop`    | Integration branch. Protected — no direct pushes. Auto-deploys to staging. |
+| `feature/*`  | New features / enhancements — branch from `develop`             |
+| `fix/*`      | Bug fixes — branch from `develop`                                |
+| `refactor/*` | Code refactors — branch from `develop`                           |
+| `chore/*`    | Maintenance, deps, config — branch from `develop`               |
+| `hotfix/*`   | Critical production fixes — branch from `main`, merge to both `main` and `develop` |
 
 ### Naming Convention
 
@@ -28,12 +29,12 @@ hotfix/auth-bypass
 ### 1. Start Work
 
 ```bash
-# Always sync with latest main first
-git checkout main
-git pull origin main
+# Always sync with latest develop first
+git checkout develop
+git pull origin develop
 
 # Create your branch
-git checkout -b feature/pos-module
+git checkout -b feature/shop-module
 ```
 
 ### 2. Commit Changes
@@ -51,22 +52,28 @@ refactor: simplify POS payment logic
 ### 3. Push & Open PR
 
 ```bash
-git push -u origin feature/pos-module
+git push -u origin feature/shop-module
 
-# Open PR against main
-gh pr create --base main --head feature/pos-module \
-  --title "feat: POS module" \
-  --body "Description of what was built"
+# Open PR against develop in Gitea
+# Go to http://192.168.0.15:3002/it-admin/warehouseops-v5/compare/develop...feature/shop-module
 ```
 
-All PRs go against **`main`**. Fill out the PR template.
+All feature PRs go against **`develop`**. Fill out the PR template.
+
+### 3b. Release to Production
+
+When `develop` is ready for production release:
+
+1. Open a PR from `develop` → `main` in Gitea
+2. Get approval from project owner
+3. Merge — this **auto-deploys to production** via the Gitea Actions workflow
 
 ### 4. Code Review Requirements
 
 - All CI checks must pass (build, lint, typecheck)
 - At least **1 approving review** from a team member
 - No merge conflicts
-- Branch must be up to date with `main`
+- Branch must be up to date with `develop`
 
 ### 5. Merge
 
@@ -74,9 +81,9 @@ Use **Squash and Merge** for clean history. Delete your branch after merge.
 
 ```bash
 # After your PR is merged
-git checkout main
-git pull origin main
-git branch -d feature/pos-module  # delete local branch
+git checkout develop
+git pull origin develop
+git branch -d feature/shop-module  # delete local branch
 ```
 
 ## Scope Boundaries
@@ -95,7 +102,7 @@ If you need to touch shared files, mention it in your PR and tag the relevant ow
 
 ```bash
 # Clone the repo
-git clone https://github.com/projectthirdynal/warehouseops-v5.git
+git clone http://192.168.0.15:3002/it-admin/warehouseops-v5.git
 cd warehouseops-v5
 
 # Backend setup
@@ -130,4 +137,5 @@ Before opening a PR, ensure:
 1. Branch from `main`: `git checkout -b hotfix/critical-fix`
 2. Apply minimal fix, open PR against `main`
 3. Tag team lead for **expedited review**
-4. After merge, delete the hotfix branch
+4. After merge to `main` (auto-deploys), cherry-pick or merge to `develop` to keep them in sync
+5. Delete the hotfix branch
