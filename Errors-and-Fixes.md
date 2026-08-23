@@ -66,10 +66,22 @@
 
 ## Medium Risk
 
+### Host PHP CLI Missing Extensions (mbstring/xml)
+
+- **Problem**: Running Pint/PHPStan directly on the host PHP CLI fails — e.g. `Call to undefined function Illuminate\Support\mb_split()` (PHPStan bootstrap) or missing `xml` extension errors from Pint.
+- **Fix**: Always run PHP tooling inside the app container, same pattern as the test workflow:
+  ```
+  docker exec warehouseops-app sh -lc 'cd /var/www/html && vendor/bin/pint --test'
+  docker exec warehouseops-app sh -lc 'cd /var/www/html && vendor/bin/phpstan analyse --no-progress'
+  ```
+- **Verification**: Full-repo Pint via container → PASS; PHPStan via container → `[OK] No errors`.
+
 ### Pint CI Failure
 
-- **Problem**: 345 style issues across 633 files, including `DuplicateDetectionService.php` `fully_qualified_strict_types`.
+- **Problem**: 345 style issues across 633 files (historical snapshot at time of fix), including `DuplicateDetectionService.php` `fully_qualified_strict_types`.
 - **Fix**: Fixed style issues and `fully_qualified_strict_types` with proper imports.
+- **Current state (Aug 2026)**: File count grew to 803 with the Shop domain additions — all conforming (`vendor/bin/pint --test` → PASS).
+- **Note**: `pint.json` pins `"preset": "laravel"` (previously implicit default); version determinism comes from `composer.lock` (`laravel/pint` v1.29.0).
 
 ### Composer Install CI Failure
 
@@ -98,7 +110,7 @@
   - PHPStan was failing with an *internal error* (not baselineable): `App\Domain\Lead\Models\QaReview` referenced by `Lead::qaReviews()` never existed — only the `qa_reviews` table did (migration `2024_01_01_000002_create_lead_system_tables.php`). Internal errors abort analysis entirely, masking ~393 baselined + 115 new errors.
   - Created missing `app/Models/QaReview.php` (fillable/casts per migration schema, `lead()` + `reviewer()` relations) and added the import in `Lead.php`.
   - Regenerated baseline: now 508 real entries; stale unmatched patterns dropped.
-- **Verification**: `vendor/bin/phpstan analyse --no-progress` → `[OK] No errors`, exit 0 · Pint passes on changed files · full Pest suite: 414 passed (1501 assertions).
+- **Verification**: `vendor/bin/phpstan analyse --no-progress` (in app container) → `[OK] No errors`, exit 0 · Pint passes on changed files · full Pest suite: 414 passed (1501 assertions).
 
 ### 404 on Vite Build Assets
 
