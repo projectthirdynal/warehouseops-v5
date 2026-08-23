@@ -4,6 +4,7 @@ namespace App\Console;
 
 use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Jobs\AutoDistributeLeads;
+use App\Jobs\CheckConversationSlaBreaches;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;
 use App\Models\Upload;
@@ -22,6 +23,11 @@ class Kernel extends ConsoleKernel
             ->onOneServer();
         $schedule->job(new DetectFraudPatterns)->everyThirtyMinutes();
         $schedule->job(new SyncTrackingStatusJob)->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        // SLA breach alerting (log channel) — complements shop:escalate-sla-breached
+        $schedule->job(new CheckConversationSlaBreaches)->everyFifteenMinutes()
             ->withoutOverlapping()
             ->onOneServer();
 
