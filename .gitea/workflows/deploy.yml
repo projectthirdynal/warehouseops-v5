@@ -6,30 +6,24 @@ name: Runner Test
       - develop
 
 jobs:
-  test-runner:
-    name: Test Runner
+  test-docker:
+    name: Test Docker and Tools
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Check docker and tools
+      - name: Check docker socket and tools
         run: |
+          echo "=== whoami ==="
+          whoami
           echo "=== docker ps ==="
           docker ps
           echo "=== which docker ==="
           which docker
           echo "=== which rsync ==="
-          which rsync
+          which rsync || echo "rsync not found"
           echo "=== which npm ==="
-          which npm
-          echo "=== which composer ==="
-          which composer
+          which npm || echo "npm not found"
           echo "=== which curl ==="
-          which curl
-          echo "=== whoami ==="
-          whoami
-          echo "=== pwd ==="
-          pwd
-          echo "=== ls -la ==="
-          ls -la
+          which curl || echo "curl not found"
+          echo "=== ls workspace ==="
+          ls -la "$GITHUB_WORKSPACE" || ls -la .
