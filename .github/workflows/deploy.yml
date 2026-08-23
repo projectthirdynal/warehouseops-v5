@@ -236,7 +236,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: unit-coverage-php${{ matrix.php-version }}
           path: coverage.xml
@@ -320,7 +320,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: integration-test-results
           path: |
@@ -407,7 +407,7 @@ jobs:
           echo "Build output verified: $(find public/build -type f | wc -l) files"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: app-build-${{ github.sha }}
           path: |
@@ -561,7 +561,7 @@ jobs:
 
       - name: Upload Trivy results artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: trivy-scan-results
           path: trivy-results.sarif
