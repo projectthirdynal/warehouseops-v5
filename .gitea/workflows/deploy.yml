@@ -1,5 +1,6 @@
 name: CI/CD Pipeline
 "on":
+"on":
   push:
     branches:
       - main
@@ -836,8 +837,3 @@ jobs:
         $GITHUB_STEP_SUMMARY\"\nelse\n  echo \"\" >> \"$GITHUB_STEP_SUMMARY\"\n  echo\
         \ \"## \u2705 Pipeline Succeeded\" >> \"$GITHUB_STEP_SUMMARY\"\nfi\n"
     continue-on-error: true
-'on':
-  push:
-    branches:
-    - main
-    - develop
