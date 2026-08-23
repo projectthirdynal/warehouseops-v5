@@ -7,6 +7,9 @@
 /vendor
 .env
 .env.backup
+.env.dev
+.env.prod_backup
+.env.*_backup
 storage/db-backups/
 .env.production
 .phpunit.result.cache
