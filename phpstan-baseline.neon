@@ -611,26 +611,6 @@ parameters:
 			path: app/Domain/Shop/Services/AddressMappingService.php
 
 		-
-			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$active_count\\.$#"
-			count: 2
-			path: app/Domain/Shop/Services/AutoAssignmentService.php
-
-		-
-			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$last_assignment_at\\.$#"
-			count: 1
-			path: app/Domain/Shop/Services/AutoAssignmentService.php
-
-		-
-			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$shift_end\\.$#"
-			count: 1
-			path: app/Domain/Shop/Services/AutoAssignmentService.php
-
-		-
-			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$shift_start\\.$#"
-			count: 1
-			path: app/Domain/Shop/Services/AutoAssignmentService.php
-
-		-
 			message: "#^Access to an undefined property App\\\\Domain\\\\Shop\\\\Models\\\\CartTemplate\\:\\:\\$count\\.$#"
 			count: 1
 			path: app/Domain/Shop/Services/CartTemplateSharingService.php
