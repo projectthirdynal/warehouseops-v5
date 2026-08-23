@@ -84,7 +84,11 @@
 ### npm Audit
 
 - **Problem**: 13 vulnerabilities.
-- **Fix**: Upgraded `vite` (13 → 1 vulnerability, `xlsx` remains unpatchable).
+- **Fix (initial)**: Upgraded `vite` (13 → 1 vulnerability, `xlsx` left as unpatchable via npm registry).
+- **Fix (final, Aug 2026)**: Fully resolved — 0 vulnerabilities.
+  - `nanoid` 3.3.16 → 3.3.18 (GHSA-2v37-7h3g-55p8, transitive via `postcss`, fixed with `npm audit fix`)
+  - `xlsx` 0.18.5 → 0.20.3 from official SheetJS CDN (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`) — patches GHSA-4r6h-8v6p (Prototype Pollution) and GHSA-5pgg-2g8v-p4x9 (ReDoS). The npm registry copy of xlsx is frozen at 0.18.5; SheetJS only distributes patched releases via cdn.sheetjs.com. Drop-in compatible: single usage site (`read`/`utils` in `WaybillStreamingUpload.tsx`).
+- **Verification**: `npm audit` → found 0 vulnerabilities; `tsc --noEmit` clean; `npm run build` succeeds; `npm ci --dry-run` lockfile-consistent. CI's `npm audit --audit-level=high` now passes without relying on `continue-on-error`.
 
 ### PHPStan
 
