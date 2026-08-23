@@ -1,15 +1,4 @@
 name: CI/CD Pipeline
-true:
-  pull_request:
-    branches:
-    - main
-    - develop
-  push:
-    branches:
-    - main
-    - develop
-    tags:
-    - v*.*.*
 concurrency:
   group: cicd-${{ github.ref }}
   cancel-in-progress: false
@@ -506,7 +495,6 @@ jobs:
     continue-on-error: true
   deploy-staging:
     name: Deploy to Staging
-    needs: []
     if: 1 == 0
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -591,7 +579,6 @@ jobs:
     continue-on-error: true
   deploy-production:
     name: Deploy to Production
-    needs: []
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -845,6 +832,11 @@ jobs:
         \ \"## \u2705 Pipeline Succeeded\" >> \"$GITHUB_STEP_SUMMARY\"\nfi\n"
     continue-on-error: true
 'on':
+  push:
+    branches:
+    - main
+    - develop
+on:
   push:
     branches:
     - main
