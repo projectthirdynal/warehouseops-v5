@@ -1,4 +1,9 @@
 name: CI/CD Pipeline
+on:
+  push:
+    branches:
+      - main
+      - develop
 concurrency:
   group: cicd-${{ github.ref }}
   cancel-in-progress: false
@@ -832,11 +837,6 @@ jobs:
         \ \"## \u2705 Pipeline Succeeded\" >> \"$GITHUB_STEP_SUMMARY\"\nfi\n"
     continue-on-error: true
 'on':
-  push:
-    branches:
-    - main
-    - develop
-on:
   push:
     branches:
     - main
