@@ -141,7 +141,7 @@ export default function WaybillImport({ uploads, stats, sheet_configs }: Props) 
 
   // Load saved sheet URL for selected courier/month/year
   useEffect(() => {
-    const config = (sheet_configs ?? []).find(
+    const config = sheet_configs.find(
       (c) =>
         c.courier === selectedCourier && c.month === selectedMonth && c.data_year === selectedYear
     );
@@ -167,7 +167,7 @@ export default function WaybillImport({ uploads, stats, sheet_configs }: Props) 
           data.status
         )
       ) {
-        router.reload({ only: ['uploads', 'stats', 'sheet_configs'] });
+        router.reload({ only: ['uploads', 'stats'] });
       }
     } catch {
       // ignore transient network errors

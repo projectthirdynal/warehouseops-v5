@@ -990,7 +990,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
     // Waybills
     Route::prefix('waybills')->name('waybills.')->group(function () {
         Route::get('/', [WaybillController::class, 'index'])->name('index');
-        Route::redirect("/sync", "/waybills/import")->name("sync.redirect");
         Route::get('/scanner', [ScannerController::class, 'index'])->name('scanner');
         Route::post('/scan', [ScannerController::class, 'scan'])->name('scan');
         Route::post('/scan/batch', [ScannerController::class, 'batchScan'])->name('scan.batch');
