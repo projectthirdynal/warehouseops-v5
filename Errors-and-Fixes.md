@@ -42,6 +42,11 @@
 - **Problem**: `GET /shop/inbox/unified-stats` returned 500 because a wildcard route `Route::get('/shop/inbox/{conversation}')` was registered before it, capturing `unified-stats` as a conversation ID.
 - **Fix**: Moved the `unified-stats` route definition to appear before the wildcard route.
 
+### finance/budget/api 500 — Route Ordering Conflict
+
+- **Problem**: `GET /finance/budget/api` returned 500 with SQL error `invalid input syntax for type bigint: "api"` because wildcard route `Route::get('/{budget}')` was registered before `/api`, capturing `api` as a budget ID.
+- **Fix**: Moved all `/api` route definitions to appear before the `/{budget}` wildcard route in the budget route group.
+
 ### App\Models\Waybill Missing deliveryProofs() Relationship
 
 - **Problem**: Caused 500 on `/waybills/{id}` due to missing `deliveryProofs()` relationship.

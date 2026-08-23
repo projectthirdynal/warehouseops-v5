@@ -562,7 +562,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         // Budget vs Actual — department budgets with variance alerts
         Route::prefix('budget')->name('budget.')->group(function () {
             Route::get('/', [BudgetController::class, 'index'])->name('index');
-            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
             Route::get('/api', [BudgetController::class, 'apiIndex'])->name('api.index');
             Route::get('/api/{budget}', [BudgetController::class, 'apiShow'])->name('api.show');
             Route::post('/api', [BudgetController::class, 'apiStore'])->name('api.store');
@@ -572,6 +571,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::post('/api/{budget}/generate-alerts', [BudgetController::class, 'apiGenerateAlerts'])->name('api.generate-alerts');
             Route::get('/api/{budget}/alerts', [BudgetController::class, 'apiAlerts'])->name('api.alerts');
             Route::patch('/api/alerts/{alertId}/resolve', [BudgetController::class, 'apiResolveAlert'])->name('api.alerts.resolve');
+            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
         });
     });
 

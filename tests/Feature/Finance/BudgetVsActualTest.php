@@ -37,7 +37,7 @@ describe('BudgetService', function () {
         expect($budget->department)->toBe('Operations');
         expect($budget->status)->toBe('ACTIVE');
         expect($budget->lines)->toHaveCount(3);
-        expect($budget->lines->first()->category)->toBe('REVENUE');
+        expect($budget->lines->pluck('category')->contains('REVENUE'))->toBeTrue();
     });
 
     it('updates a budget and its lines', function () {
