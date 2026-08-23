@@ -1,0 +1,45 @@
+name: Module Ownership
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  shop-module-check:
+    name: Enforce Shop module ownership
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch --depth=1 origin ${{ github.base_ref }}
+
+      - name: Verify Akiromishidoze only modifies Shop files
+        if: github.event.pull_request.user.login == 'akiromishidoze'
+        run: |
+          invalid_files=""
+
+          while IFS= read -r file; do
+            case "$file" in
+              app/Domain/Shop/*) ;;
+              app/Http/Controllers/ShopController.php) ;;
+              database/factories/Domain/Shop/*) ;;
+              database/migrations/*shop*) ;;
+              database/migrations/*pos*) ;;
+              resources/js/pages/Shop/*) ;;
+              tests/*Shop*) ;;
+              *)
+                invalid_files="${invalid_files}\n${file}"
+                ;;
+            esac
+          done < <(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          if [ -n "$invalid_files" ]; then
+            echo "::error::Akiromishidoze is only allowed to modify files within the Shop module."
+            echo "The following files are outside the allowed scope:"
+            printf '%b\n' "$invalid_files"
+            exit 1
+          fi
