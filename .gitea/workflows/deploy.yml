@@ -16,17 +16,6 @@ on:
   push:
     branches: [main, develop]
     tags: ['v*.*.*']
-  workflow_dispatch:
-    inputs:
-      target_environment:
-        description: 'Target environment for deployment'
-        required: false
-        type: choice
-        default: staging
-        options:
-          - staging
-          - production
-
 # ─────────────────────────────────────────────
 # Global Configuration
 # ─────────────────────────────────────────────
