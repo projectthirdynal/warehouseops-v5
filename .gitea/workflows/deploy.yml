@@ -1,118 +1,35 @@
-name: CI/CD Pipeline
+name: Runner Test
 "on":
   push:
     branches:
       - main
       - develop
 
-concurrency:
-  group: cicd-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  PHP_VERSION: '8.3'
-  NODE_VERSION: '20'
-
 jobs:
-  deploy-staging:
-    name: Deploy to Staging
-    if: 1 == 0
+  test-runner:
+    name: Test Runner
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Staging deploy disabled
-        run: echo "Staging deploy temporarily disabled"
-
-  deploy-production:
-    name: Deploy to Production
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment:
-      name: production
-      url: https://warehouseops.thirdynals.org
-    concurrency:
-      group: production-deploy
-      cancel-in-progress: false
-    env:
-      APP_DIR: /opt/warehouseops
-      BACKUP_DIR: /opt/warehouseops-backups/$(date +%Y%m%d%H%M%S)
-    steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Back up current production
+      - name: Check docker and tools
         run: |
-          mkdir -p "$BACKUP_DIR"
-          cp -a "$APP_DIR/app" "$BACKUP_DIR/app" || true
-          cp -a "$APP_DIR/config" "$BACKUP_DIR/config" || true
-          cp -a "$APP_DIR/database" "$BACKUP_DIR/database" || true
-          cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources" || true
-          cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build" || true
-          echo "BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
-
-      - name: Build frontend assets
-        run: |
-          npm ci
-          npm run build
-          mkdir -p public
-          cp -f /opt/warehouseops/public/index.php public/index.php
-          cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
-          cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
-
-      - name: Sync code to production
-        run: |
-          chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
-          rsync -a --delete \
-            --exclude='.env' \
-            --exclude='.git/' \
-            --exclude='node_modules/' \
-            --exclude='vendor/' \
-            --exclude='storage/app/' \
-            --exclude='storage/logs/' \
-            --exclude='storage/framework/' \
-            --exclude='public/index.php' \
-            --exclude='public/favicon.ico' \
-            --exclude='public/robots.txt' \
-            --exclude='public/images/' \
-            ./ "$APP_DIR"/
-
-      - name: Copy build to app container
-        run: docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
-
-      - name: Install Composer dependencies
-        run: docker exec warehouseops-app composer install --no-dev --optimize-autoloader --no-interaction
-
-      - name: Run database migrations
-        run: docker exec warehouseops-app php artisan migrate --force
-
-      - name: Rebuild caches
-        run: |
-          docker exec warehouseops-app php artisan optimize:clear
-          docker exec warehouseops-app php artisan config:cache
-          docker exec warehouseops-app php artisan route:cache
-          docker exec warehouseops-app php artisan view:cache
-          docker exec warehouseops-app php artisan optimize
-
-      - name: Reload services
-        run: |
-          docker exec warehouseops-app kill -USR2 1 || true
-          docker exec warehouseops-app php artisan horizon:terminate || true
-          sleep 3
-          docker exec -d warehouseops-app php artisan horizon
-
-      - name: Production health check
-        run: |
-          for container in warehouseops-app warehouseops-nginx warehouseops-redis; do
-            status=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
-            if [ "$status" != "running" ]; then
-              echo "::error::$container is $status"
-              exit 1
-            fi
-          done
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8102/login)
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Login page returned HTTP $HTTP_CODE"
-            exit 1
-          fi
-          echo "All production health checks passed."
+          echo "=== docker ps ==="
+          docker ps
+          echo "=== which docker ==="
+          which docker
+          echo "=== which rsync ==="
+          which rsync
+          echo "=== which npm ==="
+          which npm
+          echo "=== which composer ==="
+          which composer
+          echo "=== which curl ==="
+          which curl
+          echo "=== whoami ==="
+          whoami
+          echo "=== pwd ==="
+          pwd
+          echo "=== ls -la ==="
+          ls -la
