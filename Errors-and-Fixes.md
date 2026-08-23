@@ -93,7 +93,12 @@
 ### PHPStan
 
 - **Problem**: 405 pre-existing errors.
-- **Fix**: Regenerated `phpstan-baseline.neon` and wired it into `phpstan.neon`, resulting in 0 errors.
+- **Fix (initial)**: Regenerated `phpstan-baseline.neon` and wired it into `phpstan.neon`, resulting in 0 errors.
+- **Fix (final, Aug 2026)**: Re-verified and repaired regression.
+  - PHPStan was failing with an *internal error* (not baselineable): `App\Domain\Lead\Models\QaReview` referenced by `Lead::qaReviews()` never existed — only the `qa_reviews` table did (migration `2024_01_01_000002_create_lead_system_tables.php`). Internal errors abort analysis entirely, masking ~393 baselined + 115 new errors.
+  - Created missing `app/Models/QaReview.php` (fillable/casts per migration schema, `lead()` + `reviewer()` relations) and added the import in `Lead.php`.
+  - Regenerated baseline: now 508 real entries; stale unmatched patterns dropped.
+- **Verification**: `vendor/bin/phpstan analyse --no-progress` → `[OK] No errors`, exit 0 · Pint passes on changed files · full Pest suite: 414 passed (1501 assertions).
 
 ### 404 on Vite Build Assets
 

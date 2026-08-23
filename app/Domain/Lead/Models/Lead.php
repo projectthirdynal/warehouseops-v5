@@ -11,6 +11,7 @@ use App\Domain\Lead\Enums\SalesStatus;
 use App\Models\Customer;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
+use App\Models\QaReview;
 use App\Models\User;
 use App\Models\Waybill;
 use Database\Factories\LeadFactory;
