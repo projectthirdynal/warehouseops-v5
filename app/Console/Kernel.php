@@ -6,6 +6,8 @@ use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
 use App\Jobs\AutoDistributeLeads;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;
+use App\Jobs\SyncGoogleSheetJob;
+use App\Models\GoogleSheetSync;
 use App\Models\Upload;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -67,6 +69,20 @@ class Kernel extends ConsoleKernel
                 ->where('created_at', '<', now()->subMinutes(15))
                 ->each(fn ($u) => $u->markAsFailed(['message' => 'Job did not start — retried automatically. Please retry.']));
         })->everyFifteenMinutes();
+
+        // Auto-sync Google Sheets that are due based on their configured interval.
+        // Runs every 5 minutes to check; each sheet only syncs if its interval has elapsed.
+        $schedule->call(function () {
+            $dueSyncs = GoogleSheetSync::where('is_active', true)
+                ->where('last_sync_status', '!=', 'processing')
+                ->get();
+
+            foreach ($dueSyncs as $sync) {
+                if ($sync->isDueForSync()) {
+                    SyncGoogleSheetJob::dispatch($sync->id, $sync->created_by ?? 1);
+                }
+            }
+        })->everyFiveMinutes()->withoutOverlapping()->onOneServer();
     }
 
     /**

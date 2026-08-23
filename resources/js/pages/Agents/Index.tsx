@@ -17,7 +17,7 @@ import {
   Package,
   Plus,
 } from 'lucide-react';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -244,7 +244,7 @@ export default function AgentsIndex({ agents, stats }: Props) {
   }
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <Head title="Agents" />
 
       <EditProfileModal
@@ -520,6 +520,6 @@ export default function AgentsIndex({ agents, stats }: Props) {
           )}
         </div>
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

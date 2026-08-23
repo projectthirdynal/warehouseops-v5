@@ -23,7 +23,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type {
@@ -143,7 +143,7 @@ export default function SalesIndex({
   const funnelMax = Math.max(...funnelData.map((s) => s.count), 1);
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <Head title="Sales Tracking" />
 
       <div className="space-y-4">
@@ -543,6 +543,6 @@ export default function SalesIndex({
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

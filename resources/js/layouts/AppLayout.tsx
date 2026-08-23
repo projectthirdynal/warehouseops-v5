@@ -12,7 +12,6 @@ import {
   ChevronDown,
   LogOut,
   Menu,
-  Phone,
   Recycle,
   UserCog,
   Headphones,
@@ -29,11 +28,9 @@ import {
   Building2,
   TrendingUp,
   Store,
-  BookUser,
   Search,
   ChevronRight,
   Home,
-  ArrowUpDown,
   Upload,
   CheckSquare,
   Bell,
@@ -53,7 +50,6 @@ import {
   RotateCcw,
   Bot,
   ScrollText,
-  Scale,
   Brain,
   Activity,
   ArrowRightLeft,
@@ -105,7 +101,6 @@ const INVENTORY_MATERIAL_ROLES = [
   'finance',
   'accounting',
 ];
-const AGENT_ONLY = ['agent'];
 
 interface NavItem {
   name: string;
@@ -138,7 +133,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/shop/pos': 'POS',
   '/waybills': 'Waybills',
   '/waybills/scanner': 'Scanner',
-  '/waybills/import': 'Import',
+  '/waybills/import': 'Google Sync',
   '/waybills/claims': 'Claims',
   '/waybills/claims/beyond-sla': 'Beyond SLA',
   '/waybills/unknown': 'Unknown',
@@ -149,7 +144,17 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/recycling/pool': 'Recycling',
   '/lead-pool': 'Lead Pool',
   '/lead-pool/workload-balancing': 'Workload Balancing',
+  '/telesales': 'Telesales',
   '/telesales/import': 'Telesales Import',
+  '/telesales/inventory': 'Lead Inventory',
+  '/telesales/pool-requests': 'Pool Requests',
+  '/telesales/pool-requests/create': 'Create Pool Request',
+  '/telesales/pool-approvals': 'Pool Approvals',
+  '/telesales/pools': 'Lead Pools',
+  '/telesales/promos': 'Promos & Freebies',
+  '/telesales/promos/create': 'New Promo',
+  '/checker/queue': 'Sales Review Queue',
+  '/checker/queue/create': 'Order Review',
   '/distribution': 'Distribution',
   '/distribution/analytics': 'Distribution Analytics',
   '/monitoring/dashboard': 'Monitoring',
@@ -199,7 +204,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
 const OPS_ADMIN_ROLES = ['superadmin', 'admin', 'supervisor'];
 const SHOP_ROLES = ['superadmin', 'admin', 'supervisor'];
 const CRM_NAV_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting'];
-const REPORTS_ROLES = ['superadmin', 'admin', 'supervisor', 'finance', 'accounting', 'warehouse'];
 
 const navigation: NavEntry[] = [
   /* ── Dashboard ── */
@@ -495,26 +499,6 @@ const navigation: NavEntry[] = [
     ],
   },
 
-  /* ── Reports ── */
-  {
-    name: 'Reports',
-    icon: BarChart3,
-    roles: REPORTS_ROLES,
-    children: [
-      { name: 'Sales', href: '/sales-dashboard', icon: TrendingUp, roles: OPS_ADMIN_ROLES },
-      { name: 'Orders', href: '/reports?type=orders', icon: ClipboardCheck, roles: REPORTS_ROLES },
-      { name: 'Agents', href: '/reports?type=agents', icon: Users, roles: OPS_ADMIN_ROLES },
-      { name: 'Pages', href: '/reports?type=pages', icon: Store, roles: ADMIN_ONLY },
-      {
-        name: 'Inventory',
-        href: '/reports?type=inventory',
-        icon: Package,
-        roles: INVENTORY_MATERIAL_ROLES,
-      },
-      { name: 'Courier', href: '/waybills/courier-analytics', icon: Truck, roles: OPS_ADMIN_ROLES },
-    ],
-  },
-
   /* ── Operational Tools (retained from existing system) ── */
   {
     name: 'Logistics',
@@ -523,7 +507,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: 'All Waybills', href: '/waybills', icon: Truck, roles: OPS_ADMIN_ROLES },
       { name: 'Scanner', href: '/waybills/scanner', icon: ScanLine, roles: OPS_ADMIN_ROLES },
-      { name: 'Import', href: '/waybills/import', icon: Upload, roles: OPS_ADMIN_ROLES },
+      { name: 'Google Sync', href: '/waybills/import', icon: Upload, roles: OPS_ADMIN_ROLES },
       { name: 'Claims', href: '/waybills/claims', icon: ShieldAlert, roles: OPS_ADMIN_ROLES },
       {
         name: 'Beyond SLA',
@@ -608,55 +592,8 @@ const navigation: NavEntry[] = [
     ],
   },
 
-  /* ── CRM ── */
-  {
-    name: 'CRM',
-    icon: BookUser,
-    roles: CRM_NAV_ROLES,
-    children: [
-      { name: 'All Contacts', href: '/crm/contacts', icon: BookUser, roles: CRM_NAV_ROLES },
-      { name: 'Customers', href: '/crm/contacts?type=customer', icon: Users, roles: CRM_NAV_ROLES },
-      {
-        name: 'Suppliers',
-        href: '/crm/contacts?type=supplier',
-        icon: Building2,
-        roles: CRM_NAV_ROLES,
-      },
-      {
-        name: 'Prospects',
-        href: '/crm/contacts?type=prospect',
-        icon: TrendingUp,
-        roles: CRM_NAV_ROLES,
-      },
-    ],
-  },
-
-  /* ── Leads & Distribution ── */
-  {
-    name: 'Leads',
-    icon: Users,
-    roles: OPS_ADMIN_ROLES,
-    children: [
-      { name: 'Lead Pool', href: '/lead-pool', icon: Users, roles: OPS_ADMIN_ROLES },
-      {
-        name: 'Workload Balancing',
-        href: '/lead-pool/workload-balancing',
-        icon: Scale,
-        roles: OPS_ADMIN_ROLES,
-      },
-      { name: 'Distribution', href: '/distribution', icon: ArrowUpDown, roles: OPS_ADMIN_ROLES },
-      {
-        name: 'Distribution Analytics',
-        href: '/distribution/analytics',
-        icon: BarChart3,
-        roles: OPS_ADMIN_ROLES,
-      },
-      { name: 'QC Review', href: '/qc', icon: ClipboardCheck, roles: OPS_ADMIN_ROLES },
-      { name: 'Recycling', href: '/recycling/pool', icon: Recycle, roles: OPS_ADMIN_ROLES },
-      { name: 'Telesales Import', href: '/telesales/import', icon: Upload, roles: OPS_ADMIN_ROLES },
-      { name: 'My Leads', href: '/agent/leads', icon: Phone, roles: AGENT_ONLY },
-    ],
-  },
+  /* ── Telesales Department ── */
+  { name: 'Telesales', href: '/telesales', icon: Headphones, roles: OPS_ADMIN_ROLES },
 
   /* ── System ── */
   {
@@ -665,7 +602,6 @@ const navigation: NavEntry[] = [
     roles: ADMIN_ONLY,
     children: [
       { name: 'Admin Panel', href: '/admin', icon: Shield, roles: ADMIN_ONLY },
-      { name: 'Agents', href: '/agents/governance', icon: UserCog, roles: ADMIN_ONLY },
       { name: 'Burnout Prediction', href: '/agents/burnout', icon: Brain, roles: ADMIN_ONLY },
       { name: 'Monitoring', href: '/monitoring/dashboard', icon: BarChart3, roles: ADMIN_ONLY },
       {

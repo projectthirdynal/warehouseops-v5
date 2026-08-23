@@ -5,16 +5,12 @@ namespace Tests\Unit\Services;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Models\User;
+use App\Services\CapacityManager;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-/**
- * @group broken
- *
- * @see Lead model requires Customer model which does not exist yet
- */
 class LeadPoolServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -24,7 +20,7 @@ class LeadPoolServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new LeadPoolService(new LeadAuditService);
+        $this->service = new LeadPoolService(new LeadAuditService, new CapacityManager);
     }
 
     public function test_get_available_leads_returns_only_available(): void
@@ -91,10 +87,11 @@ class LeadPoolServiceTest extends TestCase
 
     public function test_mark_as_available_clears_assignment(): void
     {
+        $agent = User::factory()->create(['role' => 'agent']);
         $lead = Lead::factory()->create([
             'pool_status' => PoolStatus::COOLDOWN,
             'cooldown_until' => now()->addHours(24),
-            'assigned_to' => 1,
+            'assigned_to' => $agent->id,
         ]);
 
         $this->service->markAsAvailable($lead);

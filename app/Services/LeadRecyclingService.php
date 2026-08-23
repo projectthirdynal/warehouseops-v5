@@ -24,7 +24,8 @@ class LeadRecyclingService
         LeadOutcome $outcome,
         User $agent,
         ?string $remarks = null,
-        ?\DateTimeInterface $callbackAt = null
+        ?\DateTimeInterface $callbackAt = null,
+        ?array $orderData = null
     ): void {
         // Handle CALLBACK - keep with agent, set callback time
         if ($outcome === LeadOutcome::CALLBACK) {
@@ -75,14 +76,21 @@ class LeadRecyclingService
             $this->capacityManager->recordCycleClose($agent->id);
             $lead->update(['assigned_to' => null]);
 
-            $this->orderService->createFromLead($lead);
+            // Use customized order creation if order data is provided, otherwise fall back to default
+            $order = $orderData !== null
+                ? $this->orderService->createFromLeadWithCustomization($lead, $orderData)
+                : $this->orderService->createFromLead($lead);
+
+            // Put the lead on order-delivery cooldown so the same customer is not
+            // called again before the order arrives and the 2-day buffer passes.
+            app(CustomerOrderCooldownService::class)->applyOrderCooldown($lead, $order);
 
             $this->auditService->log(
                 lead: $lead,
                 action: 'ORDER_CREATED',
                 user: $agent,
                 cycle: $cycle,
-                metadata: ['remarks' => $remarks]
+                metadata: ['remarks' => $remarks, 'customized' => $orderData !== null]
             );
 
             return;
@@ -119,6 +127,21 @@ class LeadRecyclingService
         $processed = 0;
 
         foreach ($leads as $lead) {
+            // Refresh order-based cooldown before opening the lead back up.
+            if ($lead->customer !== null) {
+                $cooldown = app(CustomerOrderCooldownService::class)->forCustomer($lead->customer);
+
+                if ($cooldown['blocked']) {
+                    $this->poolService->markAsCooldownUntil($lead, $cooldown['until'], [
+                        'order_id' => $cooldown['order_id'],
+                        'reason' => $cooldown['reason'],
+                    ]);
+                    $processed++;
+
+                    continue;
+                }
+            }
+
             // Check if lead has hit max cycles
             $lastCycle = $lead->cycles()->latest()->first();
             $outcome = $lastCycle ? LeadOutcome::tryFrom($lastCycle->outcome) : null;

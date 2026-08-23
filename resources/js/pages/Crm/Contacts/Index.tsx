@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   ArrowUpDown,
 } from 'lucide-react';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -140,7 +140,7 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
     `₱${parseFloat(val).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <Head title="CRM — Contacts" />
 
       <div className="p-6 space-y-4">
@@ -425,6 +425,6 @@ export default function CrmContactsIndex({ thirdParties, filters, stats }: Props
           </div>
         )}
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

@@ -345,16 +345,28 @@ class DepreciationAutomationService
             ->all();
 
         // Monthly trend (last 12 months)
-        $monthlyTrend = CapexDepreciationJournal::selectRaw('
-                EXTRACT(YEAR FROM posting_date)::int as yr,
-                EXTRACT(MONTH FROM posting_date)::int as mo,
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $yearExpr = "CAST(strftime('%Y', posting_date) AS INTEGER)";
+            $monthExpr = "CAST(strftime('%m', posting_date) AS INTEGER)";
+            $groupExpr = "strftime('%Y', posting_date), strftime('%m', posting_date)";
+        } else {
+            $yearExpr = 'EXTRACT(YEAR FROM posting_date)::int';
+            $monthExpr = 'EXTRACT(MONTH FROM posting_date)::int';
+            $groupExpr = 'EXTRACT(YEAR FROM posting_date), EXTRACT(MONTH FROM posting_date)';
+        }
+
+        $monthlyTrend = CapexDepreciationJournal::selectRaw("
+                {$yearExpr} as yr,
+                {$monthExpr} as mo,
                 SUM(depreciation_amount) as total_amount,
                 COUNT(*) as entry_count
-            ')
+            ")
             ->where('is_posted', true)
             ->where('posted_at', '>=', now()->subMonths(12))
-            ->groupByRaw('EXTRACT(YEAR FROM posting_date), EXTRACT(MONTH FROM posting_date)')
-            ->orderByRaw('EXTRACT(YEAR FROM posting_date), EXTRACT(MONTH FROM posting_date)')
+            ->groupByRaw($groupExpr)
+            ->orderByRaw($groupExpr)
             ->get()
             ->map(fn ($r) => [
                 'period' => sprintf('%04d-%02d', $r->yr, $r->mo),

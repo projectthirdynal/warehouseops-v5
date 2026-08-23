@@ -1344,3 +1344,172 @@ parameters:
 			message: "#^Method App\\\\Services\\\\TelesalesLeadImportService\\:\\:mapOrderStatusToLeadStatus\\(\\) never returns null so it can be removed from the return type\\.$#"
 			count: 1
 			path: app/Services/TelesalesLeadImportService.php
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$agent\\.$#"
+			count: 2
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$assigned_agent_id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$barangay\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$city\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$cod_amount\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$confirmed_at\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$courier_code\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$customer\\.$#"
+			count: 5
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$customer_id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$discount_amount\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$landmark\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$lead\\.$#"
+			count: 5
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$lead_id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$notes\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$order_number\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$postal_code\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$product\\.$#"
+			count: 4
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$product_id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$quantity\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$receiver_address\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$receiver_name\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$receiver_phone\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$rejection_reason\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$shipping_cost\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$shopItems\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$state\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$total_amount\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$unit_price\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$variant\\.$#"
+			count: 3
+			path: app/Http/Resources/OrderResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\OrderResource\\:\\:\\$variant_id\\.$#"
+			count: 1
+			path: app/Http/Resources/OrderResource.php

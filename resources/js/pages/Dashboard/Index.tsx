@@ -1095,13 +1095,6 @@ export default function Dashboard({
         icon: Package,
         color: 'bg-warning/10 text-warning',
       },
-      {
-        href: '/sales',
-        label: 'Sales',
-        desc: 'Sales dashboard',
-        icon: TrendingUp,
-        color: 'bg-success/10 text-success',
-      },
     ];
   } else if (isWarehouse) {
     quickActions = [
