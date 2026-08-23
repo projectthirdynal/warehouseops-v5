@@ -68,13 +68,18 @@
 
 ### Host PHP CLI Missing Extensions (mbstring/xml)
 
-- **Problem**: Running Pint/PHPStan directly on the host PHP CLI fails — e.g. `Call to undefined function Illuminate\Support\mb_split()` (PHPStan bootstrap) or missing `xml` extension errors from Pint.
-- **Fix**: Always run PHP tooling inside the app container, same pattern as the test workflow:
+- **Problem**: Running Pint/PHPStan directly on the host PHP CLI failed — e.g. `Call to undefined function Illuminate\Support\mb_split()` (PHPStan bootstrap) or Box requirements checker errors ("requires the extension mbstring/xml") from Pint.
+- **Fix (interim)**: Ran all PHP tooling inside the app container, same pattern as the test workflow:
   ```
   docker exec warehouseops-app sh -lc 'cd /var/www/html && vendor/bin/pint --test'
   docker exec warehouseops-app sh -lc 'cd /var/www/html && vendor/bin/phpstan analyse --no-progress'
   ```
-- **Verification**: Full-repo Pint via container → PASS; PHPStan via container → `[OK] No errors`.
+- **Fix (final, Aug 2026)**: Installed missing extensions on the host (PHP 8.3.6 CLI):
+  ```
+  sudo apt install -y php8.3-mbstring php8.3-xml
+  ```
+  Container pattern retained as fallback for CI-parity checks or if host extensions regress.
+- **Verification**: Host `php -m` shows `mbstring`, `xml`, `dom`, `xmlwriter`, `SimpleXML` · full-repo `vendor/bin/pint --test` on host → PASS · `vendor/bin/phpstan analyse --no-progress` on host → `[OK] No errors`.
 
 ### Pint CI Failure
 
