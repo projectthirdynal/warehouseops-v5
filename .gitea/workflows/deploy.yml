@@ -74,26 +74,30 @@ jobs:
       - name: Copy build to app container
         run: docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
 
+      - name: Fix permissions in app container
+        run: |
+          docker exec -u root warehouseops-app chown -R www:www /var/www/html/vendor /var/www/html/bootstrap/cache /var/www/html/storage
+
       - name: Install Composer dependencies
-        run: docker exec warehouseops-app composer install --no-dev --optimize-autoloader --no-interaction
+        run: docker exec -u root warehouseops-app composer install --no-dev --optimize-autoloader --no-interaction
 
       - name: Run database migrations
-        run: docker exec warehouseops-app php artisan migrate --force
+        run: docker exec -u root warehouseops-app php artisan migrate --force
 
       - name: Rebuild caches
         run: |
-          docker exec warehouseops-app php artisan optimize:clear
-          docker exec warehouseops-app php artisan config:cache
-          docker exec warehouseops-app php artisan route:cache
-          docker exec warehouseops-app php artisan view:cache
-          docker exec warehouseops-app php artisan optimize
+          docker exec -u root warehouseops-app php artisan optimize:clear
+          docker exec -u root warehouseops-app php artisan config:cache
+          docker exec -u root warehouseops-app php artisan route:cache
+          docker exec -u root warehouseops-app php artisan view:cache
+          docker exec -u root warehouseops-app php artisan optimize
 
       - name: Reload services
         run: |
-          docker exec warehouseops-app kill -USR2 1 || true
-          docker exec warehouseops-app php artisan horizon:terminate || true
+          docker exec -u root warehouseops-app kill -USR2 1 || true
+          docker exec -u root warehouseops-app php artisan horizon:terminate || true
           sleep 3
-          docker exec -d warehouseops-app php artisan horizon
+          docker exec -u root -d warehouseops-app php artisan horizon
 
       - name: Production health check
         run: |
