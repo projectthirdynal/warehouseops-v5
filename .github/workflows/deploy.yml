@@ -4,587 +4,28 @@ name: CI/CD Pipeline
     branches:
       - main
       - develop
+
 concurrency:
   group: cicd-${{ github.ref }}
   cancel-in-progress: false
-permissions:
-  contents: read
-  packages: write
-  security-events: write
-  id-token: write
-  attestations: write
+
 env:
   PHP_VERSION: '8.3'
   NODE_VERSION: '20'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  detect-changes:
-    name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      infra: ${{ steps.filter.outputs.infra }}
-      workflow: ${{ steps.filter.outputs.workflow }}
-      docker: ${{ steps.filter.outputs.docker }}
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Detect changed paths
-      uses: dorny/paths-filter@v3
-      id: filter
-      with:
-        filters: "backend:\n  - \"app/**\"\n  - \"composer.json\"\n  - \"composer.lock\"\
-          \n  - \"database/**\"\n  - \"routes/**\"\n  - \"config/**\"\n  - \"bootstrap/**\"\
-          \n  - \"artisan\"\nfrontend:\n  - \"resources/js/**\"\n  - \"resources/css/**\"\
-          \n  - \"package.json\"\n  - \"package-lock.json\"\n  - \"vite.config.ts\"\
-          \n  - \"tsconfig.json\"\n  - \"tailwind.config.js\"\n  - \"postcss.config.js\"\
-          \ninfra:\n  - \"k8s/**\"\n  - \"infrastructure/**\"\n  - \"docker/**\"\n\
-          \  - \"docker-compose*.yml\"\nworkflow:\n  - \".github/workflows/**\"\n\
-          docker:\n  - \"Dockerfile\"\n  - \".dockerignore\"\n  - \"docker/**\"\n"
-    continue-on-error: true
-  validate-source:
-    name: Validate Source
-    needs: detect-changes
-    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.frontend
-      == 'true' || needs.detect-changes.outputs.workflow == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ env.PHP_VERSION }}
-        extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl,
-          pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
-        coverage: none
-    - name: Cache Composer dependencies
-      uses: actions/cache@v4
-      with:
-        path: vendor
-        key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-        restore-keys: ${{ runner.os }}-composer-
-    - name: Install PHP dependencies
-      run: composer install --no-interaction --prefer-dist --no-progress
-    - name: Check PHP formatting (Laravel Pint)
-      run: vendor/bin/pint --test
-    - name: Run static analysis (PHPStan)
-      run: vendor/bin/phpstan analyse --no-progress
-      continue-on-error: true
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
-    - name: Install Node dependencies
-      run: npm ci
-    - name: Run ESLint
-      run: npm run lint
-    - name: Check formatting (Prettier)
-      run: npx prettier --check "resources/js/**/*.{ts,tsx}" || true
-    - name: Type check (TypeScript)
-      run: npx tsc --noEmit
-    - name: Audit dependencies
-      run: npm audit --audit-level=high
-      continue-on-error: true
-    continue-on-error: true
-  unit-tests:
-    name: Unit Tests
-    needs: validate-source
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        php-version:
-        - '8.3'
-      fail-fast: false
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: warehouseops_test
-        ports:
-        - 5432:5432
-        options: --health-cmd "pg_isready -U test_user -d warehouseops_test" --health-interval
-          5s --health-timeout 5s --health-retries 10
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up PHP ${{ matrix.php-version }}
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ matrix.php-version }}
-        extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl,
-          pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
-        coverage: xdebug
-    - name: Cache Composer dependencies
-      uses: actions/cache@v4
-      with:
-        path: vendor
-        key: ${{ runner.os }}-composer-${{ matrix.php-version }}-${{ hashFiles('composer.lock')
-          }}
-        restore-keys: ${{ runner.os }}-composer-${{ matrix.php-version }}-
-    - name: Install PHP dependencies
-      run: composer install --no-interaction --prefer-dist --no-progress
-    - name: Prepare test environment
-      run: 'cp .env.example .env
-
-        sed -i ''s/DB_HOST=postgres/DB_HOST=127.0.0.1/'' .env
-
-        sed -i ''s/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/'' .env
-
-        sed -i ''s/DB_USERNAME=warehouseops/DB_USERNAME=test_user/'' .env
-
-        sed -i ''s/DB_PASSWORD=secret/DB_PASSWORD=test_password/'' .env
-
-        sed -i ''s/CACHE_STORE=redis/CACHE_STORE=array/'' .env
-
-        sed -i ''s/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/'' .env
-
-        sed -i ''s/SESSION_DRIVER=redis/SESSION_DRIVER=array/'' .env
-
-        sed -i ''s/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/'' .env
-
-        sed -i ''s/DB_HOST=postgres/DB_HOST=127.0.0.1/'' .env.testing
-
-        sed -i ''s/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/'' .env.testing
-
-        sed -i ''s/DB_USERNAME=warehouseops/DB_USERNAME=test_user/'' .env.testing
-
-        sed -i ''s/DB_PASSWORD=secret/DB_PASSWORD=test_password/'' .env.testing
-
-        sed -i ''s/CACHE_STORE=redis/CACHE_STORE=array/'' .env.testing
-
-        sed -i ''s/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/'' .env.testing
-
-        sed -i ''s/SESSION_DRIVER=redis/SESSION_DRIVER=array/'' .env.testing
-
-        php artisan key:generate --ansi
-
-        php artisan migrate --force
-
-        '
-    - name: Run unit tests (Pest)
-      run: vendor/bin/pest --coverage --coverage-clover=coverage.xml --exclude-group=broken
-    - name: Upload coverage artifact
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: unit-coverage-php${{ matrix.php-version }}
-        path: coverage.xml
-        retention-days: 14
-    continue-on-error: true
-  integration-tests:
-    name: Integration Tests
-    needs: validate-source
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: warehouseops_test
-        ports:
-        - 5432:5432
-        options: --health-cmd "pg_isready -U test_user -d warehouseops_test" --health-interval
-          5s --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports:
-        - 6379:6379
-        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout
-          5s --health-retries 5
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ env.PHP_VERSION }}
-        extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl,
-          pdo, pdo_pgsql, pgsql, redis, tokenizer, xml, zip
-        coverage: none
-    - name: Cache Composer dependencies
-      uses: actions/cache@v4
-      with:
-        path: vendor
-        key: ${{ runner.os }}-composer-integration-${{ hashFiles('composer.lock')
-          }}
-        restore-keys: ${{ runner.os }}-composer-
-    - name: Install PHP dependencies
-      run: composer install --no-interaction --prefer-dist --no-progress
-    - name: Prepare integration test environment
-      run: 'cp .env.example .env
-
-        sed -i ''s/DB_HOST=postgres/DB_HOST=127.0.0.1/'' .env
-
-        sed -i ''s/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/'' .env
-
-        sed -i ''s/DB_USERNAME=warehouseops/DB_USERNAME=test_user/'' .env
-
-        sed -i ''s/DB_PASSWORD=secret/DB_PASSWORD=test_password/'' .env
-
-        sed -i ''s/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/'' .env
-
-        sed -i ''s/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/'' .env
-
-        sed -i ''s/DB_HOST=postgres/DB_HOST=127.0.0.1/'' .env.testing
-
-        sed -i ''s/DB_DATABASE=warehouseops/DB_DATABASE=warehouseops_test/'' .env.testing
-
-        sed -i ''s/DB_USERNAME=warehouseops/DB_USERNAME=test_user/'' .env.testing
-
-        sed -i ''s/DB_PASSWORD=secret/DB_PASSWORD=test_password/'' .env.testing
-
-        sed -i ''s/CACHE_STORE=redis/CACHE_STORE=array/'' .env.testing
-
-        sed -i ''s/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/'' .env.testing
-
-        sed -i ''s/SESSION_DRIVER=redis/SESSION_DRIVER=array/'' .env.testing
-
-        php artisan key:generate --ansi
-
-        php artisan migrate --force
-
-        '
-    - name: Run integration tests
-      run: vendor/bin/pest --testsuite=Feature --exclude-group=broken
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: integration-test-results
-        path: 'storage/logs/laravel.log
-
-          tests/.pest/.tmp/
-
-          '
-        retention-days: 7
-        if-no-files-found: ignore
-    continue-on-error: true
-  security-scan:
-    name: Security Scan
-    needs: detect-changes
-    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.backend
-      == 'true' || needs.detect-changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      security-events: write
-      contents: read
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: javascript-typescript
-        queries: security-and-quality
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: /language:javascript-typescript
-    continue-on-error: true
-  build-app:
-    name: Build Application
-    needs:
-    - unit-tests
-    - integration-tests
-    - security-scan
-    if: always() && needs.security-scan.result == 'success' && (needs.unit-tests.result
-      == 'success' || needs.unit-tests.result == 'skipped') && (needs.integration-tests.result
-      == 'success' || needs.integration-tests.result == 'skipped')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ env.PHP_VERSION }}
-        extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl,
-          pdo, pdo_pgsql, pgsql, tokenizer, xml, zip
-        coverage: none
-    - name: Cache Composer dependencies
-      uses: actions/cache@v4
-      with:
-        path: vendor
-        key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-        restore-keys: ${{ runner.os }}-composer-
-    - name: Install PHP dependencies
-      run: composer install --no-interaction --prefer-dist --no-progress --no-dev
-        --optimize-autoloader
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
-    - name: Install Node dependencies
-      run: npm ci
-    - name: Build frontend assets
-      run: npm run build
-    - name: Verify build output
-      run: "if [ ! -d \"public/build\" ]; then\n  echo \"::error::Build output directory\
-        \ public/build/ does not exist\"\n  exit 1\nfi\necho \"Build output verified:\
-        \ $(find public/build -type f | wc -l) files\"\n"
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-build-${{ github.sha }}
-        path: 'public/build/
-
-          vendor/
-
-          app/
-
-          config/
-
-          database/migrations/
-
-          routes/
-
-          bootstrap/
-
-          resources/views/
-
-          composer.json
-
-          composer.lock
-
-          artisan
-
-          '
-        retention-days: 14
-        compression-level: 6
-    continue-on-error: true
-  docker-build:
-    name: Build and Publish Image
-    needs: build-app
-    if: always() && needs.build-app.result != 'failure' && github.event_name != 'pull_request'
-      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' ||
-      startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    outputs:
-      image_ref: ${{ steps.meta.outputs.tags }}
-      image_digest: ${{ steps.build.outputs.digest }}
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Normalize image name
-      id: image_name
-      run: echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')"
-        >> "$GITHUB_OUTPUT"
-    - name: Extract Docker metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.name }}
-        tags: 'type=sha,format=short
-
-          type=ref,event=branch
-
-          type=semver,pattern={{version}}
-
-          type=semver,pattern={{major}}.{{minor}}
-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-          '
-    - name: Build and push Docker image
-      id: build
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        provenance: true
-        sbom: true
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    continue-on-error: true
-  build-provenance:
-    name: Build Provenance
-    needs: docker-build
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' ||
-      github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      packages: write
-      id-token: write
-      attestations: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Normalize image name
-      id: image_name
-      run: echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')"
-        >> "$GITHUB_OUTPUT"
-    - name: Generate provenance attestation
-      uses: actions/attest-build-provenance@v2
-      with:
-        subject-name: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.name }}
-        subject-digest: ${{ needs.docker-build.outputs.image_digest }}
-        push-to-registry: true
-    continue-on-error: true
-  container-scan:
-    name: Scan Container Image
-    needs: docker-build
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' ||
-      github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      security-events: write
-      packages: read
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Normalize image name
-      id: image_name
-      run: echo "name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')"
-        >> "$GITHUB_OUTPUT"
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@v0.36.0
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.name }}@${{ needs.docker-build.outputs.image_digest
-          }}
-        format: sarif
-        output: trivy-results.sarif
-        severity: HIGH,CRITICAL
-        ignore-unfixed: true
-        exit-code: 0
-    - name: Upload Trivy scan results to GitHub Security
-      if: always()
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: trivy-results.sarif
-    - name: Upload Trivy results artifact
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: trivy-scan-results
-        path: trivy-results.sarif
-        retention-days: 30
-    continue-on-error: true
   deploy-staging:
     name: Deploy to Staging
     if: 1 == 0
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: staging
-      url: https://staging.warehouseops.thirdynals.org
-    concurrency:
-      group: staging-deploy
-      cancel-in-progress: true
-    env:
-      APP_DIR: /opt/warehouseops-staging
-      BACKUP_DIR: /opt/warehouseops-backups/staging-$(date +%Y%m%d%H%M%S)
+    timeout-minutes: 5
     steps:
-    - name: Fix workspace permissions
-      run: chown -R $(whoami):$(whoami) $GITHUB_WORKSPACE 2>/dev/null || true
-    - name: Checkout code
-      uses: actions/checkout@v4
-      run: ''
-    - name: Build frontend assets
-      run: 'npm ci
+      - name: Staging deploy disabled
+        run: echo "Staging deploy temporarily disabled"
 
-        npm run build
-
-        '
-    - name: Back up current staging
-      run: "mkdir -p \"$BACKUP_DIR\"\nif [ -d \"$APP_DIR\" ]; then\n  cp -a \"$APP_DIR/app\"\
-        \ \"$BACKUP_DIR/app\" 2>/dev/null || true\n  cp -a \"$APP_DIR/database\" \"\
-        $BACKUP_DIR/database\" 2>/dev/null || true\n  cp -a \"$APP_DIR/resources\"\
-        \ \"$BACKUP_DIR/resources\" 2>/dev/null || true\n  cp -a \"$APP_DIR/public/build\"\
-        \ \"$BACKUP_DIR/build\" 2>/dev/null || true\nfi\necho \"BACKUP_DIR=$BACKUP_DIR\"\
-        \ >> \"$GITHUB_ENV\"\n"
-    - name: Sync code to staging
-      run: "mkdir -p \"$APP_DIR\"\nrsync -a --delete \\\n  --exclude='.env' \\\n \
-        \ --exclude='storage/' \\\n  --exclude='vendor/' \\\n  --exclude='node_modules/'\
-        \ \\\n  --exclude='.git/' \\\n  ./ \"$APP_DIR\"/\n"
-    - name: Install dependencies & migrate
-      run: "docker run --rm -v \"$APP_DIR\":/var/www/html -w /var/www/html warehouseops-app:latest\
-        \ \\\n  sh -lc 'composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader\
-        \ && php artisan optimize:clear && php artisan migrate --force && php artisan\
-        \ optimize'\n"
-    - name: Copy build to staging container
-      run: 'docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-staging-app:/var/www/html/public/
-        2>/dev/null || true
-
-        '
-    - name: Restart staging containers
-      run: 'docker restart warehouseops-staging-app 2>/dev/null || true
-
-        sleep 3
-
-        '
-    - name: Staging health check
-      run: "sleep 5\nHTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8103/login\
-        \ 2>/dev/null || echo \"000\")\nif [ \"$HTTP_CODE\" != \"200\" ]; then\n \
-        \ echo \"::error::Staging health check failed: HTTP $HTTP_CODE\"\n  exit 1\n\
-        fi\necho \"Staging health check passed: HTTP $HTTP_CODE\"\n"
-  staging-smoke-tests:
-    name: Staging Smoke Tests
-    needs: deploy-staging
-    runs-on: self-hosted
-    timeout-minutes: 10
-    environment: staging
-    steps:
-    - name: Smoke test endpoints
-      env:
-        STAGING_URL: http://localhost:8103
-      run: "ENDPOINTS=(\"/health\" \"/login\" \"/api/status\")\nMAX_RETRIES=3\nRETRY_DELAY=5\n\
-        FAILED=0\n\nfor endpoint in \"${ENDPOINTS[@]}\"; do\n  URL=\"${STAGING_URL}${endpoint}\"\
-        \n  echo \"Testing: $URL\"\n  for attempt in $(seq 1 $MAX_RETRIES); do\n \
-        \   HTTP_CODE=$(curl -s -o /tmp/response.txt -w \"%{http_code}\" \"$URL\"\
-        \ 2>/dev/null || echo \"000\")\n    if [ \"$HTTP_CODE\" -ge 200 ] && [ \"\
-        $HTTP_CODE\" -lt 400 ]; then\n      echo \"  PASS: $endpoint returned HTTP\
-        \ $HTTP_CODE (attempt $attempt)\"\n      break\n    fi\n    if [ \"$attempt\"\
-        \ -eq \"$MAX_RETRIES\" ]; then\n      echo \"  FAIL: $endpoint returned HTTP\
-        \ $HTTP_CODE after $MAX_RETRIES attempts\"\n      echo \"  Response body:\"\
-        \n      cat /tmp/response.txt 2>/dev/null || echo \"  (no response body)\"\
-        \n      FAILED=1\n    else\n      echo \"  Retry $attempt/$MAX_RETRIES: HTTP\
-        \ $HTTP_CODE, waiting ${RETRY_DELAY}s...\"\n      sleep $RETRY_DELAY\n   \
-        \ fi\n  done\ndone\n\nif [ \"$FAILED\" -eq 1 ]; then\n  echo \"::error::Staging\
-        \ smoke tests failed\"\n  exit 1\nfi\necho \"All staging smoke tests passed.\"\
-        \n"
-    continue-on-error: true
   deploy-production:
     name: Deploy to Production
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -596,243 +37,82 @@ jobs:
     env:
       APP_DIR: /opt/warehouseops
       BACKUP_DIR: /opt/warehouseops-backups/$(date +%Y%m%d%H%M%S)
-      DEPLOYMENT_SUCCESS: 'false'
-    outputs:
-      BACKUP_DIR: ${{ env.BACKUP_DIR }}
     steps:
-    - name: Fix workspace permissions
-      run: chown -R $(whoami):$(whoami) $GITHUB_WORKSPACE 2>/dev/null || true
-    - name: Checkout code
-      uses: actions/checkout@v4
-      run: ''
-    - name: Build frontend assets
-      run: 'npm ci
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        npm run build
+      - name: Back up current production
+        run: |
+          mkdir -p "$BACKUP_DIR"
+          cp -a "$APP_DIR/app" "$BACKUP_DIR/app" || true
+          cp -a "$APP_DIR/config" "$BACKUP_DIR/config" || true
+          cp -a "$APP_DIR/database" "$BACKUP_DIR/database" || true
+          cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources" || true
+          cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build" || true
+          echo "BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
 
-        mkdir -p public
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+          mkdir -p public
+          cp -f /opt/warehouseops/public/index.php public/index.php
+          cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
+          cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
 
-        cp -f /opt/warehouseops/public/index.php public/index.php
+      - name: Sync code to production
+        run: |
+          chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
+          rsync -a --delete \
+            --exclude='.env' \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='storage/app/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            --exclude='public/index.php' \
+            --exclude='public/favicon.ico' \
+            --exclude='public/robots.txt' \
+            --exclude='public/images/' \
+            ./ "$APP_DIR"/
 
-        cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null ||
-        true
+      - name: Copy build to app container
+        run: docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
 
-        cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null
-        || true
+      - name: Install Composer dependencies
+        run: docker exec warehouseops-app composer install --no-dev --optimize-autoloader --no-interaction
 
-        '
-    - name: Back up current production
-      run: 'mkdir -p "$BACKUP_DIR"
+      - name: Run database migrations
+        run: docker exec warehouseops-app php artisan migrate --force
 
-        cp -a "$APP_DIR/app" "$BACKUP_DIR/app"
+      - name: Rebuild caches
+        run: |
+          docker exec warehouseops-app php artisan optimize:clear
+          docker exec warehouseops-app php artisan config:cache
+          docker exec warehouseops-app php artisan route:cache
+          docker exec warehouseops-app php artisan view:cache
+          docker exec warehouseops-app php artisan optimize
 
-        cp -a "$APP_DIR/config" "$BACKUP_DIR/config"
+      - name: Reload services
+        run: |
+          docker exec warehouseops-app kill -USR2 1 || true
+          docker exec warehouseops-app php artisan horizon:terminate || true
+          sleep 3
+          docker exec -d warehouseops-app php artisan horizon
 
-        cp -a "$APP_DIR/database" "$BACKUP_DIR/database"
-
-        cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources"
-
-        cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build"
-
-        echo "BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
-
-        echo "Production backup created at: $BACKUP_DIR"
-
-        '
-    - name: Record current rollout history
-      run: 'echo "Current Docker container state:"
-
-        docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | grep warehouseops
-        || true
-
-        REVISION=$(docker inspect --format=''{{.Image}}'' warehouseops-app 2>/dev/null
-        || echo "unknown")
-
-        echo "Current image: $REVISION"
-
-        echo "PREVIOUS_IMAGE=$REVISION" >> "$GITHUB_ENV"
-
-        '
-    - name: Sync code to production
-      run: "chown -R $(whoami):$(whoami) \"$APP_DIR\" 2>/dev/null || true\nrsync -a\
-        \ --delete \\\n  --exclude='.env' \\\n  --exclude='.git/' \\\n  --exclude='node_modules/'\
-        \ \\\n  --exclude='vendor/' \\\n  --exclude='storage/app/' \\\n  --exclude='storage/logs/'\
-        \ \\\n  --exclude='storage/framework/' \\\n  --exclude='public/index.php'\
-        \ \\\n  --exclude='public/favicon.ico' \\\n  --exclude='public/robots.txt'\
-        \ \\\n  --exclude='public/images/' \\\n  ./ \"$APP_DIR\"/\n"
-    - name: Copy build to app container
-      run: 'docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
-
-        '
-    - name: Install Composer dependencies
-      run: "docker exec warehouseops-app composer install \\\n  --no-dev \\\n  --optimize-autoloader\
-        \ \\\n  --no-interaction\n"
-    - name: Run database migrations
-      run: docker exec warehouseops-app php artisan migrate --force
-    - name: Rebuild caches
-      run: 'docker exec warehouseops-app php artisan optimize:clear
-
-        docker exec warehouseops-app php artisan config:cache
-
-        docker exec warehouseops-app php artisan route:cache
-
-        docker exec warehouseops-app php artisan view:cache
-
-        docker exec warehouseops-app php artisan optimize
-
-        '
-    - name: Reload services
-      run: 'docker exec warehouseops-app kill -USR2 1 || true
-
-        docker exec warehouseops-app php artisan horizon:terminate || true
-
-        sleep 3
-
-        docker exec -d warehouseops-app php artisan horizon
-
-        '
-    - name: Mark deployment successful
-      if: success()
-      run: echo "DEPLOYMENT_SUCCESS=true" >> "$GITHUB_ENV"
-    - name: Production health check
-      id: health_check
-      continue-on-error: true
-      run: "for container in warehouseops-app warehouseops-nginx warehouseops-redis;\
-        \ do\n  status=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)\n\
-        \  if [ \"$status\" != \"running\" ]; then\n    echo \"::error::$container\
-        \ is $status\"\n    exit 1\n  fi\ndone\nHTTP_CODE=$(curl -s -o /dev/null -w\
-        \ \"%{http_code}\" http://localhost:8102/login)\nif [ \"$HTTP_CODE\" != \"\
-        200\" ]; then\n  echo \"::error::Login page returned HTTP $HTTP_CODE\"\n \
-        \ exit 1\nfi\necho \"All production health checks passed.\"\n"
-  rollback:
-    name: Automatic Rollback
-    needs: deploy-production
-    if: always() && needs.deploy-production.result == 'failure'
-    runs-on: self-hosted
-    timeout-minutes: 15
-    environment: production
-    steps:
-    - name: Rollback production
-      run: "BACKUP_DIR=\"${{ needs.deploy-production.outputs.BACKUP_DIR }}\"\nAPP_DIR=/opt/warehouseops\n\
-        \nif [ -z \"$BACKUP_DIR\" ] || [ ! -d \"$BACKUP_DIR\" ]; then\n  echo \"::error::No\
-        \ backup directory found for rollback. Manual intervention required.\"\n \
-        \ exit 1\nfi\n\necho \"::warning::Production deployment failed. Initiating\
-        \ automatic rollback...\"\necho \"Rolling back from backup: $BACKUP_DIR\"\n\
-        \nsudo rsync -a --delete \"$BACKUP_DIR/app/\" \"$APP_DIR/app/\"\nsudo rsync\
-        \ -a --delete \"$BACKUP_DIR/config/\" \"$APP_DIR/config/\"\nsudo rsync -a\
-        \ --delete \"$BACKUP_DIR/database/\" \"$APP_DIR/database/\"\nsudo rsync -a\
-        \ --delete \"$BACKUP_DIR/resources/\" \"$APP_DIR/resources/\"\nsudo rsync\
-        \ -a --delete \"$BACKUP_DIR/build/\" \"$APP_DIR/public/build/\"\n\n# Rebuild\
-        \ caches with rolled-back code\nsudo docker exec warehouseops-app php artisan\
-        \ optimize:clear\nsudo docker exec warehouseops-app php artisan config:cache\n\
-        sudo docker exec warehouseops-app php artisan route:cache\nsudo docker exec\
-        \ warehouseops-app php artisan view:cache\nsudo docker exec warehouseops-app\
-        \ php artisan optimize\n\n# Reload services\nsudo docker exec warehouseops-app\
-        \ kill -USR2 1 || true\nsudo docker exec warehouseops-app php artisan horizon:terminate\
-        \ || true\nsleep 3\nsudo docker exec -d warehouseops-app php artisan horizon\n\
-        \n# Verify rollback\nHTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\"\
-        \ http://localhost:8102/login)\nif [ \"$HTTP_CODE\" != \"200\" ]; then\n \
-        \ echo \"::error::Rollback verification FAILED: HTTP $HTTP_CODE. Manual intervention\
-        \ required.\"\n  exit 1\nfi\n\necho \"Rollback completed successfully. Production\
-        \ is back to previous state.\"\necho \"::error::Production deployment failed\
-        \ but rollback was successful. Original failure must be investigated.\"\n"
-    continue-on-error: true
-  verify-production:
-    name: Verify Production
-    needs: deploy-production
-    if: always() && needs.deploy-production.result == 'success'
-    runs-on: self-hosted
-    timeout-minutes: 10
-    environment: production
-    steps:
-    - name: Verify production endpoints
-      env:
-        PROD_URL: http://localhost:8102
-      run: "ENDPOINTS=(\"/health\" \"/login\" \"/api/status\")\nMAX_RETRIES=3\nRETRY_DELAY=5\n\
-        FAILED=0\n\nfor endpoint in \"${ENDPOINTS[@]}\"; do\n  URL=\"${PROD_URL}${endpoint}\"\
-        \n  echo \"Verifying: $URL\"\n  for attempt in $(seq 1 $MAX_RETRIES); do\n\
-        \    HTTP_CODE=$(curl -s -o /tmp/prod_response.txt -w \"%{http_code}\" \"\
-        $URL\" 2>/dev/null || echo \"000\")\n    if [ \"$HTTP_CODE\" -ge 200 ] &&\
-        \ [ \"$HTTP_CODE\" -lt 400 ]; then\n      echo \"  PASS: $endpoint returned\
-        \ HTTP $HTTP_CODE\"\n      break\n    fi\n    if [ \"$attempt\" -eq \"$MAX_RETRIES\"\
-        \ ]; then\n      echo \"  FAIL: $endpoint returned HTTP $HTTP_CODE after $MAX_RETRIES\
-        \ attempts\"\n      cat /tmp/prod_response.txt 2>/dev/null || echo \"  (no\
-        \ response body)\"\n      FAILED=1\n    else\n      echo \"  Retry $attempt/$MAX_RETRIES:\
-        \ HTTP $HTTP_CODE, waiting ${RETRY_DELAY}s...\"\n      sleep $RETRY_DELAY\n\
-        \    fi\n  done\ndone\n\nif [ \"$FAILED\" -eq 1 ]; then\n  echo \"::error::Production\
-        \ verification failed\"\n  exit 1\nfi\necho \"All production verification\
-        \ checks passed.\"\n"
-    continue-on-error: true
-  pipeline-summary:
-    name: Pipeline Summary
-    needs:
-    - detect-changes
-    - validate-source
-    - unit-tests
-    - integration-tests
-    - security-scan
-    - build-app
-    - docker-build
-    - container-scan
-    - deploy-staging
-    - staging-smoke-tests
-    - deploy-production
-    - verify-production
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-    - name: Generate pipeline summary
-      run: "cat << 'EOF' >> \"$GITHUB_STEP_SUMMARY\"\n# \U0001F680 CI/CD Pipeline\
-        \ Summary\n\n| Stage | Status | \n|-------|--------|\n| Change Detection |\
-        \ ${{ needs.detect-changes.result == 'success' && '\u2705 Pass' || needs.detect-changes.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Source Validation\
-        \ | ${{ needs.validate-source.result == 'success' && '\u2705 Pass' || needs.validate-source.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Unit Tests\
-        \ | ${{ needs.unit-tests.result == 'success' && '\u2705 Pass' || needs.unit-tests.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Integration\
-        \ Tests | ${{ needs.integration-tests.result == 'success' && '\u2705 Pass'\
-        \ || needs.integration-tests.result == 'skipped' && '\u23ED\uFE0F Skipped'\
-        \ || '\u274C Fail' }} |\n| Security Scan (CodeQL) | ${{ needs.security-scan.result\
-        \ == 'success' && '\u2705 Pass' || needs.security-scan.result == 'skipped'\
-        \ && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Application Build | ${{\
-        \ needs.build-app.result == 'success' && '\u2705 Pass' || needs.build-app.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Docker Build\
-        \ & Publish | ${{ needs.docker-build.result == 'success' && '\u2705 Pass'\
-        \ || needs.docker-build.result == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C\
-        \ Fail' }} |\n| Container Security Scan | ${{ needs.container-scan.result\
-        \ == 'success' && '\u2705 Pass' || needs.container-scan.result == 'skipped'\
-        \ && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Staging Deployment |\
-        \ ${{ needs.deploy-staging.result == 'success' && '\u2705 Pass' || needs.deploy-staging.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Staging\
-        \ Smoke Tests | ${{ needs.staging-smoke-tests.result == 'success' && '\u2705\
-        \ Pass' || needs.staging-smoke-tests.result == 'skipped' && '\u23ED\uFE0F\
-        \ Skipped' || '\u274C Fail' }} |\n| Production Deployment | ${{ needs.deploy-production.result\
-        \ == 'success' && '\u2705 Pass' || needs.deploy-production.result == 'skipped'\
-        \ && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n| Production Verification\
-        \ | ${{ needs.verify-production.result == 'success' && '\u2705 Pass' || needs.verify-production.result\
-        \ == 'skipped' && '\u23ED\uFE0F Skipped' || '\u274C Fail' }} |\n\n---\n\n\
-        **Commit:** `${{ github.sha }}`  \n**Branch:** `${{ github.ref_name }}`  \n\
-        **Triggered by:** `${{ github.actor }}`  \n**Workflow:** `${{ github.workflow\
-        \ }}` #${{ github.run_number }}  \n**Run ID:** `${{ github.run_id }}`  \n\n\
-        EOF\n\n# Determine overall pipeline status\nFAILED_JOBS=\"\"\nif [ \"${{ needs.validate-source.result\
-        \ }}\" == \"failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS validation\"; fi\n\
-        if [ \"${{ needs.unit-tests.result }}\" == \"failure\" ]; then FAILED_JOBS=\"\
-        $FAILED_JOBS unit-tests\"; fi\nif [ \"${{ needs.integration-tests.result }}\"\
-        \ == \"failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS integration-tests\"; fi\n\
-        if [ \"${{ needs.security-scan.result }}\" == \"failure\" ]; then FAILED_JOBS=\"\
-        $FAILED_JOBS security\"; fi\nif [ \"${{ needs.build-app.result }}\" == \"\
-        failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS build\"; fi\nif [ \"${{ needs.docker-build.result\
-        \ }}\" == \"failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS docker-build\"; fi\n\
-        if [ \"${{ needs.container-scan.result }}\" == \"failure\" ]; then FAILED_JOBS=\"\
-        $FAILED_JOBS container-scan\"; fi\nif [ \"${{ needs.deploy-staging.result\
-        \ }}\" == \"failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS staging\"; fi\nif\
-        \ [ \"${{ needs.staging-smoke-tests.result }}\" == \"failure\" ]; then FAILED_JOBS=\"\
-        $FAILED_JOBS smoke-tests\"; fi\nif [ \"${{ needs.deploy-production.result\
-        \ }}\" == \"failure\" ]; then FAILED_JOBS=\"$FAILED_JOBS production\"; fi\n\
-        if [ \"${{ needs.verify-production.result }}\" == \"failure\" ]; then FAILED_JOBS=\"\
-        $FAILED_JOBS verify\"; fi\n\nif [ -n \"$FAILED_JOBS\" ]; then\n  echo \"\"\
-        \ >> \"$GITHUB_STEP_SUMMARY\"\n  echo \"## \u26A0\uFE0F Pipeline Failed\"\
-        \ >> \"$GITHUB_STEP_SUMMARY\"\n  echo \"Failed stages:$FAILED_JOBS\" >> \"\
-        $GITHUB_STEP_SUMMARY\"\nelse\n  echo \"\" >> \"$GITHUB_STEP_SUMMARY\"\n  echo\
-        \ \"## \u2705 Pipeline Succeeded\" >> \"$GITHUB_STEP_SUMMARY\"\nfi\n"
-    continue-on-error: true
+      - name: Production health check
+        run: |
+          for container in warehouseops-app warehouseops-nginx warehouseops-redis; do
+            status=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
+            if [ "$status" != "running" ]; then
+              echo "::error::$container is $status"
+              exit 1
+            fi
+          done
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8102/login)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login page returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "All production health checks passed."
