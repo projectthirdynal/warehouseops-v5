@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clear WarehouseOps Cache</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #334155; text-align: center; padding: 2rem; }
+    .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 2rem; max-width: 480px; width: 100%; }
+    h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+    p { margin: 0 0 1.5rem; line-height: 1.5; color: #64748b; }
+    button { background: #2563eb; color: white; border: none; border-radius: 0.5rem; padding: 0.75rem 1.5rem; font-size: 1rem; cursor: pointer; font-weight: 600; }
+    button:hover { background: #1d4ed8; }
+    #status { margin-top: 1rem; font-size: 0.875rem; color: #64748b; min-height: 1.25rem; }
+    .success { color: #16a34a; }
+    .error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Clear WarehouseOps Cache</h1>
+    <p>The old PWA service worker is probably serving a stale homepage. Click below to unregister it, clear caches, and reload to the latest version.</p>
+    <button id="clearBtn">Clear Cache & Reload</button>
+    <p id="status"></p>
+  </div>
+
+  <script>
+    const status = document.getElementById('status');
+    document.getElementById('clearBtn').addEventListener('click', async () => {
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const reg of registrations) {
+            await reg.unregister();
+          }
+          status.textContent = 'Service workers unregistered.';
+        }
+
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          for (const name of cacheNames) {
+            if (name.toLowerCase().includes('tecc') || name.toLowerCase().includes('pwa')) {
+              await caches.delete(name);
+            }
+          }
+          status.textContent = 'Service workers and app caches cleared.';
+        }
+
+        setTimeout(() => window.location.href = '/', 500);
+      } catch (err) {
+        status.className = 'error';
+        status.textContent = 'Error: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

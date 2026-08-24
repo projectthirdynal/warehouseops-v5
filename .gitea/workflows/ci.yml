@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Backend Tests & Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, ctype, dom, fileinfo, filter, gd, iconv, mbstring, openssl, pdo, pdo_sqlite, sqlite3, tokenizer, xml, zip
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          sed -i 's/DB_CONNECTION=pgsql/DB_CONNECTION=sqlite/' .env
+          sed -i 's/DB_DATABASE=warehouseops/DB_DATABASE=database\/database.sqlite/' .env
+          sed -i 's/CACHE_STORE=redis/CACHE_STORE=array/' .env
+          sed -i 's/QUEUE_CONNECTION=redis/QUEUE_CONNECTION=sync/' .env
+          sed -i 's/SESSION_DRIVER=redis/SESSION_DRIVER=array/' .env
+          sed -i 's/REDIS_HOST=redis/REDIS_HOST=127.0.0.1/' .env
+          php artisan key:generate --ansi
+          touch database/database.sqlite
+          php artisan migrate --force
+
+      - name: Check PHP formatting (Laravel Pint)
+        run: vendor/bin/pint --test
+
+      - name: Run tests
+        run: vendor/bin/pest --no-coverage --exclude-group=broken
+
+  frontend:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build frontend assets
+        run: npm run build

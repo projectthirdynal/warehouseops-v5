@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'tecc-pwa-v1';
+const CACHE_VERSION = 'tecc-pwa-v2';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key.startsWith('tecc-pwa-') && key !== CACHE_VERSION && key !== APP_SHELL_CACHE && key !== API_CACHE)
+          .filter((key) => key.startsWith('tecc-pwa-') && key !== APP_SHELL_CACHE && key !== API_CACHE)
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
@@ -44,10 +44,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Skip cross-origin requests
+  // Skip cross-origin requests (including Vite HMR)
   if (url.origin !== self.location.origin) return;
 
-  // Skip Vite HMR and build assets (handled by browser cache)
+  // Let the browser handle build assets / Vite dev assets directly
   if (url.pathname.startsWith('/build/') || url.pathname.includes('hot')) return;
 
   // API requests — network-first with cache fallback
@@ -75,20 +75,39 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App shell — cache-first with network fallback
+  // HTML navigation — network-first so fresh builds and new routes load immediately
+  if (request.destination === 'document' || request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(APP_SHELL_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) =>
+            cached || caches.match('/').then((fallback) => fallback || new Response('Offline', { status: 503 }))
+          )
+        )
+    );
+    return;
+  }
+
+  // Static app shell assets — cache-first with network fallback
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request)
         .then((response) => {
-          if (response.ok && (request.destination === 'document' || request.destination === 'style' || request.destination === 'script' || request.destination === 'font')) {
+          if (response.ok && (request.destination === 'style' || request.destination === 'script' || request.destination === 'font' || request.destination === 'image')) {
             const clone = response.clone();
             caches.open(APP_SHELL_CACHE).then((cache) => cache.put(request, clone));
           }
           return response;
         })
         .catch(() => {
-          // Return cached page as fallback
           return caches.match('/').then((fallback) => fallback || new Response('Offline', { status: 503 }));
         });
     })

@@ -6,6 +6,7 @@ namespace App\Observers;
 
 use App\Domain\Order\Models\Order;
 use App\Jobs\RecalculateCustomerStats;
+use App\Services\CustomerOrderCooldownService;
 
 class OrderObserver
 {
@@ -13,6 +14,11 @@ class OrderObserver
     {
         if ($order->customer_id !== null) {
             RecalculateCustomerStats::dispatch($order->customer_id);
+
+            $customer = $order->customer;
+            if ($customer !== null) {
+                app(CustomerOrderCooldownService::class)->syncCustomerLeads($customer);
+            }
         }
     }
 

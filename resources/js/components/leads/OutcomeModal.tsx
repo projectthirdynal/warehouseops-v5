@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import type { LeadOutcome, OutcomeFormData } from '@/types/lead-pool';
+import { OrderFormModal } from './OrderFormModal';
+import type { AgentLead, LeadOutcome, OutcomeFormData } from '@/types/lead-pool';
 
 interface OutcomeModalProps {
   leadId: number;
+  lead: AgentLead;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -30,15 +32,22 @@ const outcomes: { value: LeadOutcome; label: string; description: string }[] = [
   { value: 'WRONG_NUMBER', label: 'Wrong Number', description: 'Invalid contact' },
 ];
 
-export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModalProps) {
+export function OutcomeModal({ leadId, lead, isOpen, onClose, onSuccess }: OutcomeModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<LeadOutcome | null>(null);
   const [remarks, setRemarks] = useState('');
   const [callbackDate, setCallbackDate] = useState('');
   const [callbackTime, setCallbackTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOrderForm, setShowOrderForm] = useState(false);
 
   const handleSubmit = async () => {
     if (!selectedOutcome) return;
+
+    // If ORDERED, open the order customization modal instead of submitting directly
+    if (selectedOutcome === 'ORDERED') {
+      setShowOrderForm(true);
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -150,10 +159,27 @@ export function OutcomeModal({ leadId, isOpen, onClose, onSuccess }: OutcomeModa
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={!selectedOutcome || isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Outcome'}
+            {isSubmitting
+              ? 'Saving...'
+              : selectedOutcome === 'ORDERED'
+                ? 'Continue to Order Form →'
+                : 'Save Outcome'}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Order Customization Modal — opens when ORDERED is selected */}
+      <OrderFormModal
+        lead={lead}
+        isOpen={showOrderForm}
+        onClose={() => {
+          setShowOrderForm(false);
+          setSelectedOutcome(null);
+          setRemarks('');
+        }}
+        onSuccess={onSuccess}
+        remarks={remarks}
+      />
     </Dialog>
   );
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Courier\Models\ShippingDay;
+use App\Domain\Courier\Services\DeliveryEtaService;
 use App\Domain\Lead\Enums\LeadOutcome;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
@@ -15,6 +17,7 @@ use App\Services\CallTrackingService;
 use App\Services\LeadDistributionService;
 use App\Services\LeadPoolService;
 use App\Services\LeadRecyclingService;
+use App\Services\PoolReservationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -29,7 +32,9 @@ class AgentLeadController extends Controller
         private LeadDistributionService $distributionService,
         private LeadPoolService $poolService,
         private AgentPortalService $portalService,
-        private GamificationService $gamificationService
+        private GamificationService $gamificationService,
+        private PoolReservationService $poolReservationService,
+        private DeliveryEtaService $etaService,
     ) {}
 
     public function dashboard(): Response
@@ -142,7 +147,7 @@ class AgentLeadController extends Controller
         $soldToday = $todayCycles->where('outcome', 'ORDERED')->count();
 
         return Inertia::render('AgentLeads/Index', [
-            'leads' => AgentLeadResource::collection($leads),
+            'leads' => AgentLeadResource::collection($leads)->resolve(),
             'stats' => [
                 'assigned' => $assignedCount,
                 'called_today' => $calledToday,
@@ -154,7 +159,7 @@ class AgentLeadController extends Controller
             ],
             'poolStats' => $this->poolService->getPoolStats(),
             'filters' => $filters,
-            'callbacksToday' => AgentLeadResource::collection($callbacksToday),
+            'callbacksToday' => AgentLeadResource::collection($callbacksToday)->resolve(),
             'productSkills' => $productSkills,
             'matchingInPool' => $matchingInPool,
         ]);
@@ -187,68 +192,54 @@ class AgentLeadController extends Controller
 
         $toAssign = min($count, $canRequest);
         $productSkills = $agent->agentProfile?->product_skills ?? [];
-
-        // Determine which product to filter by:
-        // 1. Explicit product param from request
-        // 2. Agent's registered product skills (match any)
         $requestedProduct = $validated['product'] ?? null;
 
-        $query = Lead::available()->orderBy('created_at', 'asc');
+        // RESTRICTED SELF-PULL: Only pull from approved pool members.
+        // Agents can no longer self-pull arbitrary leads from the global pool.
+        $poolMembers = $this->poolReservationService->getPendingMembersForAgent($agent);
 
         if ($requestedProduct) {
-            // Explicit product filter requested
-            $query->where('product_name', 'ILIKE', "%{$requestedProduct}%");
+            // Filter by explicit product request
+            $poolMembers = $poolMembers->filter(function ($member) use ($requestedProduct) {
+                return stripos($member->lead->product_name ?? '', $requestedProduct) !== false;
+            })->values();
         } elseif (! empty($productSkills)) {
-            // Filter by ANY of the agent's product skills
-            $query->where(function ($q) use ($productSkills) {
+            // Filter by agent's product skills
+            $poolMembers = $poolMembers->filter(function ($member) use ($productSkills) {
+                $productName = $member->lead->product_name ?? '';
                 foreach ($productSkills as $skill) {
-                    $q->orWhere('product_name', 'ILIKE', "%{$skill}%");
+                    if (stripos($productName, $skill) !== false) {
+                        return true;
+                    }
                 }
-            });
-        }
-        // If no skills set and no explicit filter → pull any available lead
 
-        $availableLeads = $query->limit($toAssign)->pluck('id')->toArray();
-
-        if (empty($availableLeads) && ! empty($productSkills)) {
-            // No matching product leads — try without product filter
-            $availableLeads = Lead::available()
-                ->orderBy('created_at', 'asc')
-                ->limit($toAssign)
-                ->pluck('id')
-                ->toArray();
-
-            if (empty($availableLeads)) {
-                return response()->json([
-                    'message' => 'No leads available in the pool right now. Please check back later.',
-                    'assigned' => 0,
-                ]);
-            }
-
-            $result = $this->distributionService->distributeCustom(
-                $availableLeads,
-                [$agent->id => count($availableLeads)],
-                $agent->id
-            );
-
-            return response()->json([
-                'message' => "No matching product leads available. Assigned {$result['total_distributed']} general lead(s) instead.",
-                'assigned' => $result['total_distributed'],
-            ]);
+                return false;
+            })->values();
         }
 
-        if (empty($availableLeads)) {
+        $poolMembers = $poolMembers->take($toAssign);
+
+        if ($poolMembers->isEmpty()) {
             return response()->json([
-                'message' => 'No leads available in the pool right now. Please check back later.',
+                'message' => 'No approved leads are currently available for your team. Please check back later.',
                 'assigned' => 0,
             ]);
         }
 
+        // Distribute the leads from pool members
+        $leadIds = $poolMembers->pluck('lead_id')->toArray();
         $result = $this->distributionService->distributeCustom(
-            $availableLeads,
-            [$agent->id => count($availableLeads)],
+            $leadIds,
+            [$agent->id => count($leadIds)],
             $agent->id
         );
+
+        // Mark pool members as assigned
+        foreach ($poolMembers as $member) {
+            if (in_array($member->lead_id, $leadIds)) {
+                $this->poolReservationService->markMemberAssigned($member);
+            }
+        }
 
         $productLabel = $requestedProduct ?? (count($productSkills) === 1 ? $productSkills[0] : null);
         $message = $productLabel
@@ -312,6 +303,22 @@ class AgentLeadController extends Controller
             'outcome' => ['required', 'string', 'in:NO_ANSWER,CALLBACK,INTERESTED,ORDERED,NOT_INTERESTED,WRONG_NUMBER'],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'callback_at' => ['nullable', 'required_if:outcome,CALLBACK', 'date', 'after:now'],
+            // Order customization fields (only used when outcome = ORDERED)
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
+            'variant_id' => ['nullable', 'integer'],
+            'custom_product_name' => ['nullable', 'string', 'max:255'],
+            'custom_unit_price' => ['nullable', 'numeric', 'min:0'],
+            'receiver_name' => ['nullable', 'string', 'max:200'],
+            'receiver_phone' => ['nullable', 'string', 'max:20'],
+            'receiver_address' => ['nullable', 'string', 'max:500'],
+            'city' => ['nullable', 'string', 'max:200'],
+            'state' => ['nullable', 'string', 'max:200'],
+            'barangay' => ['nullable', 'string', 'max:200'],
+            'postal_code' => ['nullable', 'string', 'max:20'],
+            'landmark' => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'promo_ids' => ['nullable', 'array'],
+            'promo_ids.*' => ['integer'],
         ]);
 
         $cycle = $lead->cycles()
@@ -322,13 +329,35 @@ class AgentLeadController extends Controller
         $outcome = LeadOutcome::from($validated['outcome']);
         $callbackAt = isset($validated['callback_at']) ? new \DateTime($validated['callback_at']) : null;
 
+        // Build order customization data if outcome is ORDERED
+        $orderData = null;
+        if ($outcome === LeadOutcome::ORDERED) {
+            $orderData = array_filter([
+                'quantity' => $validated['quantity'] ?? 1,
+                'variant_id' => $validated['variant_id'] ?? null,
+                'custom_product_name' => $validated['custom_product_name'] ?? null,
+                'custom_unit_price' => isset($validated['custom_unit_price']) ? (float) $validated['custom_unit_price'] : null,
+                'receiver_name' => $validated['receiver_name'] ?? null,
+                'receiver_phone' => $validated['receiver_phone'] ?? null,
+                'receiver_address' => $validated['receiver_address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'state' => $validated['state'] ?? null,
+                'barangay' => $validated['barangay'] ?? null,
+                'postal_code' => $validated['postal_code'] ?? null,
+                'landmark' => $validated['landmark'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'promo_ids' => $validated['promo_ids'] ?? [],
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
         $this->recyclingService->processOutcome(
             $lead,
             $cycle,
             $outcome,
             auth()->user(),
             $validated['remarks'] ?? null,
-            $callbackAt
+            $callbackAt,
+            $orderData
         );
 
         return response()->json([
@@ -714,5 +743,133 @@ class AgentLeadController extends Controller
     public function pwaSettings(): Response
     {
         return Inertia::render('AgentLeads/PWASettings');
+    }
+
+    /**
+     * API: Get delivery ETA for a given address.
+     */
+    public function deliveryEta(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['nullable', 'string', 'max:200'],
+            'city' => ['nullable', 'string', 'max:200'],
+            'barangay' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $eta = $this->etaService->estimateEta(
+            $validated['province'] ?? null,
+            $validated['city'] ?? null,
+            $validated['barangay'] ?? null,
+        );
+
+        return response()->json($eta);
+    }
+
+    /**
+     * API: Get weather forecast for a given location (or default Manila).
+     */
+    public function weather(Request $request): JsonResponse
+    {
+        $lat = (float) $request->input('lat', 14.5995);
+        $lon = (float) $request->input('lon', 120.9842);
+        $city = (string) $request->input('city', 'Manila, PH');
+
+        $weather = $this->etaService->getWeatherForecast($lat, $lon, $city);
+
+        return response()->json($weather);
+    }
+
+    /**
+     * API: Get list of provinces from shipping_days table.
+     */
+    public function addressProvinces(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->input('q', ''));
+
+        $query = ShippingDay::query()
+            ->select('province')
+            ->distinct();
+
+        if ($search !== '') {
+            $normalized = ShippingDay::normalize($search);
+            $query->where('province', 'ILIKE', "%{$normalized}%");
+        }
+
+        $provinces = $query->orderBy('province')
+            ->limit(100)
+            ->pluck('province')
+            ->map(fn ($p) => ucwords(strtolower(str_replace('-', ' ', $p))))
+            ->values();
+
+        return response()->json(['provinces' => $provinces]);
+    }
+
+    /**
+     * API: Get list of cities for a given province.
+     */
+    public function addressCities(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['required', 'string', 'max:200'],
+            'q' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $normalizedProvince = ShippingDay::normalize($validated['province']);
+        $search = trim((string) ($validated['q'] ?? ''));
+
+        $query = ShippingDay::query()
+            ->select('city')
+            ->where('province', $normalizedProvince)
+            ->distinct();
+
+        if ($search !== '') {
+            $normalizedCity = ShippingDay::normalize($search);
+            $query->where('city', 'ILIKE', "%{$normalizedCity}%");
+        }
+
+        $cities = $query->orderBy('city')
+            ->limit(200)
+            ->pluck('city')
+            ->map(fn ($c) => ucwords(strtolower(str_replace('-', ' ', $c))))
+            ->values();
+
+        return response()->json(['cities' => $cities]);
+    }
+
+    /**
+     * API: Get list of barangays for a given province + city.
+     */
+    public function addressBarangays(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'province' => ['required', 'string', 'max:200'],
+            'city' => ['required', 'string', 'max:200'],
+            'q' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $normalizedProvince = ShippingDay::normalize($validated['province']);
+        $normalizedCity = ShippingDay::normalize($validated['city']);
+        $search = trim((string) ($validated['q'] ?? ''));
+
+        $query = ShippingDay::query()
+            ->select('barangay', 'shipping_days')
+            ->where('province', $normalizedProvince)
+            ->where('city', $normalizedCity)
+            ->whereNotNull('barangay');
+
+        if ($search !== '') {
+            $query->where('barangay', 'ILIKE', '%'.mb_strtoupper(trim($search)).'%');
+        }
+
+        $barangays = $query->orderBy('barangay')
+            ->limit(500)
+            ->get()
+            ->map(fn ($row) => [
+                'name' => ucwords(strtolower($row->barangay)),
+                'shipping_days' => $row->shipping_days,
+            ])
+            ->values();
+
+        return response()->json(['barangays' => $barangays]);
     }
 }

@@ -16,7 +16,7 @@ import {
   ArrowLeft,
   ListChecks,
 } from 'lucide-react';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -236,7 +236,7 @@ export default function TelesalesImport() {
     : [];
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <Head title="Telesales Import" />
       <div className="max-w-4xl mx-auto space-y-4">
         <div>
@@ -640,6 +640,6 @@ export default function TelesalesImport() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

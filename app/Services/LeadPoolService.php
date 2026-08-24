@@ -113,6 +113,11 @@ class LeadPoolService
 
     public function markAsCooldown(Lead $lead, int $cooldownHours): void
     {
+        $this->markAsCooldownUntil($lead, now()->addHours($cooldownHours), ['cooldown_hours' => $cooldownHours]);
+    }
+
+    public function markAsCooldownUntil(Lead $lead, \DateTimeInterface $until, ?array $metadata = null): void
+    {
         $oldStatus = $lead->pool_status?->value;
 
         // Free agent workload before nulling assignment (ISS-003)
@@ -122,7 +127,7 @@ class LeadPoolService
 
         $lead->update([
             'pool_status' => PoolStatus::COOLDOWN,
-            'cooldown_until' => now()->addHours($cooldownHours),
+            'cooldown_until' => $until,
             'assigned_to' => null,
         ]);
 
@@ -135,7 +140,7 @@ class LeadPoolService
             action: 'POOL_STATUS_CHANGED',
             oldValue: $oldStatus,
             newValue: PoolStatus::COOLDOWN->value,
-            metadata: ['cooldown_hours' => $cooldownHours]
+            metadata: $metadata ?? []
         );
     }
 

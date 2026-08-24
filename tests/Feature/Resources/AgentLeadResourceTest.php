@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Resources;
 
-use App\Domain\Customer\Models\Customer;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
 use App\Http\Resources\AgentLeadResource;
@@ -10,16 +9,11 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-/**
- * @group broken
- *
- * @see Customer model does not exist yet
- */
 class AgentLeadResourceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_phone_is_hidden_from_output(): void
+    public function test_phone_is_included_in_output(): void
     {
         $lead = Lead::factory()->create([
             'phone' => '09171234567',
@@ -29,7 +23,8 @@ class AgentLeadResourceTest extends TestCase
         $resource = new AgentLeadResource($lead);
         $array = $resource->toArray(request());
 
-        $this->assertArrayNotHasKey('phone', $array);
+        $this->assertArrayHasKey('phone', $array);
+        $this->assertEquals('09171234567', $array['phone']);
     }
 
     public function test_includes_safe_lead_data(): void
@@ -72,17 +67,25 @@ class AgentLeadResourceTest extends TestCase
         $this->assertEquals(3, $array['cycles'][0]['call_count']);
     }
 
-    public function test_address_is_hidden_from_output(): void
+    public function test_address_is_included_in_output(): void
     {
         $lead = Lead::factory()->create([
             'address' => '123 Secret Street',
             'street' => 'Secret Street',
+            'city' => 'Manila',
+            'state' => 'Metro Manila',
+            'barangay' => 'Barangay 123',
         ]);
 
         $resource = new AgentLeadResource($lead);
         $array = $resource->toArray(request());
 
-        $this->assertArrayNotHasKey('address', $array);
-        $this->assertArrayNotHasKey('street', $array);
+        $this->assertArrayHasKey('address', $array);
+        $this->assertArrayHasKey('street', $array);
+        $this->assertArrayHasKey('address_details', $array);
+        $this->assertEquals('Metro Manila', $array['address_details']['province']);
+        $this->assertEquals('Manila', $array['address_details']['city']);
+        $this->assertEquals('Barangay 123', $array['address_details']['barangay']);
+        $this->assertEquals('123 Secret Street', $array['address_details']['address']);
     }
 }

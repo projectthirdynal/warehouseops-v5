@@ -32,14 +32,14 @@ composer format      # Laravel Pint code formatter
 
 Business logic lives in `app/Domain/` with six bounded contexts:
 
-| Domain | Purpose |
-|--------|---------|
-| `Lead` | Lead lifecycle: pool status, cycles, distribution, recycling, outcomes |
-| `Waybill` | Courier shipment tracking, status transitions, batch imports |
-| `Agent` | Agent profiles, product skills, performance metrics |
-| `Customer` | Customer records (deduplicated by phone), risk scoring, blacklisting |
-| `Courier` | J&T Express / Flash courier integrations |
-| `Notification` | Telegram operational alerts |
+| Domain         | Purpose                                                                |
+| -------------- | ---------------------------------------------------------------------- |
+| `Lead`         | Lead lifecycle: pool status, cycles, distribution, recycling, outcomes |
+| `Waybill`      | Courier shipment tracking, status transitions, batch imports           |
+| `Agent`        | Agent profiles, product skills, performance metrics                    |
+| `Customer`     | Customer records (deduplicated by phone), risk scoring, blacklisting   |
+| `Courier`      | J&T Express / Flash courier integrations                               |
+| `Notification` | Telegram operational alerts                                            |
 
 Each domain may contain: `Models/`, `Enums/`, `Actions/`, `Repositories/`.
 
@@ -80,6 +80,7 @@ All implement `ShouldQueue` on Redis:
 ### Dual Model Pattern
 
 Some domains have two model files:
+
 - `App\Domain\Lead\Models\Lead` — full domain model with scopes (e.g., `available()`), relationships, business methods
 - `App\Models\Lead` — simpler Eloquent model for basic queries
 
@@ -103,6 +104,7 @@ shadcn/ui components (Radix UI primitives) in `resources/js/components/ui/`. Ico
 ### Route Structure
 
 Routes split by role in `routes/web.php`:
+
 - `auth` middleware only — agent self-service portal (`/agent/*`, `/api/agent/*`)
 - `auth` + `role:supervisor,admin,superadmin` — all admin routes (`/`, `/waybills/*`, `/leads/*`, etc.)
 
@@ -118,13 +120,14 @@ Defined in `resources/js/types/index.ts` and `types/lead-pool.ts`. The `AgentLea
 
 **CI/CD**: GitHub Actions self-hosted runner deploys on push to `main` — `npm ci && npm run build → rsync → composer install --no-dev → migrate → cache rebuild → horizon:terminate`.
 
-**Manual deploy** (development server at 192.168.0.14):
+**Manual deploy** (development server at 192.168.0.15):
+
 ```bash
 npm run build
-rsync -az --checksum public/build/ it-admin@192.168.0.14:/home/it-admin/actions-runner/_work/warehouseops-v5/warehouseops-v5/public/build/
-rsync -az --checksum resources/js/ it-admin@192.168.0.14:...resources/js/
-rsync -az --checksum app/ it-admin@192.168.0.14:...app/
-rsync -az --checksum routes/ it-admin@192.168.0.14:...routes/
+rsync -az --checksum public/build/ it-admin@192.168.0.15:/home/it-admin/actions-runner/_work/warehouseops-v5/warehouseops-v5/public/build/
+rsync -az --checksum resources/js/ it-admin@192.168.0.15:...resources/js/
+rsync -az --checksum app/ it-admin@192.168.0.15:...app/
+rsync -az --checksum routes/ it-admin@192.168.0.15:...routes/
 ```
 
 ## Testing
@@ -132,6 +135,7 @@ rsync -az --checksum routes/ it-admin@192.168.0.14:...routes/
 Pest PHP with Laravel plugin. Tests in `tests/Unit/` and `tests/Feature/`. Uses SQLite in-memory for test database (`phpunit.xml`).
 
 Run a single test:
+
 ```bash
 php artisan test --filter=TestClassName
 # or
@@ -150,4 +154,5 @@ php artisan test --filter=TestClassName
 - **Upload stuck in processing** — reset with: `UPDATE uploads SET status='failed' WHERE id=X;`
 
 ## Cross-Reference
+
 Workspace-level domain rules, server info, and agent list: see `../CLAUDE.md` (tecc workspace).

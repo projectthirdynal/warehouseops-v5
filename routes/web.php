@@ -10,6 +10,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BarcodeLabelController;
 use App\Http\Controllers\BurnoutPredictionController;
 use App\Http\Controllers\CapexAssetController;
+use App\Http\Controllers\CheckerController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\CostOfGoodsController;
 use App\Http\Controllers\CourierAnalyticsController;
@@ -31,18 +32,25 @@ use App\Http\Controllers\Finance\SupplierInvoiceController;
 use App\Http\Controllers\Finance\ThreeWayMatchController as FinanceThreeWayMatchController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\GoogleSheetSyncController;
 use App\Http\Controllers\InventoryDashboardController;
 use App\Http\Controllers\InventoryValuationController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadImportController;
+use App\Http\Controllers\LeadInventoryController;
 use App\Http\Controllers\LeadPoolController;
+use App\Http\Controllers\LeadPoolDisplayController;
 use App\Http\Controllers\MetaComplianceController;
 use App\Http\Controllers\MockCourierController;
 use App\Http\Controllers\MovementAuditTrailController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentGatewayController;
+use App\Http\Controllers\PoolApprovalController;
+use App\Http\Controllers\PoolRequestController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PromoController;
+use App\Http\Controllers\PromoPriceRemarkController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\PushNotificationController;
@@ -67,7 +75,9 @@ use App\Http\Controllers\StockDashboardController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplyController;
+use App\Http\Controllers\TelesalesDashboardController;
 use App\Http\Controllers\TelesalesLeadImportController;
+use App\Http\Controllers\TelesalesOrderController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\WarehouseController;
@@ -136,6 +146,22 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/leads/{lead}/outcome', [AgentLeadController::class, 'outcome'])->name('leads.outcome');
         Route::get('/leads/{lead}/customer-history', [AgentLeadController::class, 'customerHistory'])->name('leads.customer-history');
         Route::get('/leads/unread-count', [AgentLeadController::class, 'unreadCount'])->name('leads.unread-count');
+        Route::get('/delivery-eta', [AgentLeadController::class, 'deliveryEta'])->name('delivery-eta');
+        Route::get('/weather', [AgentLeadController::class, 'weather'])->name('weather');
+
+        // Agent-facing promo lookup
+        Route::prefix('promos')->name('promos.')->group(function () {
+            Route::get('/active-for-product', [PromoController::class, 'activeForProduct'])->name('active-for-product');
+            Route::post('/preview', [PromoController::class, 'preview'])->name('preview');
+        });
+
+        // Price-remarks lookup for agents during order creation
+        Route::get('/price-remarks', [PromoPriceRemarkController::class, 'lookup'])->name('price-remarks.lookup');
+        Route::get('/price-remarks/all', [PromoPriceRemarkController::class, 'listAll'])->name('price-remarks.all');
+
+        Route::get('/address/provinces', [AgentLeadController::class, 'addressProvinces'])->name('address.provinces');
+        Route::get('/address/cities', [AgentLeadController::class, 'addressCities'])->name('address.cities');
+        Route::get('/address/barangays', [AgentLeadController::class, 'addressBarangays'])->name('address.barangays');
     });
 
     // Push notification subscriptions (PWA)
@@ -143,6 +169,21 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/subscribe', [PushNotificationController::class, 'subscribe'])->name('subscribe');
         Route::post('/unsubscribe', [PushNotificationController::class, 'unsubscribe'])->name('unsubscribe');
         Route::get('/status', [PushNotificationController::class, 'status'])->name('status');
+    });
+
+    // Checker Review Queue (sales confirmation) — accessible by checker, admin, superadmin
+    Route::middleware(['role:checker,admin,superadmin'])->group(function () {
+        Route::prefix('checker')->name('checker.')->group(function () {
+            Route::get('/queue', [CheckerController::class, 'queue'])->name('queue');
+            Route::get('/queue/{order}', [CheckerController::class, 'show'])->name('show');
+            Route::get('/queue/export', [CheckerController::class, 'export'])->name('queue.export');
+        });
+
+        Route::prefix('api/checker')->name('api.checker.')->group(function () {
+            Route::get('/counts', [CheckerController::class, 'counts'])->name('counts');
+            Route::post('/orders/{order}/approve', [CheckerController::class, 'approve'])->name('approve');
+            Route::post('/orders/{order}/reject', [CheckerController::class, 'reject'])->name('reject');
+        });
     });
 });
 
@@ -562,7 +603,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
         // Budget vs Actual — department budgets with variance alerts
         Route::prefix('budget')->name('budget.')->group(function () {
             Route::get('/', [BudgetController::class, 'index'])->name('index');
-            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
             Route::get('/api', [BudgetController::class, 'apiIndex'])->name('api.index');
             Route::get('/api/{budget}', [BudgetController::class, 'apiShow'])->name('api.show');
             Route::post('/api', [BudgetController::class, 'apiStore'])->name('api.store');
@@ -572,6 +612,7 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor,finance,accounting'
             Route::post('/api/{budget}/generate-alerts', [BudgetController::class, 'apiGenerateAlerts'])->name('api.generate-alerts');
             Route::get('/api/{budget}/alerts', [BudgetController::class, 'apiAlerts'])->name('api.alerts');
             Route::patch('/api/alerts/{alertId}/resolve', [BudgetController::class, 'apiResolveAlert'])->name('api.alerts.resolve');
+            Route::get('/{budget}', [BudgetController::class, 'show'])->name('show');
         });
     });
 
@@ -999,7 +1040,19 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/unknown/{unknown}/dismiss', [UnknownWaybillController::class, 'dismiss'])->name('unknown.dismiss');
         Route::get('/claims/export', [WaybillExportController::class, 'claims'])->name('claims.export');
         Route::get('/beyond-sla/export', [WaybillExportController::class, 'beyondSla'])->name('beyond-sla.export');
-        Route::get('/import', [WaybillImportController::class, 'index'])->name('import');
+
+        // Google Sheet Sync — replaces the old file-upload import page.
+        // The /import index now renders the Google Sheet sync UI.
+        Route::get('/import', [GoogleSheetSyncController::class, 'index'])->name('import');
+        Route::prefix('google-sync')->name('google-sync.')->group(function () {
+            Route::post('/', [GoogleSheetSyncController::class, 'store'])->name('store');
+            Route::patch('/{googleSheetSync}', [GoogleSheetSyncController::class, 'update'])->name('update');
+            Route::delete('/{googleSheetSync}', [GoogleSheetSyncController::class, 'destroy'])->name('destroy');
+            Route::post('/{googleSheetSync}/refresh', [GoogleSheetSyncController::class, 'refresh'])->name('refresh');
+            Route::get('/{googleSheetSync}/status', [GoogleSheetSyncController::class, 'status'])->name('status');
+        });
+
+        // Legacy file-upload import routes retained for existing upload detail pages.
         Route::post('/import', [WaybillImportController::class, 'store'])->name('import.store');
         Route::get('/import/template', [WaybillImportController::class, 'template'])->name('import.template');
         Route::get('/import/{upload}', [WaybillImportController::class, 'show'])->name('import.show');
@@ -1189,12 +1242,61 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
     });
 
-    // Telesales Import
+    // Telesales Department
     Route::prefix('telesales')->name('telesales.')->group(function () {
+        Route::get('/', [TelesalesDashboardController::class, 'index'])->name('dashboard');
+
         Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
         Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
         Route::post('/import/columns', [TelesalesLeadImportController::class, 'columns'])->name('import.columns');
+
+        // Lead Inventory
+        Route::get('/inventory', [LeadInventoryController::class, 'index'])->name('inventory.index');
+        Route::get('/inventory/count', [LeadInventoryController::class, 'count'])->name('inventory.count');
+
+        // Pool Requests
+        Route::get('/pool-requests', [PoolRequestController::class, 'index'])->name('pool-requests.index');
+        Route::get('/pool-requests/create', [PoolRequestController::class, 'create'])->name('pool-requests.create');
+        Route::get('/pool-requests/eligible/count', [PoolRequestController::class, 'countEligible'])->name('pool-requests.eligible.count');
+        Route::post('/pool-requests', [PoolRequestController::class, 'store'])->name('pool-requests.store');
+        Route::get('/pool-requests/{poolRequest}', [PoolRequestController::class, 'show'])->name('pool-requests.show');
+        Route::post('/pool-requests/{poolRequest}/cancel', [PoolRequestController::class, 'cancel'])->name('pool-requests.cancel');
+
+        // Pool Approvals (admin only)
+        Route::get('/pool-approvals', [PoolApprovalController::class, 'index'])->name('pool-approvals.index');
+        Route::get('/pool-approvals/{poolRequest}', [PoolApprovalController::class, 'show'])->name('pool-approvals.show');
+        Route::post('/pool-approvals/{poolRequest}/approve', [PoolApprovalController::class, 'approve'])->name('pool-approvals.approve');
+        Route::post('/pool-approvals/{poolRequest}/reject', [PoolApprovalController::class, 'reject'])->name('pool-approvals.reject');
+
+        // Lead Pools (approved pools)
+        Route::get('/pools', [LeadPoolDisplayController::class, 'index'])->name('pools.index');
+        Route::get('/pools/{pool}', [LeadPoolDisplayController::class, 'show'])->name('pools.show');
+        Route::post('/pools/{pool}/cancel', [LeadPoolDisplayController::class, 'cancel'])->name('pools.cancel');
+
+        // Promos & Freebies (admin only)
+        Route::get('/promos', [PromoController::class, 'index'])->name('promos.index');
+        Route::get('/promos/create', [PromoController::class, 'create'])->name('promos.create');
+        Route::get('/promos/{promo}/edit', [PromoController::class, 'create'])->name('promos.edit');
+
+        // Price Remarks Promos
+        Route::get('/promos/price-remarks', [PromoPriceRemarkController::class, 'index'])->name('promos.price-remarks.index');
+        Route::post('/promos/price-remarks/import', [PromoPriceRemarkController::class, 'import'])->name('promos.price-remarks.import');
+        Route::post('/promos/price-remarks/truncate', [PromoPriceRemarkController::class, 'truncate'])->name('promos.price-remarks.truncate');
+
+        // Centralized Order Management
+        Route::get('/orders', [TelesalesOrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/export', [TelesalesOrderController::class, 'export'])->name('orders.export');
+    });
+
+    // Promo API (admin CRUD + agent lookup)
+    Route::prefix('api/telesales/promos')->name('api.telesales.promos.')->group(function () {
+        Route::post('/', [PromoController::class, 'store'])->name('store');
+        Route::put('/{promo}', [PromoController::class, 'update'])->name('update');
+        Route::delete('/{promo}', [PromoController::class, 'destroy'])->name('destroy');
+        Route::post('/{promo}/toggle-active', [PromoController::class, 'toggleActive'])->name('toggle-active');
+        Route::get('/active-for-product', [PromoController::class, 'activeForProduct'])->name('active-for-product');
+        Route::post('/preview', [PromoController::class, 'preview'])->name('preview');
     });
 
     // Distribution Engine

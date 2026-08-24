@@ -18,9 +18,14 @@ class DistributionAnalyticsService
      */
     public function averageTimeToAssign(\DateTimeInterface $from, \DateTimeInterface $to): float
     {
+        $driver = DB::connection()->getDriverName();
+        $diffExpr = $driver === 'sqlite'
+            ? '(julianday(assigned_at) - julianday(created_at)) * 24 * 60'
+            : 'EXTRACT(EPOCH FROM (assigned_at - created_at)) / 60';
+
         $avg = Lead::whereBetween('created_at', [$from, $to])
             ->whereNotNull('assigned_at')
-            ->selectRaw('AVG(EXTRACT(EPOCH FROM (assigned_at - created_at)) / 60) as avg_minutes')
+            ->selectRaw("AVG({$diffExpr}) as avg_minutes")
             ->first();
 
         return round((float) ($avg->avg_minutes ?? 0), 2);
@@ -96,9 +101,14 @@ class DistributionAnalyticsService
     public function queueDepthOverTime(): array
     {
         $from = now()->subHours(24);
+        $driver = DB::connection()->getDriverName();
+
+        $hourExpr = $driver === 'sqlite'
+            ? "strftime('%Y-%m-%d %H:00:00', created_at) as hour"
+            : "DATE_TRUNC('hour', created_at) as hour";
 
         $items = DistributionQueue::where('created_at', '>=', $from)
-            ->selectRaw("DATE_TRUNC('hour', created_at) as hour, status, COUNT(*) as count")
+            ->selectRaw("{$hourExpr}, status, COUNT(*) as count")
             ->groupBy('hour', 'status')
             ->orderBy('hour')
             ->get();

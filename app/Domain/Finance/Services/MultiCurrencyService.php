@@ -29,7 +29,7 @@ class MultiCurrencyService
 
         $rate = ExchangeRate::where('from_currency', $from)
             ->where('to_currency', $to)
-            ->where('rate_date', '<=', $date->toDateString())
+            ->where('rate_date', '<=', $date)
             ->orderByDesc('rate_date')
             ->first();
 
@@ -40,7 +40,7 @@ class MultiCurrencyService
         // Try inverse
         $inverse = ExchangeRate::where('from_currency', $to)
             ->where('to_currency', $from)
-            ->where('rate_date', '<=', $date->toDateString())
+            ->where('rate_date', '<=', $date)
             ->orderByDesc('rate_date')
             ->first();
 
@@ -102,7 +102,7 @@ class MultiCurrencyService
             [
                 'from_currency' => strtoupper($from),
                 'to_currency' => strtoupper($to),
-                'rate_date' => $date->toDateString(),
+                'rate_date' => $date,
             ],
             [
                 'rate' => $rate,

@@ -28,3 +28,5 @@ desktop/dist
 desktop/dist-electron
 desktop/release
 docker-compose.override.yml
+.env.dev
+.env.prod_backup

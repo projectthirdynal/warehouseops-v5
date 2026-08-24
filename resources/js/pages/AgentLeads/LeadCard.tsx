@@ -9,6 +9,9 @@ import {
   ChevronUp,
   AlertCircle,
   History,
+  Phone,
+  Home,
+  Navigation,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { CallButton } from '@/components/leads/CallButton';
 import { OutcomeModal } from '@/components/leads/OutcomeModal';
 import { CustomerHistoryModal } from '@/components/leads/CustomerHistoryModal';
+import { DeliveryEtaBadge } from '@/components/agent/DeliveryEtaBadge';
 import { formatCurrency, formatDateTime, formatRelativeTime } from '@/lib/utils';
 import type { AgentLead, PoolStatus } from '@/types/lead-pool';
 
@@ -51,6 +55,10 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
               </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {lead.phone || 'No phone'}
+                </span>
+                <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   {[lead.barangay, lead.city, lead.state].filter(Boolean).join(', ') ||
                     'No address'}
@@ -62,6 +70,7 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
                     {lead.product_brand && ` (${lead.product_brand})`}
                   </span>
                 )}
+                <DeliveryEtaBadge province={lead.state} city={lead.city} barangay={lead.barangay} />
               </div>
             </div>
             <div className="text-right">
@@ -123,6 +132,50 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
           {/* Expanded Details */}
           {isExpanded && (
             <div className="pt-4 border-t space-y-4">
+              {/* Full Delivery Address */}
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm flex items-center gap-1">
+                  <Home className="h-4 w-4" />
+                  Delivery Address
+                </h4>
+                <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                  {lead.street && (
+                    <div className="flex items-start gap-2">
+                      <Navigation className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
+                      <span>{lead.street}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
+                    <span>
+                      {[lead.barangay, lead.city, lead.state, lead.postal_code]
+                        .filter(Boolean)
+                        .join(', ') || 'No address on file'}
+                    </span>
+                  </div>
+                  {lead.address && (
+                    <div className="text-xs text-muted-foreground pt-1 border-t">
+                      Full: {lead.address}
+                    </div>
+                  )}
+                  {lead.customer?.landmark && (
+                    <div className="text-xs text-muted-foreground">
+                      Landmark: {lead.customer.landmark}
+                    </div>
+                  )}
+                  {lead.customer?.preferred_courier && (
+                    <div className="text-xs text-muted-foreground">
+                      Preferred courier: {lead.customer.preferred_courier}
+                    </div>
+                  )}
+                  {lead.customer?.payment_method && (
+                    <div className="text-xs text-muted-foreground">
+                      Payment: {lead.customer.payment_method}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Lead Details */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
@@ -190,6 +243,7 @@ export function LeadCard({ lead, onUpdate }: LeadCardProps) {
 
       <OutcomeModal
         leadId={lead.id}
+        lead={lead}
         isOpen={showOutcomeModal}
         onClose={() => setShowOutcomeModal(false)}
         onSuccess={() => onUpdate?.()}

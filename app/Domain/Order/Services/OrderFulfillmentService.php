@@ -9,19 +9,24 @@ use App\Domain\Finance\Services\CogsService;
 use App\Domain\Finance\Services\CommissionService;
 use App\Domain\Finance\Services\QboSyncService;
 use App\Domain\Finance\Services\RevenueService;
+use App\Domain\Lead\Enums\PoolStatus;
+use App\Domain\Lead\Enums\SalesStatus;
+use App\Domain\Lead\Models\Lead;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Models\Product;
 use App\Domain\Product\Services\InventoryService;
 use App\Domain\Shop\Models\Conversation;
 use App\Domain\Shop\Models\Message;
+use App\Domain\Shop\Models\ShopOrderItem;
 use App\Domain\Shop\Services\FacebookConnectorService;
 use App\Models\Customer;
-use App\Models\Lead;
 use App\Models\SiteSetting;
 use App\Models\Waybill;
+use App\Services\CustomerOrderCooldownService;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;
+use App\Services\PromoService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -38,6 +43,7 @@ class OrderFulfillmentService
         private QboSyncService $qboSyncService,
         private LeadPoolService $leadPoolService,
         private FacebookConnectorService $facebookConnector,
+        private PromoService $promoService,
     ) {}
 
     /**
@@ -57,6 +63,8 @@ class OrderFulfillmentService
             // Find or create customer
             $customer = Customer::where('phone', $lead->phone)->first();
 
+            $this->assertCustomerCallable($customer);
+
             // Create order
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
@@ -66,6 +74,7 @@ class OrderFulfillmentService
                 'variant_id' => $variant?->id,
                 'assigned_agent_id' => $lead->assigned_to,
                 'status' => OrderStatus::PENDING,
+                'source_channel' => 'telesales',
                 'courier_code' => $courierCode ?? config('services.couriers.default', 'FLASH'),
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
@@ -125,6 +134,126 @@ class OrderFulfillmentService
     }
 
     /**
+     * Create an order from a lead with agent-customized address, quantity, and promos.
+     *
+     * @param  array  $data  {
+     *
+     * @type int $quantity       Order quantity (default 1)
+     * @type ?int $variant_id     Product variant ID
+     * @type ?string $receiver_name  Override receiver name
+     * @type ?string $receiver_phone Override receiver phone
+     * @type ?string $receiver_address Override delivery address
+     * @type ?string $city           Override city
+     * @type ?string $state          Override state/province
+     * @type ?string $barangay       Override barangay
+     * @type ?string $postal_code    Override postal code
+     * @type ?string $landmark       Override landmark
+     * @type ?string $notes          Order notes
+     * @type array<int> $promo_ids    Selected promo IDs
+     *                  }
+     */
+    public function createFromLeadWithCustomization(Lead $lead, array $data, ?string $courierCode = null): Order
+    {
+        $order = DB::transaction(function () use ($lead, $data, $courierCode) {
+            // Find or match product
+            $product = $this->matchProduct($lead);
+            $variant = null;
+
+            // Determine pricing
+            $quantity = max(1, (int) ($data['quantity'] ?? 1));
+            $unitPrice = isset($data['custom_unit_price']) && $data['custom_unit_price'] !== null
+                ? (float) $data['custom_unit_price']
+                : ($product ? (float) $product->selling_price : (float) ($lead->amount ?? 0));
+
+            // Find or create customer
+            $customer = Customer::where('phone', $lead->phone)->first();
+
+            $this->assertCustomerCallable($customer);
+
+            // Calculate totals
+            $subtotal = $unitPrice * $quantity;
+
+            // Create order with customized address
+            $order = Order::create([
+                'order_number' => Order::generateOrderNumber(),
+                'lead_id' => $lead->id,
+                'customer_id' => $customer?->id,
+                'product_id' => $product?->id,
+                'variant_id' => $variant?->id,
+                'assigned_agent_id' => $lead->assigned_to,
+                'status' => OrderStatus::PENDING,
+                'source_channel' => 'telesales',
+                'courier_code' => $courierCode ?? config('services.couriers.default', 'FLASH'),
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'total_amount' => $subtotal,
+                'cod_amount' => $subtotal,
+                'receiver_name' => $data['receiver_name'] ?? $lead->name,
+                'receiver_phone' => $data['receiver_phone'] ?? $lead->phone,
+                'receiver_address' => $data['receiver_address'] ?? $lead->address ?? '',
+                'city' => $data['city'] ?? $lead->city,
+                'state' => $data['state'] ?? $lead->state,
+                'barangay' => $data['barangay'] ?? $lead->barangay,
+                'postal_code' => $data['postal_code'] ?? $lead->postal_code ?? null,
+                'landmark' => $data['landmark'] ?? null,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            // Create the main order item line
+            $productName = ($data['custom_product_name'] ?? '') !== ''
+                ? $data['custom_product_name']
+                : ($product?->name ?? $lead->product_name ?? 'Product');
+
+            ShopOrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product?->id,
+                'variant_id' => $variant?->id,
+                'sku' => $product?->sku,
+                'product_name' => $productName,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'discount_amount' => 0,
+                'line_total' => $subtotal,
+                'metadata' => ['type' => 'main'],
+            ]);
+
+            // Apply promos (creates freebie line items + updates discount)
+            if (! empty($data['promo_ids'])) {
+                $this->promoService->applyPromos($order, $quantity, $unitPrice, $data['promo_ids']);
+            }
+
+            // Update lead sales status
+            $lead->update(['sales_status' => 'AGENT_CONFIRMED']);
+
+            // Reserve inventory if product exists
+            if ($product) {
+                try {
+                    $this->inventory->reserve(
+                        $product->id,
+                        $quantity,
+                        $variant?->id,
+                        Order::class,
+                        $order->id,
+                    );
+                } catch (\RuntimeException $e) {
+                    Log::warning("Insufficient stock for order {$order->order_number}", [
+                        'product' => $product->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Route through QA (checker review) — all agent-created orders go to checker
+            $order->update(['status' => OrderStatus::QA_PENDING]);
+            $lead->update(['sales_status' => 'QA_PENDING']);
+
+            return $order;
+        });
+
+        return $order;
+    }
+
+    /**
      * QA approves the order → submit to courier.
      *
      * @param  bool  $submitCourier  Set to false when called from within an existing transaction
@@ -165,7 +294,12 @@ class OrderFulfillmentService
             ]);
 
             if ($order->lead) {
-                $order->lead->update(['sales_status' => 'QA_REJECTED']);
+                $order->lead->update([
+                    'sales_status' => SalesStatus::QA_REJECTED->value,
+                    'pool_status' => PoolStatus::ASSIGNED->value,
+                    'assigned_to' => $order->assigned_agent_id,
+                    'cooldown_until' => null,
+                ]);
             }
 
             // Release inventory reservation
@@ -606,5 +740,23 @@ class OrderFulfillmentService
             'send_error' => $delivery['error'] ?? null,
             'retry_count' => 0,
         ]);
+    }
+
+    /**
+     * Block new orders for customers who already have an active order.
+     */
+    private function assertCustomerCallable(?Customer $customer): void
+    {
+        if ($customer === null) {
+            return;
+        }
+
+        $cooldown = app(CustomerOrderCooldownService::class)->forCustomer($customer);
+
+        if ($cooldown['blocked']) {
+            throw new \RuntimeException(
+                "Customer has an active order and cannot be called again until {$cooldown['until']->toDateTimeString()}."
+            );
+        }
     }
 }

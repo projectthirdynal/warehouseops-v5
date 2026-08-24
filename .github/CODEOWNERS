@@ -1,0 +1,14 @@
+# Default owner for the entire repository — everything else must be approved by project owner
+* @projectthirdynal
+
+# Shop module — Akiromishidoze owns these paths
+/app/Domain/Shop/ @akiromishidoze
+/app/Http/Controllers/ShopController.php @akiromishidoze
+/database/factories/Domain/Shop/ @akiromishidoze
+/database/migrations/*shop* @akiromishidoze
+/resources/js/pages/Shop/ @akiromishidoze
+
+# Shared/config files outside of Shop must not be touched by Akiromishidoze without repo owner approval
+/resources/js/layouts/AppLayout.tsx @projectthirdynal
+/resources/js/layouts/TelesalesLayout.tsx @projectthirdynal
+/routes/web.php @projectthirdynal
