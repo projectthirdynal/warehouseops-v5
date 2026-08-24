@@ -9,7 +9,43 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * @property array<int, array{content_type: string, title: string, payload: string}>|null $quick_replies
+ * BroadcastVariant Model
+ *
+ * Represents message variants within broadcast campaigns, specifically designed
+ * for A/B testing capabilities. Each variant can have different content,
+ * quick replies, and is tracked independently for performance comparison.
+ *
+ * ## Quick Replies Support
+ *
+ * - Classic set-mutator normalizing to canonical Messenger {content_type, title, payload} shape
+ * - Enforces platform limits via MAX_QUICK_REPLIES = 11 and QUICK_REPLY_TITLE_MAX_LENGTH = 20
+ * - hasQuickReplies() helper for quick presence checking
+ *
+ * ## Per-Variant Statistics
+ *
+ * - Integer casts for all count fields
+ * - recordSent(), recordDelivered(), recordRead(), recordReplied(), recordFailed() methods
+ * - Automatic increment tracking for delivery lifecycle
+ *
+ * ## A/B Testing
+ *
+ * - replyRate(), deliveryRate(), readRate() for performance metrics
+ * - Static determineWinner() method for finding best performing variant
+ * - Winner determined by highest reply rate among variants with sends
+ *
+ * @property int $id
+ * @property int $broadcast_campaign_id Parent campaign ID
+ * @property string $label Variant label (e.g., "Variant A", "Control")
+ * @property string $body Message body content
+ * @property array<int, array{content_type: string, title: string, payload: string}>|null $quick_replies Messenger quick replies
+ * @property int $recipient_count Total recipients for this variant
+ * @property int $sent_count Number of messages sent
+ * @property int $delivered_count Number of messages delivered
+ * @property int $read_count Number of messages read
+ * @property int $replied_count Number of recipients who replied
+ * @property int $failed_count Number of failed deliveries
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  */
 class BroadcastVariant extends Model
 {

@@ -10,6 +10,55 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * BroadcastCampaign Model
+ *
+ * Main campaign model for bulk messaging operations with comprehensive
+ * A/B testing support and delivery lifecycle management.
+ *
+ * ## Status Constants
+ *
+ * - STATUS_DRAFT: Campaign in preparation
+ * - STATUS_SCHEDULED: Campaign scheduled for future delivery
+ * - STATUS_SENDING: Campaign currently being sent
+ * - STATUS_COMPLETED: Campaign delivery finished
+ * - STATUS_CANCELLED: Campaign cancelled before completion
+ *
+ * ## Split Types
+ *
+ * - SPLIT_SINGLE: Single message variant for all recipients
+ * - SPLIT_AB_TEST: A/B testing with multiple variants
+ *
+ * ## Guards
+ *
+ * - canBeSent(): Checks if campaign can transition to sending
+ * - canBeCancelled(): Checks if campaign can be cancelled
+ * - isAbTest(): Determines if this is an A/B test campaign
+ * - replyRate(): Calculates overall campaign reply rate
+ * - winningVariant(): Returns best performing variant for A/B tests
+ * - scopeScheduledAndDue(): Query scope for scheduler wiring
+ *
+ * @property int $id
+ * @property string $name Campaign name
+ * @property string|null $description Campaign description
+ * @property int|null $facebook_page_id Associated Facebook page
+ * @property string $status Current campaign status
+ * @property array|null $targeting Targeting configuration
+ * @property string $split_type Campaign split type (single/ab_test)
+ * @property int $split_percentage A/B test split percentage
+ * @property int $total_recipients Total recipient count
+ * @property int $sent_count Total messages sent
+ * @property int $delivered_count Total messages delivered
+ * @property int $read_count Total messages read
+ * @property int $replied_count Total replies received
+ * @property int $failed_count Total failed deliveries
+ * @property \Illuminate\Support\Carbon|null $scheduled_at When campaign is scheduled
+ * @property \Illuminate\Support\Carbon|null $started_at When sending started
+ * @property \Illuminate\Support\Carbon|null $completed_at When sending completed
+ * @property int $created_by User who created campaign
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
+ */
 class BroadcastCampaign extends Model
 {
     public const STATUS_DRAFT = 'draft';
