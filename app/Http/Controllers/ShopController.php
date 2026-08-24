@@ -776,10 +776,15 @@ class ShopController extends Controller
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        $products = Product::query()
+        $productsById = Product::query()
             ->whereIn('id', $validated['product_ids'])
-            ->orderByRaw('array_position(ARRAY['.implode(',', $validated['product_ids']).'], id)')
-            ->get();
+            ->get()
+            ->keyBy('id');
+
+        $products = collect($validated['product_ids'])
+            ->map(fn (int $id) => $productsById->get($id))
+            ->filter()
+            ->values();
 
         $config = $this->richMediaTemplateService->generateCarouselFromProducts(
             $products,
