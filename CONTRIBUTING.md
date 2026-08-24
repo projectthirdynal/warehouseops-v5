@@ -100,9 +100,32 @@ If you need to touch shared files, mention it in your PR and tag the relevant ow
 
 ## Local Development
 
+### Authentication
+
+Gitea requires authentication to clone. You have two options:
+
+**Option 1 — Username & Password (simplest):**
 ```bash
-# Clone the repo
 git clone http://192.168.0.15:3002/it-admin/warehouseops-v5.git
+# Enter your Gitea username and password when prompted
+```
+
+**Option 2 — Access Token (recommended, avoids repeated prompts):**
+```bash
+# 1. Log in to Gitea → Settings → Applications → Generate New Token
+# 2. Name it "git-access", select "read:repository" and "write:repository"
+# 3. Clone using the token:
+git clone http://<your-token>@192.168.0.15:3002/it-admin/warehouseops-v5.git
+```
+
+**To avoid repeated password prompts, configure credential caching:**
+```bash
+git config --global credential.helper 'cache --timeout=86400'  # cache for 24 hours
+```
+
+### Setup
+
+```bash
 cd warehouseops-v5
 
 # Backend setup
