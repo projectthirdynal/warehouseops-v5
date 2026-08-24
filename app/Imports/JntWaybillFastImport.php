@@ -218,10 +218,15 @@ class JntWaybillFastImport
             throw new \InvalidArgumentException('Missing waybill number.');
         }
 
-        // Ensure required NOT NULL fields have defaults
+        // Ensure required NOT NULL fields have defaults (DB defaults are bypassed
+        // when INSERT explicitly binds NULL, so we must set them here)
         $data['receiver_name'] = $data['receiver_name'] ?? 'Unknown';
         $data['receiver_phone'] = $data['receiver_phone'] ?? '';
         $data['receiver_address'] = $data['receiver_address'] ?? '';
+        $data['item_qty'] = $data['item_qty'] ?? 1;
+        $data['sign_for_pictures'] = $data['sign_for_pictures'] ?? false;
+        $data['shipping_cost'] = $data['shipping_cost'] ?? 0;
+        $data['cod_amount'] = $data['cod_amount'] ?? 0;
 
         // Use cached StatusMapper (resolved once in import())
         $data['status'] = isset($data['status'])

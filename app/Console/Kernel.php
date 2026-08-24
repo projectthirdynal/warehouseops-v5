@@ -82,7 +82,7 @@ class Kernel extends ConsoleKernel
                     SyncGoogleSheetJob::dispatch($sync->id, $sync->created_by ?? 1);
                 }
             }
-        })->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+        })->everyFiveMinutes()->name('google-sheet-auto-sync')->withoutOverlapping()->onOneServer();
     }
 
     /**
