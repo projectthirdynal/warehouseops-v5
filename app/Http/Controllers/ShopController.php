@@ -101,6 +101,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Excel;
@@ -6616,7 +6617,7 @@ class ShopController extends Controller
             'allowed_roles' => $t->allowed_roles,
             'is_owner' => $t->user_id === auth()->id(),
             'owner_name' => $t->user?->name,
-            'items_count' => is_array($t->items) ? count($t->items) : 0,
+            'items_count' => $t->itemsCount(),
             'cloned_from' => $t->cloned_from,
             'source_name' => $t->clonedFrom?->name,
             'last_used_at' => $t->last_used_at?->toIso8601String(),
@@ -6643,7 +6644,7 @@ class ShopController extends Controller
             'remarks' => ['nullable', 'string', 'max:2000'],
             'is_shared' => ['nullable', 'boolean'],
             'allowed_roles' => ['nullable', 'array'],
-            'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
+            'allowed_roles.*' => ['string', Rule::in(CartTemplate::ALLOWED_ROLES)],
         ]);
 
         $template = CartTemplate::query()->create([
@@ -6664,7 +6665,7 @@ class ShopController extends Controller
 
     public function deleteCartTemplate(Request $request, CartTemplate $template): JsonResponse
     {
-        if ($template->user_id !== auth()->id()) {
+        if (! $template->isOwnedBy((int) auth()->id())) {
             abort(403);
         }
 
@@ -6675,14 +6676,14 @@ class ShopController extends Controller
 
     public function shareCartTemplate(Request $request, CartTemplate $template): JsonResponse
     {
-        if ($template->user_id !== auth()->id()) {
+        if (! $template->isOwnedBy((int) auth()->id())) {
             abort(403);
         }
 
         $validated = $request->validate([
             'is_shared' => ['required', 'boolean'],
             'allowed_roles' => ['nullable', 'array'],
-            'allowed_roles.*' => ['string', 'in:superadmin,admin,supervisor,agent,encoder'],
+            'allowed_roles.*' => ['string', Rule::in(CartTemplate::ALLOWED_ROLES)],
         ]);
 
         $updated = $this->cartTemplateSharingService->share(
@@ -6720,21 +6721,14 @@ class ShopController extends Controller
 
     public function applyCartTemplate(CartTemplate $template): JsonResponse
     {
-        if ($template->user_id !== auth()->id() && ! $template->is_shared) {
-            abort(403);
+        $user = auth()->user();
+        $role = $user?->roles?->first()?->name ?? $user?->role ?? null;
+
+        if (! $template->isAccessibleBy((int) auth()->id(), $role)) {
+            abort(403, 'Your role is not allowed to use this template.');
         }
 
-        if ($template->is_shared && $template->user_id !== auth()->id()) {
-            $user = auth()->user();
-            $role = $user?->roles?->first()?->name ?? $user?->role ?? null;
-            $allowedRoles = $template->allowed_roles ?? [];
-
-            if (! empty($allowedRoles) && ! in_array($role, $allowedRoles)) {
-                abort(403, 'Your role is not allowed to use this template.');
-            }
-        }
-
-        $this->cartTemplateSharingService->markUsed($template->id);
+        $template->recordUsage();
 
         return response()->json([
             'id' => $template->id,
