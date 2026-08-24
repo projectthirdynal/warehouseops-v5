@@ -7,6 +7,7 @@ namespace App\Domain\Shop\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * BroadcastVariant Model
@@ -44,8 +45,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $read_count Number of messages read
  * @property int $replied_count Number of recipients who replied
  * @property int $failed_count Number of failed deliveries
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class BroadcastVariant extends Model
 {

@@ -6,6 +6,7 @@ namespace App\Domain\Shop\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * BroadcastRecipient Model
@@ -75,14 +76,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $status Current delivery status
  * @property string|null $error_message Error details if failed
  * @property int|null $message_id Link to sent message
- * @property \Illuminate\Support\Carbon|null $sent_at When message was sent
- * @property \Illuminate\Support\Carbon|null $delivered_at When message was delivered
- * @property \Illuminate\Support\Carbon|null $read_at When message was read
- * @property \Illuminate\Support\Carbon|null $replied_at When customer replied
- * @property \Illuminate\Support\Carbon|null $failed_at When delivery failed
+ * @property Carbon|null $sent_at When message was sent
+ * @property Carbon|null $delivered_at When message was delivered
+ * @property Carbon|null $read_at When message was read
+ * @property Carbon|null $replied_at When customer replied
+ * @property Carbon|null $failed_at When delivery failed
  * @property int $retry_count Number of retry attempts
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class BroadcastRecipient extends Model
 {

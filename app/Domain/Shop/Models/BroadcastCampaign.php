@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * BroadcastCampaign Model
@@ -52,12 +53,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $read_count Total messages read
  * @property int $replied_count Total replies received
  * @property int $failed_count Total failed deliveries
- * @property \Illuminate\Support\Carbon|null $scheduled_at When campaign is scheduled
- * @property \Illuminate\Support\Carbon|null $started_at When sending started
- * @property \Illuminate\Support\Carbon|null $completed_at When sending completed
+ * @property Carbon|null $scheduled_at When campaign is scheduled
+ * @property Carbon|null $started_at When sending started
+ * @property Carbon|null $completed_at When sending completed
  * @property int $created_by User who created campaign
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class BroadcastCampaign extends Model
 {
