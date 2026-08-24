@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CartTemplate extends Model
 {
+    public const ALLOWED_ROLES = ['superadmin', 'admin', 'supervisor', 'agent', 'encoder'];
+
     protected $fillable = [
         'user_id',
         'name',
@@ -64,5 +66,54 @@ class CartTemplate extends Model
                         });
                 });
         });
+    }
+
+    public function isOwnedBy(int $userId): bool
+    {
+        return $this->user_id === $userId;
+    }
+
+    public function isAccessibleBy(int $userId, ?string $role = null): bool
+    {
+        if ($this->isOwnedBy($userId)) {
+            return true;
+        }
+
+        if (! $this->is_shared) {
+            return false;
+        }
+
+        if (empty($this->allowed_roles)) {
+            return true;
+        }
+
+        return $role !== null && in_array($role, $this->allowed_roles, true);
+    }
+
+    public function itemsCount(): int
+    {
+        return count($this->items);
+    }
+
+    public function recordUsage(): void
+    {
+        $this->forceFill(['last_used_at' => now()])->save();
+    }
+
+    public function cloneFor(int $userId, ?string $name = null): self
+    {
+        return self::query()->create([
+            'user_id' => $userId,
+            'name' => $name ?? "{$this->name} (Copy)",
+            'items' => $this->items,
+            'courier_code' => $this->courier_code,
+            'shipping_fee' => $this->shipping_fee ?? 0,
+            'discount_amount' => $this->discount_amount ?? 0,
+            'tax_rate' => $this->tax_rate ?? 0,
+            'remarks' => $this->remarks,
+            'is_shared' => false,
+            'allowed_roles' => null,
+            'cloned_from' => $this->id,
+        ]);
     }
 }

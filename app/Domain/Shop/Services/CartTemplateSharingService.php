@@ -10,8 +10,6 @@ use Illuminate\Database\Eloquent\Collection;
 
 class CartTemplateSharingService
 {
-    private const array ROLES = ['superadmin', 'admin', 'supervisor', 'agent', 'encoder'];
-
     /**
      * Share a template with optional role-based access control.
      */
@@ -39,21 +37,7 @@ class CartTemplateSharingService
             ->sharedOrOwned($userId)
             ->findOrFail($templateId);
 
-        $clone = CartTemplate::query()->create([
-            'user_id' => $userId,
-            'name' => $name ?? "{$source->name} (Copy)",
-            'items' => $source->items,
-            'courier_code' => $source->courier_code,
-            'shipping_fee' => $source->shipping_fee,
-            'discount_amount' => $source->discount_amount,
-            'tax_rate' => $source->tax_rate,
-            'remarks' => $source->remarks,
-            'is_shared' => false,
-            'allowed_roles' => null,
-            'cloned_from' => $source->id,
-        ]);
-
-        return $clone;
+        return $source->cloneFor($userId, $name);
     }
 
     /**
@@ -61,9 +45,9 @@ class CartTemplateSharingService
      */
     public function markUsed(int $templateId): void
     {
-        CartTemplate::query()
-            ->where('id', $templateId)
-            ->update(['last_used_at' => now()]);
+        $template = CartTemplate::query()->find($templateId);
+
+        $template?->recordUsage();
     }
 
     /**
@@ -81,7 +65,7 @@ class CartTemplateSharingService
             ->whereNotNull('allowed_roles')
             ->get(['allowed_roles']);
 
-        foreach (self::ROLES as $role) {
+        foreach (CartTemplate::ALLOWED_ROLES as $role) {
             $byRole[$role] = $sharedTemplates->filter(
                 fn ($t) => is_array($t->allowed_roles) && in_array($role, $t->allowed_roles, true)
             )->count();
@@ -149,7 +133,7 @@ class CartTemplateSharingService
             return null; // null = accessible to all roles
         }
 
-        return array_values(array_intersect($roles, self::ROLES));
+        return array_values(array_intersect($roles, CartTemplate::ALLOWED_ROLES));
     }
 
     /**
@@ -157,6 +141,6 @@ class CartTemplateSharingService
      */
     public function availableRoles(): array
     {
-        return self::ROLES;
+        return CartTemplate::ALLOWED_ROLES;
     }
 }

@@ -9,9 +9,19 @@ use Illuminate\Support\Collection;
 
 class RichMediaTemplateService
 {
+    public const MIN_BUTTONS = 1;
+
     public const MAX_BUTTONS = 3;
 
     public const MAX_CARDS = 10;
+
+    public const BUTTON_TITLE_MAX_LENGTH = 20;
+
+    public const ELEMENT_TITLE_MAX_LENGTH = 80;
+
+    public const ELEMENT_SUBTITLE_MAX_LENGTH = 80;
+
+    private const BUTTON_TYPES = ['postback', 'web_url', 'phone_number'];
 
     /**
      * Validate media config for a given media type.
@@ -52,12 +62,14 @@ class RichMediaTemplateService
      */
     private function validateButtonConfig(array $config): array
     {
+        if (! isset($config['buttons']) || ! is_array($config['buttons'])) {
+            return ['Buttons array is required.'];
+        }
+
         $errors = [];
 
-        if (! isset($config['buttons']) || ! is_array($config['buttons'])) {
-            $errors[] = 'Buttons array is required.';
-
-            return $errors;
+        if (count($config['buttons']) < self::MIN_BUTTONS) {
+            $errors[] = 'At least '.self::MIN_BUTTONS.' button is required.';
         }
 
         if (count($config['buttons']) > self::MAX_BUTTONS) {
@@ -65,15 +77,47 @@ class RichMediaTemplateService
         }
 
         foreach ($config['buttons'] as $i => $button) {
-            if (! isset($button['title']) || empty($button['title'])) {
-                $errors[] = "Button {$i}: title is required.";
-            }
-            if (! isset($button['type']) || ! in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
-                $errors[] = "Button {$i}: type must be postback, web_url, or phone_number.";
-            }
-            if (! isset($button['value']) || empty($button['value'])) {
-                $errors[] = "Button {$i}: value is required.";
-            }
+            $errors = array_merge(
+                $errors,
+                $this->validateButtonFields(is_array($button) ? $button : [], "Button {$i}"),
+            );
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Validate a single button definition.
+     *
+     * @return string[]
+     */
+    private function validateButtonFields(array $button, string $label): array
+    {
+        $errors = [];
+
+        $title = $button['title'] ?? null;
+        if (! is_string($title) || trim($title) === '') {
+            $errors[] = "{$label}: title is required.";
+        } elseif (mb_strlen(trim($title)) > self::BUTTON_TITLE_MAX_LENGTH) {
+            $errors[] = "{$label}: title must not exceed ".self::BUTTON_TITLE_MAX_LENGTH.' characters.';
+        }
+
+        $type = $button['type'] ?? null;
+        if (! is_string($type) || ! in_array($type, self::BUTTON_TYPES, true)) {
+            $errors[] = "{$label}: type must be postback, web_url, or phone_number.";
+
+            return $errors;
+        }
+
+        $value = $button['value'] ?? null;
+        if (! is_string($value) || trim($value) === '') {
+            $errors[] = "{$label}: value is required.";
+
+            return $errors;
+        }
+
+        if ($type === 'web_url' && filter_var($value, FILTER_VALIDATE_URL) === false) {
+            $errors[] = "{$label}: value must be a valid URL for web_url buttons.";
         }
 
         return $errors;
@@ -86,15 +130,24 @@ class RichMediaTemplateService
     {
         $errors = [];
 
-        if (! isset($config['title']) || empty($config['title'])) {
-            $errors[] = 'Card title is required.';
-        }
-        if (! isset($config['subtitle']) || empty($config['subtitle'])) {
-            $errors[] = 'Card subtitle is required.';
+        foreach ([self::ELEMENT_TITLE_MAX_LENGTH, self::ELEMENT_SUBTITLE_MAX_LENGTH] as $index => $maxLength) {
+            $field = $index === 0 ? 'title' : 'subtitle';
+            $label = $index === 0 ? 'Card title' : 'Card subtitle';
+            $value = $config[$field] ?? null;
+
+            if (! is_string($value) || trim($value) === '') {
+                $errors[] = "{$label} is required.";
+            } elseif (mb_strlen(trim($value)) > $maxLength) {
+                $errors[] = "{$label} must not exceed {$maxLength} characters.";
+            }
         }
 
-        if (isset($config['image_url']) && ! filter_var($config['image_url'], FILTER_VALIDATE_URL) && ! str_starts_with($config['image_url'], '/storage/')) {
+        if (isset($config['image_url']) && ! filter_var($config['image_url'], FILTER_VALIDATE_URL) && ! str_starts_with((string) $config['image_url'], '/storage/')) {
             $errors[] = 'Card image URL must be a valid URL or storage path.';
+        }
+
+        if (isset($config['default_action_url']) && filter_var((string) $config['default_action_url'], FILTER_VALIDATE_URL) === false) {
+            $errors[] = 'Card default action URL must be a valid URL.';
         }
 
         if (isset($config['buttons']) && is_array($config['buttons'])) {
@@ -102,15 +155,10 @@ class RichMediaTemplateService
                 $errors[] = 'Maximum '.self::MAX_BUTTONS.' buttons per card.';
             }
             foreach ($config['buttons'] as $i => $button) {
-                if (! isset($button['title']) || empty($button['title'])) {
-                    $errors[] = "Card button {$i}: title is required.";
-                }
-                if (! isset($button['type']) || ! in_array($button['type'], ['postback', 'web_url', 'phone_number'])) {
-                    $errors[] = "Card button {$i}: type must be postback, web_url, or phone_number.";
-                }
-                if (! isset($button['value']) || empty($button['value'])) {
-                    $errors[] = "Card button {$i}: value is required.";
-                }
+                $errors = array_merge(
+                    $errors,
+                    $this->validateButtonFields(is_array($button) ? $button : [], "Card button {$i}"),
+                );
             }
         }
 
@@ -135,7 +183,7 @@ class RichMediaTemplateService
         }
 
         foreach ($config['cards'] as $i => $card) {
-            $cardErrors = $this->validateCardConfig($card);
+            $cardErrors = $this->validateCardConfig(is_array($card) ? $card : []);
             foreach ($cardErrors as $err) {
                 $errors[] = "Card {$i}: {$err}";
             }
@@ -161,7 +209,7 @@ class RichMediaTemplateService
 
     private function buildButtonPayload(ReplyTemplate $template, array $config): array
     {
-        $buttons = array_map(fn ($b) => $this->buildButton($b), $config['buttons'] ?? []);
+        $buttons = array_map(fn ($b) => $this->buildButton(is_array($b) ? $b : []), $config['buttons'] ?? []);
 
         return [
             'attachment' => [
@@ -177,15 +225,15 @@ class RichMediaTemplateService
 
     private function buildCardPayload(ReplyTemplate $template, array $config): array
     {
-        $buttons = array_map(fn ($b) => $this->buildButton($b), $config['buttons'] ?? []);
+        $buttons = array_map(fn ($b) => $this->buildButton(is_array($b) ? $b : []), $config['buttons'] ?? []);
 
         $card = [
-            'title' => $config['title'] ?? $template->title,
-            'subtitle' => $config['subtitle'] ?? '',
+            'title' => mb_substr((string) ($config['title'] ?? $template->title), 0, self::ELEMENT_TITLE_MAX_LENGTH),
+            'subtitle' => mb_substr((string) ($config['subtitle'] ?? ''), 0, self::ELEMENT_SUBTITLE_MAX_LENGTH),
         ];
 
         if (isset($config['image_url'])) {
-            $card['image_url'] = $this->resolveImageUrl($config['image_url']);
+            $card['image_url'] = $this->resolveImageUrl((string) $config['image_url']);
         }
 
         if (isset($config['default_action_url'])) {
@@ -212,7 +260,7 @@ class RichMediaTemplateService
 
     private function buildCarouselPayload(ReplyTemplate $template, array $config): array
     {
-        $elements = array_map(fn ($card) => $this->buildCardElement($card), $config['cards'] ?? []);
+        $elements = array_map(fn ($card) => $this->buildCardElement(is_array($card) ? $card : []), $config['cards'] ?? []);
 
         return [
             'attachment' => [
@@ -228,12 +276,12 @@ class RichMediaTemplateService
     private function buildCardElement(array $card): array
     {
         $element = [
-            'title' => $card['title'] ?? '',
-            'subtitle' => $card['subtitle'] ?? '',
+            'title' => mb_substr((string) ($card['title'] ?? ''), 0, self::ELEMENT_TITLE_MAX_LENGTH),
+            'subtitle' => mb_substr((string) ($card['subtitle'] ?? ''), 0, self::ELEMENT_SUBTITLE_MAX_LENGTH),
         ];
 
         if (isset($card['image_url'])) {
-            $element['image_url'] = $this->resolveImageUrl($card['image_url']);
+            $element['image_url'] = $this->resolveImageUrl((string) $card['image_url']);
         }
 
         if (isset($card['default_action_url'])) {
@@ -244,7 +292,7 @@ class RichMediaTemplateService
         }
 
         if (isset($card['buttons']) && is_array($card['buttons'])) {
-            $element['buttons'] = array_map(fn ($b) => $this->buildButton($b), $card['buttons']);
+            $element['buttons'] = array_map(fn ($b) => $this->buildButton(is_array($b) ? $b : []), $card['buttons']);
         }
 
         return $element;
@@ -252,32 +300,29 @@ class RichMediaTemplateService
 
     private function buildButton(array $button): array
     {
-        return match ($button['type']) {
-            'postback' => [
-                'type' => 'postback',
-                'title' => $button['title'],
-                'payload' => $button['value'],
-            ],
+        $title = mb_substr((string) ($button['title'] ?? ''), 0, self::BUTTON_TITLE_MAX_LENGTH);
+
+        return match ($button['type'] ?? 'postback') {
             'web_url' => [
                 'type' => 'web_url',
-                'title' => $button['title'],
-                'url' => $button['value'],
+                'title' => $title,
+                'url' => (string) ($button['value'] ?? ''),
             ],
             'phone_number' => [
                 'type' => 'phone_number',
-                'title' => $button['title'],
-                'payload' => $button['value'],
+                'title' => $title,
+                'payload' => (string) ($button['value'] ?? ''),
             ],
             default => [
                 'type' => 'postback',
-                'title' => $button['title'] ?? '',
-                'payload' => $button['value'] ?? '',
+                'title' => $title,
+                'payload' => (string) ($button['value'] ?? ''),
             ],
         };
     }
 
     /**
-     * Resolve image URL — if it's a storage path, convert to full URL.
+     * Resolve image URL — absolute URLs pass through; storage paths become full URLs.
      */
     private function resolveImageUrl(string $url): string
     {
@@ -295,7 +340,7 @@ class RichMediaTemplateService
     {
         $cards = [];
 
-        foreach ($products as $product) {
+        foreach ($products->take(self::MAX_CARDS) as $product) {
             $price = (float) $product->selling_price;
             $originalPrice = $price;
 
@@ -328,8 +373,12 @@ class RichMediaTemplateService
                 ],
             ];
 
-            if ($product->image_path) {
-                $card['image_url'] = '/storage/'.$product->image_path;
+            $imageUrl = trim((string) ($product->image_url ?? ''));
+
+            if ($imageUrl !== '') {
+                $card['image_url'] = str_starts_with($imageUrl, 'http://') || str_starts_with($imageUrl, 'https://')
+                    ? $imageUrl
+                    : '/storage/'.ltrim($imageUrl, '/');
             }
 
             $cards[] = $card;
@@ -367,7 +416,7 @@ class RichMediaTemplateService
                 'button_count' => match ($t->media_type) {
                     ReplyTemplate::MEDIA_BUTTON => count($t->media_config['buttons'] ?? []),
                     ReplyTemplate::MEDIA_CARD => count($t->media_config['buttons'] ?? []),
-                    ReplyTemplate::MEDIA_CAROUSEL => collect($t->media_config['cards'] ?? [])->sum(fn ($c) => count($c['buttons'] ?? [])),
+                    ReplyTemplate::MEDIA_CAROUSEL => collect($t->media_config['cards'] ?? [])->sum(fn ($c) => count(is_array($c) ? ($c['buttons'] ?? []) : [])),
                     default => 0,
                 },
                 'updated_at' => $t->updated_at?->toIso8601String(),
