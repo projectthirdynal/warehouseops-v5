@@ -28,7 +28,7 @@ class Budget extends Model
 
     public function lines(): HasMany
     {
-        return $this->hasMany(BudgetLine::class);
+        return $this->hasMany(BudgetLine::class)->orderBy('id');
     }
 
     public function varianceAlerts(): HasMany

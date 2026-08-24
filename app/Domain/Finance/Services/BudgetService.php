@@ -295,6 +295,6 @@ class BudgetService
             return (float) $query->where('type', 'REVENUE')->sum('amount');
         }
 
-        return (float) abs($query->where('type', $txType)->sum('amount'));
+        return (float) abs((float) $query->where('type', $txType)->sum('amount'));
     }
 }
