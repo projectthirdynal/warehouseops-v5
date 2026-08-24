@@ -19,6 +19,10 @@ yarn-error.log
 /.idea
 /.vscode
 
+# Documentation files (local reference)
+Shop-Domain-Breakdown.md
+Errors-and-Fixes.md
+
 # Desktop app build artifacts
 desktop/node_modules
 desktop/dist
