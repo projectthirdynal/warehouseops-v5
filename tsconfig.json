@@ -22,7 +22,6 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Path aliases */
-    // @ts-ignore - baseUrl deprecated in TypeScript 7.0, will migrate when 7.0 is released
     "baseUrl": ".",
     "paths": {
       "@/*": ["resources/js/*"],
