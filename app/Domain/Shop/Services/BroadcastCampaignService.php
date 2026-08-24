@@ -45,9 +45,9 @@ class BroadcastCampaignService
                 'name' => $data['name'],
                 'description' => $data['description'] ?? null,
                 'facebook_page_id' => $data['facebook_page_id'] ?? null,
-                'status' => $data['scheduled_at'] ? 'scheduled' : 'draft',
+                'status' => $data['scheduled_at'] ? BroadcastCampaign::STATUS_SCHEDULED : BroadcastCampaign::STATUS_DRAFT,
                 'targeting' => $data['targeting'] ?? null,
-                'split_type' => $data['split_type'] ?? 'single',
+                'split_type' => $data['split_type'] ?? BroadcastCampaign::SPLIT_SINGLE,
                 'split_percentage' => $data['split_percentage'] ?? 50,
                 'scheduled_at' => $data['scheduled_at'] ?? null,
                 'created_by' => $userId,
@@ -67,7 +67,7 @@ class BroadcastCampaignService
 
     public function sendCampaign(BroadcastCampaign $campaign): array
     {
-        if ($campaign->status === 'sending' || $campaign->status === 'completed') {
+        if (! $campaign->canBeSent()) {
             return ['error' => 'Campaign already sent or in progress'];
         }
 
@@ -80,7 +80,7 @@ class BroadcastCampaignService
         }
 
         $campaign->forceFill([
-            'status' => 'sending',
+            'status' => BroadcastCampaign::STATUS_SENDING,
             'started_at' => now(),
             'total_recipients' => $conversations->count(),
         ])->save();
@@ -97,11 +97,11 @@ class BroadcastCampaignService
                 'broadcast_variant_id' => $variant->id,
                 'conversation_id' => $conversation->id,
                 'customer_id' => $conversation->customer_id,
-                'status' => 'pending',
+                'status' => BroadcastRecipient::STATUS_PENDING,
             ]);
 
             if (! $conversation->facebookPage?->page_access_token || ! $conversation->identity?->provider_user_id) {
-                $recipient->forceFill(['status' => 'skipped', 'error_message' => 'Missing page token or PSID'])->save();
+                $recipient->markSkipped('Missing page token or PSID');
                 $skipped++;
 
                 continue;
@@ -134,17 +134,13 @@ class BroadcastCampaignService
                     'draft_body' => null,
                 ])->save();
 
-                $recipient->forceFill([
-                    'status' => 'sent',
-                    'message_id' => $message->id,
-                    'sent_at' => now(),
-                ])->save();
+                $recipient->markSent($message->id);
 
-                $variant->increment('sent_count');
+                $variant->recordSent();
                 $sent++;
             } catch (\Throwable $e) {
-                $recipient->forceFill(['status' => 'failed', 'error_message' => $e->getMessage()])->save();
-                $variant->increment('failed_count');
+                $recipient->markFailed($e->getMessage());
+                $variant->recordFailed();
                 $failed++;
             }
         }
@@ -154,7 +150,7 @@ class BroadcastCampaignService
         }
 
         $campaign->forceFill([
-            'status' => 'completed',
+            'status' => BroadcastCampaign::STATUS_COMPLETED,
             'completed_at' => now(),
             'sent_count' => $sent,
             'failed_count' => $failed,
@@ -170,11 +166,11 @@ class BroadcastCampaignService
 
     public function cancelCampaign(BroadcastCampaign $campaign): bool
     {
-        if (in_array($campaign->status, ['completed', 'cancelled'])) {
+        if (! $campaign->canBeCancelled()) {
             return false;
         }
 
-        $campaign->forceFill(['status' => 'cancelled'])->save();
+        $campaign->forceFill(['status' => BroadcastCampaign::STATUS_CANCELLED])->save();
 
         return true;
     }
@@ -182,10 +178,10 @@ class BroadcastCampaignService
     public function getStats(): array
     {
         $total = BroadcastCampaign::count();
-        $completed = BroadcastCampaign::where('status', 'completed')->count();
-        $scheduled = BroadcastCampaign::where('status', 'scheduled')->count();
-        $draft = BroadcastCampaign::where('status', 'draft')->count();
-        $sending = BroadcastCampaign::where('status', 'sending')->count();
+        $completed = BroadcastCampaign::where('status', BroadcastCampaign::STATUS_COMPLETED)->count();
+        $scheduled = BroadcastCampaign::where('status', BroadcastCampaign::STATUS_SCHEDULED)->count();
+        $draft = BroadcastCampaign::where('status', BroadcastCampaign::STATUS_DRAFT)->count();
+        $sending = BroadcastCampaign::where('status', BroadcastCampaign::STATUS_SENDING)->count();
 
         $totalRecipients = BroadcastCampaign::sum('total_recipients');
         $totalSent = BroadcastCampaign::sum('sent_count');
@@ -288,7 +284,7 @@ class BroadcastCampaignService
 
     private function selectVariant($variants, int $index, string $splitType, int $splitPercentage): BroadcastVariant
     {
-        if ($splitType === 'single' || $variants->count() === 1) {
+        if ($splitType === BroadcastCampaign::SPLIT_SINGLE || $variants->count() === 1) {
             return $variants->first();
         }
 
@@ -317,7 +313,7 @@ class BroadcastCampaignService
                 'label' => $v->label,
                 'sent_count' => $v->sent_count,
                 'replied_count' => $v->replied_count,
-                'reply_rate' => $v->sent_count > 0 ? round(($v->replied_count / $v->sent_count) * 100, 1) : 0,
+                'reply_rate' => $v->replyRate(),
             ]),
         ];
     }
