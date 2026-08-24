@@ -1,0 +1,130 @@
+networks:
+  proxy:
+    external: true
+    name: infra_proxy
+  internal:
+    external: true
+    name: infra_internal
+  app:
+    driver: bridge
+
+volumes:
+  staging-redis-data:
+
+services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: warehouseops-staging-nginx
+    restart: unless-stopped
+    ports:
+      - "8103:80"
+    volumes:
+      - /opt/warehouseops-staging:/var/www/html:ro
+      - /opt/warehouseops-staging/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - app
+
+  app:
+    image: warehouseops-app:latest
+    container_name: warehouseops-staging-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - /opt/warehouseops-staging:/var/www/html
+      - /opt/warehouseops-staging/docker/app/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=staging
+      - APP_DEBUG=true
+      - APP_KEY=base64:pJ0Ns2RQzmwa29gqHzs5eu81XbpoBF43+GgbBx8fczs=
+      - APP_URL=http://192.168.0.15:8103
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=warehouseops_staging
+      - DB_USERNAME=devuser
+      - DB_PASSWORD=devpassword00
+      - REDIS_HOST=staging-redis
+      - REDIS_PORT=6379
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+    depends_on:
+      staging-redis:
+        condition: service_healthy
+    networks:
+      - app
+      - internal
+
+  horizon:
+    image: warehouseops-app:latest
+    container_name: warehouseops-staging-horizon
+    restart: unless-stopped
+    command: php artisan horizon
+    working_dir: /var/www/html
+    volumes:
+      - /opt/warehouseops-staging:/var/www/html
+    environment:
+      - APP_ENV=staging
+      - APP_KEY=base64:pJ0Ns2RQzmwa29gqHzs5eu81XbpoBF43+GgbBx8fczs=
+      - APP_URL=http://192.168.0.15:8103
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=warehouseops_staging
+      - DB_USERNAME=devuser
+      - DB_PASSWORD=devpassword00
+      - REDIS_HOST=staging-redis
+      - REDIS_PORT=6379
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      - app
+      - staging-redis
+    networks:
+      - app
+      - internal
+
+  scheduler:
+    image: warehouseops-app:latest
+    container_name: warehouseops-staging-scheduler
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction;
+        sleep 60;
+      done"
+    working_dir: /var/www/html
+    volumes:
+      - /opt/warehouseops-staging:/var/www/html
+    environment:
+      - APP_ENV=staging
+      - APP_KEY=base64:pJ0Ns2RQzmwa29gqHzs5eu81XbpoBF43+GgbBx8fczs=
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=warehouseops_staging
+      - DB_USERNAME=devuser
+      - DB_PASSWORD=devpassword00
+      - REDIS_HOST=staging-redis
+    depends_on:
+      - app
+    networks:
+      - app
+      - internal
+
+  staging-redis:
+    image: redis:7-alpine
+    container_name: warehouseops-staging-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - staging-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app

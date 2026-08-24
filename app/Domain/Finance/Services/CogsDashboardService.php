@@ -22,6 +22,9 @@ class CogsDashboardService
      */
     public function generateDailySummary(string $date): int
     {
+        $dateStart = Carbon::parse($date)->startOfDay();
+        $dateEnd = Carbon::parse($date)->endOfDay();
+
         $rows = DB::table('cogs_entries')
             ->select(
                 'product_id',
@@ -31,7 +34,7 @@ class CogsDashboardService
                 DB::raw('COUNT(*) as entries_count'),
                 DB::raw('COUNT(DISTINCT order_id) as orders_count'),
             )
-            ->whereDate('recorded_at', $date)
+            ->whereBetween('recorded_at', [$dateStart, $dateEnd])
             ->groupBy('product_id', 'variant_id')
             ->get();
 
@@ -196,9 +199,9 @@ class CogsDashboardService
      */
     public function getRealtimeStats(string $from, ?string $to = null): array
     {
-        $query = CogsEntry::whereDate('recorded_at', '>=', $from);
+        $query = CogsEntry::where('recorded_at', '>=', Carbon::parse($from)->startOfDay());
         if ($to) {
-            $query->whereDate('recorded_at', '<=', $to);
+            $query->where('recorded_at', '<=', Carbon::parse($to)->endOfDay());
         }
 
         $totalCost = (float) (clone $query)->sum('total_cost');

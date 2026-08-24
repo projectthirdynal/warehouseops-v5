@@ -5,10 +5,9 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
-  workflow_call:
 
 concurrency:
-  group: ci-${{ github.workflow_ref || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -51,15 +50,11 @@ jobs:
           touch database/database.sqlite
           php artisan migrate --force
 
+      - name: Check PHP formatting (Laravel Pint)
+        run: vendor/bin/pint --test
+
       - name: Run tests
         run: vendor/bin/pest --no-coverage --exclude-group=broken
-
-      # TODO: Re-enable after codebase cleanup
-      # - name: Run static analysis
-      #   run: composer analyse -- --no-progress --error-format=github
-
-      # - name: Check code formatting
-      #   run: composer format -- --test
 
   frontend:
     name: Frontend Build & Lint
@@ -84,10 +79,3 @@ jobs:
 
       - name: Build frontend assets
         run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build-${{ github.run_id }}
-          path: public/build/
-          retention-days: 1

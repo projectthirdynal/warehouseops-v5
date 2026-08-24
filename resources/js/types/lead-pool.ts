@@ -26,9 +26,13 @@ export interface LeadCycle {
 export interface AgentLead {
   id: number;
   name: string;
+  phone: string | null;
+  address: string | null;
+  street: string | null;
   city: string | null;
   state: string | null;
   barangay: string | null;
+  postal_code: string | null;
   product_name: string | null;
   product_brand: string | null;
   amount: number | null;
@@ -43,9 +47,20 @@ export interface AgentLead {
   customer?: {
     id: number;
     name: string;
+    phone: string | null;
+    canonical_address: string | null;
+    landmark: string | null;
+    barangay: string | null;
+    city_municipality: string | null;
+    province: string | null;
+    region: string | null;
+    preferred_courier: string | null;
+    payment_method: string | null;
     total_orders: number;
     successful_orders: number;
     success_rate: number;
+    risk_level: string | null;
+    is_blacklisted: boolean;
   };
   cycles?: LeadCycle[];
 }

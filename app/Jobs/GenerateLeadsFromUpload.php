@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Shop\Services\AddressMappingService;
 use App\Models\Customer;
 use App\Models\Upload;
 use App\Models\Waybill;
@@ -39,6 +40,8 @@ class GenerateLeadsFromUpload implements ShouldQueue
         if (! $upload) {
             return;
         }
+
+        $addressMappingService = app(AddressMappingService::class);
 
         $deliveredWaybills = Waybill::where('upload_id', $this->uploadId)
             ->where('status', 'DELIVERED')
@@ -102,12 +105,17 @@ class GenerateLeadsFromUpload implements ShouldQueue
                 'amount' => $waybill->cod_amount ?? $waybill->amount,
             ], $customer);
 
+            // Resolve address mapping for geography filtering
+            $addressMappingId = $this->resolveAddressMapping($addressMappingService, $waybill);
+
             if ($existingLead) {
                 // Update product info from the newer waybill
                 $existingLead->update([
                     'product_name' => $waybill->item_name ?? $existingLead->product_name,
                     'amount' => $waybill->cod_amount ?? $waybill->amount ?? $existingLead->amount,
                     'source' => 'DELIVERED_WAYBILL',
+                    'source_waybill_id' => $waybill->id,
+                    'address_mapping_id' => $addressMappingId ?? $existingLead->address_mapping_id,
                     'quality_score' => $qualityScore,
                     'last_scored_at' => now(),
                     // Refresh to AVAILABLE if it was in cooldown and is now a returning buyer
@@ -128,6 +136,8 @@ class GenerateLeadsFromUpload implements ShouldQueue
                     'product_name' => $waybill->item_name,
                     'amount' => $waybill->cod_amount ?? $waybill->amount,
                     'source' => 'DELIVERED_WAYBILL',
+                    'source_waybill_id' => $waybill->id,
+                    'address_mapping_id' => $addressMappingId,
                     'pool_status' => PoolStatus::AVAILABLE,
                     'quality_score' => $qualityScore,
                     'last_scored_at' => now(),
@@ -156,5 +166,25 @@ class GenerateLeadsFromUpload implements ShouldQueue
                 'leads_skipped' => $skipped,
             ]),
         ]);
+    }
+
+    private function resolveAddressMapping(AddressMappingService $service, Waybill $waybill): ?int
+    {
+        if (! $waybill->state && ! $waybill->city) {
+            return null;
+        }
+
+        try {
+            $result = $service->match([
+                'province' => $waybill->state,
+                'city_municipality' => $waybill->city,
+                'barangay' => $waybill->barangay,
+                'address' => $waybill->receiver_address,
+            ]);
+
+            return $result['mapping']?->id;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

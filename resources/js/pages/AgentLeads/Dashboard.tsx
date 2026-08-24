@@ -17,6 +17,7 @@ import {
 import AgentLayout from '@/layouts/AgentLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { WeatherWidget } from '@/components/agent/WeatherWidget';
 import {
   Table,
   TableBody,
@@ -234,45 +235,52 @@ export default function AgentDashboard({
           </Card>
         </div>
 
-        {/* Workload Row */}
+        {/* Weather Widget */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Active Leads
-              </CardTitle>
-              <Users className="h-4 w-4 text-info" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold font-display text-info">
-                {workload.active_leads}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Assigned Today
-              </CardTitle>
-              <Phone className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold font-display">{workload.today_assigned}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Converted Today
-              </CardTitle>
-              <Target className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold font-display text-success">
-                {workload.today_converted}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="md:col-span-1">
+            <WeatherWidget />
+          </div>
+
+          {/* Workload Row */}
+          <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Active Leads
+                </CardTitle>
+                <Users className="h-4 w-4 text-info" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-display text-info">
+                  {workload.active_leads}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Assigned Today
+                </CardTitle>
+                <Phone className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-display">{workload.today_assigned}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Converted Today
+                </CardTitle>
+                <Target className="h-4 w-4 text-success" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold font-display text-success">
+                  {workload.today_converted}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Leaderboard + Recent Commissions */}

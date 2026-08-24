@@ -13,7 +13,7 @@ import {
   Zap,
   Loader2,
 } from 'lucide-react';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -177,7 +177,7 @@ export default function DistributionAnalytics({
   };
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <Head title="Distribution Analytics" />
       <div className="space-y-4">
         {/* Header */}
@@ -538,6 +538,6 @@ export default function DistributionAnalytics({
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

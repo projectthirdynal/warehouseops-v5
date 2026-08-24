@@ -363,6 +363,9 @@ class LeadImportService
             $customer
         );
 
+        // Check whether the customer is blocked by an active or recently delivered order.
+        $cooldown = app(CustomerOrderCooldownService::class)->forCustomer($customer);
+
         // Check for existing non-exhausted lead
         $existing = Lead::where('phone', $phone)
             ->whereNotIn('pool_status', [PoolStatus::EXHAUSTED])
@@ -386,12 +389,11 @@ class LeadImportService
                 'status' => $leadStatus ?? $existing->status,
                 'quality_score' => $qualityScore,
                 'last_scored_at' => now(),
-                'pool_status' => ($existing->pool_status === PoolStatus::COOLDOWN
-                    && $existing->cooldown_until
-                    && $existing->cooldown_until->isFuture())
-                    ? PoolStatus::COOLDOWN   // Still in cooldown — do not unlock
+                'cooldown_until' => $cooldown['until'],
+                'pool_status' => $cooldown['blocked']
+                    ? PoolStatus::COOLDOWN
                     : ($existing->pool_status === PoolStatus::COOLDOWN
-                        ? PoolStatus::AVAILABLE   // Cooldown expired — safe to unlock
+                        ? PoolStatus::AVAILABLE
                         : $existing->pool_status),
             ]);
 
@@ -414,7 +416,8 @@ class LeadImportService
             'notes' => $data['notes'] ?? null,
             'source' => $data['source'] ?? LeadSource::XLSX_IMPORT,
             'status' => $leadStatus ?? LeadStatus::NEW,
-            'pool_status' => PoolStatus::AVAILABLE,
+            'pool_status' => $cooldown['blocked'] ? PoolStatus::COOLDOWN : PoolStatus::AVAILABLE,
+            'cooldown_until' => $cooldown['until'],
             'quality_score' => $qualityScore,
             'last_scored_at' => now(),
             'uploaded_by' => $userId,

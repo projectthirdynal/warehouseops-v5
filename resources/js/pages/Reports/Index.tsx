@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import AppLayout from '@/layouts/AppLayout';
+import TelesalesLayout from '@/layouts/TelesalesLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +58,7 @@ export default function ReportsIndex({ report, type, filters }: Props) {
   );
 
   return (
-    <AppLayout>
+    <TelesalesLayout>
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -191,6 +191,6 @@ export default function ReportsIndex({ report, type, filters }: Props) {
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </TelesalesLayout>
   );
 }

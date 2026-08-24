@@ -1,0 +1,196 @@
+name: CI/CD Pipeline
+"on":
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: http://192.168.0.15:8103
+    env:
+      APP_DIR: /opt/warehouseops-staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install rsync
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq rsync
+
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+          mkdir -p public
+          cp -f /opt/warehouseops-staging/public/index.php public/index.php 2>/dev/null || true
+          cp -f /opt/warehouseops-staging/public/robots.txt public/robots.txt 2>/dev/null || true
+          cp -f /opt/warehouseops-staging/public/favicon.ico public/favicon.ico 2>/dev/null || true
+
+      - name: Sync code to staging
+        run: |
+          chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
+          rsync -a --delete \
+            --exclude='.env' \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='storage/app/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            --exclude='public/index.php' \
+            --exclude='public/favicon.ico' \
+            --exclude='public/robots.txt' \
+            --exclude='public/images/' \
+            ./ "$APP_DIR"/
+
+      - name: Copy build to staging container
+        run: docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-staging-app:/var/www/html/public/
+
+      - name: Fix permissions in staging container
+        run: |
+          docker exec -u root warehouseops-staging-app chown -R www:www /var/www/html/vendor /var/www/html/bootstrap/cache /var/www/html/storage
+
+      - name: Install Composer dependencies
+        run: docker exec -u root warehouseops-staging-app composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Run database migrations
+        run: docker exec -u root warehouseops-staging-app php artisan migrate --force
+
+      - name: Rebuild caches
+        run: |
+          docker exec -u root warehouseops-staging-app php artisan optimize:clear
+          docker exec -u root warehouseops-staging-app php artisan config:cache
+          docker exec -u root warehouseops-staging-app php artisan route:cache
+          docker exec -u root warehouseops-staging-app php artisan view:cache
+          docker exec -u root warehouseops-staging-app php artisan optimize
+
+      - name: Reload services
+        run: |
+          docker exec -u root warehouseops-staging-app kill -USR2 1 || true
+          docker exec -u root warehouseops-staging-app php artisan horizon:terminate || true
+          sleep 3
+          docker exec -u root -d warehouseops-staging-app php artisan horizon
+
+      - name: Staging health check
+        run: |
+          for container in warehouseops-staging-app warehouseops-staging-nginx warehouseops-staging-redis; do
+            status=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
+            if [ "$status" != "running" ]; then
+              echo "::error::$container is $status"
+              exit 1
+            fi
+          done
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://192.168.0.15:8103/login)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Staging login page returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "All staging health checks passed."
+
+  deploy-production:
+    name: Deploy to Production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://warehouseops.thirdynals.org
+    env:
+      APP_DIR: /opt/warehouseops
+      BACKUP_DIR: /opt/warehouseops-backups/$(date +%Y%m%d%H%M%S)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install rsync
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq rsync
+
+      - name: Back up current production
+        run: |
+          mkdir -p "$BACKUP_DIR"
+          cp -a "$APP_DIR/app" "$BACKUP_DIR/app" || true
+          cp -a "$APP_DIR/config" "$BACKUP_DIR/config" || true
+          cp -a "$APP_DIR/database" "$BACKUP_DIR/database" || true
+          cp -a "$APP_DIR/resources" "$BACKUP_DIR/resources" || true
+          cp -a "$APP_DIR/public/build" "$BACKUP_DIR/build" || true
+          echo "BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
+
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+          mkdir -p public
+          cp -f /opt/warehouseops/public/index.php public/index.php
+          cp -f /opt/warehouseops/public/robots.txt public/robots.txt 2>/dev/null || true
+          cp -f /opt/warehouseops/public/favicon.ico public/favicon.ico 2>/dev/null || true
+
+      - name: Sync code to production
+        run: |
+          chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
+          rsync -a --delete \
+            --exclude='.env' \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='storage/app/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            --exclude='public/index.php' \
+            --exclude='public/favicon.ico' \
+            --exclude='public/robots.txt' \
+            --exclude='public/images/' \
+            ./ "$APP_DIR"/
+
+      - name: Copy build to app container
+        run: docker cp "$GITHUB_WORKSPACE/public/build/" warehouseops-app:/var/www/html/public/
+
+      - name: Fix permissions in app container
+        run: |
+          docker exec -u root warehouseops-app chown -R www:www /var/www/html/vendor /var/www/html/bootstrap/cache /var/www/html/storage
+
+      - name: Install Composer dependencies
+        run: docker exec -u root warehouseops-app composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Run database migrations
+        run: docker exec -u root warehouseops-app php artisan migrate --force
+
+      - name: Rebuild caches
+        run: |
+          docker exec -u root warehouseops-app php artisan optimize:clear
+          docker exec -u root warehouseops-app php artisan config:cache
+          docker exec -u root warehouseops-app php artisan route:cache
+          docker exec -u root warehouseops-app php artisan view:cache
+          docker exec -u root warehouseops-app php artisan optimize
+
+      - name: Reload services
+        run: |
+          docker exec -u root warehouseops-app kill -USR2 1 || true
+          docker exec -u root warehouseops-app php artisan horizon:terminate || true
+          sleep 3
+          docker exec -u root -d warehouseops-app php artisan horizon
+
+      - name: Production health check
+        run: |
+          for container in warehouseops-app warehouseops-nginx warehouseops-redis; do
+            status=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
+            if [ "$status" != "running" ]; then
+              echo "::error::$container is $status"
+              exit 1
+            fi
+          done
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://192.168.0.15:8102/login)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login page returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "All production health checks passed."

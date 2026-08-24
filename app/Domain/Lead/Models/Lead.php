@@ -8,6 +8,8 @@ use App\Domain\Lead\Enums\LeadSource;
 use App\Domain\Lead\Enums\LeadStatus;
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Enums\SalesStatus;
+use App\Domain\Order\Enums\OrderStatus;
+use App\Domain\Shop\Models\AddressMapping;
 use App\Models\Customer;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
@@ -65,6 +67,8 @@ class Lead extends Model
         'qa_required',
         'pool_status',
         'cooldown_until',
+        'source_waybill_id',
+        'address_mapping_id',
     ];
 
     protected $casts = [
@@ -125,6 +129,16 @@ class Lead extends Model
     public function waybills(): HasMany
     {
         return $this->hasMany(Waybill::class);
+    }
+
+    public function sourceWaybill(): BelongsTo
+    {
+        return $this->belongsTo(Waybill::class, 'source_waybill_id');
+    }
+
+    public function addressMapping(): BelongsTo
+    {
+        return $this->belongsTo(AddressMapping::class, 'address_mapping_id');
     }
 
     public function cycles(): HasMany
@@ -212,6 +226,22 @@ class Lead extends Model
     {
         return $query->where('pool_status', PoolStatus::COOLDOWN)
             ->where('cooldown_until', '<=', now());
+    }
+
+    /**
+     * Exclude leads whose customer has a recent undelivered order.
+     * Prevents calling customers who are still waiting for a delivery.
+     */
+    public function scopeWithoutRecentUndeliveredOrders(Builder $query, int $daysThreshold = 7): Builder
+    {
+        return $query->whereDoesntHave('customer.orders', function ($q) use ($daysThreshold) {
+            $q->where('created_at', '>=', now()->subDays($daysThreshold))
+                ->whereNotIn('status', [
+                    OrderStatus::DELIVERED,
+                    OrderStatus::RETURNED,
+                    OrderStatus::CANCELLED,
+                ]);
+        });
     }
 
     // -------------------------------------------------------------------------

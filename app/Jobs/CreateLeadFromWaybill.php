@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
+use App\Domain\Shop\Services\AddressMappingService;
 use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Domain\Waybill\Models\Waybill;
 use App\Models\Customer;
@@ -30,6 +31,9 @@ class CreateLeadFromWaybill implements ShouldQueue
         if (! $waybill || $waybill->status !== WaybillStatus::DELIVERED) {
             return;
         }
+
+        // Resolve address mapping for this lead's geography
+        $addressMappingId = $this->resolveAddressMapping($waybill);
 
         // Find or create customer
         $customer = Customer::firstOrCreate(
@@ -77,6 +81,8 @@ class CreateLeadFromWaybill implements ShouldQueue
                 'product_name' => $waybill->item_name,
                 'amount' => $waybill->amount,
                 'source' => 'DELIVERED_WAYBILL',
+                'source_waybill_id' => $waybill->id,
+                'address_mapping_id' => $addressMappingId,
                 'quality_score' => $qualityScore,
                 'last_scored_at' => now(),
             ]);
@@ -92,6 +98,8 @@ class CreateLeadFromWaybill implements ShouldQueue
                 'product_name' => $waybill->item_name,
                 'amount' => $waybill->amount,
                 'source' => 'DELIVERED_WAYBILL',
+                'source_waybill_id' => $waybill->id,
+                'address_mapping_id' => $addressMappingId,
                 'pool_status' => PoolStatus::AVAILABLE,
                 'quality_score' => $qualityScore,
                 'last_scored_at' => now(),
@@ -102,6 +110,32 @@ class CreateLeadFromWaybill implements ShouldQueue
                 action: 'LEAD_CREATED',
                 metadata: ['source' => 'waybill', 'waybill_id' => $waybill->id]
             );
+        }
+    }
+
+    /**
+     * Resolve the address_mapping_id for a waybill's geography fields.
+     * Returns null if no mapping is found — the lead is still created,
+     * but won't be filterable by region/province until a mapping is set.
+     */
+    private function resolveAddressMapping(Waybill $waybill): ?int
+    {
+        if (! $waybill->state && ! $waybill->city) {
+            return null;
+        }
+
+        try {
+            $service = app(AddressMappingService::class);
+            $result = $service->match([
+                'province' => $waybill->state,
+                'city_municipality' => $waybill->city,
+                'barangay' => $waybill->barangay,
+                'address' => $waybill->receiver_address,
+            ]);
+
+            return $result['mapping']?->id;
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 }
