@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Models\Lead;
-use App\Domain\Order\Models\Order;
+use Modules\Leads\Models\Lead;
+use Modules\Orders\Models\Order;
 use App\Models\LeadCycle;
 use App\Models\LeadLog;
 use App\Models\LeadPoolAudit;

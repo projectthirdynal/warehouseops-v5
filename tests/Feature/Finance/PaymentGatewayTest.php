@@ -1,7 +1,7 @@
 <?php
 
-use App\Domain\Finance\Models\PaymentTransaction;
-use App\Domain\Finance\Services\PaymentGatewayService;
+use Modules\Finance\Models\PaymentTransaction;
+use Modules\Finance\Services\PaymentGatewayService;
 use App\Models\Invoice;
 use App\Models\SiteSetting;
 use App\Models\User;

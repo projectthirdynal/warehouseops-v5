@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 

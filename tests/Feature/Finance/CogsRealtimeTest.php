@@ -1,10 +1,10 @@
 <?php
 
-use App\Domain\Finance\Models\CogsDailySummary;
-use App\Domain\Finance\Models\CogsEntry;
-use App\Domain\Finance\Models\CogsVarianceAlert;
-use App\Domain\Finance\Services\CogsDashboardService;
-use App\Domain\Product\Models\Product;
+use Modules\Finance\Models\CogsDailySummary;
+use Modules\Finance\Models\CogsEntry;
+use Modules\Finance\Models\CogsVarianceAlert;
+use Modules\Finance\Services\CogsDashboardService;
+use Modules\Products\Models\Product;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\User;
 

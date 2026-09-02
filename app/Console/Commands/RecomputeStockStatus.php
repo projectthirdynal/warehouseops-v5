@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Services\StockStatusService;
+use Modules\Inventory\Services\StockStatusService;
 use Illuminate\Console\Command;
 
 class RecomputeStockStatus extends Command

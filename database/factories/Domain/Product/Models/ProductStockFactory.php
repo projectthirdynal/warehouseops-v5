@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Factories\Domain\Product\Models;
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

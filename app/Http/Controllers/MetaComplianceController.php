@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\CustomerIdentity;
-use App\Domain\Shop\Models\FacebookAccount;
-use App\Domain\Shop\Models\FacebookWebhookEvent;
-use App\Domain\Shop\Models\Message;
-use App\Domain\Shop\Models\MetaDataDeletionRequest;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\CustomerIdentity;
+use Modules\Shop\Models\FacebookAccount;
+use Modules\Shop\Models\FacebookWebhookEvent;
+use Modules\Shop\Models\Message;
+use Modules\Shop\Models\MetaDataDeletionRequest;
 use App\Models\Customer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;

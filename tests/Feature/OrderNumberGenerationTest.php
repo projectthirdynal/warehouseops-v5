@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
 use Illuminate\Support\Facades\DB;
 
 it('generates order number with correct format', function () {

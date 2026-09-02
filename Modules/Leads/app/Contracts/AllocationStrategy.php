@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Leads\Contracts;
+
+use App\Models\AgentProfile;
+use Illuminate\Support\Collection;
+use Modules\Leads\Models\Lead;
+
+interface AllocationStrategy
+{
+    /**
+     * Score and rank eligible agents for a lead.
+     *
+     * @param  Collection<int, AgentProfile>  $agents
+     * @param  array<string, mixed>  $formula  Weights and config
+     * @return Collection<int, array{agent_id: int, score: float}>
+     */
+    public function score(Lead $lead, Collection $agents, array $formula): Collection;
+
+    /**
+     * Human-readable name for this strategy.
+     */
+    public function name(): string;
+}

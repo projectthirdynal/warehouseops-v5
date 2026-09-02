@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Finance;
 
-use App\Domain\Finance\Services\QboSyncService;
-use App\Domain\Product\Models\Product;
+use Modules\Finance\Services\QboSyncService;
+use Modules\Products\Models\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;

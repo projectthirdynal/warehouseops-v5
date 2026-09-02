@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Lead\Enums\SalesStatus;
+use Modules\Leads\Enums\SalesStatus;
 use App\Models\Lead;
 use App\Models\User;
 use Carbon\Carbon;

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Domain\Shop\Models\AddressMapping;
+use Modules\Shop\Models\AddressMapping;
 use Illuminate\Database\Seeder;
 
 class AddressMappingSeeder extends Seeder

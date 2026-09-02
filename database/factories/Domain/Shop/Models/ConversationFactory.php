@@ -2,7 +2,7 @@
 
 namespace Database\Factories\Domain\Shop\Models;
 
-use App\Domain\Shop\Models\Conversation;
+use Modules\Shop\Models\Conversation;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ConversationFactory extends Factory

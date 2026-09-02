@@ -1,9 +1,9 @@
 <?php
 
-use App\Domain\Inventory\Models\CapexAsset;
-use App\Domain\Inventory\Models\CapexDepreciationJournal;
-use App\Domain\Inventory\Services\CapexAssetService;
-use App\Domain\Inventory\Services\DepreciationAutomationService;
+use Modules\Inventory\Models\CapexAsset;
+use Modules\Inventory\Models\CapexDepreciationJournal;
+use Modules\Inventory\Services\CapexAssetService;
+use Modules\Inventory\Services\DepreciationAutomationService;
 use App\Models\SiteSetting;
 use App\Models\User;
 

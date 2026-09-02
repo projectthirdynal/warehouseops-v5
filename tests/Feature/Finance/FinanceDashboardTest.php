@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Finance\Services\FinanceDashboardService;
+use Modules\Finance\Services\FinanceDashboardService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\VerifyCsrfToken;

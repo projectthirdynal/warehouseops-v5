@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Domain\Courier\Services\StatusMapper;
-use App\Domain\Waybill\Models\DeliveryProof;
+use Modules\Couriers\Services\StatusMapper;
+use Modules\Waybills\Models\DeliveryProof;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

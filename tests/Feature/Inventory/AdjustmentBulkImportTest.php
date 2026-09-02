@@ -1,11 +1,11 @@
 <?php
 
-use App\Domain\Inventory\Models\StockAdjustment;
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\AdjustmentBulkImportService;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductVariant;
+use Modules\Inventory\Models\StockAdjustment;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\AdjustmentBulkImportService;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductVariant;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 

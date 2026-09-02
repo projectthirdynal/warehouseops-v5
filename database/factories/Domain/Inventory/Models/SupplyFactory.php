@@ -2,7 +2,7 @@
 
 namespace Database\Factories\Domain\Inventory\Models;
 
-use App\Domain\Inventory\Models\Supply;
+use Modules\Inventory\Models\Supply;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class SupplyFactory extends Factory

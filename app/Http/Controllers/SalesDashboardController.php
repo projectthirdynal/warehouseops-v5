@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Analytics\Services\SalesDashboardService;
+use Modules\Analytics\Services\SalesDashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;

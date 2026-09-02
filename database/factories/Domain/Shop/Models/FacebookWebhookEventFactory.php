@@ -2,7 +2,7 @@
 
 namespace Database\Factories\Domain\Shop\Models;
 
-use App\Domain\Shop\Models\FacebookWebhookEvent;
+use Modules\Shop\Models\FacebookWebhookEvent;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class FacebookWebhookEventFactory extends Factory

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Models\CourierExportBatch;
+use Modules\Shop\Models\CourierExportBatch;
 use Illuminate\Console\Command;
 
 class ArchiveStaleCourierBatches extends Command

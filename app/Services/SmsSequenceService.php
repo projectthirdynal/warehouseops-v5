@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Jobs\ProcessSequenceStep;
 use App\Models\SmsSequence;
 use App\Models\SmsSequenceEnrollment;

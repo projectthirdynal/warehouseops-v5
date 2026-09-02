@@ -2,7 +2,7 @@
 
 namespace App\Listeners;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Jobs\AutoDistributeLeads;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;

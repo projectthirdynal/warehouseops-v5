@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Finance\Models\AgentCommission;
-use App\Domain\Finance\Models\CodSettlement;
-use App\Domain\Finance\Models\CommissionRule;
-use App\Domain\Finance\Models\CommissionRun;
-use App\Domain\Finance\Services\CodReconciliationService;
-use App\Domain\Finance\Services\CommissionService;
-use App\Domain\Finance\Services\FinanceDashboardService;
-use App\Domain\Finance\Services\RevenueService;
+use Modules\Finance\Models\AgentCommission;
+use Modules\Finance\Models\CodSettlement;
+use Modules\Finance\Models\CommissionRule;
+use Modules\Finance\Models\CommissionRun;
+use Modules\Finance\Services\CodReconciliationService;
+use Modules\Finance\Services\CommissionService;
+use Modules\Finance\Services\FinanceDashboardService;
+use Modules\Finance\Services\RevenueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;

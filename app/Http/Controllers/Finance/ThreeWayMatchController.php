@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Finance;
 
-use App\Domain\Finance\Services\ThreeWayMatchService;
+use Modules\Finance\Services\ThreeWayMatchService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

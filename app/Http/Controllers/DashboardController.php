@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Analytics\Services\RevenueMetricService;
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
+use Modules\Analytics\Services\RevenueMetricService;
+use Modules\Orders\Models\Order;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
 use App\Models\DashboardWidgetConfig;
 use App\Models\Invoice;
 use App\Models\Lead;

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Lead\Enums\LeadOutcome;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
-use App\Domain\Shop\Services\GamificationService;
+use Modules\Leads\Enums\LeadOutcome;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
+use Modules\Shop\Services\GamificationService;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\CoachingNote;
 use App\Models\LeadCycle;

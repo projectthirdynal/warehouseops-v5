@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\FacebookPage;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\FacebookPage;
 use App\Models\ReplyTemplate;
 use App\Models\ReplyTemplateAbTest;
 use App\Models\ReplyTemplateAbVariant;

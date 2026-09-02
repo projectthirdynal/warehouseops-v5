@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Courier\Http\Middleware\VerifyCourierWebhookSignature;
+use Modules\Couriers\Http\Middleware\VerifyCourierWebhookSignature;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\DisableCaching;
 use App\Http\Middleware\EnsureRole;

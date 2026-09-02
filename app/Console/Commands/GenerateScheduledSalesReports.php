@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Domain\Analytics\Services\SalesDashboardService;
+use Modules\Analytics\Services\SalesDashboardService;
 use App\Models\ScheduledSalesReport;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;

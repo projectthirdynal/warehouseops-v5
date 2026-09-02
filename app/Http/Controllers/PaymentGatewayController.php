@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Finance\Models\CodSettlement;
-use App\Domain\Finance\Models\PaymentTransaction;
-use App\Domain\Finance\Services\PaymentGatewayService;
+use Modules\Finance\Models\CodSettlement;
+use Modules\Finance\Models\PaymentTransaction;
+use Modules\Finance\Services\PaymentGatewayService;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

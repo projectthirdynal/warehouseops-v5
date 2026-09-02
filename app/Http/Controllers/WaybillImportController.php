@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Waybill\Models\GoogleSheetConfig;
+use Modules\Waybills\Models\GoogleSheetConfig;
 use App\Jobs\ProcessWaybillImport;
 use App\Jobs\RetryFailedRowsJob;
 use App\Models\Upload;

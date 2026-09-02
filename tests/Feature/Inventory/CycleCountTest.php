@@ -1,12 +1,12 @@
 <?php
 
-use App\Domain\Inventory\Models\StockAdjustment;
-use App\Domain\Inventory\Models\StockAuditItem;
-use App\Domain\Inventory\Models\StockAuditSession;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\CycleCountService;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
+use Modules\Inventory\Models\StockAdjustment;
+use Modules\Inventory\Models\StockAuditItem;
+use Modules\Inventory\Models\StockAuditSession;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\CycleCountService;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
 use App\Models\SiteSetting;
 use App\Models\User;
 

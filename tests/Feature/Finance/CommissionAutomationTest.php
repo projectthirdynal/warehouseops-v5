@@ -1,12 +1,12 @@
 <?php
 
-use App\Domain\Finance\Models\AgentCommission;
-use App\Domain\Finance\Models\CommissionRule;
-use App\Domain\Finance\Models\CommissionRun;
-use App\Domain\Finance\Services\CommissionService;
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Models\Product;
+use Modules\Finance\Models\AgentCommission;
+use Modules\Finance\Models\CommissionRule;
+use Modules\Finance\Models\CommissionRun;
+use Modules\Finance\Services\CommissionService;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Products\Models\Product;
 use App\Models\SiteSetting;
 use App\Models\User;
 

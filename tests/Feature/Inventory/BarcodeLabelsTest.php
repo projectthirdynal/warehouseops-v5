@@ -1,8 +1,8 @@
 <?php
 
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Services\BarcodeLabelService;
-use App\Domain\Product\Models\Product;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Services\BarcodeLabelService;
+use Modules\Products\Models\Product;
 use App\Models\SiteSetting;
 use App\Models\User;
 

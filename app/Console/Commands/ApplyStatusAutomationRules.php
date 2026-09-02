@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\ConversationStatusHistory;
-use App\Domain\Shop\Models\PageStatusRule;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\ConversationStatusHistory;
+use Modules\Shop\Models\PageStatusRule;
 use App\Events\ConversationStatusChanged;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;

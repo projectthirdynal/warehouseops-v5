@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Domain\Finance\Models\AgentCommission;
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Models\Product;
+use Modules\Finance\Models\AgentCommission;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Products\Models\Product;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\Waybill;

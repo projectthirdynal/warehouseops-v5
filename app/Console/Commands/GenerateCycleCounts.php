@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Services\CycleCountService;
+use Modules\Inventory\Services\CycleCountService;
 use Illuminate\Console\Command;
 
 class GenerateCycleCounts extends Command

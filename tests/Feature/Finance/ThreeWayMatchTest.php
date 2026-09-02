@@ -1,16 +1,16 @@
 <?php
 
-use App\Domain\Finance\Models\ThreeWayMatch;
-use App\Domain\Finance\Services\ThreeWayMatchService;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Procurement\Enums\GrnStatus;
-use App\Domain\Procurement\Enums\PoStatus;
-use App\Domain\Procurement\Models\PurchaseOrder;
-use App\Domain\Procurement\Models\PurchaseOrderItem;
-use App\Domain\Procurement\Models\ReceivingReport;
-use App\Domain\Procurement\Models\ReceivingReportItem;
-use App\Domain\Procurement\Models\Supplier;
-use App\Domain\Product\Models\Product;
+use Modules\Finance\Models\ThreeWayMatch;
+use Modules\Finance\Services\ThreeWayMatchService;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Procurement\Enums\GrnStatus;
+use Modules\Procurement\Enums\PoStatus;
+use Modules\Procurement\Models\PurchaseOrder;
+use Modules\Procurement\Models\PurchaseOrderItem;
+use Modules\Procurement\Models\ReceivingReport;
+use Modules\Procurement\Models\ReceivingReportItem;
+use Modules\Procurement\Models\Supplier;
+use Modules\Products\Models\Product;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoiceItem;
 use App\Models\User;

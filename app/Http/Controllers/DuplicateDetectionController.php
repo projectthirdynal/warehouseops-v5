@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Order\Services\DuplicateDetectionService;
-use App\Domain\Shop\Services\CustomerMergeService;
+use Modules\Orders\Services\DuplicateDetectionService;
+use Modules\Shop\Services\CustomerMergeService;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

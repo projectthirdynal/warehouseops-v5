@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Services\DemandForecastService;
+use Modules\Inventory\Services\DemandForecastService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Models\Message;
-use App\Domain\Shop\Models\ScheduledMessage;
-use App\Domain\Shop\Services\FacebookConnectorService;
+use Modules\Shop\Models\Message;
+use Modules\Shop\Models\ScheduledMessage;
+use Modules\Shop\Services\FacebookConnectorService;
 use Illuminate\Console\Command;
 
 class ProcessScheduledMessages extends Command

@@ -2,10 +2,10 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Lead\Enums\LeadOutcome;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
-use App\Domain\Order\Services\OrderFulfillmentService;
+use Modules\Leads\Enums\LeadOutcome;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
+use Modules\Orders\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\User;
 use App\Services\CapacityManager;

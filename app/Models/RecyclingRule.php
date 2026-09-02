@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Domain\Lead\Enums\LeadOutcome;
+use Modules\Leads\Enums\LeadOutcome;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

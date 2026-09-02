@@ -2,7 +2,7 @@
 
 namespace Database\Factories\Domain\Shop\Models;
 
-use App\Domain\Shop\Models\FacebookPage;
+use Modules\Shop\Models\FacebookPage;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class FacebookPageFactory extends Factory

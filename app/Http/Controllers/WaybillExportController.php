@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Waybill\Models\Claim;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Models\Claim;
+use Modules\Waybills\Models\Waybill;
 use App\Exports\BeyondSlaExport;
 use App\Exports\ClaimsExport;
 use Illuminate\Http\Request;

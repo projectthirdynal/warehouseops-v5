@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\UnitOfMeasure;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Procurement\Enums\PoStatus;
-use App\Domain\Procurement\Models\PurchaseOrder;
-use App\Domain\Procurement\Models\PurchaseRequest;
-use App\Domain\Procurement\Models\Supplier;
-use App\Domain\Procurement\Services\ProcurementService;
-use App\Domain\Product\Models\Product;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\UnitOfMeasure;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Procurement\Enums\PoStatus;
+use Modules\Procurement\Models\PurchaseOrder;
+use Modules\Procurement\Models\PurchaseRequest;
+use Modules\Procurement\Models\Supplier;
+use Modules\Procurement\Services\ProcurementService;
+use Modules\Products\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;

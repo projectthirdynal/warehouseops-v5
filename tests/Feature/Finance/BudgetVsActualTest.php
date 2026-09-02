@@ -1,10 +1,10 @@
 <?php
 
-use App\Domain\Finance\Models\Budget;
-use App\Domain\Finance\Models\BudgetLine;
-use App\Domain\Finance\Models\BudgetVarianceAlert;
-use App\Domain\Finance\Models\FinancialTransaction;
-use App\Domain\Finance\Services\BudgetService;
+use Modules\Finance\Models\Budget;
+use Modules\Finance\Models\BudgetLine;
+use Modules\Finance\Models\BudgetVarianceAlert;
+use Modules\Finance\Models\FinancialTransaction;
+use Modules\Finance\Services\BudgetService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\VerifyCsrfToken;

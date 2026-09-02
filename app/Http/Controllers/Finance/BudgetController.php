@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Finance;
 
-use App\Domain\Finance\Models\Budget;
-use App\Domain\Finance\Services\BudgetService;
+use Modules\Finance\Models\Budget;
+use Modules\Finance\Services\BudgetService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

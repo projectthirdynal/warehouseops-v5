@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\SupplyMovement;
-use App\Domain\Inventory\Models\SupplyStock;
-use App\Domain\Inventory\Models\UnitOfMeasure;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\MovementAuditTrailService;
-use App\Domain\Inventory\Services\StockStatusService;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\SupplyMovement;
+use Modules\Inventory\Models\SupplyStock;
+use Modules\Inventory\Models\UnitOfMeasure;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\MovementAuditTrailService;
+use Modules\Inventory\Services\StockStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

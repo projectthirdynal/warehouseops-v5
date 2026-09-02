@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Models\User;
 use App\Services\LeadAuditService;
 use App\Services\LeadPoolService;

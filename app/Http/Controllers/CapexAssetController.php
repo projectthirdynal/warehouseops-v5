@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\CapexAsset;
-use App\Domain\Inventory\Models\CapexDepreciationSchedule;
-use App\Domain\Inventory\Models\UnitOfMeasure;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\CapexAssetService;
+use Modules\Inventory\Models\CapexAsset;
+use Modules\Inventory\Models\CapexDepreciationSchedule;
+use Modules\Inventory\Models\UnitOfMeasure;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\CapexAssetService;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

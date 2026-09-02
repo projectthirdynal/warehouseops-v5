@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\StockTransfer;
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\StockTransferService;
-use App\Domain\Product\Models\Product;
+use Modules\Inventory\Models\StockTransfer;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\StockTransferService;
+use Modules\Products\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

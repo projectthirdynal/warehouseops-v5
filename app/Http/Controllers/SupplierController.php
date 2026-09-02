@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Procurement\Models\Supplier;
+use Modules\Procurement\Models\Supplier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

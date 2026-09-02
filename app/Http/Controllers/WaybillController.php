@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Courier\Jobs\BatchDispatchJob;
-use App\Domain\Courier\Models\CourierProvider;
-use App\Domain\Courier\Services\BatchDispatchService;
-use App\Domain\Waybill\Models\DeliveryProof;
-use App\Domain\Waybill\Services\DeliveryProofService;
-use App\Domain\Waybill\Services\GeolocationMapService;
-use App\Domain\Waybill\Services\QrCodeService;
-use App\Domain\Waybill\Services\SlaDashboardService;
+use Modules\Couriers\Jobs\BatchDispatchJob;
+use Modules\Couriers\Models\CourierProvider;
+use Modules\Couriers\Services\BatchDispatchService;
+use Modules\Waybills\Models\DeliveryProof;
+use Modules\Waybills\Services\DeliveryProofService;
+use Modules\Waybills\Services\GeolocationMapService;
+use Modules\Waybills\Services\QrCodeService;
+use Modules\Waybills\Services\SlaDashboardService;
 use App\Models\Customer;
 use App\Models\Waybill;
 use App\Services\SmsSequenceService;

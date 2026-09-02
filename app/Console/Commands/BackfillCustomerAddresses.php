@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Services\CustomerAddressService;
+use Modules\Shop\Services\CustomerAddressService;
 use App\Models\Customer;
 use Illuminate\Console\Command;
 

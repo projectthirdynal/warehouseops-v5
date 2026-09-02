@@ -1,10 +1,10 @@
 <?php
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Models\WarehouseLocation;
-use App\Domain\Inventory\Services\WarehouseMapService;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Models\WarehouseLocation;
+use Modules\Inventory\Services\WarehouseMapService;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;

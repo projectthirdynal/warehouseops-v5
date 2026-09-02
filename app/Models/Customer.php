@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Domain\Order\Models\Order;
-use App\Domain\Shop\Models\CustomerIdentity;
+use Modules\Orders\Models\Order;
+use Modules\Shop\Models\CustomerIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;

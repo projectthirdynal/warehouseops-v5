@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Jobs;
 
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Jobs\ProcessCooldownLeads;
 use App\Models\RecyclingRule;
 use App\Services\LeadRecyclingService;

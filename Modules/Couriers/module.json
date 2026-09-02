@@ -1,0 +1,9 @@
+{
+  "name": "Couriers",
+  "alias": "couriers",
+  "description": "",
+  "keywords": [],
+  "priority": 0,
+  "providers": ["Modules\\Couriers\\Providers\\CouriersServiceProvider"],
+  "files": []
+}

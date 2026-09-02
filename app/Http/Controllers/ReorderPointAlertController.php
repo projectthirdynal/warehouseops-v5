@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\StockAlert;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\ReorderPointAlertService;
+use Modules\Inventory\Models\StockAlert;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\ReorderPointAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

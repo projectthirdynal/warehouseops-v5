@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Services\WarehouseMapService;
+use Modules\Inventory\Services\WarehouseMapService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

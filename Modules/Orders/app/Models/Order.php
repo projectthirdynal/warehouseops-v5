@@ -1,0 +1,196 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Orders\Models;
+
+use App\Models\Customer;
+use App\Models\Lead;
+use App\Models\User;
+use App\Models\Waybill;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductVariant;
+use Modules\Shop\Models\OrderRemark;
+use Modules\Shop\Models\ShopOrderItem;
+use Modules\Shop\Models\Tag;
+
+class Order extends Model
+{
+    use SoftDeletes;
+
+    protected $fillable = [
+        'order_number',
+        'lead_id',
+        'parent_order_id',
+        'conversation_id',
+        'facebook_page_id',
+        'customer_id',
+        'product_id',
+        'variant_id',
+        'assigned_agent_id',
+        'encoder_id',
+        'status',
+        'courier_code',
+        'waybill_id',
+        'quantity',
+        'unit_price',
+        'total_amount',
+        'cod_amount',
+        'shipping_cost',
+        'discount_amount',
+        'tax_rate',
+        'tax_amount',
+        'receiver_name',
+        'receiver_phone',
+        'receiver_address',
+        'city',
+        'state',
+        'barangay',
+        'postal_code',
+        'landmark',
+        'nearest_landmark',
+        'latitude',
+        'longitude',
+        'address_mapping_id',
+        'source_channel',
+        'address_confidence',
+        'export_status',
+        'notes',
+        'remarks',
+        'draft_data',
+        'rejection_reason',
+        'confirmed_at',
+        'dispatched_at',
+        'delivered_at',
+        'returned_at',
+        'encoded_at',
+        'held_at',
+        'hold_reason',
+        'scheduled_delivery_at',
+        'reschedule_reason',
+    ];
+
+    protected $casts = [
+        'status' => OrderStatus::class,
+        'unit_price' => 'decimal:2',
+        'total_amount' => 'decimal:2',
+        'cod_amount' => 'decimal:2',
+        'shipping_cost' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'tax_rate' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'address_confidence' => 'decimal:2',
+        'confirmed_at' => 'datetime',
+        'dispatched_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'returned_at' => 'datetime',
+        'encoded_at' => 'datetime',
+        'held_at' => 'datetime',
+        'scheduled_delivery_at' => 'datetime',
+        'draft_data' => 'array',
+    ];
+
+    // Relationships
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
+    }
+
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_agent_id');
+    }
+
+    public function waybill(): BelongsTo
+    {
+        return $this->belongsTo(Waybill::class);
+    }
+
+    public function shopItems(): HasMany
+    {
+        return $this->hasMany(ShopOrderItem::class);
+    }
+
+    public function parentOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'parent_order_id');
+    }
+
+    public function childOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'parent_order_id');
+    }
+
+    public function remarks(): HasMany
+    {
+        return $this->hasMany(OrderRemark::class);
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'order_tag');
+    }
+
+    // Scopes
+
+    public function scopePending($query)
+    {
+        return $query->where('status', OrderStatus::PENDING);
+    }
+
+    public function scopeReadyForDispatch($query)
+    {
+        return $query->whereIn('status', [OrderStatus::QA_APPROVED, OrderStatus::CONFIRMED]);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->whereNotIn('status', [
+            OrderStatus::DELIVERED,
+            OrderStatus::RETURNED,
+            OrderStatus::CANCELLED,
+            OrderStatus::QA_REJECTED,
+        ]);
+    }
+
+    // Helpers
+
+    public static function generateOrderNumber(): string
+    {
+        $date = now()->format('Ymd');
+        $prefix = "ORD-{$date}-";
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $count = static::whereDate('created_at', today())->count() + 1 + $attempt;
+            $number = sprintf('%s%04d', $prefix, $count);
+
+            if (! static::where('order_number', $number)->exists()) {
+                return $number;
+            }
+        }
+
+        return $prefix.strtoupper(bin2hex(random_bytes(4)));
+    }
+}
