@@ -17,7 +17,6 @@ class GoogleSheetConfig extends Model
         'month',
         'data_year',
         'sheet_url',
-        'sheet_tab_name',
         'enabled',
         'updated_by',
     ];
