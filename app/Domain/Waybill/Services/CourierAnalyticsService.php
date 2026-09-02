@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Waybill\Services;
 
-use App\Domain\Courier\Models\CourierProvider;
+use Modules\Couriers\Models\CourierProvider;
 use App\Models\Waybill;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;

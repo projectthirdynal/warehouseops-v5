@@ -3,8 +3,8 @@
 namespace App\Providers;
 
 use App\Domain\Analytics\Services\SalesDashboardService;
-use App\Domain\Courier\Services\CourierServiceManager;
-use App\Domain\Courier\Services\StatusMapper;
+use Modules\Couriers\Services\CourierServiceManager;
+use Modules\Couriers\Services\StatusMapper;
 use App\Domain\Order\Models\Order;
 use App\Domain\Shop\CourierCsv\CourierCsvAddressValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvCodValidator;

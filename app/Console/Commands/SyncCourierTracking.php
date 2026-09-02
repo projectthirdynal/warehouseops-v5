@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
-use App\Domain\Courier\Services\CourierServiceManager;
-use App\Domain\Courier\Services\CourierStatusSyncService;
+use Modules\Couriers\Jobs\SyncTrackingStatusJob;
+use Modules\Couriers\Services\CourierServiceManager;
+use Modules\Couriers\Services\CourierStatusSyncService;
 use Illuminate\Console\Command;
 
 class SyncCourierTracking extends Command

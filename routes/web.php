@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Courier\Http\Controllers\CourierProviderController;
+use Modules\Couriers\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\AdjustmentBulkImportController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;

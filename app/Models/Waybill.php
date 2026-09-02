@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Domain\Courier\Services\StatusMapper;
+use Modules\Couriers\Services\StatusMapper;
 use App\Domain\Waybill\Models\DeliveryProof;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

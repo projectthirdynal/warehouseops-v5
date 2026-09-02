@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Domain\Courier\Models\CourierProvider;
+use Modules\Couriers\Models\CourierProvider;
 use App\Domain\Finance\Models\CodSettlement;
 use App\Domain\Finance\Models\CommissionRule;
 use App\Domain\Finance\Models\FinancialTransaction;

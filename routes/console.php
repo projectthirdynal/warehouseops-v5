@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
+use Modules\Couriers\Jobs\SyncTrackingStatusJob;
 use App\Jobs\AutoDistributeLeads;
 use App\Jobs\DetectFraudPatterns;
 use App\Jobs\ProcessCooldownLeads;

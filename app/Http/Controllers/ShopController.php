@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
-use App\Domain\Courier\Services\CourierStatusSyncService;
+use Modules\Couriers\Jobs\SyncTrackingStatusJob;
+use Modules\Couriers\Services\CourierStatusSyncService;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Models\Warehouse;
 use App\Domain\Inventory\Services\StockService;

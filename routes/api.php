@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Courier\Http\Controllers\CourierWebhookController;
+use Modules\Couriers\Http\Controllers\CourierWebhookController;
 use App\Domain\Shop\Http\Controllers\MetaWebhookController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\DesktopApiController;

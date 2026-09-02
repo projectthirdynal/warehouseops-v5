@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Order\Services;
 
-use App\Domain\Courier\Actions\CreateCourierOrder;
+use Modules\Couriers\Actions\CreateCourierOrder;
 use App\Domain\Finance\Services\CogsService;
 use App\Domain\Finance\Services\CommissionService;
 use App\Domain\Finance\Services\QboSyncService;

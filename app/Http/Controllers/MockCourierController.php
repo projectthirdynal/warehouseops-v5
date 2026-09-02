@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Courier\DTOs\CreateOrderDTO;
-use App\Domain\Courier\Services\MockCourierService;
+use Modules\Couriers\DTOs\CreateOrderDTO;
+use Modules\Couriers\Services\MockCourierService;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

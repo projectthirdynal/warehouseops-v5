@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Waybill\Listeners;
 
-use App\Domain\Courier\Events\TrackingStatusUpdated;
+use Modules\Couriers\Events\TrackingStatusUpdated;
 use App\Domain\Waybill\Enums\ClaimStatus;
 use App\Domain\Waybill\Enums\ClaimType;
 use App\Domain\Waybill\Enums\WaybillStatus;

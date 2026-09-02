@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Domain\Courier\Services\StatusMapper;
+use Modules\Couriers\Services\StatusMapper;
 use App\Models\ImportChunk;
 use App\Models\Upload;
 use App\Models\Waybill;

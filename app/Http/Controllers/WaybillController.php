@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Courier\Jobs\BatchDispatchJob;
-use App\Domain\Courier\Models\CourierProvider;
-use App\Domain\Courier\Services\BatchDispatchService;
+use Modules\Couriers\Jobs\BatchDispatchJob;
+use Modules\Couriers\Models\CourierProvider;
+use Modules\Couriers\Services\BatchDispatchService;
 use App\Domain\Waybill\Models\DeliveryProof;
 use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Domain\Waybill\Services\GeolocationMapService;

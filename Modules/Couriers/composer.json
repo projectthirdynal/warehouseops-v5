@@ -1,0 +1,28 @@
+{
+  "name": "nwidart/couriers",
+  "description": "",
+  "authors": [
+    {
+      "name": "Nicolas Widart",
+      "email": "n.widart@gmail.com"
+    }
+  ],
+  "extra": {
+    "laravel": {
+      "providers": [],
+      "aliases": {}
+    }
+  },
+  "autoload": {
+    "psr-4": {
+      "Modules\\Couriers\\": "app/",
+      "Modules\\Couriers\\Database\\Factories\\": "database/factories/",
+      "Modules\\Couriers\\Database\\Seeders\\": "database/seeders/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Modules\\Couriers\\Tests\\": "tests/"
+    }
+  }
+}

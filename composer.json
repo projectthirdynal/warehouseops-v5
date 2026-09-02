@@ -11,6 +11,7 @@
   "license": "proprietary",
   "require": {
     "php": "^8.2",
+    "barryvdh/laravel-dompdf": "^3.0",
     "guzzlehttp/guzzle": "^7.8",
     "inertiajs/inertia-laravel": "^1.0",
     "laravel/framework": "^11.0",
@@ -18,11 +19,11 @@
     "laravel/sanctum": "^4.0",
     "laravel/tinker": "^2.9",
     "maatwebsite/excel": "^3.1",
+    "nwidart/laravel-modules": "^13.0",
     "predis/predis": "^2.2",
     "rap2hpoutre/fast-excel": "^5.6",
     "spatie/laravel-permission": "^6.4",
-    "tightenco/ziggy": "^2.0",
-    "barryvdh/laravel-dompdf": "^3.0"
+    "tightenco/ziggy": "^2.0"
   },
   "require-dev": {
     "barryvdh/laravel-debugbar": "^3.10",
@@ -39,6 +40,7 @@
     "psr-4": {
       "App\\": "app/",
       "Domain\\": "app/Domain/",
+      "Modules\\": "Modules/",
       "Database\\Factories\\": "database/factories/",
       "Database\\Seeders\\": "database/seeders/"
     }
@@ -83,7 +85,8 @@
     "sort-packages": true,
     "allow-plugins": {
       "pestphp/pest-plugin": true,
-      "php-http/discovery": true
+      "php-http/discovery": true,
+      "wikimedia/composer-merge-plugin": true
     }
   },
   "minimum-stability": "stable",

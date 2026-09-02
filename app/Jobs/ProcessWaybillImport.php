@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Domain\Courier\Jobs\SyncTrackingStatusJob;
+use Modules\Couriers\Jobs\SyncTrackingStatusJob;
 use App\Imports\FlashWaybillFastImport;
 use App\Imports\JntWaybillFastImport;
 use App\Imports\SpxWaybillFastImport;

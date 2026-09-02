@@ -2,7 +2,7 @@
 
 namespace App\Imports;
 
-use App\Domain\Courier\Services\StatusMapper;
+use Modules\Couriers\Services\StatusMapper;
 use App\Models\Upload;
 use App\Models\WaybillTrackingHistory;
 use Illuminate\Support\Facades\DB;
