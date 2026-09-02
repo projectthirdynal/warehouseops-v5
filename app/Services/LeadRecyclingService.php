@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\LeadOutcome;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\LeadOutcome;
+use Modules\Leads\Models\Lead;
 use App\Domain\Order\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\RecyclingRule;

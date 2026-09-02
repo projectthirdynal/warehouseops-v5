@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Lead\Enums\LeadStatus;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\LeadStatus;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Models\User;

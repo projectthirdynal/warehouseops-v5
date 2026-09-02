@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Lead\Strategies;
+namespace Modules\Leads\Strategies;
 
-use App\Domain\Lead\Contracts\AllocationStrategy;
-use App\Domain\Lead\Enums\DistributionStrategy;
 use App\Services\PredictiveAssignmentService;
+use Modules\Leads\Contracts\AllocationStrategy;
+use Modules\Leads\Enums\DistributionStrategy;
 
 class StrategyResolver
 {

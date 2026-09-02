@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Lead\Contracts;
+namespace Modules\Leads\Contracts;
 
-use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use Illuminate\Support\Collection;
+use Modules\Leads\Models\Lead;
 
 interface AllocationStrategy
 {

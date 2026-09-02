@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
 use App\Models\User;

@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Lead\Enums\LeadSource;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\LeadSource;
+use Modules\Leads\Models\Lead;
 use App\Models\DistributionRule;
 use App\Services\RuleConditionEvaluator;
 use Illuminate\Foundation\Testing\RefreshDatabase;

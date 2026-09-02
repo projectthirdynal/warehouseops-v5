@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Models\LeadCycle;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;

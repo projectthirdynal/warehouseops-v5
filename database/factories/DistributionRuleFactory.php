@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Domain\Lead\Enums\DistributionStrategy;
+use Modules\Leads\Enums\DistributionStrategy;
 use App\Models\DistributionRule;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;

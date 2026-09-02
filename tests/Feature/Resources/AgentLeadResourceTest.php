@@ -3,8 +3,8 @@
 namespace Tests\Feature\Resources;
 
 use App\Domain\Customer\Models\Customer;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

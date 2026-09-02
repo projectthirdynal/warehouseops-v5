@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\LeadSource;
-use App\Domain\Lead\Enums\LeadStatus;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\LeadSource;
+use Modules\Leads\Enums\LeadStatus;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Events\LeadCreated;
 use App\Models\Customer;
 use Illuminate\Http\UploadedFile;

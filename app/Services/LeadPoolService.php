@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\LeadSource;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\LeadSource;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Models\Lead;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Lead\Enums;
+namespace Modules\Leads\Enums;
 
 enum LeadSource: string
 {

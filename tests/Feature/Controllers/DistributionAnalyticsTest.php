@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Controllers;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\LeadCycle;
 use App\Models\User;

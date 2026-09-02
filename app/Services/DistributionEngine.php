@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Enums\DistributionStrategy;
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Enums\DistributionStrategy;
+use Modules\Leads\Models\Lead;
 use App\Models\AgentProfile;
 use App\Models\AgentWorkload;
 use App\Models\DistributionRule;

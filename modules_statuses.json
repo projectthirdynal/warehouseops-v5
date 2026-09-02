@@ -1,4 +1,5 @@
 {
   "Couriers": true,
-  "Waybills": true
+  "Waybills": true,
+  "Leads": true
 }

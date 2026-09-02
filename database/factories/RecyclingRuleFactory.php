@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Domain\Lead\Enums\LeadOutcome;
+use Modules\Leads\Enums\LeadOutcome;
 use App\Models\RecyclingRule;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

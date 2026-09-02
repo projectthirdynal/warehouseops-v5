@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Models\DistributionRule;
 
 class RuleConditionEvaluator

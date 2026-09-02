@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Lead\Models\Lead;
+use Modules\Leads\Models\Lead;
 use App\Models\LeadPoolAudit;
 use App\Models\User;
 use App\Services\LeadAuditService;

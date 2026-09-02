@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Lead\Strategies;
+namespace Modules\Leads\Strategies;
 
-use App\Domain\Lead\Contracts\AllocationStrategy;
-use App\Domain\Lead\Models\Lead;
 use App\Models\AgentProfile;
 use Illuminate\Support\Collection;
+use Modules\Leads\Contracts\AllocationStrategy;
+use Modules\Leads\Models\Lead;
 
 class SkillMatchStrategy implements AllocationStrategy
 {

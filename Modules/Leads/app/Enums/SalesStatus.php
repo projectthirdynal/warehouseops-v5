@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Lead\Enums;
+namespace Modules\Leads\Enums;
 
 enum SalesStatus: string
 {

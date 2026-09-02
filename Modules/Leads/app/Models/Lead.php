@@ -2,12 +2,8 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Lead\Models;
+namespace Modules\Leads\Models;
 
-use App\Domain\Lead\Enums\LeadSource;
-use App\Domain\Lead\Enums\LeadStatus;
-use App\Domain\Lead\Enums\PoolStatus;
-use App\Domain\Lead\Enums\SalesStatus;
 use App\Models\Customer;
 use App\Models\DistributionQueue;
 use App\Models\LeadCycle;
@@ -21,6 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Leads\Enums\LeadSource;
+use Modules\Leads\Enums\LeadStatus;
+use Modules\Leads\Enums\PoolStatus;
+use Modules\Leads\Enums\SalesStatus;
 
 class Lead extends Model
 {
