@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Waybill\Models\ReturnReceipt;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Models\ReturnReceipt;
+use Modules\Waybills\Models\Waybill;
 use Illuminate\Http\Request;
 
 class ReturnReceiptController extends Controller

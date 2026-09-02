@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
-use App\Domain\Waybill\Models\DeliveryProof;
-use App\Domain\Waybill\Models\Waybill;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Modules\Waybills\Models\DeliveryProof;
+use Modules\Waybills\Models\Waybill;
 
 class DeliveryProofService
 {

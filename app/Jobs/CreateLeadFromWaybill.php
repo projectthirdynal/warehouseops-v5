@@ -4,8 +4,8 @@ namespace App\Jobs;
 
 use App\Domain\Lead\Enums\PoolStatus;
 use App\Domain\Lead\Models\Lead;
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Waybill;
 use App\Models\Customer;
 use App\Services\LeadAuditService;
 use App\Services\LeadScoringService;

@@ -5,8 +5,8 @@ use App\Domain\Finance\Models\CodSettlement;
 use App\Domain\Finance\Services\CodReconciliationService;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Waybill;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;

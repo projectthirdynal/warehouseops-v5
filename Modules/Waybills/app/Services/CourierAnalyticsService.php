@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
-use Modules\Couriers\Models\CourierProvider;
 use App\Models\Waybill;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Modules\Couriers\Models\CourierProvider;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CourierAnalyticsService

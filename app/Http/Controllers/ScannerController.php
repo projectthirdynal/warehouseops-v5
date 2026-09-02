@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Waybill\Models\ReturnReceipt;
-use App\Domain\Waybill\Models\UnknownWaybillScan;
+use Modules\Waybills\Models\ReturnReceipt;
+use Modules\Waybills\Models\UnknownWaybillScan;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

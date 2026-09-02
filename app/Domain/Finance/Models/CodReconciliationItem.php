@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Finance\Models;
 
 use App\Domain\Order\Models\Order;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Models\Waybill;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

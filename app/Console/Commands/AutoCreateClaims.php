@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Waybill\Enums\ClaimStatus;
-use App\Domain\Waybill\Enums\ClaimType;
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Claim;
+use Modules\Waybills\Enums\ClaimStatus;
+use Modules\Waybills\Enums\ClaimType;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Claim;
 use App\Models\Waybill;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;

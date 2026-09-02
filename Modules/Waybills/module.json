@@ -1,0 +1,9 @@
+{
+  "name": "Waybills",
+  "alias": "waybills",
+  "description": "",
+  "keywords": [],
+  "priority": 0,
+  "providers": ["Modules\\Waybills\\Providers\\WaybillsServiceProvider"],
+  "files": []
+}

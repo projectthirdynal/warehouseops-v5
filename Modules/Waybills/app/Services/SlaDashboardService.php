@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Waybill;
 use App\Models\SiteSetting;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Waybill;
 
 class SlaDashboardService
 {

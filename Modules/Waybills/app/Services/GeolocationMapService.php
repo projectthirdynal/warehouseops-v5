@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Models\Waybill;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Modules\Waybills\Enums\WaybillStatus;
 
 class GeolocationMapService
 {

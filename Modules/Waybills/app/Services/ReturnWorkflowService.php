@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
 use App\Domain\Order\Models\Order;
 use App\Domain\Product\Services\InventoryService;
-use App\Domain\Waybill\Models\ReturnReceipt;
-use App\Domain\Waybill\Models\Waybill;
 use App\Models\User;
 use App\Notifications\ReturnProcessedNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Modules\Waybills\Models\ReturnReceipt;
+use Modules\Waybills\Models\Waybill;
 
 class ReturnWorkflowService
 {

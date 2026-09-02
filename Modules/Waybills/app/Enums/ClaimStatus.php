@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Enums;
+namespace Modules\Waybills\Enums;
 
 enum ClaimStatus: string
 {

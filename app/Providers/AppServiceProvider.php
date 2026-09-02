@@ -19,7 +19,7 @@ use App\Domain\Shop\CourierCsv\CourierCsvValidationAnalytics;
 use App\Domain\Shop\CourierCsv\CourierCsvValidationConfig;
 use App\Domain\Shop\CourierCsv\CourierCsvValidator;
 use App\Domain\Shop\CourierCsv\CourierCsvWeightDimensionValidator;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Models\Waybill;
 use App\Models\SiteSetting;
 use App\Observers\OrderObserver;
 use App\Observers\WaybillObserver;

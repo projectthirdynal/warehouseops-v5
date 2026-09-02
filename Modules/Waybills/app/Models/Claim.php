@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Models;
+namespace Modules\Waybills\Models;
 
-use App\Domain\Waybill\Enums\ClaimStatus;
-use App\Domain\Waybill\Enums\ClaimType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\Waybills\Enums\ClaimStatus;
+use Modules\Waybills\Enums\ClaimType;
 
 class Claim extends Model
 {

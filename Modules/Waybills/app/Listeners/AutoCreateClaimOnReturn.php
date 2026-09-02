@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Listeners;
+namespace Modules\Waybills\Listeners;
 
-use Modules\Couriers\Events\TrackingStatusUpdated;
-use App\Domain\Waybill\Enums\ClaimStatus;
-use App\Domain\Waybill\Enums\ClaimType;
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Claim;
 use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Events\TrackingStatusUpdated;
+use Modules\Waybills\Enums\ClaimStatus;
+use Modules\Waybills\Enums\ClaimType;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Claim;
 
 class AutoCreateClaimOnReturn
 {

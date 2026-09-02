@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Waybill\Services;
+namespace Modules\Waybills\Services;
 
 use App\Models\Waybill;
 

@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Waybill;
 use App\Jobs\CreateLeadFromWaybill;
 
 class WaybillObserver

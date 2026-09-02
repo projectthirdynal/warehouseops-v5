@@ -5,7 +5,7 @@ namespace App\Providers;
 use Modules\Couriers\Events\TrackingStatusUpdated;
 use Modules\Couriers\Listeners\SyncOrderFromWaybillStatus;
 use Modules\Couriers\Listeners\TriggerSmsOnStatusChange;
-use App\Domain\Waybill\Listeners\AutoCreateClaimOnReturn;
+use Modules\Waybills\Listeners\AutoCreateClaimOnReturn;
 use App\Events\ConversationStatusChanged;
 use App\Events\LeadAssigned;
 use App\Events\LeadCreated;

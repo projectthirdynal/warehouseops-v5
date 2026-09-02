@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Waybill\Enums\ClaimStatus;
-use App\Domain\Waybill\Enums\ClaimType;
-use App\Domain\Waybill\Enums\WaybillStatus;
-use App\Domain\Waybill\Models\Claim;
-use App\Domain\Waybill\Models\Waybill;
+use Modules\Waybills\Enums\ClaimStatus;
+use Modules\Waybills\Enums\ClaimType;
+use Modules\Waybills\Enums\WaybillStatus;
+use Modules\Waybills\Models\Claim;
+use Modules\Waybills\Models\Waybill;
 use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
