@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
-use Modules\Couriers\Actions\CreateCourierOrder;
 use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Models\Waybill;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Actions\CreateCourierOrder;
 
 class BatchDispatchService
 {

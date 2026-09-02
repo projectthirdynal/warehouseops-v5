@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Http\Controllers;
 
-use Modules\Couriers\Actions\CreateCourierOrder;
-use Modules\Couriers\Jobs\SyncTrackingStatusJob;
-use Modules\Couriers\Models\CourierApiLog;
-use Modules\Couriers\Models\CourierProvider;
-use Modules\Couriers\Services\CourierServiceManager;
-use Modules\Couriers\Services\RateComparisonService;
 use App\Domain\Shop\Models\ShippingRate;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +11,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Modules\Couriers\Actions\CreateCourierOrder;
+use Modules\Couriers\Jobs\SyncTrackingStatusJob;
+use Modules\Couriers\Models\CourierApiLog;
+use Modules\Couriers\Models\CourierProvider;
+use Modules\Couriers\Services\CourierServiceManager;
+use Modules\Couriers\Services\RateComparisonService;
 
 class CourierProviderController
 {

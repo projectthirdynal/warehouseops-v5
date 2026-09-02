@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Listeners;
 
-use Modules\Couriers\Events\TrackingStatusUpdated;
-use Modules\Couriers\Services\CourierStatusSyncService;
 use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Events\TrackingStatusUpdated;
+use Modules\Couriers\Services\CourierStatusSyncService;
 
 class SyncOrderFromWaybillStatus
 {

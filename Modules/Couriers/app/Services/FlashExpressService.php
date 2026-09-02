@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Modules\Couriers\Contracts\CourierServiceInterface;
 use Modules\Couriers\DTOs\CreateOrderDTO;
 use Modules\Couriers\DTOs\CreateOrderResultDTO;
@@ -11,9 +14,6 @@ use Modules\Couriers\DTOs\TrackingResultDTO;
 use Modules\Couriers\DTOs\WebhookPayloadDTO;
 use Modules\Couriers\Models\CourierApiLog;
 use Modules\Couriers\Models\CourierProvider;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class FlashExpressService implements CourierServiceInterface
 {

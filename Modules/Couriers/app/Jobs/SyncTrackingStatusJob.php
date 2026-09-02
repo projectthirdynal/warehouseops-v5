@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Jobs;
 
-use Modules\Couriers\DTOs\TrackingResultDTO;
-use Modules\Couriers\DTOs\WebhookPayloadDTO;
-use Modules\Couriers\Events\TrackingStatusUpdated;
-use Modules\Couriers\Services\CourierServiceManager;
-use Modules\Couriers\Services\CourierStatusSyncService;
 use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Models\SiteSetting;
 use App\Models\Waybill;
@@ -18,6 +13,11 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\DTOs\TrackingResultDTO;
+use Modules\Couriers\DTOs\WebhookPayloadDTO;
+use Modules\Couriers\Events\TrackingStatusUpdated;
+use Modules\Couriers\Services\CourierServiceManager;
+use Modules\Couriers\Services\CourierStatusSyncService;
 
 class SyncTrackingStatusJob implements ShouldQueue
 {

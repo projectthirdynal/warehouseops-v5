@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Http\Controllers;
 
-use Modules\Couriers\Events\TrackingStatusUpdated;
-use Modules\Couriers\Models\CourierApiLog;
-use Modules\Couriers\Models\CourierProvider;
-use Modules\Couriers\Services\CourierServiceManager;
 use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Events\TrackingStatusUpdated;
+use Modules\Couriers\Models\CourierApiLog;
+use Modules\Couriers\Models\CourierProvider;
+use Modules\Couriers\Services\CourierServiceManager;
 
 class CourierWebhookController
 {

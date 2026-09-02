@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Modules\Couriers\Contracts\CourierServiceInterface;
 use Modules\Couriers\DTOs\CreateOrderDTO;
 use Modules\Couriers\DTOs\CreateOrderResultDTO;
 use Modules\Couriers\DTOs\TrackingResultDTO;
 use Modules\Couriers\DTOs\WebhookPayloadDTO;
-use Illuminate\Support\Facades\Cache;
 
 class MockCourierService implements CourierServiceInterface
 {

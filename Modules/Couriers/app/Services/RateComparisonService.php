@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
-use Modules\Couriers\Models\CourierProvider;
 use App\Domain\Shop\Models\ShippingRate;
 use App\Domain\Shop\Services\ShippingRateService;
+use Modules\Couriers\Models\CourierProvider;
 
 class RateComparisonService
 {

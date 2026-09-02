@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Http\Middleware;
 
-use Modules\Couriers\Services\CourierServiceManager;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Services\CourierServiceManager;
 use Symfony\Component\HttpFoundation\Response;
 
 class VerifyCourierWebhookSignature

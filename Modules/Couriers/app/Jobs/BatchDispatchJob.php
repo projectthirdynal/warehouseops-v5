@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Jobs;
 
-use Modules\Couriers\Services\BatchDispatchService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Services\BatchDispatchService;
 
 class BatchDispatchJob implements ShouldQueue
 {

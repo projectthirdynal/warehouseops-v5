@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
-use Modules\Couriers\Models\CourierSyncLog;
 use App\Domain\Order\Enums\OrderStatus;
 use App\Domain\Order\Models\Order;
 use App\Domain\Order\Services\OrderFulfillmentService;
@@ -15,6 +14,7 @@ use App\Models\SiteSetting;
 use App\Models\Waybill;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Modules\Couriers\Models\CourierSyncLog;
 
 class CourierStatusSyncService
 {
