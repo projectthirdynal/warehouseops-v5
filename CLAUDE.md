@@ -26,22 +26,37 @@ composer format      # Laravel Pint code formatter
 
 ## Architecture
 
-**Stack**: Laravel 11 + Inertia.js + React 18 + TypeScript + Tailwind CSS + PostgreSQL + Redis
+**Stack**: Laravel 11 (slim bootstrap) + Inertia.js + React 18 + TypeScript + Tailwind CSS + PostgreSQL + Redis
 
-### Domain-Driven Design
+### Bootstrap (Laravel 11 Slim Structure)
 
-Business logic lives in `app/Domain/` with six bounded contexts:
+The application uses the Laravel 11 fluent `Application::configure()` pattern in `bootstrap/app.php`:
 
-| Domain | Purpose |
-|--------|---------|
-| `Lead` | Lead lifecycle: pool status, cycles, distribution, recycling, outcomes |
-| `Waybill` | Courier shipment tracking, status transitions, batch imports |
-| `Agent` | Agent profiles, product skills, performance metrics |
-| `Customer` | Customer records (deduplicated by phone), risk scoring, blacklisting |
-| `Courier` | J&T Express / Flash courier integrations |
-| `Notification` | Telegram operational alerts |
+- Routing, middleware, exceptions, and providers all configured fluently
+- No separate `app/Http/Kernel.php`, `app/Console/Kernel.php`, `app/Exceptions/Handler.php`, or `app/Providers/RouteServiceProvider.php`
+- Scheduled tasks are in `routes/console.php` using the `Schedule` facade
+- Custom middleware aliases registered in `bootstrap/app.php` (e.g., `courier.webhook`, `role`)
 
-Each domain may contain: `Models/`, `Enums/`, `Actions/`, `Repositories/`.
+### Domain-Driven Design (Modular Architecture)
+
+Business logic lives in `Modules/` using `nwidart/laravel-modules`. Each module is a self-contained bounded context with its own `app/`, `database/migrations/`, `composer.json`, and service providers:
+
+| Module        | Namespace              | Purpose                                                                           |
+| ------------- | ---------------------- | --------------------------------------------------------------------------------- |
+| `Couriers`    | `Modules\Couriers\`    | J&T Express / Flash courier integrations, webhook handling, rate comparison       |
+| `Waybills`    | `Modules\Waybills\`    | Courier shipment tracking, status transitions, claims, returns, SLA dashboard     |
+| `Leads`       | `Modules\Leads\`       | Lead lifecycle: pool status, cycles, distribution strategies, recycling, outcomes |
+| `Shop`        | `Modules\Shop\`        | Shop POS, courier CSV exports, Meta webhooks, conversations, gamification         |
+| `Finance`     | `Modules\Finance\`     | COD reconciliation, commission runs, invoicing, COGS, three-way matching          |
+| `Inventory`   | `Modules\Inventory\`   | Stock management, warehouses, movements, cycle counts, dead stock, reorder points |
+| `Orders`      | `Modules\Orders\`      | Order fulfillment, status management                                              |
+| `Procurement` | `Modules\Procurement\` | Purchase orders, GRNs, suppliers, three-way matching                              |
+| `Products`    | `Modules\Products\`    | Products, stock, inventory, families, barcode, valuation                          |
+| `Analytics`   | `Modules\Analytics\`   | Analytics service                                                                 |
+
+Each module may contain: `Models/`, `Enums/`, `Services/`, `Actions/`, `Jobs/`, `Listeners/`, `Http/Controllers/`, `Http/Middleware/`, `Contracts/`, `Strategies/`, `DTOs/`.
+
+**Note:** Controllers for most modules remain in `app/Http/Controllers/` (thin, delegate to module services). Routes remain in `routes/web.php` and `routes/api.php` (share middleware groups with main app). Only Couriers module has its own routes (courier management + webhooks). Module migrations are in `Modules/*/database/migrations/` and are auto-registered by `nwidart/laravel-modules`.
 
 ### Key Enums
 
@@ -80,7 +95,8 @@ All implement `ShouldQueue` on Redis:
 ### Dual Model Pattern
 
 Some domains have two model files:
-- `App\Domain\Lead\Models\Lead` — full domain model with scopes (e.g., `available()`), relationships, business methods
+
+- `Modules\Leads\Models\Lead` — full domain model with scopes (e.g., `available()`), relationships, business methods
 - `App\Models\Lead` — simpler Eloquent model for basic queries
 
 The domain model is the primary one used in controllers and services.
@@ -103,6 +119,7 @@ shadcn/ui components (Radix UI primitives) in `resources/js/components/ui/`. Ico
 ### Route Structure
 
 Routes split by role in `routes/web.php`:
+
 - `auth` middleware only — agent self-service portal (`/agent/*`, `/api/agent/*`)
 - `auth` + `role:supervisor,admin,superadmin` — all admin routes (`/`, `/waybills/*`, `/leads/*`, etc.)
 
@@ -119,6 +136,7 @@ Defined in `resources/js/types/index.ts` and `types/lead-pool.ts`. The `AgentLea
 **CI/CD**: GitHub Actions self-hosted runner deploys on push to `main` — `npm ci && npm run build → rsync → composer install --no-dev → migrate → cache rebuild → horizon:terminate`.
 
 **Manual deploy** (development server at 192.168.0.14):
+
 ```bash
 npm run build
 rsync -az --checksum public/build/ it-admin@192.168.0.14:/home/it-admin/actions-runner/_work/warehouseops-v5/warehouseops-v5/public/build/
@@ -132,6 +150,7 @@ rsync -az --checksum routes/ it-admin@192.168.0.14:...routes/
 Pest PHP with Laravel plugin. Tests in `tests/Unit/` and `tests/Feature/`. Uses SQLite in-memory for test database (`phpunit.xml`).
 
 Run a single test:
+
 ```bash
 php artisan test --filter=TestClassName
 # or
@@ -150,4 +169,5 @@ php artisan test --filter=TestClassName
 - **Upload stuck in processing** — reset with: `UPDATE uploads SET status='failed' WHERE id=X;`
 
 ## Cross-Reference
+
 Workspace-level domain rules, server info, and agent list: see `../CLAUDE.md` (tecc workspace).
