@@ -516,7 +516,7 @@ class WaybillImportController extends Controller
             return response()->json(['error' => 'Preview not available.'], 404);
         }
 
-        return response()->json($upload->errors ?? []);
+        return response()->json($upload->metadata['preview'] ?? []);
     }
 
     public function errorsDownload(Upload $upload)

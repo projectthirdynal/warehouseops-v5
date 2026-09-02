@@ -170,17 +170,12 @@ class GoogleSheetSyncService
             default => throw new \RuntimeException("Unsupported courier: {$courier}"),
         };
 
-        // J&T and Flash expect a file path — write rows to a temp CSV for them
-        // SPX import accepts array rows directly via importRows()
-        if ($import instanceof SpxWaybillFastImport) {
-            $import->importRows($rows);
-        } else {
-            $tempFile = $this->writeRowsToTempCsv($rows);
-            try {
-                $import->import($tempFile);
-            } finally {
-                @unlink($tempFile);
-            }
+        // All importers expect a file path — write rows to a temp CSV
+        $tempFile = $this->writeRowsToTempCsv($rows);
+        try {
+            $import->import($tempFile);
+        } finally {
+            @unlink($tempFile);
         }
 
         return [
