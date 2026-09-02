@@ -22,8 +22,7 @@
     "rap2hpoutre/fast-excel": "^5.6",
     "spatie/laravel-permission": "^6.4",
     "tightenco/ziggy": "^2.0",
-    "barryvdh/laravel-dompdf": "^3.0",
-    "google/apiclient": "^2.15"
+    "barryvdh/laravel-dompdf": "^3.0"
   },
   "require-dev": {
     "barryvdh/laravel-debugbar": "^3.10",
