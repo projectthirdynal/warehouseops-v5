@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Rap2hpoutre\FastExcel\FastExcel;
 
 /**
- * SPX Express (Shopee Express) import using array-based row input.
+ * SPX Express (Shopee Express) import from a CSV/Excel file path.
  *
- * Used by Google Sheet sync — rows come from the Sheets API as associative
- * arrays, not from a file. Column mapping covers SPX export headers plus
+ * Used by Google Sheet sync — the public sheet is downloaded as a CSV and
+ * streamed through FastExcel. Column mapping covers SPX export headers plus
  * common variants found in merchant Google Sheets.
  */
 class SpxWaybillFastImport
@@ -96,11 +96,10 @@ class SpxWaybillFastImport
     }
 
     /**
-     * Import rows from an array of associative arrays (from Google Sheets API).
-     *
-     * @param  array<int, array<string, mixed>>  $rows  Sheet rows with header keys
+     * Import from a CSV/Excel file path (for Google Sheet sync downloads).
+     * Streams rows through FastExcel and upserts in batches.
      */
-    public function importRows(array $rows): void
+    public function import(string $filePath): void
     {
         $batch = [];
         $rowNumber = 0;
@@ -108,11 +107,21 @@ class SpxWaybillFastImport
 
         $this->statusMapper = app(StatusMapper::class);
 
-        DB::statement('SET synchronous_commit = OFF');
+        $cancelled = false;
+        $cancelException = new \RuntimeException('__import_cancelled__');
 
         try {
-            foreach ($rows as $row) {
+            (new FastExcel)->import($filePath, function ($row) use (&$batch, &$rowNumber, &$cancelled, $now, $cancelException) {
                 $rowNumber++;
+
+                if ($rowNumber % 100 === 0) {
+                    if ($this->upload->fresh()->status === 'cancelled') {
+                        $this->successCount = max(0, $this->successCount - count($batch));
+                        $cancelled = true;
+                        $batch = [];
+                        throw $cancelException;
+                    }
+                }
 
                 try {
                     $data = $this->mapRow($row, $now);
@@ -130,17 +139,10 @@ class SpxWaybillFastImport
                 if (count($batch) >= $this->batchSize) {
                     $this->batchCount++;
 
-                    if ($this->batchCount % 10 === 0) {
-                        if ($this->upload->fresh()->status === 'cancelled') {
-                            $batch = [];
-
-                            continue;
-                        }
-                    }
-
                     $flushed = count($batch);
                     $currentBatch = $batch;
                     $batch = [];
+                    $successRowsToAdd = $flushed;
                     try {
                         $counts = $this->bulkUpsert($currentBatch);
                     } catch (\Throwable $e) {
@@ -148,11 +150,13 @@ class SpxWaybillFastImport
                             $this->errors[] = ['row' => $rowNumber, 'error' => $this->sanitizeDbError($e->getMessage())];
                         }
                         $this->errorCount += $flushed;
-                        $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
+                        $this->successCount = max(0, $this->successCount - $flushed);
+                        $successRowsToAdd = 0;
+                        $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => 0];
                     }
 
                     DB::table('uploads')->where('id', $this->upload->id)->update([
-                        'success_rows' => DB::raw("success_rows + {$flushed}"),
+                        'success_rows' => DB::raw("success_rows + {$successRowsToAdd}"),
                         'processed_rows' => DB::raw("processed_rows + {$flushed}"),
                         'inserted_rows' => DB::raw("inserted_rows + {$counts['inserted']}"),
                         'updated_rows' => DB::raw("updated_rows + {$counts['updated']}"),
@@ -160,52 +164,44 @@ class SpxWaybillFastImport
                         'total_rows' => DB::raw("CASE WHEN total_rows > {$rowNumber} THEN total_rows ELSE {$rowNumber} END"),
                     ]);
                 }
+            });
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() !== '__import_cancelled__') {
+                throw $e;
             }
-
-            if (! empty($batch)) {
-                $flushed = count($batch);
-                try {
-                    $counts = $this->bulkUpsert($batch);
-                } catch (\Throwable $e) {
-                    if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
-                        $this->errors[] = ['row' => 'final_batch', 'error' => $this->sanitizeDbError($e->getMessage())];
-                    }
-                    $this->errorCount += $flushed;
-                    $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => $flushed];
-                }
-                $totalRows = $this->successCount + $this->errorCount;
-                DB::table('uploads')->where('id', $this->upload->id)->update([
-                    'success_rows' => DB::raw("success_rows + {$flushed}"),
-                    'processed_rows' => DB::raw("processed_rows + {$flushed}"),
-                    'inserted_rows' => DB::raw("inserted_rows + {$counts['inserted']}"),
-                    'updated_rows' => DB::raw("updated_rows + {$counts['updated']}"),
-                    'skipped_rows' => DB::raw("skipped_rows + {$counts['skipped']}"),
-                    'total_rows' => DB::raw("CASE WHEN total_rows > {$totalRows} THEN total_rows ELSE {$totalRows} END"),
-                ]);
-            }
-
-            $finalTotal = $this->successCount + $this->errorCount;
-            DB::table('uploads')->where('id', $this->upload->id)->update([
-                'error_rows' => $this->errorCount,
-                'processed_rows' => DB::raw("CASE WHEN processed_rows > {$finalTotal} THEN processed_rows ELSE {$finalTotal} END"),
-                'total_rows' => DB::raw("CASE WHEN total_rows > {$finalTotal} THEN total_rows ELSE {$finalTotal} END"),
-            ]);
-        } finally {
-            DB::statement('SET synchronous_commit = ON');
         }
-    }
 
-    /**
-     * Import from a CSV/Excel file path (for Google Sheet sync downloads).
-     * Reads the file with FastExcel and delegates to importRows().
-     */
-    public function import(string $filePath): void
-    {
-        $rows = [];
-        (new FastExcel)->import($filePath, function ($row) use (&$rows) {
-            $rows[] = $row;
-        });
-        $this->importRows($rows);
+        if (! empty($batch)) {
+            $flushed = count($batch);
+            $successRowsToAdd = $flushed;
+            try {
+                $counts = $this->bulkUpsert($batch);
+            } catch (\Throwable $e) {
+                if (count($this->errors) < self::MAX_ERRORS_COLLECTED) {
+                    $this->errors[] = ['row' => 'final_batch', 'error' => $this->sanitizeDbError($e->getMessage())];
+                }
+                $this->errorCount += $flushed;
+                $this->successCount = max(0, $this->successCount - $flushed);
+                $successRowsToAdd = 0;
+                $counts = ['inserted' => 0, 'updated' => 0, 'skipped' => 0];
+            }
+            $totalRows = $this->successCount + $this->errorCount;
+            DB::table('uploads')->where('id', $this->upload->id)->update([
+                'success_rows' => DB::raw("success_rows + {$successRowsToAdd}"),
+                'processed_rows' => DB::raw("processed_rows + {$flushed}"),
+                'inserted_rows' => DB::raw("inserted_rows + {$counts['inserted']}"),
+                'updated_rows' => DB::raw("updated_rows + {$counts['updated']}"),
+                'skipped_rows' => DB::raw("skipped_rows + {$counts['skipped']}"),
+                'total_rows' => DB::raw("CASE WHEN total_rows > {$totalRows} THEN total_rows ELSE {$totalRows} END"),
+            ]);
+        }
+
+        $finalTotal = max($this->successCount + $this->errorCount, $rowNumber);
+        DB::table('uploads')->where('id', $this->upload->id)->update([
+            'error_rows' => $this->errorCount,
+            'processed_rows' => DB::raw("CASE WHEN processed_rows > {$finalTotal} THEN processed_rows ELSE {$finalTotal} END"),
+            'total_rows' => DB::raw("CASE WHEN total_rows > {$finalTotal} THEN total_rows ELSE {$finalTotal} END"),
+        ]);
     }
 
     protected function mapRow(array $row, string $now): ?array
@@ -258,9 +254,13 @@ class SpxWaybillFastImport
 
     protected function findValue(array $row, array $headers): mixed
     {
+        $rowKeys = array_keys($row);
         foreach ($headers as $header) {
-            if (isset($row[$header]) && $row[$header] !== '') {
-                return $row[$header];
+            $normalizedHeader = strtolower(trim((string) $header));
+            foreach ($rowKeys as $key) {
+                if (strtolower(trim((string) $key)) === $normalizedHeader && isset($row[$key]) && $row[$key] !== '') {
+                    return $row[$key];
+                }
             }
         }
 

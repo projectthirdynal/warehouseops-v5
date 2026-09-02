@@ -61,7 +61,6 @@ class WaybillImportController extends Controller
                     'month' => $c->month,
                     'data_year' => $c->data_year,
                     'sheet_url' => $c->sheet_url,
-                    'sheet_tab_name' => $c->sheet_tab_name,
                     'enabled' => $c->enabled,
                 ]),
         ]);
@@ -132,14 +131,12 @@ class WaybillImportController extends Controller
         $validated = $request->validate([
             'courier' => 'required|string|in:jnt,flash,spx',
             'sheet_url' => 'required|string|max:2000',
-            'sheet_tab_name' => 'nullable|string|max:200',
             'month' => 'nullable|string|max:50',
             'data_year' => 'nullable|integer',
         ]);
 
         $courier = $validated['courier'];
         $sheetUrl = $validated['sheet_url'];
-        $tabName = $validated['sheet_tab_name'] ?? null;
 
         // Extract spreadsheet ID from the URL
         $spreadsheetId = $this->extractSpreadsheetId($sheetUrl);
@@ -151,34 +148,79 @@ class WaybillImportController extends Controller
         $gid = $this->extractGid($sheetUrl);
 
         // Build the CSV export URL
-        $csvUrl = $this->buildCsvExportUrl($spreadsheetId, $gid, $tabName);
-        if (! $csvUrl) {
-            return response()->json(['error' => 'Could not build CSV export URL. Ensure the sheet is shared as "Anyone with the link — Viewer".'], 422);
-        }
+        $csvUrl = $this->buildCsvExportUrl($spreadsheetId, $gid);
 
-        // Download the CSV
+        // Download the CSV with a hard size cap and content-type guard
+        $maxBytes = 50 * 1024 * 1024;
+        $tempDir = storage_path('app/uploads/waybills');
+        $filename = 'gsheet_'.uniqid('', true).'_'.$courier.'.csv';
+        $tempPath = $tempDir.'/'.$filename;
+        $handle = null;
+        $stream = null;
+        $written = 0;
+        $success = false;
+        $error = null;
+
         try {
-            $response = Http::timeout(120)->get($csvUrl);
+            $response = Http::timeout(120)->withOptions(['stream' => true])->get($csvUrl);
+
             if (! $response->ok()) {
                 return response()->json(['error' => 'Failed to download Google Sheet. HTTP '.$response->status().'. Ensure the sheet is shared as "Anyone with the link — Viewer".'], 422);
             }
-            $csvContent = $response->body();
+
+            $contentType = strtolower((string) $response->header('Content-Type'));
+            if (! str_contains($contentType, 'csv') && ! str_contains($contentType, 'text/plain') && ! str_contains($contentType, 'application/octet-stream')) {
+                return response()->json(['error' => 'The URL did not return a CSV file. Make sure the sheet is shared as "Anyone with the link — Viewer".'], 422);
+            }
+
+            if (! is_dir($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            $stream = $response->toPsrResponse()->getBody();
+            $handle = fopen($tempPath, 'w');
+            if (! is_resource($handle)) {
+                throw new \RuntimeException('Could not open a temporary file for writing.');
+            }
+
+            while (! $stream->eof()) {
+                $chunk = $stream->read(8192);
+                if ($chunk === '') {
+                    break;
+                }
+
+                $written += strlen($chunk);
+                if ($written > $maxBytes) {
+                    throw new \RuntimeException('The Google Sheet CSV is too large (max '.($maxBytes / 1024 / 1024).' MB).');
+                }
+
+                if (fwrite($handle, $chunk) === false) {
+                    throw new \RuntimeException('Failed to write the downloaded CSV chunk to disk.');
+                }
+            }
+
+            if ($written === 0) {
+                throw new \RuntimeException('The Google Sheet appears to be empty.');
+            }
+
+            $success = true;
         } catch (\Throwable $e) {
-            return response()->json(['error' => 'Failed to download Google Sheet: '.$e->getMessage()], 422);
+            $error = $e->getMessage();
+        } finally {
+            if ($stream !== null) {
+                $stream->close();
+            }
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+            if (! $success && $tempPath !== null && file_exists($tempPath)) {
+                unlink($tempPath);
+            }
         }
 
-        if (empty(trim($csvContent))) {
-            return response()->json(['error' => 'The Google Sheet appears to be empty.'], 422);
+        if (! $success) {
+            return response()->json(['error' => 'Failed to download Google Sheet: '.$error], 422);
         }
-
-        // Save CSV to temp file
-        $tempDir = storage_path('app/uploads/waybills');
-        if (! is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
-        }
-        $filename = 'gsheet_'.time().'_'.$courier.'.csv';
-        $tempPath = $tempDir.'/'.$filename;
-        file_put_contents($tempPath, $csvContent);
 
         $fileHash = hash_file('sha256', $tempPath);
 
@@ -193,7 +235,6 @@ class WaybillImportController extends Controller
             ],
             [
                 'sheet_url' => $sheetUrl,
-                'sheet_tab_name' => $tabName,
                 'enabled' => true,
                 'updated_by' => $request->user()->id,
             ]
@@ -235,7 +276,6 @@ class WaybillImportController extends Controller
         $validated = $request->validate([
             'courier' => 'required|string|in:jnt,flash,spx',
             'sheet_url' => 'nullable|string|max:2000',
-            'sheet_tab_name' => 'nullable|string|max:200',
             'month' => 'nullable|string|max:50',
             'data_year' => 'nullable|integer',
             'enabled' => 'boolean',
@@ -252,7 +292,6 @@ class WaybillImportController extends Controller
             ],
             [
                 'sheet_url' => $validated['sheet_url'] ?? null,
-                'sheet_tab_name' => $validated['sheet_tab_name'] ?? null,
                 'enabled' => $validated['enabled'] ?? true,
                 'updated_by' => $request->user()->id,
             ]
@@ -289,7 +328,7 @@ class WaybillImportController extends Controller
      * Build the CSV export URL for a Google Sheet.
      * Uses the export endpoint which works for "Anyone with the link" shared sheets.
      */
-    private function buildCsvExportUrl(string $spreadsheetId, ?string $gid, ?string $tabName): ?string
+    private function buildCsvExportUrl(string $spreadsheetId, ?string $gid): string
     {
         $params = ['format' => 'csv'];
         if ($gid) {
@@ -317,9 +356,24 @@ class WaybillImportController extends Controller
             return response()->json(['valid' => false, 'errors' => ['File not found on server.']], 422);
         }
 
-        $requiredHeaders = $upload->courier === 'jnt'
-            ? ['Waybill Number', 'Order Status']
-            : ['Tracking No.', 'Status'];
+        $requiredHeaders = match ($upload->courier) {
+            'jnt' => [
+                'waybill_number' => ['Waybill Number', 'waybill_number'],
+                'status' => ['Order Status', 'order_status'],
+            ],
+            'spx' => [
+                'waybill_number' => ['Tracking Number', 'tracking_number', 'Tracking No', 'Tracking No.', 'Waybill Number', 'waybill_number'],
+                'status' => ['Status', 'status', 'Order Status', 'order_status', 'Parcel Status', 'parcel_status'],
+            ],
+            'flash' => [
+                'waybill_number' => ['Tracking Number', 'tracking_number', 'Tracking No', 'Tracking No.', 'Waybill Number', 'waybill_number'],
+                'status' => ['Status', 'status', 'Order Status', 'order_status'],
+            ],
+            default => [
+                'waybill_number' => ['Tracking Number', 'Waybill Number'],
+                'status' => ['Status', 'Order Status'],
+            ],
+        };
 
         $sampleRows = [];
         $detectedHeaders = [];
@@ -341,16 +395,18 @@ class WaybillImportController extends Controller
 
                 if ($rowCount === 1) {
                     $detectedHeaders = array_keys($row);
-                    foreach ($requiredHeaders as $required) {
+                    foreach ($requiredHeaders as $field => $aliases) {
                         $found = false;
-                        foreach ($detectedHeaders as $header) {
-                            if (strtolower(trim($header)) === strtolower(trim($required))) {
-                                $found = true;
-                                break;
+                        foreach ($aliases as $alias) {
+                            foreach ($detectedHeaders as $header) {
+                                if (strtolower(trim($header)) === strtolower(trim($alias))) {
+                                    $found = true;
+                                    break 2;
+                                }
                             }
                         }
                         if (! $found) {
-                            $missingHeaders[] = $required;
+                            $missingHeaders[] = $aliases[0];
                         }
                     }
                 }
@@ -359,8 +415,15 @@ class WaybillImportController extends Controller
                     $sampleRows[] = $row;
                 }
 
-                $waybill = $row['Waybill Number'] ?? $row['Tracking No.'] ?? null;
-                if ($waybill) {
+                $waybill = null;
+                foreach ($requiredHeaders['waybill_number'] as $alias) {
+                    if (isset($row[$alias]) && $row[$alias] !== '') {
+                        $waybill = $row[$alias];
+                        break;
+                    }
+                }
+
+                if ($waybill !== null && $waybill !== '') {
                     $waybill = trim((string) $waybill);
                     if (isset($seenWaybills[$waybill])) {
                         $duplicates[] = $waybill;
@@ -400,11 +463,8 @@ class WaybillImportController extends Controller
             'duplicate_waybills_count' => count(array_unique($duplicates)),
         ];
 
-        // errors column reused to store preview data at ready_to_process state; cleared when job starts
-        $upload->update([
-            'status' => Upload::STATUS_READY_TO_PROCESS,
-            'errors' => $preview,
-        ]);
+        $upload->markAsReadyToProcess();
+        $upload->update(['metadata' => ['preview' => $preview]]);
 
         return response()->json([
             'valid' => true,

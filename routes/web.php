@@ -67,7 +67,6 @@ use App\Http\Controllers\StockDashboardController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplyController;
-use App\Http\Controllers\TelesalesLeadImportController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\UnknownWaybillController;
 use App\Http\Controllers\WarehouseController;
@@ -1187,14 +1186,6 @@ Route::middleware(['auth', 'role:superadmin,admin,supervisor'])->group(function 
         Route::get('/import', [LeadImportController::class, 'create'])->name('import');
         Route::post('/import', [LeadImportController::class, 'store'])->name('import.store');
         Route::post('/import/preview', [LeadImportController::class, 'preview'])->name('import.preview');
-    });
-
-    // Telesales Import
-    Route::prefix('telesales')->name('telesales.')->group(function () {
-        Route::get('/import', [TelesalesLeadImportController::class, 'create'])->name('import.create');
-        Route::post('/import', [TelesalesLeadImportController::class, 'store'])->name('import.store');
-        Route::post('/import/preview', [TelesalesLeadImportController::class, 'preview'])->name('import.preview');
-        Route::post('/import/columns', [TelesalesLeadImportController::class, 'columns'])->name('import.columns');
     });
 
     // Distribution Engine
