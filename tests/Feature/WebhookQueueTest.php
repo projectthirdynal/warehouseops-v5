@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Jobs\ProcessMetaWebhookEvent;
-use App\Domain\Shop\Models\FacebookPage;
-use App\Domain\Shop\Models\FacebookWebhookEvent;
-use App\Domain\Shop\Services\MetaConversationIngestor;
+use Modules\Shop\Jobs\ProcessMetaWebhookEvent;
+use Modules\Shop\Models\FacebookPage;
+use Modules\Shop\Models\FacebookWebhookEvent;
+use Modules\Shop\Services\MetaConversationIngestor;
 use Illuminate\Support\Facades\Queue;
 
 it('dispatches job for webhook event processing', function () {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Http\Controllers;
 
-use App\Domain\Shop\Models\ShippingRate;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +16,7 @@ use Modules\Couriers\Models\CourierApiLog;
 use Modules\Couriers\Models\CourierProvider;
 use Modules\Couriers\Services\CourierServiceManager;
 use Modules\Couriers\Services\RateComparisonService;
+use Modules\Shop\Models\ShippingRate;
 
 class CourierProviderController
 {

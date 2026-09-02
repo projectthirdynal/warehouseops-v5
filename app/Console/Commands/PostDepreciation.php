@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Services\DepreciationAutomationService;
+use Modules\Inventory\Services\DepreciationAutomationService;
 use Illuminate\Console\Command;
 
 class PostDepreciation extends Command

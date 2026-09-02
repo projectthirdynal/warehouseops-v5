@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Finance\Models\AgentCommission;
-use App\Domain\Finance\Models\CommissionRun;
-use App\Domain\Finance\Services\CommissionService;
+use Modules\Finance\Models\AgentCommission;
+use Modules\Finance\Models\CommissionRun;
+use Modules\Finance\Services\CommissionService;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Console\Command;

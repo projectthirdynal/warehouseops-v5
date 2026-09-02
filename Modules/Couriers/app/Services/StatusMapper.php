@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
 use Illuminate\Support\Facades\Log;
+use Modules\Waybills\Enums\WaybillStatus;
 
 class StatusMapper
 {

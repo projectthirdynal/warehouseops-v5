@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Domain\Shop\Models\FacebookPage;
+use Modules\Shop\Models\FacebookPage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;

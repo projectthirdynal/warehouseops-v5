@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Waybill\Enums\WaybillStatus;
+use Modules\Waybills\Enums\WaybillStatus;
 
 /**
  * Mock courier status map — maps internal status strings directly.

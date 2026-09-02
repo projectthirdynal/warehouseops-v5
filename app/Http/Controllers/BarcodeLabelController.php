@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Services\BarcodeLabelService;
+use Modules\Inventory\Services\BarcodeLabelService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

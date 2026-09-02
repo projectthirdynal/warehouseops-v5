@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Services\ReorderPointAlertService;
+use Modules\Inventory\Services\ReorderPointAlertService;
 use Illuminate\Console\Command;
 
 class CheckReorderPoints extends Command

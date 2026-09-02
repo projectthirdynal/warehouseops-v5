@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Waybill\Enums\WaybillStatus;
+use Modules\Waybills\Enums\WaybillStatus;
 
 /**
  * Flash Express PH official parcel state codes.

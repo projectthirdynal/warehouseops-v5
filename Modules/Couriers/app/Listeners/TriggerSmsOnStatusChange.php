@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Listeners;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Services\SmsSequenceService;
 use Modules\Couriers\Events\TrackingStatusUpdated;
+use Modules\Waybills\Enums\WaybillStatus;
 
 class TriggerSmsOnStatusChange
 {

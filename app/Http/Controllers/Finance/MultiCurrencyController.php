@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Finance;
 
-use App\Domain\Finance\Services\MultiCurrencyService;
+use Modules\Finance\Services\MultiCurrencyService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;

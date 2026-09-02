@@ -1,5 +1,12 @@
 {
   "Couriers": true,
   "Waybills": true,
-  "Leads": true
+  "Leads": true,
+  "Analytics": true,
+  "Finance": true,
+  "Inventory": true,
+  "Orders": true,
+  "Procurement": true,
+  "Products": true,
+  "Shop": true
 }

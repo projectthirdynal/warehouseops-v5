@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
-use App\Domain\Order\Models\Order;
+use Modules\Orders\Models\Order;
 use App\Jobs\RecalculateCustomerStats;
 
 class OrderObserver

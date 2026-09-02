@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Services\WebhookEventKeyGenerator;
+use Modules\Shop\Services\WebhookEventKeyGenerator;
 
 it('generates same key for same payload with message mid', function () {
     $payload = [

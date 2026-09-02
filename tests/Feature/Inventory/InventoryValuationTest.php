@@ -1,11 +1,11 @@
 <?php
 
-use App\Domain\Inventory\Models\StockCostLot;
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\SupplyStock;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
+use Modules\Inventory\Models\StockCostLot;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\SupplyStock;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;

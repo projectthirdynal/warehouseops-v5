@@ -1,12 +1,12 @@
 <?php
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\DemandForecastService;
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Models\ProductStock;
-use App\Domain\Shop\Models\ShopOrderItem;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\DemandForecastService;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Products\Models\Product;
+use Modules\Products\Models\ProductStock;
+use Modules\Shop\Models\ShopOrderItem;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 

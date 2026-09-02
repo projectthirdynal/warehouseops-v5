@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Models\WarehouseLocation;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Models\WarehouseLocation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

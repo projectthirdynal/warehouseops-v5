@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Domain\Finance\Models\ThreeWayMatch;
-use App\Domain\Procurement\Models\PurchaseOrder;
+use Modules\Finance\Models\ThreeWayMatch;
+use Modules\Procurement\Models\PurchaseOrder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

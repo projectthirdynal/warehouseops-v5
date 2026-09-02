@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Waybill\Enums\WaybillStatus;
+use Modules\Waybills\Enums\WaybillStatus;
 
 return [
     // scanType values from J&T Open API webhooks/tracking

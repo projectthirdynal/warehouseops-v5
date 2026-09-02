@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Shop\Http\Controllers\MetaWebhookController;
+use Modules\Shop\Http\Controllers\MetaWebhookController;
 use App\Http\Controllers\AgentLeadController;
 use App\Http\Controllers\DesktopApiController;
 use App\Http\Controllers\WaybillStreamingImportController;

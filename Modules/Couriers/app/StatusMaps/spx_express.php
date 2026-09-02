@@ -1,6 +1,6 @@
 <?php
 
-use App\Domain\Waybill\Enums\WaybillStatus;
+use Modules\Waybills\Enums\WaybillStatus;
 
 return [
     // SPX Express (Shopee Express) status labels from exports and Google Sheets

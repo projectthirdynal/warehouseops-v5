@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Domain\Finance\Services\CogsDashboardService;
+use Modules\Finance\Services\CogsDashboardService;
 use Illuminate\Console\Command;
 
 class GenerateCogsDailySummary extends Command

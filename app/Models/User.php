@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use App\Domain\Shop\Models\AgentBadge;
-use App\Domain\Shop\Models\AgentMilestone;
-use App\Domain\Shop\Models\AgentStreak;
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\FacebookPage;
+use Modules\Shop\Models\AgentBadge;
+use Modules\Shop\Models\AgentMilestone;
+use Modules\Shop\Models\AgentStreak;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\FacebookPage;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;

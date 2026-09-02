@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Http\Controllers;
 
-use App\Domain\Waybill\Services\DeliveryProofService;
 use App\Models\Waybill;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +12,7 @@ use Modules\Couriers\Events\TrackingStatusUpdated;
 use Modules\Couriers\Models\CourierApiLog;
 use Modules\Couriers\Models\CourierProvider;
 use Modules\Couriers\Services\CourierServiceManager;
+use Modules\Waybills\Services\DeliveryProofService;
 
 class CourierWebhookController
 {
@@ -52,7 +52,7 @@ class CourierWebhookController
 
         if (! $isTerminal && $currentStatus !== $payload->mappedStatus->value) {
             // Use domain model for status update (creates tracking history)
-            $domainWaybill = \App\Domain\Waybill\Models\Waybill::find($waybill->id);
+            $domainWaybill = \Modules\Waybills\Models\Waybill::find($waybill->id);
             $domainWaybill->updateStatus($payload->mappedStatus, $payload->reason);
 
             // Append location + raw_data to the tracking history entry
@@ -78,7 +78,7 @@ class CourierWebhookController
         $proofService = app(DeliveryProofService::class);
         $proofs = $proofService->extractProofsFromWebhook($request->all());
         if (! empty($proofs)) {
-            $domainWaybill = $domainWaybill ?? \App\Domain\Waybill\Models\Waybill::find($waybill->id);
+            $domainWaybill = $domainWaybill ?? \Modules\Waybills\Models\Waybill::find($waybill->id);
             foreach ($proofs as $proofData) {
                 $proofService->storeFromCourierCallback($domainWaybill, strtoupper($courier), $proofData);
             }

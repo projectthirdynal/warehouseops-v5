@@ -1,7 +1,7 @@
 <?php
 
-use App\Domain\Finance\Models\QboSyncQueue;
-use App\Domain\Finance\Services\QboSyncService;
+use Modules\Finance\Models\QboSyncQueue;
+use Modules\Finance\Services\QboSyncService;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\InvoicePayment;

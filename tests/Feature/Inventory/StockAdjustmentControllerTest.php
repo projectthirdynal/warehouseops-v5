@@ -1,9 +1,9 @@
 <?php
 
-use App\Domain\Inventory\Models\StockAdjustment;
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\SupplyStock;
-use App\Domain\Inventory\Models\Warehouse;
+use Modules\Inventory\Models\StockAdjustment;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\SupplyStock;
+use Modules\Inventory\Models\Warehouse;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;

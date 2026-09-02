@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Domain\Shop\Services\CustomerRiskService;
+use Modules\Shop\Services\CustomerRiskService;
 use App\Models\Customer;
 use Illuminate\Database\Seeder;
 

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\WarehouseLocation;
-use App\Domain\Procurement\Enums\GrnStatus;
-use App\Domain\Procurement\Enums\PoStatus;
-use App\Domain\Procurement\Models\PurchaseOrder;
-use App\Domain\Procurement\Models\ReceivingReport;
-use App\Domain\Procurement\Services\ProcurementService;
+use Modules\Inventory\Models\WarehouseLocation;
+use Modules\Procurement\Enums\GrnStatus;
+use Modules\Procurement\Enums\PoStatus;
+use Modules\Procurement\Models\PurchaseOrder;
+use Modules\Procurement\Models\ReceivingReport;
+use Modules\Procurement\Services\ProcurementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

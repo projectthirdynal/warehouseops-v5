@@ -1,8 +1,8 @@
 <?php
 
-use App\Domain\Finance\Models\Currency;
-use App\Domain\Finance\Models\ExchangeRate;
-use App\Domain\Finance\Services\MultiCurrencyService;
+use Modules\Finance\Models\Currency;
+use Modules\Finance\Models\ExchangeRate;
+use Modules\Finance\Services\MultiCurrencyService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\VerifyCsrfToken;

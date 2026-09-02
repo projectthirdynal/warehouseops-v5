@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Finance\Jobs\QboSyncJob;
-use App\Domain\Finance\Models\QboAccountMapping;
-use App\Domain\Finance\Models\QboConnection;
-use App\Domain\Finance\Models\QboSyncQueue;
-use App\Domain\Finance\Services\QboClient;
-use App\Domain\Finance\Services\QboSyncService;
+use Modules\Finance\Jobs\QboSyncJob;
+use Modules\Finance\Models\QboAccountMapping;
+use Modules\Finance\Models\QboConnection;
+use Modules\Finance\Models\QboSyncQueue;
+use Modules\Finance\Services\QboClient;
+use Modules\Finance\Services\QboSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;

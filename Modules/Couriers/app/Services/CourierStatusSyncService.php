@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Services;
 
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Order\Services\OrderFulfillmentService;
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\Message;
-use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Models\SiteSetting;
 use App\Models\Waybill;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\Couriers\Models\CourierSyncLog;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Orders\Services\OrderFulfillmentService;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\Message;
+use Modules\Waybills\Enums\WaybillStatus;
 
 class CourierStatusSyncService
 {

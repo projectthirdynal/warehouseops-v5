@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use Modules\Leads\Models\Lead;
-use App\Domain\Order\Models\Order;
+use Modules\Orders\Models\Order;
 use App\Models\LeadCycle;
 use App\Models\LeadLog;
 use App\Models\LeadPoolAudit;

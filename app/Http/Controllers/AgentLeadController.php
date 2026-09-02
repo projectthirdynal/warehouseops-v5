@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use Modules\Leads\Enums\LeadOutcome;
 use Modules\Leads\Enums\PoolStatus;
 use Modules\Leads\Models\Lead;
-use App\Domain\Shop\Services\GamificationService;
+use Modules\Shop\Services\GamificationService;
 use App\Http\Resources\AgentLeadResource;
 use App\Models\CoachingNote;
 use App\Models\LeadCycle;

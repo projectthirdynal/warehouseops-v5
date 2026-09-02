@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Services\CustomerIdentityService;
+use Modules\Shop\Services\CustomerIdentityService;
 use App\Models\Customer;
 
 it('finds customer by normalized phone', function () {

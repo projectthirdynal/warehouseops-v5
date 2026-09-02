@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Services\ConversationArchiveService;
+use Modules\Shop\Services\ConversationArchiveService;
 use Illuminate\Console\Command;
 
 class ArchiveStaleConversations extends Command

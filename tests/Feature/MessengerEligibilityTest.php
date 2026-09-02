@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Services\MessengerEligibilityService;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Services\MessengerEligibilityService;
 use Carbon\Carbon;
 
 it('allows response within 24 hour window', function () {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Inventory\Services\InventoryValuationService;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\InventoryValuationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\StockAdjustment;
-use App\Domain\Inventory\Models\Supply;
-use App\Domain\Inventory\Models\SupplyStock;
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Procurement\Enums\PoStatus;
-use App\Domain\Procurement\Enums\PrStatus;
-use App\Domain\Procurement\Models\PurchaseOrder;
-use App\Domain\Procurement\Models\PurchaseRequest;
+use Modules\Inventory\Models\StockAdjustment;
+use Modules\Inventory\Models\Supply;
+use Modules\Inventory\Models\SupplyStock;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Procurement\Enums\PoStatus;
+use Modules\Procurement\Enums\PrStatus;
+use Modules\Procurement\Models\PurchaseOrder;
+use Modules\Procurement\Models\PurchaseRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;

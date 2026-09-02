@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Order\Enums\OrderStatus;
-use App\Domain\Order\Models\Order;
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\Message;
-use App\Domain\Shop\Models\OrderRemark;
+use Modules\Orders\Enums\OrderStatus;
+use Modules\Orders\Models\Order;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\Message;
+use Modules\Shop\Models\OrderRemark;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 

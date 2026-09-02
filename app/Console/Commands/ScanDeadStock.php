@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Services\DeadStockScanService;
+use Modules\Inventory\Services\DeadStockScanService;
 use Illuminate\Console\Command;
 
 class ScanDeadStock extends Command

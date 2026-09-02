@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Inventory\Models\Warehouse;
-use App\Domain\Product\Models\Product;
-use App\Domain\Product\Services\InventoryService;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Products\Models\Product;
+use Modules\Products\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;

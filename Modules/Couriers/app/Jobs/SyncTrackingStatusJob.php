@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\Jobs;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
 use App\Models\SiteSetting;
 use App\Models\Waybill;
 use Illuminate\Bus\Queueable;
@@ -18,6 +17,7 @@ use Modules\Couriers\DTOs\WebhookPayloadDTO;
 use Modules\Couriers\Events\TrackingStatusUpdated;
 use Modules\Couriers\Services\CourierServiceManager;
 use Modules\Couriers\Services\CourierStatusSyncService;
+use Modules\Waybills\Enums\WaybillStatus;
 
 class SyncTrackingStatusJob implements ShouldQueue
 {
@@ -151,7 +151,7 @@ class SyncTrackingStatusJob implements ShouldQueue
         }
 
         // Use domain model for consistent tracking history creation
-        $domainWaybill = \App\Domain\Waybill\Models\Waybill::find($waybill->id);
+        $domainWaybill = \Modules\Waybills\Models\Waybill::find($waybill->id);
         $domainWaybill->updateStatus($result->mappedStatus);
 
         // Append location + raw_data to tracking history

@@ -1,0 +1,353 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Shop\CourierCsv;
+
+use Illuminate\Support\Collection;
+use Modules\Orders\Models\Order;
+use Modules\Shop\Models\CourierExportRow;
+
+/**
+ * Validates orders and export rows against a courier CSV schema.
+ */
+final class CourierCsvValidator
+{
+    public function __construct(
+        private readonly CourierCsvSchemaRegistry $schemas,
+        private readonly CourierCsvPhoneValidator $phoneValidator,
+        private readonly CourierCsvCodValidator $codValidator,
+        private readonly CourierCsvAddressValidator $addressValidator,
+        private readonly CourierCsvWeightDimensionValidator $weightDimensionValidator,
+        private readonly CourierCsvCorrectionSuggester $suggester,
+    ) {}
+
+    /**
+     * Validate a collection of orders against the schema's required columns.
+     *
+     * @param  Collection<int, Order>  $orders
+     * @return array{
+     *     valid: bool,
+     *     total: int,
+     *     valid_count: int,
+     *     invalid_count: int,
+     *     schema: string,
+     *     courier_code: string,
+     *     required_columns: array<int, string>,
+     *     column_count: int,
+     *     orders: array<int, array{
+     *         order_id: int,
+     *         order_number: string,
+     *         receiver_name: string,
+     *         valid: bool,
+     *         missing_columns: array<int, string>,
+     *         missing_fields: array<int, array{column: string, field: string, value: mixed}>
+     *     }>
+     * }
+     */
+    public function validateOrders(Collection $orders, string $courierCode): array
+    {
+        $schema = $this->schemas->resolve($courierCode);
+        $requiredColumns = $schema->requiredFields();
+        $results = [];
+        $validCount = 0;
+
+        foreach ($orders as $order) {
+            $missingFields = [];
+            $missingColumns = [];
+
+            foreach ($requiredColumns as $field => $label) {
+                $value = $this->resolveOrderFieldValue($order, $field);
+                $error = $this->getFieldError($value, $field, $courierCode, $order);
+
+                if ($error !== null) {
+                    $missingColumns[] = $label;
+                    $missingFields[] = [
+                        'column' => $label,
+                        'field' => $field,
+                        'value' => $value,
+                        'error' => $error,
+                    ];
+                }
+            }
+
+            $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
+            $weightValidation = $this->weightDimensionValidator->validateOrder($order, $courierCode);
+
+            $isValid = $missingColumns === [] && $addressValidation['valid'] && $weightValidation['valid'];
+            if ($isValid) {
+                $validCount++;
+            }
+
+            $results[] = [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'receiver_name' => $order->receiver_name,
+                'valid' => $isValid,
+                'missing_columns' => $missingColumns,
+                'missing_fields' => $missingFields,
+                'address_errors' => $addressValidation['errors'],
+                'weight_errors' => $weightValidation['errors'],
+                'weight_kg' => $weightValidation['weight_kg'],
+                'suggestions' => $isValid ? [] : $this->suggester->suggestForOrder($order, $courierCode),
+            ];
+        }
+
+        return [
+            'valid' => $validCount === $orders->count(),
+            'total' => $orders->count(),
+            'valid_count' => $validCount,
+            'invalid_count' => $orders->count() - $validCount,
+            'schema' => $schema->name,
+            'courier_code' => $schema->courierCode,
+            'required_columns' => array_values($requiredColumns),
+            'column_count' => $schema->columnCount(),
+            'orders' => $results,
+        ];
+    }
+
+    /**
+     * Validate a collection of export rows against the schema's required columns.
+     *
+     * @param  Collection<int, CourierExportRow>  $rows
+     * @return array{
+     *     valid: bool,
+     *     total: int,
+     *     valid_count: int,
+     *     invalid_count: int,
+     *     rows: array<int, array{
+     *         row_id: int,
+     *         row_number: int,
+     *         order_id: int,
+     *         receiver_name: string,
+     *         valid: bool,
+     *         missing_columns: array<int, string>
+     *     }>
+     * }
+     */
+    public function validateRows(Collection $rows, string $courierCode): array
+    {
+        $schema = $this->schemas->resolve($courierCode);
+        $requiredColumns = $schema->requiredFields();
+        $results = [];
+        $validCount = 0;
+
+        foreach ($rows as $row) {
+            $missingColumns = [];
+            $missingFields = [];
+
+            foreach ($requiredColumns as $field => $label) {
+                $value = $this->resolveRowFieldValue($row, $field);
+                $error = $this->getFieldError($value, $field, $courierCode, $row);
+
+                if ($error !== null) {
+                    $missingColumns[] = $label;
+                    $missingFields[] = [
+                        'column' => $label,
+                        'field' => $field,
+                        'value' => $value,
+                        'error' => $error,
+                    ];
+                }
+            }
+
+            $addressValidation = $this->addressValidator->validateRow($row, $courierCode);
+            $weightValidation = $this->weightDimensionValidator->validateRow($row, $courierCode);
+
+            $isValid = $missingColumns === [] && $addressValidation['valid'] && $weightValidation['valid'];
+            if ($isValid) {
+                $validCount++;
+            }
+
+            $results[] = [
+                'row_id' => $row->id,
+                'row_number' => $row->row_number,
+                'order_id' => $row->order_id,
+                'receiver_name' => $row->receiver_name,
+                'valid' => $isValid,
+                'missing_columns' => $missingColumns,
+                'missing_fields' => $missingFields,
+                'address_errors' => $addressValidation['errors'],
+                'weight_errors' => $weightValidation['errors'],
+                'weight_kg' => $weightValidation['weight_kg'],
+                'suggestions' => $isValid ? [] : $this->suggester->suggestForRow($row, $courierCode),
+            ];
+        }
+
+        return [
+            'valid' => $validCount === $rows->count(),
+            'total' => $rows->count(),
+            'valid_count' => $validCount,
+            'invalid_count' => $rows->count() - $validCount,
+            'row_errors' => array_values(array_filter($results, fn ($row) => ! $row['valid'])),
+            'rows' => $results,
+        ];
+    }
+
+    /**
+     * Validate that the schema itself has all required columns defined.
+     *
+     * @return array{valid: bool, issues: array<int, string>}
+     */
+    public function validateSchemaIntegrity(string $courierCode): array
+    {
+        $schema = $this->schemas->resolve($courierCode);
+        $issues = [];
+
+        if ($schema->columnCount() === 0) {
+            $issues[] = "Schema for {$schema->courierCode} has no columns defined.";
+        }
+
+        $requiredCount = count($schema->requiredFields());
+        if ($requiredCount === 0) {
+            $issues[] = "Schema for {$schema->courierCode} has no required columns.";
+        }
+
+        $fields = $schema->fields();
+        $duplicates = array_diff_assoc($fields, array_unique($fields));
+        if (! empty($duplicates)) {
+            $issues[] = 'Duplicate field mappings: '.implode(', ', array_unique($duplicates));
+        }
+
+        return [
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * Get a summary of errors for throwing ValidationException.
+     *
+     * @param  Collection<int, Order>  $orders
+     * @return array<int, string>
+     */
+    public function getExportBlockingErrors(Collection $orders, string $courierCode): array
+    {
+        $schema = $this->schemas->resolve($courierCode);
+        $requiredColumns = $schema->requiredFields();
+        $errors = [];
+
+        foreach ($orders as $order) {
+            $missing = [];
+
+            foreach ($requiredColumns as $field => $label) {
+                $value = $this->resolveOrderFieldValue($order, $field);
+                $error = $this->getFieldError($value, $field, $courierCode, $order);
+
+                if ($error !== null) {
+                    $missing[] = "{$label} ({$error})";
+                }
+            }
+
+            $addressValidation = $this->addressValidator->validateOrder($order, $courierCode);
+            foreach ($addressValidation['errors'] as $addressError) {
+                $missing[] = "Address: {$addressError}";
+            }
+
+            $weightValidation = $this->weightDimensionValidator->validateOrder($order, $courierCode);
+            foreach ($weightValidation['errors'] as $weightError) {
+                $missing[] = "Weight: {$weightError}";
+            }
+
+            if ($missing !== []) {
+                $errors[] = "{$order->order_number}: ".implode(', ', $missing);
+            }
+        }
+
+        return $errors;
+    }
+
+    private function getFieldError(mixed $value, string $field, string $courierCode, Order|CourierExportRow|null $model = null): ?string
+    {
+        if ($field === 'phone_number' || $field === 'sender_phone') {
+            $validation = $this->phoneValidator->validate($value, $courierCode);
+
+            return $validation['valid'] ? null : $validation['error'];
+        }
+
+        if ($field === 'cod_amount') {
+            if ($model instanceof Order) {
+                $validation = $this->codValidator->validateOrder($model, $courierCode);
+            } elseif ($model instanceof CourierExportRow) {
+                $validation = $this->codValidator->validateRow($model, $courierCode);
+            }
+
+            if (isset($validation) && ! $validation['valid']) {
+                return $validation['error'];
+            }
+        }
+
+        if (blank($value)) {
+            return 'This field is required.';
+        }
+
+        if (is_numeric($value) && (float) $value <= 0 && $field !== 'cod_amount') {
+            return 'Value must be greater than 0.';
+        }
+
+        return null;
+    }
+
+    private function isInvalidValue(mixed $value, string $field, string $courierCode): bool
+    {
+        return $this->getFieldError($value, $field, $courierCode) !== null;
+    }
+
+    private function resolveOrderFieldValue(Order $order, string $field): mixed
+    {
+        return match ($field) {
+            'order_number' => $order->order_number,
+            'receiver_name' => $order->receiver_name,
+            'phone_number' => $order->receiver_phone,
+            'complete_address' => $order->receiver_address,
+            'province' => $order->state,
+            'city' => $order->city,
+            'barangay' => $order->barangay,
+            'product_name' => $order->relationLoaded('shopItems') && $order->shopItems->isNotEmpty()
+                ? $order->shopItems->map(fn ($item) => "{$item->product_name} x{$item->quantity}")->implode(', ')
+                : $order->product?->name,
+            'quantity' => $order->relationLoaded('shopItems') && $order->shopItems->isNotEmpty()
+                ? (int) $order->shopItems->sum('quantity')
+                : (int) $order->quantity,
+            'cod_amount' => $order->cod_amount,
+            'remarks' => $order->notes,
+            'sender_name' => (string) config('services.shop.sender_name'),
+            'sender_phone' => (string) config('services.shop.sender_phone'),
+            'sender_address' => (string) config('services.shop.sender_address'),
+            'sender_province' => (string) config('services.shop.sender_province'),
+            'sender_city' => (string) config('services.shop.sender_city'),
+            default => null,
+        };
+    }
+
+    /**
+     * Normalize a phone number to the courier-preferred 09-prefixed 11-digit format.
+     */
+    public function normalizePhone(?string $phone): ?string
+    {
+        return $this->phoneValidator->normalize($phone);
+    }
+
+    private function resolveRowFieldValue(CourierExportRow $row, string $field): mixed
+    {
+        return match ($field) {
+            'order_number' => $row->order?->order_number ?? $row->order_id,
+            'receiver_name' => $row->receiver_name,
+            'phone_number' => $row->phone_number,
+            'complete_address' => $row->complete_address,
+            'province' => $row->province,
+            'city' => $row->city,
+            'barangay' => $row->barangay,
+            'product_name' => $row->product_name,
+            'quantity' => $row->quantity,
+            'cod_amount' => $row->cod_amount,
+            'remarks' => $row->remarks,
+            'sender_name' => (string) config('services.shop.sender_name'),
+            'sender_phone' => (string) config('services.shop.sender_phone'),
+            'sender_address' => (string) config('services.shop.sender_address'),
+            'sender_province' => (string) config('services.shop.sender_province'),
+            'sender_city' => (string) config('services.shop.sender_city'),
+            default => null,
+        };
+    }
+}

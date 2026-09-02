@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Waybills\Services;
 
-use App\Domain\Order\Models\Order;
-use App\Domain\Product\Services\InventoryService;
 use App\Models\User;
 use App\Notifications\ReturnProcessedNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Modules\Orders\Models\Order;
+use Modules\Products\Services\InventoryService;
 use Modules\Waybills\Models\ReturnReceipt;
 use Modules\Waybills\Models\Waybill;
 

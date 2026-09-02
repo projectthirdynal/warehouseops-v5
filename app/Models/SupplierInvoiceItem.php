@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Domain\Procurement\Models\PurchaseOrderItem;
-use App\Domain\Product\Models\Product;
+use Modules\Procurement\Models\PurchaseOrderItem;
+use Modules\Products\Models\Product;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

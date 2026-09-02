@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Resources;
 
-use App\Domain\Customer\Models\Customer;
+use App\Models\Customer;
 use Modules\Leads\Enums\PoolStatus;
 use Modules\Leads\Models\Lead;
 use App\Http\Resources\AgentLeadResource;

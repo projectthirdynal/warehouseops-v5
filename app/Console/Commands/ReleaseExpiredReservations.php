@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Inventory\Models\StockReservation;
-use App\Domain\Inventory\Services\StockService;
+use Modules\Inventory\Models\StockReservation;
+use Modules\Inventory\Services\StockService;
 use Illuminate\Console\Command;
 
 class ReleaseExpiredReservations extends Command

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Services\GamificationService;
+use Modules\Shop\Services\GamificationService;
 use Illuminate\Console\Command;
 
 class CheckGamification extends Command

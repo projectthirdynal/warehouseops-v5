@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Domain\Shop\Http\Controllers\MetaWebhookController;
-use App\Domain\Shop\Models\FacebookPage;
-use App\Domain\Shop\Models\FacebookWebhookEvent;
+use Modules\Shop\Http\Controllers\MetaWebhookController;
+use Modules\Shop\Models\FacebookPage;
+use Modules\Shop\Models\FacebookWebhookEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Queue;

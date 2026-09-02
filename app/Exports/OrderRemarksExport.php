@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exports;
 
-use App\Domain\Shop\Models\OrderRemark;
+use Modules\Shop\Models\OrderRemark;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;

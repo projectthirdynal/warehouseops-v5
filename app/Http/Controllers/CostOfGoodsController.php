@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Finance\Models\CogsEntry;
-use App\Domain\Finance\Services\CogsDashboardService;
+use Modules\Finance\Models\CogsEntry;
+use Modules\Finance\Services\CogsDashboardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;

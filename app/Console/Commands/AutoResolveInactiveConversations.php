@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Shop\Models\Conversation;
-use App\Domain\Shop\Models\ConversationStatusHistory;
+use Modules\Shop\Models\Conversation;
+use Modules\Shop\Models\ConversationStatusHistory;
 use App\Events\ConversationStatusChanged;
 use App\Models\SiteSetting;
 use Illuminate\Console\Command;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
-use App\Domain\Shop\Models\CourierExportBatch;
+use Modules\Shop\Models\CourierExportBatch;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;

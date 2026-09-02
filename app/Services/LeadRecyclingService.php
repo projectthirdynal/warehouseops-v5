@@ -4,7 +4,7 @@ namespace App\Services;
 
 use Modules\Leads\Enums\LeadOutcome;
 use Modules\Leads\Models\Lead;
-use App\Domain\Order\Services\OrderFulfillmentService;
+use Modules\Orders\Services\OrderFulfillmentService;
 use App\Models\LeadCycle;
 use App\Models\RecyclingRule;
 use App\Models\User;

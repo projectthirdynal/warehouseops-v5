@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Couriers\DTOs;
 
-use App\Domain\Waybill\Enums\WaybillStatus;
+use Modules\Waybills\Enums\WaybillStatus;
 
 final readonly class TrackingResultDTO
 {
